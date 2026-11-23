@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
-import { frogPost, frogSprite, lamplight, reportedRobinBuild, robinBuildReport, toolCall } from './frog-post-fixture.mjs'
+import { frogPost, frogSprite, lamplight, reportedRobinBuild, robinBuildReport, resumeConversation, toolCall } from './frog-post-fixture.mjs'
 
 await runScenario(async ({ answered, buildScenario, button, check, click, key, mount, page, scenario, settle, typeInto }) => {
   const frog = frogPost()
@@ -25,7 +25,7 @@ await runScenario(async ({ answered, buildScenario, button, check, click, key, m
   }
   // A long turn: Simple shows five plain groups, Technical every step, and reply pictures are small cards.
   const report = robinBuildReport()
-  scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : [
+  scenario.byMethod['session.resume'] = resumeConversation(() => [
     { role: 'user', content: 'make a bird game', timestamp: 2000 },
     { role: 'assistant', content: 'Planning.', timestamp: 2001, tool_calls: [
       toolCall('p1', 'skill_view', { name: 'hermretro:authoring' }), toolCall('p2', 'skill_view', { name: 'hermretro:pixel-art' }), toolCall('p3', 'chromatic_project_inspect'), toolCall('p4', 'chromatic_project_inventory'),
@@ -42,7 +42,7 @@ await runScenario(async ({ answered, buildScenario, button, check, click, key, m
     { role: 'assistant', content: '', timestamp: 3001, tool_calls: [toolCall('m1', 'tool_call', { calls: [{ name: 'chromatic_rom_build', arguments: {} }] })] },
     // The engine's own shape for a build that ran and stopped: success false, the reason in a diagnostic.
     { role: 'tool', tool_call_id: 'm1', content: JSON.stringify({ result: 'Operation failed (diagnostics: 1).', structuredContent: { success: false, diagnostics: [{ severity: 'error', code: 'BANK_FULL', message: 'The song is 2.4 KB too big for the cartridge.' }] } }), timestamp: 3050 },
-    { role: 'assistant', content: 'The music did not fit.', timestamp: 3060 }] })
+    { role: 'assistant', content: 'The music did not fit.', timestamp: 3060 }])
   const transcript = await mount(page)
   await settle(100)
   check('only the current build mounts its conversation and the previous build starts folded', () => {
@@ -121,10 +121,7 @@ await runScenario(async ({ answered, buildScenario, button, check, click, key, m
   await transcript.close()
   // On a conversation whose newest turn reported suggestions, try those chips and the @ picker.
   showConversation('st-long2')
-  scenario.byMethod['session.resume'] = params => ({
-    session_id: `rt-of-${params.session_id}`, running: false,
-    messages: params.omit_messages ? [] : reportedRobinBuild('Want it to flap all the time?', report)
-  })
+  scenario.byMethod['session.resume'] = resumeConversation(() => reportedRobinBuild('Want it to flap all the time?', report))
   const gamePictures = []
   scenario.byMethod['plugin.hermretro.assets'] = params => {
     gamePictures.push(params.game)

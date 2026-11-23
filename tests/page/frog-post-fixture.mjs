@@ -9,6 +9,16 @@ export const lamplight = () => ({
   rom: null, webExport: false, thumb: null, chat: null, session: { storedId: 'st-new-1' }, error: null
 })
 
+// Full resumes load idle history. During a turn, the request poll only supplies open requests;
+// the scenarios deliver completion through the gateway event.
+export function resumeConversation(history = () => []) {
+  return ({ session_id, omit_messages }) => {
+    const runtime = session_id === 'st-new-1' ? 'rt-new-1' : `rt-of-${session_id}`
+    if (omit_messages) return { session_id: runtime, open_requests: [] }
+    return { session_id: runtime, running: false, messages: history() }
+  }
+}
+
 export const toolCall = (id, name, args = {}) => ({ id, function: { name, arguments: JSON.stringify(args) } })
 
 export const robinBuildReport = () => ({

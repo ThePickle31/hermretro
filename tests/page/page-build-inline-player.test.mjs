@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
-import { frogJumpMessages, frogPost, reportedRobinBuild } from './frog-post-fixture.mjs'
+import { frogJumpMessages, frogPost, reportedRobinBuild, resumeConversation } from './frog-post-fixture.mjs'
 
-await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit, mount, page, scenario, settle, typeInto }) => {
+await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit, holdTimers, mount, page, scenario, settle, typeInto }) => {
+  const clock = holdTimers()
   const frog = frogPost({ web: { sha256: 'w1', builtAt: 2100 } })
   buildScenario({ selected: frog.id })
   const showConversation = storedId => {
@@ -16,7 +17,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     url: 'http://127.0.0.1:4567/tok/fff666fff666/index.html', romSha256: 'w1', title: 'Frog Post', skins, skin: 'hermes-midnight'
   })
   scenario.byMethod['prompt.submit'] = () => ({ ok: true })
-  scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : frogJumpMessages() })
+  scenario.byMethod['session.resume'] = resumeConversation(frogJumpMessages)
   // Leave a newer live reply after the resumed build so the build has a folded row to play from.
   const firstVisit = await mount(page)
   await settle(100)
@@ -67,6 +68,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   await act(async () => { emit({ type: 'tool.complete', session_id: runtime, payload: { tool_id: 'p1', name: 'chromatic_present_game', args: {},
     result: { ok: true, studio: { gameId: 'fff666fff666', title: 'Frog Post', note: 'Try the rain', presentedAt: 99 } } } }) })
   await settle()
+  await clock.fire()
   check('presenting from a Build conversation opens no tab beside the chat, and the game waits for the turn to end', () => {
     assert.equal(scenario.workspaces.length, tabsBefore); assert.ok(!inlineFrame())
     assert.ok(!conversation.node.querySelector('.cs-b-pc'), 'no game frame while the agent works')
@@ -95,10 +97,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   await conversation.close()
   // The inline player itself: one bar, whole-number sizes, and the play-test panel from the build report.
   showConversation('st-play')
-  scenario.byMethod['session.resume'] = params => ({
-    session_id: `rt-of-${params.session_id}`, running: false,
-    messages: params.omit_messages ? [] : reportedRobinBuild('Try flying around.')
-  })
+  scenario.byMethod['session.resume'] = resumeConversation(() => reportedRobinBuild('Try flying around.'))
   const controls = await mount(page)
   await settle(100)
   const ipPlay = controls.node.querySelector('.cs-b-pc-go')

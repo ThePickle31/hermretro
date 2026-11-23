@@ -2,16 +2,15 @@
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
-import { frogPost, lamplight } from './frog-post-fixture.mjs'
+import { frogPost, lamplight, resumeConversation } from './frog-post-fixture.mjs'
 
-await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit, key, mount, page, scenario, settle, typeInto }) => {
+await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit, holdTimers, key, mount, page, scenario, settle, typeInto }) => {
+  const clock = holdTimers()
   const frog = frogPost({ session: { storedId: 'st-old' } })
   const lampGame = lamplight()
   buildScenario({ selected: lampGame.id })
   scenario.games = answered({ games: [frog, lampGame], device: { hardwareEnabled: false, skipped: true } })
-  scenario.byMethod['session.resume'] = ({ session_id }) => ({
-    session_id: session_id === 'st-new-1' ? 'rt-new-1' : 'rt-of-st-old', running: false, messages: []
-  })
+  scenario.byMethod['session.resume'] = resumeConversation()
   scenario.byMethod['prompt.submit'] = () => ({ ok: true })
 
   // Open Lamplight's session so it can receive a question while Frog Post is on screen.
@@ -88,6 +87,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   await click('Max', pop())
   await settle()
   await key('keydown', 'Escape')
+  await clock.fire()
   check('a pick made while HermRetro works is held, marked "next message", and not sent yet', () => {
     assert.equal(scenario.sets.length, before)
     assert.match(chip().textContent, /Max/); assert.match(chip().textContent, /next message/)

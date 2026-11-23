@@ -30,13 +30,13 @@ from tests.acceptance.fixture import HANDOFF, BrokerRun  # noqa: E402 - direct s
 
 def check_election(suite, connections):
     clients: list[BrokerClient] = []
-    errors: list[str] = []
+    errors: list[Exception] = []
 
     def racer():
         try:
             clients.append(ensure_broker(suite.state))
         except Exception as error:  # noqa: BLE001 - every racer's failure is collected and reported
-            errors.append(repr(error))
+            errors.append(error)
 
     # Give the workers a deep inherited TMPDIR while keeping the test socket path short.
     suite.observations["inherited_compiler_tmp_bytes"] = len(os.fsencode(suite.compiler_temp))
@@ -49,13 +49,19 @@ def check_election(suite, connections):
     pids = {c.hello.get("pid") for c in clients}
     gens = {c.hello.get("broker_generation") for c in clients}
     suite.brokers.update(pids)
+    one_broker = len(pids) == 1 and len(gens) == 1
     suite.check(
         "E1",
         "Four racing lazy starts converge on one broker",
-        not errors and len(clients) == 4 and len(pids) == 1 and len(gens) == 1,
+        not errors and len(clients) == 4 and one_broker,
         broker_pids=sorted(pids),
-        errors=errors,
+        errors=[repr(error) for error in errors],
     )
+    if len(clients) < 2 or not one_broker:
+        for client in clients:
+            client.close()
+        cause = errors[0] if errors else None
+        raise RuntimeError("Startup did not provide two connections to the same broker (E1)") from cause
     loser = spawn_broker(suite.state, suite.node)
     loser_code = loser.wait(timeout=10)
     suite.check(
