@@ -3,9 +3,11 @@
 
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
@@ -19,7 +21,7 @@ from backend.history import hooks as history_hooks  # noqa: E402 - the repositor
 from tests.support import make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import events  # noqa: E402 - the repository root goes on sys.path first
 from backend.history import rpcs as history_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import FakeBrokerClient, isolated_home, make_library_game, registered_hook  # noqa: E402 - the repository root goes on sys.path first
 
 
 def success(root: Path, **extra) -> str:
@@ -35,7 +37,7 @@ def success(root: Path, **extra) -> str:
 class Snapshots(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.base = Path(self.tmp.name)
+        self.base = Path(self.tmp.name).resolve()
         self.root = make_project(self.base)
         self.store = self.base / "snapshots"
         (self.root / "assets" / "sprites").mkdir(parents=True)
@@ -49,7 +51,7 @@ class Snapshots(unittest.TestCase):
         self.tmp.cleanup()
 
     def files_of(self, identifier):
-        return sorted(snapshots.walk(self.store / "g" / identifier / "files", exclude_top=False))
+        return sorted(snapshots.walk(self.store / "g" / identifier / "files", stored=True))
 
     def test_a_snapshot_keeps_the_sources_and_leaves_out_output_tools_and_temp_files(self):
         os.symlink(self.base, self.root / "link-out")
@@ -220,6 +222,7 @@ class BuildHistoryHost(unittest.TestCase):
         connect = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
         connect.start()
         self.addCleanup(connect.stop)
+        self.profile = isolated.data.parents[1]
         self.store = isolated.data / "snapshots"
         self.game, self.root = make_library_game(isolated)
         self.outsider = make_project(self.base, name="Not Listed")
@@ -266,6 +269,75 @@ class BuildHistoryHost(unittest.TestCase):
     def test_a_multimodal_envelope_is_read_through_its_text(self):
         self.hook(result={"_multimodal": True, "content": [], "text_summary": success(self.root)})
         self.assertEqual(len(self.listed()["builds"]), 1)
+
+    def test_the_normal_build_result_identifies_its_snapshot_even_when_files_are_reused(self):
+        engine = FakeBrokerClient(
+            {"ok": True, "result": {"structuredContent": {"success": True, "projectRoot": str(self.root)}}}
+        )
+        ctx = mock.Mock()
+        ctx.get_config.side_effect = lambda _key, default: default
+        with mock.patch.object(hermes_host, "ensure_broker", return_value=engine):
+            handler = hermes_host.make_tool_handler(ctx, {"name": "rom_build"})
+            first = handler({})
+            self.hook(result=first)
+            second = handler({})
+            self.hook(result=second)
+
+        refs = [json.loads(first)["buildRef"], json.loads(second)["buildRef"]]
+        self.assertNotEqual(*refs)
+        (saved,) = self.listed()["builds"]
+        self.assertEqual(saved["buildRefs"], refs)
+        self.assertEqual(saved["builds"], [])
+
+        # The association lives on disk and identifies the old snapshot even after a different build.
+        (self.root / "project" / "scene.gbsres").write_text("changed")
+        with mock.patch.object(hermes_host, "ensure_broker", return_value=engine):
+            third = handler({})
+            self.hook(result=third)
+        latest, earlier = self.listed()["builds"]
+        self.assertEqual(latest["buildRefs"], [json.loads(third)["buildRef"]])
+        self.assertEqual((earlier["id"], earlier["buildRefs"]), (saved["id"], refs))
+        result = history_rpcs.rpc_build_restore(None)({"game": self.game, "id": earlier["id"], "buildRef": refs[0]})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual((self.root / "project" / "scene.gbsres").read_text(), "{}")
+
+    def test_compact_results_need_exact_occurrence_evidence_in_the_bound_conversation(self):
+        stored = "build-chat"
+        segment = "compressed-build-chat"
+        first_ref, other_ref = "1" * 32, "2" * 32
+        hermes_host._registry().bind(self.game, stored, hermes_host._profile_identity())
+        first = json.dumps({"buildRef": first_ref, **json.loads(success(self.root))})
+        self.hook(result=first, conversation_id=stored, session_id=segment, tool_call_id="call_0")
+        (self.root / "project" / "scene.gbsres").write_text("other chat edited the game")
+        other = json.dumps({"buildRef": other_ref, **json.loads(success(self.root))})
+        self.hook(result=other, conversation_id="other-chat", session_id="other-chat", tool_call_id="call_0")
+        list_builds = history_rpcs.rpc_builds(None)
+        for selection in ({}, {"stored": "other-chat"}, {"stored": stored}):
+            self.assertTrue(
+                all("buildCalls" not in item for item in list_builds({"game": self.game, **selection})["builds"])
+            )
+        preview = first[:70]
+        spilled = f"<persisted-output>\nPreview (first {len(preview)} chars):\n{preview}\n...\n</persisted-output>"
+        args = {"game": self.game, "stored": stored}
+        with closing(sqlite3.connect(self.profile / "state.db")) as db:
+            db.executescript("""
+                CREATE TABLE sessions (id TEXT PRIMARY KEY, parent_session_id TEXT);
+                CREATE TABLE messages (
+                    session_id TEXT, role TEXT, tool_name TEXT, tool_call_id TEXT, timestamp REAL, content TEXT
+                );
+            """)
+            db.execute("INSERT INTO sessions VALUES (?, ?)", (segment, stored))
+            db.executemany(
+                "INSERT INTO messages VALUES (?, 'tool', 'tool_call', 'call_0', ?, ?)",
+                [(segment, 1.25, spilled), (segment, 2.5, "{}"), ("other-chat", 1.25, other)],
+            )
+            db.commit()
+            newest, oldest = list_builds(args)["builds"]
+            self.assertNotIn("buildCalls", newest)
+            self.assertEqual(oldest["buildCalls"], [{"id": "call_0", "ref": first_ref, "timestamp": 1.25}])
+            db.execute("INSERT INTO messages VALUES (?, 'tool', 'tool_call', 'call_0', 1.25, '{}')", (segment,))
+            db.commit()
+            self.assertNotIn("buildCalls", list_builds(args)["builds"][-1])
 
     def test_the_hook_never_raises(self):
         with mock.patch.object(snapshots, "take", side_effect=OSError("disk full")) as take:

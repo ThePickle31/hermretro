@@ -14,6 +14,18 @@ import { AgentText, replyAssets } from './reply.js'
 import { turnParts } from './turns.js'
 import { Worked } from './worked.js'
 
+function UserMessage({ user }) {
+  return jsxs('div', {
+    className: 'cs-b-user',
+    children: [
+      user.attachments?.length
+        ? jsx('div', { className: 'cs-b-chips', children: user.attachments.map(item => jsx(AttachmentChip, { item }, attachmentKey(item))) })
+        : null,
+      jsx('span', { children: user.text })
+    ]
+  })
+}
+
 function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
   const parts = turnParts(turn, root)
   const user = turn.user
@@ -108,17 +120,10 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   return jsxs('div', {
     className: 'cs-b-turn-body',
     children: [
-      user
-        ? jsxs('div', {
-            className: 'cs-b-user',
-            children: [
-              user.attachments?.length
-                ? jsx('div', { className: 'cs-b-chips', children: user.attachments.map(item => jsx(AttachmentChip, { item }, attachmentKey(item))) })
-                : null,
-              jsx('span', { children: user.text })
-            ]
-          })
-        : null,
+      user ? jsx(UserMessage, { user }) : null,
+      ...turn.items.filter(item => item.kind === 'user' && item.followup).map((item, index) =>
+        jsx(UserMessage, { user: item }, item.submission ?? `followup${index}`)
+      ),
       hasAgent
         ? jsxs('div', {
             className: 'cs-b-her',
@@ -213,6 +218,7 @@ function TurnView(props) {
               jsx('span', { className: 'cs-b-history-number', children: `#${build.n}` }),
               jsx('span', { className: 'cs-b-history-title', children: build.title }),
               build.state === 'failed' ? jsx('span', { className: 'cs-b-history-failed', children: 'Failed' }) : null,
+              build.state === 'unknown' ? jsx('span', { className: 'cs-faint', children: 'Outcome unknown' }) : null,
               jsx(Codicon, { name: open ? 'chevron-down' : 'chevron-right', size: 12 })
             ]
           }),

@@ -7,6 +7,7 @@ from pathlib import Path
 from ..hermes import host
 from ..hermes.declare import rpc
 from . import snapshots
+from .build_refs import confirm_build_calls
 
 logger = host.logger  # one logger for the Hermes side of the backend
 
@@ -17,7 +18,7 @@ def _snapshots_dir() -> Path:
 
 @rpc("builds")
 def rpc_builds(ctx):
-    """The Build page's build history for one library game: ``{game}`` → its snapshots, newest first."""
+    """The Build page's build history for one library game: ``{game, stored?}`` → its snapshots, newest first."""
 
     def builds(params, **_kwargs):
         try:
@@ -25,7 +26,14 @@ def rpc_builds(ctx):
             game = str(params.get("game") or "")
             if host._game_root(game) is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library has builds."}
-            return {"ok": True, "builds": snapshots.list_snapshots(_snapshots_dir(), game)}
+            stored = params.get("stored")
+            bound = host._bound_game(stored, None) if isinstance(stored, str) and stored else None
+            if not bound or bound["id"] != game or bound["session"]["storedId"] != stored:
+                stored = None
+            listed = snapshots.list_snapshots(_snapshots_dir(), game, stored=stored)
+            if stored:
+                confirm_build_calls(host._data_dir().parents[1] / "state.db", stored, listed)
+            return {"ok": True, "builds": listed}
         except Exception as error:
             logger.exception("hermretro builds failed")
             return {"ok": False, "code": "ERROR", "error": f"{type(error).__name__}: {error}"}
@@ -46,7 +54,17 @@ def rpc_build_restore(ctx):
             if root is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be restored."}
             identifier = str(params.get("id") or "")
-            return {"ok": True, **snapshots.restore(_snapshots_dir(), game, root, identifier)}
+            restored = snapshots.restore(
+                _snapshots_dir(),
+                game,
+                root,
+                identifier,
+                build_ref=params.get("buildRef"),
+                build_at=params.get("buildAt"),
+            )
+            if restored.get("problems"):
+                return {"ok": False, "code": "PARTIAL", "error": "Some files could not be restored.", **restored}
+            return {"ok": True, **restored}
         except snapshots.SnapshotError as error:
             return {"ok": False, "code": error.code, "error": str(error)}
         except Exception as error:

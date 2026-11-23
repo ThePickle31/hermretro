@@ -24,26 +24,31 @@ function appendText(chat, text) {
   return { ...chat, items: [...chat.items, { kind: 'assistant', open: true, text }] }
 }
 
-/** Apply `change` to the step with this id (or the calls of the `tool_call` it wrapped). Returns the
- *  same conversation when there is no such step. */
+/** Update the pending occurrence of a call in the current turn, including any wrapped steps. */
 function updateTool(chat, id, change) {
-  if (id == null) {
+  if (!id) {
     return chat
   }
 
-  const key = String(id)
-  let hit = false
-  const items = chat.items.map(item => {
-    if (item.kind !== 'tools' || !item.tools.some(tool => tool.id === key || String(tool.id).startsWith(`${key}:`))) {
-      return item
+  const matches = tool => tool.callId === id && tool.state === 'running' && tool.turn === (chat.turn ?? null)
+
+  for (let index = chat.items.length - 1; index >= 0; index--) {
+    const item = chat.items[index]
+
+    if ((item.kind === 'user' && !item.followup) || item.kind === 'end') {
+      break
     }
 
-    hit = true
+    if (item.kind === 'tools' && item.tools.some(matches)) {
+      const items = [...chat.items]
 
-    return { ...item, tools: item.tools.map(tool => (tool.id === key || String(tool.id).startsWith(`${key}:`) ? change(tool) : tool)) }
-  })
+      items[index] = { ...item, tools: item.tools.map(tool => matches(tool) ? change(tool) : tool) }
 
-  return hit ? { ...chat, items } : chat
+      return { ...chat, items }
+    }
+  }
+
+  return chat
 }
 
 /** Record that something happened (for "last update" and the quiet / stuck states), at most twice a
@@ -107,6 +112,12 @@ export function reduceChat(chat, event) {
   }
 
   const now = Date.now()
+
+  if (event.type?.startsWith('tool.') && payload.turn_id && chat.turn && (
+    payload.turn_id !== chat.turn || (!chat.busy && lastItem(chat)?.kind === 'end')
+  )) {
+    return chat
+  }
 
   switch (event.type) {
     case 'message.start': {
@@ -183,6 +194,8 @@ export function reduceChat(chat, event) {
       // Hermes runs deferred tools through `tool_call`: the step is the call inside it.
       const tools = unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ''), payload.args).map(call => ({
         id: call.id,
+        callId: payload.tool_id,
+        turn: chat.turn ?? null,
         name: call.name,
         args: stepArgs(call.args),
         report: reportOf(call.name, call.args),
@@ -206,16 +219,17 @@ export function reduceChat(chat, event) {
     }
 
     case 'tool.complete': {
+      const calls = unwrapCalls(payload.tool_id || `t${now}`, String(payload.name ?? ''), payload.args)
       const done = tool => ({
         ...tool,
         args: tool.args ?? stepArgs(payload.args),
-        report: tool.report ?? reportOf(tool.name, unwrapCalls(null, String(payload.name ?? ''), payload.args)[0]?.args),
+        report: tool.report ?? reportOf(tool.name, calls[0]?.args),
         state: toolFailed(payload) ? 'failed' : 'done',
         summary: payload.summary ?? null,
         finishedAt: now,
         duration: typeof payload.duration_s === 'number' ? payload.duration_s : tool.startedAt ? (now - tool.startedAt) / 1000 : null,
         image: typeof payload.image_path === 'string' ? payload.image_path : null,
-        info: stepInfo(tool.name, payload.result),
+        info: stepInfo(tool.name, payload.result, tool.id === payload.tool_id || (!payload.tool_id && calls.length === 1)),
         progress: null
       })
       const updated = updateTool(chat, payload.tool_id, done)
@@ -226,7 +240,7 @@ export function reduceChat(chat, event) {
             ...sealText(chat),
             items: [
               ...sealText(chat).items,
-              { kind: 'tools', tools: unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ''), payload.args).map(call => done({ id: call.id, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args) })) }
+              { kind: 'tools', tools: calls.map(call => done({ id: call.id, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args) })) }
             ]
           }
 

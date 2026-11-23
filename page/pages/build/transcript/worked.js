@@ -7,6 +7,8 @@ import { SUGGESTED } from './questions.js'
 import { shortTool, stepDetail, stepWords } from './step-words.js'
 import { madeAssets } from './turns.js'
 
+const stepIcon = { failed: 'error', stopped: 'debug-stop', unknown: 'question' }
+
 function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
   const [running, done] = stepWords(tool)
   const live = tool.state === 'running'
@@ -24,7 +26,7 @@ function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
             className: 'cs-b-ico',
             children: live
               ? jsx('i', { className: 'cs-b-spin' })
-              : jsx(Codicon, { name: tool.state === 'failed' ? 'error' : tool.state === 'stopped' ? 'debug-stop' : 'check', size: 12 })
+              : jsx(Codicon, { name: stepIcon[tool.state] ?? 'check', size: 12 })
           }),
           jsx('span', { className: live ? 'cs-b-tool-name cs-b-shimmer' : 'cs-b-tool-name', children: live ? running : tool.state === 'failed' ? `${running} failed` : done }),
           detail ? jsx('span', { className: 'cs-b-tool-detail', title: detail, children: detail }) : null,
@@ -97,7 +99,7 @@ function SimpleStep({ tool, assets, onOpenAsset, freshFrom }) {
         children: [
           jsx('span', {
             className: 'cs-b-ico',
-            children: live ? jsx('i', { className: 'cs-b-spin' }) : jsx(Codicon, { name: failed ? 'error' : tool.state === 'stopped' ? 'debug-stop' : 'check', size: 12 })
+            children: live ? jsx('i', { className: 'cs-b-spin' }) : jsx(Codicon, { name: stepIcon[tool.state] ?? 'check', size: 12 })
           }),
           jsx('span', { className: live ? 'cs-b-tool-name cs-b-shimmer' : 'cs-b-tool-name', children: live ? `${running}…` : failed ? `${running} failed` : done }),
           failed && tool.info?.error ? jsx('span', { className: 'cs-b-tool-detail', title: tool.info.error, children: tool.info.error }) : null
@@ -114,16 +116,17 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
   const steps = group.entries.filter(entry => entry.type === 'step').map(entry => entry.tool)
   const running = steps.some(tool => tool.state === 'running')
   const failed = !running && steps.length > 0 && steps[steps.length - 1].state === 'failed'
+  const unknown = !running && !failed && steps.findLast(tool => /^(rom_build|web_build)$/.test(shortTool(tool.name)))?.state === 'unknown'
   const made = steps.flatMap(tool => (assetsByStep.get(tool.id) ?? []).filter(asset => !asset.looked && asset.kind !== 'Playtest frame'))
   const seconds = steps.reduce((sum, tool) => sum + (typeof tool.duration === 'number' ? tool.duration : 0), 0)
   const shown = group.entries.filter(entry => !(entry.type === 'step' && entry.tool.state === 'done' && MINOR_STEPS.test(shortTool(entry.tool.name)) && !assetsByStep.get(entry.tool.id)?.length))
-  const icon = running ? jsx('i', { className: 'cs-b-spin' }) : jsx(Codicon, { name: failed ? 'error' : 'check', size: 12 })
+  const icon = running ? jsx('i', { className: 'cs-b-spin' }) : jsx(Codicon, { name: failed ? 'error' : unknown ? 'question' : 'check', size: 12 })
 
   return jsxs('div', {
     className: 'cs-b-ph',
     'data-group': group.kind,
     'data-open': open ? 'true' : 'false',
-    'data-state': running ? 'running' : failed ? 'failed' : 'done',
+    'data-state': running ? 'running' : failed ? 'failed' : unknown ? 'unknown' : 'done',
     children: [
       jsxs('button', {
         'aria-expanded': open,
@@ -132,7 +135,7 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
         type: 'button',
         children: [
           jsx('span', { className: 'cs-b-ico', children: icon }),
-          jsx('span', { className: running && live ? 'cs-b-ph-name cs-b-shimmer' : 'cs-b-ph-name', children: groupTitle(group, running && live, made.length > 0) }),
+          jsx('span', { className: running && live ? 'cs-b-ph-name cs-b-shimmer' : 'cs-b-ph-name', children: unknown ? 'Build outcome unknown' : groupTitle(group, running && live, made.length > 0) }),
           jsx('span', { className: 'cs-grow' }),
           made.length && !open ? jsx(AssetStack, { assets: made, max: 3 }) : null,
           jsx('span', { className: 'cs-b-ph-meta', children: `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}${seconds >= 1 ? ` · ${spanWords(seconds * 1000)}` : ''}` }),

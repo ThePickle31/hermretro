@@ -142,8 +142,7 @@ export function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClos
     element?.scrollTo?.({ behavior: 'smooth', top: element.scrollHeight })
   }
 
-  // The Assets panel's "Made in" link: show that turn (loading earlier messages when it is above the
-  // page), scroll to it and mark it for a moment.
+  // "Show" in the Builds menu loads earlier messages if needed, then expands and highlights the turn.
   const [highlight, setHighlight] = useState(null)
 
   useEffect(() => {

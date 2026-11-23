@@ -18,13 +18,13 @@ import { rootOf } from './transcript/groups.js'
 import { AssetGame } from './assets/cache.js'
 import { Transcript } from './transcript/transcript.js'
 import { buildHistory, deriveTurns } from './transcript/turns.js'
-import { callStudioOnly, describeRequestError } from '#app/backend.js'
+import { describeRequestError } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
-import { RPC_BUILD_RESTORE } from '#app/rpc.js'
 import { isUpdating, UPDATING_MESSAGE } from '#app/update/lock.js'
 import { playableSha } from '#app/player/stage.js'
 import { buildRpc, newGamePrompt } from './binding.js'
 import { BuildPill, BuildsMenu } from './builds-menu.js'
+import { restoreProjectBuild } from './build-restore.js'
 import { BuildPromptCard } from './transcript/questions.js'
 import { BuildNewGame } from './new-game.js'
 import { Background } from '#app/background.js'
@@ -128,7 +128,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     if (game?.session?.storedId === stored && game.session.exists === false) {
       patchChat(stored, current => (current.missing ? current : { ...current, missing: true }))
     } else {
-      void openBuildChat(stored)
+      void openBuildChat(stored, game?.id)
     }
   }, [stored, chat?.runtime])
 
@@ -260,13 +260,13 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
 
   // A game with no conversation opens a blank one; the session is made on the first message and bound to
   // the game (replacing a removed one), so the agent is told which game it works on and finds it selected.
-  const send = async (text, attachments = [], shown = text) => {
+  const send = async (text, attachments = [], shown = text, options) => {
     if (refuseWhileUpdating()) {
       return false
     }
 
     if (!fresh) {
-      return stored ? sendBuildChat(stored, text, shown, attachments) : false
+      return stored ? sendBuildChat(stored, text, shown, attachments, options) : false
     }
 
     const { id, title, projectRoot } = game
@@ -290,7 +290,8 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
         target,
         recorded ? text : `Work on my existing hermretro game "${title}" at ${projectRoot} (select that project first). ${text}`,
         shown,
-        attachments
+        attachments,
+        options
       )
     } catch (error) {
       host.notify({ kind: 'error', message: `Could not start the conversation: ${describeRequestError(error).message}` })
@@ -339,35 +340,6 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     }
 
     onLibraryChanged()
-  }
-
-  // Restore: the backend saves the game as it is now, puts that build's files back, and the agent is
-  // asked to build it again, which makes it the newest build.
-  const restoreBuild = async (build, snapshot) => {
-    if (!game || !shownStored || refuseWhileUpdating()) {
-      return false
-    }
-
-    try {
-      const answer = await callStudioOnly(RPC_BUILD_RESTORE, { game: game.id, id: snapshot }, 60_000)
-
-      if (!answer?.ok) {
-        throw new Error(answer?.error ?? 'The build could not be restored.')
-      }
-    } catch (error) {
-      host.notify({ kind: 'error', message: `Could not restore build #${build.n}: ${describeRequestError(error).message}` })
-
-      return false
-    }
-
-    onLibraryChanged()
-    await send(
-      `I restored the game to build #${build.n} ("${build.title}") from the hermretro Builds menu: its files are back as they were then (the version before this is saved). Please build it again and check that it still works.`,
-      [],
-      `Restore build #${build.n} \u00b7 ${build.title}`
-    )
-
-    return true
   }
 
   // Per conversation: working, waiting, unread. Kept as the same object while those stay the same, so
@@ -439,14 +411,17 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
             switcher,
             jsx(BuildPill, { builds, chat: shownChat, game }),
             jsx('span', { className: 'cs-grow' }),
-            game && (builds.length || shownStored)
+            game && !elsewhere
               ? jsx(BuildsMenu, {
                   builds,
-                  busy: Boolean(shownChat?.busy || updating),
+                  busy: Boolean(shownChat?.busy || shownChat?.opening || shownChat?.missing || shownChat?.failure || startingGame || updating),
                   game,
-                  onRestore: restoreBuild,
+                  stored: shownStored,
+                  onRestore: (snapshot, target, title) => !refuseWhileUpdating() && restoreProjectBuild(
+                    game.id, snapshot, target, title, (text, shown) => send(text, [], shown, { mustLand: true }), onLibraryChanged
+                  ),
                   onShow: key => setFocusTurn({ key, stored: shownStored })
-                })
+                }, game.id)
               : null,
             pendingItem && !shownChat?.busy
               ? jsx(Button, { onClick: () => void discard(pendingItem), size: 'sm', variant: 'ghost', children: 'Discard' })

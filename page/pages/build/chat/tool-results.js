@@ -19,33 +19,54 @@ export function toolResultObject(value) {
   return null
 }
 
-/** Hermes's deferred-tool wrapper (`tool_call {calls: [...]}`) as the calls it made. */
-export function unwrapCalls(id, name, args) {
-  let parsed = args
+/** A ROM result starts with its unique reference, even in Hermes's bounded event or spill preview. */
+export function toolBuildRef(value, parsed) {
+  if (typeof parsed?.buildRef === 'string' && parsed.buildRef) {
+    return parsed.buildRef
+  }
 
-  if (typeof parsed === 'string') {
+  const output = parsed?.truncated === true ? parsed.output : value
+  const body = typeof output === 'string' && output.startsWith('<persisted-output>\n')
+    ? output.split(/^Preview \(first [0-9]+ chars\):\n/m, 2)[1]
+    : parsed?.truncated === true ? output : null
+
+  return /^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]/.exec(body ?? '')?.[1] ?? null
+}
+
+function jsonValue(value) {
+  if (typeof value === 'string') {
     try {
-      parsed = JSON.parse(parsed)
+      return JSON.parse(value)
     } catch {
-      parsed = null
+      return null
     }
   }
 
-  if (name === 'tool_call' && Array.isArray(parsed?.calls) && parsed.calls.length) {
-    return parsed.calls.map((call, index) => {
-      let inner = call?.arguments ?? null
+  return value
+}
 
-      if (typeof inner === 'string') {
-        try {
-          inner = JSON.parse(inner)
-        } catch {
-          inner = null
-        }
-      }
+function callArgs(value) {
+  const parsed = jsonValue(value)
 
-      return { id: id == null ? null : `${id}:${index}`, name: String(call?.name ?? 'tool'), args: inner && typeof inner === 'object' ? inner : null }
-    })
+  return parsed && typeof parsed === 'object' ? parsed : null
+}
+
+/** Hermes keeps the outer id on a single deferred local call (live and in persisted tool rows). */
+export function unwrapCalls(id, name, args) {
+  const parsed = callArgs(args)
+
+  if (name === 'tool_call') {
+    const entries = jsonValue(parsed?.calls ?? (parsed?.name ? [parsed] : null))
+    const calls = Array.isArray(entries) ? entries : entries && typeof entries === 'object' ? [entries] : []
+
+    if (calls.length) {
+      return calls.map((call, index) => ({
+        id: id == null || calls.length === 1 ? id : `${id}:${index}`,
+        name: String(call?.name ?? 'tool').trim(),
+        args: callArgs(call?.arguments)
+      }))
+    }
   }
 
-  return [{ id, name: String(name ?? 'tool'), args: parsed && typeof parsed === 'object' ? parsed : null }]
+  return [{ id, name: String(name ?? 'tool'), args: parsed }]
 }

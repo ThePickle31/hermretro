@@ -151,7 +151,8 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
 
 - **Studio Conversation** keeps a 46-rem message column aligned with the composer. The current request is a
   right-aligned bubble, followed by the agent's words, its work disclosure and the game result. Earlier numbered
-  builds fold into rows with their number, title and failure state. Opening one mounts its messages and media.
+  builds fold into rows with their number, title and any failure or unknown outcome. Opening one mounts its
+  messages and media. A live correction stays in the request's turn, including work that started before it.
   Other conversation turns remain in place. A folded playable build offers Play while the game is idle.
 - **Agent steps** start folded while working and after completion. The row names the running tool and the step
   count. Opening it shows live updates and keeps it open when the turn finishes. A small asset stack opens its first
@@ -168,22 +169,30 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   id, or no tool at all as the gateway resumes it); a result with `ok: false`, `isError`, an `error`, or the engine's `structuredContent.success: false` (a build that ran and stopped; its first error diagnostic is the reason) marks its step failed, live and in history. Plumbing
   (`tool_describe`, `todo`, `chromatic_build_report`…) is hidden. The words before the first step
   lead the reply, words between steps are notes inside, words after the last step close it. Steps
-  keep only small args (`stepArgs`); a report keeps its whole (`normalizeReport`).
+  keep only small args (`stepArgs`). A report keeps its whole (`normalizeReport`).
+  A compact ROM result without an outcome starts as unknown. It is shown as built only if a saved snapshot
+  confirms the exact stored result occurrence.
 - **Build results.** Each turn that finishes a ROM or web compile gets a build number in conversation order.
   Its result shows the report title and summary, test counts, and a diagnostic and retry action for failure.
-  Details opens the change list, checks and notes. Report thumbnails open the image as captured by
-  Hermes for that report. Older reports use the recorded tool time. A result can feature a versioned sprite or background,
-  including Before and After with Keep and Undo when an earlier version is available. Recorded playtest frames
-  can be opened individually or scrubbed and replayed in capture order. Reply media uses the Hermes renderer
-  for sound and video. Play opens the real player beneath the reply. Suggestions still fill the message box.
+  A result can feature a sprite or background with Before and After at the turn's start and end. When an
+  earlier version is available, the latest turn offers Keep and Undo. Undo restores the earlier version
+  and offers to rebuild. Details opens the change list, additional image comparisons, checks and notes.
+  The change thumbnails open the original images at the report capture time from its tool result, or the
+  recorded tool time for older reports. Turns without reports list the pictures they made. Recorded playtest
+  frames can be opened individually or scrubbed and replayed in capture order. Reply media uses the Hermes
+  renderer for sound and video. Play opens the real player beneath the reply. Suggestions fill the message box.
 - **Header.** The title (game switcher), one status pill (Working · 0:42 / Build #n · up to date /
   Edited since build #n / Build #n didn't finish / No builds yet) and Builds ▾: every build newest
-  first, with Show (expands the build and scrolls to it) and Restore (on built ones, except the one already playing
-  when nothing changed since). Restore matches the build to a snapshot from the `builds` RPC by time,
-  confirms in place, calls `build_restore` (which saves the game as it is first) and sends the agent
-  "I restored the game to build #n … Please build it again", so the restored files become the newest
-  build. There is no Assets panel and no Full chat button (Open in full chat stays in the switcher's
-  right-click menu and the stuck status).
+  first, with Show to expand the build and scroll to it. Restore matches a completed build to its
+  saved snapshot by reference. Compact result rows use the call ID and exact result timestamp
+  confirmed for that reference. The current build offers Restore after the project changes.
+  Legacy snapshots without an exact match and before-restore backups appear by date and time,
+  including for games without a conversation. Backup rows also show the ID. Confirming a selection
+  calls `build_restore` to save the current project and put the earlier files back. A complete restore
+  submits a rebuild and opens a conversation when needed. An incomplete restore shows the file
+  problem and the ID of the backup users can select in Builds. A failed rebuild submission reports
+  that the files were restored. Open in full chat stays in the switcher's right-click menu and the
+  stuck status.
 - **@ assets.** Typing `@` (at the start or after a space) in the message box, or its @ Asset button,
   lists the game's pictures from the `assets` RPC; what follows filters by name or file, ↑/↓ and
   Enter/Tab pick, Esc closes. The pick leaves the text and is attached as an `@name` chip (sent as

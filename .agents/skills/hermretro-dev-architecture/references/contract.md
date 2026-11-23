@@ -223,8 +223,8 @@ instead of throwing.
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete`; each `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }` |
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
-| `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
-| `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
+| `builds` | `{ game, stored? }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
+| `build_restore` | `{ game, id, buildRef?, buildAt? }` | `{ ok: true, restored, backup, changed, removed }`. `PARTIAL` returns `ok: false`, the same IDs and counts, and `problems`. Preflight errors are `NO_GAME`, `MISSING`, `INVALID_SNAPSHOT`, `TOO_LARGE` and `BACKUP_FAILED`. |
 
 `games` can include an empty `games` array in an error reply. Only `ok: true` supplies shelf and ownership data.
 `unavailable` lists the registered game IDs the shelf could not read.
@@ -280,20 +280,38 @@ kept asset's current version is saved like a delivered image, so the card keeps 
 After each successful `chromatic_rom_build` (Hermes's `post_tool_call`: result without `error`/`isError`
 and `structuredContent.success === true`, not a `sourcePath` build) of a game in the library, the plugin
 copies the project to `<plugin data>/snapshots/<game id>/<ms>/files/` with `<ms>/snapshot.json`
-`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, fingerprint, builds: [ms…] }`.
+`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, backup?, fingerprint, builds: [ms…], buildRefs? }`.
 Never copied, compared, deleted or restored: top-level `build/`, `artifacts/`, `.git/`, `node_modules/`,
 `captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …), every symlink, and every folder below the
 project that holds a `.gbsproj` of its own (in any case, a file or a link, as the engine finds a project: another
 game's project, which restoring this one never changes, even
 when an older snapshot holds files there from before it was a game). A project over 64 MB
 or 20 000 files is skipped. When the files are identical to the newest snapshot (path + size + SHA-256 of
-each), no copy is made and the build's time is appended to that snapshot's `builds`. The newest 30 are kept.
+each), the existing copy is verified and reused. The newest 30 are kept, with the selected snapshot and
+backup protected during a restore.
 
-- `builds { game }` → `{ ok, builds: [{ id, at, builds, files, bytes, reason, from? }] }`, newest first.
-- `build_restore { game, id }` first keeps the current files as a `before-restore` snapshot (`from` = the
-  restored id; reused when identical to the newest), then deletes project files the snapshot lacks and
-  writes back every file that differs (a new temp sibling + rename; never through a link). Restored files get a
-  new modification time, so the game counts as changed and needs a rebuild, which records a new build.
+- The build's tool result carries `buildRef`, which the snapshot hook records in `buildRefs`.
+  `builds { game, stored? }` returns
+  `{ ok, builds: [{ id, at, builds, buildRefs?, buildCalls?, files, bytes, reason, from?, backup? }] }`, newest first.
+  `buildCalls: [{ id, ref, timestamp }]` gives the call ID and exact result timestamp in Unix seconds
+  when a stored result in the bound conversation carries the recorded build reference. The page uses
+  these two fields together when the gateway omits a result body. Without a confirmed match or a result
+  body that establishes the outcome, the build shows as unknown. Historical times in `builds` use milliseconds.
+  An unmatched legacy snapshot or before-restore backup is selectable by its saved date and time.
+- Under one per-game lock, `build_restore` verifies the supplied `buildRef` or historical `buildAt`
+  against the selected snapshot. An explicitly selected saved snapshot supplies its `id`. Either
+  selection checks the saved file count, byte total and fingerprint. The restore then
+  rejects redirected project paths and verifies the backup's names and contents before publishing it.
+  The `before-restore` snapshot's `from` field is the restored ID. When a restore reuses the newest
+  identical snapshot for the backup, its `backup: { at, from }` records the latest such restore's time in milliseconds
+  and selected ID. The restore removes project files absent from the saved build and writes back
+  files that differ using a temporary sibling. Each
+  overwrite or deletion scans opened ancestor folders for nested-game markers before comparing the live
+  file's identity and bytes against the backup. When restore removes a hard link, it records the change
+  to that inode's stamp for verifying remaining links. A final scan verifies the resulting project
+  paths and contents against the selected snapshot. An unexpected file is preserved and reported.
+  Incomplete restores include the verified backup ID, operation counts and up to 20 file problems.
+  A complete restore requests a rebuild.
 
 ## The game card (`game.json` + `cover.png`)
 
