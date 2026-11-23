@@ -30,12 +30,12 @@ function updateTool(chat, id, change) {
     return chat
   }
 
-  const matches = tool => tool.callId === id && tool.state === 'running'
+  const matches = tool => tool.callId === id && tool.state === 'running' && tool.turn === (chat.turn ?? null)
 
   for (let index = chat.items.length - 1; index >= 0; index--) {
     const item = chat.items[index]
 
-    if (item.kind === 'user' || item.kind === 'end') {
+    if ((item.kind === 'user' && !item.followup) || item.kind === 'end') {
       break
     }
 
@@ -195,6 +195,7 @@ export function reduceChat(chat, event) {
       const tools = unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ''), payload.args).map(call => ({
         id: call.id,
         callId: payload.tool_id,
+        turn: chat.turn ?? null,
         name: call.name,
         args: stepArgs(call.args),
         report: reportOf(call.name, call.args),

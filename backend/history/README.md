@@ -19,10 +19,10 @@ Only successful builds are kept here; whether each build passed is recorded by t
 A successful ROM build's tool result carries a unique `buildRef`. The history hook adds it to the kept
 snapshot's `buildRefs`, including when unchanged files reuse an existing snapshot. It also records the
 Hermes tool call ID for the game's bound conversation. When a compact resume omits the body, the
-Builds menu matches the call ID and exact result timestamp against a stored result that carries the
-same reference. Numbered builds without either form of evidence have Restore disabled. The menu
-lists legacy snapshots that have no exact match by their saved date and time. Selecting one restores
-that snapshot by ID through the same validation and backup steps.
+Build page matches the call ID and exact result timestamp against a stored result that carries the
+same reference. Without a confirmed match the outcome is unknown and Restore is disabled for that
+numbered build. The menu lists unmatched legacy snapshots and before-restore backups by date and time.
+Selecting one restores that snapshot by ID through the same validation and backup steps.
 
 ## What `build_restore` answers
 
@@ -30,15 +30,19 @@ that snapshot by ID through the same validation and backup steps.
   is untouched. A restore rejects a redirected library path, checks the selected build reference or
   historical occurrence, and validates the saved file count, bytes and fingerprint. It verifies the
   names and contents on disk before publishing the current project's backup and holds the per-game lock
-  through restore and pruning. Before a replacement or deletion, it verifies the live file against the
-  backup and rechecks opened ancestor folders for nested-game markers. Before reporting success, it
+  through restore and pruning. Before a replacement or deletion, it rechecks opened ancestor folders
+  for nested-game markers, then verifies the live file against the backup. It records stamp changes
+  caused by removing hard links and verifies the remaining links against the updated stamp and the
+  original bytes. Before reporting success, it
   scans the project again and checks its in-scope paths and contents against the saved files. A new
   file that appeared during restore is left in place and reported as a conflict.
 - A complete restore returns `{ok: true, restored, backup, changed, removed}`. `PARTIAL` returns
   `ok: false` with those snapshot IDs and counts plus the first 20 file problems. The backed-up files
-  remain available, and a conflict leaves the live file in place. Unexpected errors return `ERROR` and are logged.
+  remain available, and a conflict leaves the live file in place. A reused snapshot records the backup's
+  date and restore target alongside its build references. Unexpected errors return `ERROR` and are logged.
 - The Build page shows the backup ID and first file problem for an incomplete restore. It asks the agent to rebuild
-  after a complete restore and reports a rebuild submission failure separately.
+  after a complete restore and reports a rebuild submission failure separately. Reopening Builds shows
+  the backup for a manual restore.
 
 ## Front door
 

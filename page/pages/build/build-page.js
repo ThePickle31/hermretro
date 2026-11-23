@@ -146,7 +146,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     if (game?.session?.storedId === stored && game.session.exists === false) {
       patchChat(stored, current => (current.missing ? current : { ...current, missing: true }))
     } else {
-      void openBuildChat(stored)
+      void openBuildChat(stored, game?.id)
     }
   }, [stored, chat?.runtime])
 

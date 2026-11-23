@@ -328,6 +328,8 @@ await runScenario(async ({ buildScenario, act, dom, emit, scenario, page, click,
       { id: 'w1', function: { name: 'tool_call', arguments: JSON.stringify({ calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png', kind: 'sprite' } }, { name: 'chromatic_rom_build', arguments: {} }] }) } }] },
     { role: 'tool', tool_call_id: 'v1', name: 'vision_analyze', timestamp: 1004 },
     { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_asset_import', arguments: { assetPath: 'assets/sprites/frog.png' } }] }, timestamp: 1020 },
+    { role: 'tool', tool_call_id: 'w1', name: 'tool_call', args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] },
+      content: JSON.stringify({ structuredContent: { success: true } }), timestamp: 1050 },
     { role: 'assistant', content: 'Added a jump.', timestamp: 1167 },
     { role: 'user', text: 'secret', display_kind: 'hidden' }] })
   scenario.assetCalls = []

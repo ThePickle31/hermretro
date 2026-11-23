@@ -286,6 +286,9 @@ def _take_locked(
                 _check_tree(root, files, live)
                 if reason == "build":
                     record_build(meta, at, build_ref, build_call)
+                elif from_id:
+                    meta["backup"] = {"at": at, "from": from_id}
+                if reason == "build" or from_id:
                     _write_json(folder / newest / META, meta)
                 return {"id": newest, "created": False}
     occurrence = at

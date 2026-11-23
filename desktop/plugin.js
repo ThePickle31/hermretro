@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 f0d573bc6410d4ddfc2525f3e77beb59e76e4c2dd520da0ed5968953a5b2bc21
- * body: sha256 ec20c0fbed0674401f74c374ff7c963fd28ce5ce3e559f61339b60b31a35f55b
+ * sources: sha256 d60245da0b7ab199718cd2553b367a62bcef9fbdab0fbd7e68395a1868f7767f
+ * body: sha256 f344f8517bfadb723655c1d6a1befbd8113bcb80bef17af1ddbde9774bb51d4c
  */
 // page/sdk.js
 import {
@@ -422,6 +422,12 @@ function studioError(error, what) {
   return notLoaded ? `This hermretro backend cannot ${what} yet. Update the plugin in the profile it runs in.` : message || "Unknown error";
 }
 
+// page/app/tools.js
+var PRESENT_TOOL = "chromatic_present_game";
+var ROM_BUILD_TOOL = "chromatic_rom_build";
+var BUILD_TOOLS = /* @__PURE__ */ new Set([ROM_BUILD_TOOL, "chromatic_web_preview"]);
+var REPORT_TOOL = "chromatic_build_report";
+
 // page/app/update/lock.js
 var UPDATE_LOCK = atom(false);
 function isUpdating() {
@@ -435,6 +441,24 @@ function setUpdating(active) {
 }
 var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
 
+// page/pages/build/build-snapshots.js
+async function requestBuildSnapshots(game, stored) {
+  const answer = await callStudioOnly(RPC_BUILDS, { game, stored }, 2e4);
+  return answer?.ok && Array.isArray(answer.builds) ? answer.builds : false;
+}
+function snapshotFor(build, snapshots) {
+  if (!Array.isArray(snapshots)) {
+    return null;
+  }
+  const matches = snapshots.flatMap((snap) => {
+    const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : [];
+    const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : [];
+    const candidates = build.buildRef ? [build.buildRef] : calls.filter((call) => build.resultCall && build.resultCall.id === call.id && build.resultCall.timestamp === call.timestamp).map((call) => call.ref);
+    return candidates.filter((ref) => refs.includes(ref)).map((buildRef) => ({ id: String(snap.id), buildRef }));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
 // page/pages/build/chat/attachments.js
 var attachmentKey = (item) => item.key ?? item.path;
 function mergeAttachments(current, more) {
@@ -442,11 +466,6 @@ function mergeAttachments(current, more) {
   return [...current, ...more.filter((item) => !known.has(attachmentKey(item)))];
 }
 var attachmentLine = (item) => item.detail ?? `About ${item.path}:`;
-
-// page/app/tools.js
-var PRESENT_TOOL = "chromatic_present_game";
-var BUILD_TOOLS = /* @__PURE__ */ new Set(["chromatic_rom_build", "chromatic_web_preview"]);
-var REPORT_TOOL = "chromatic_build_report";
 
 // page/pages/build/chat/report.js
 var REPORT_KINDS = /* @__PURE__ */ new Set(["added", "changed", "removed"]);
@@ -563,7 +582,7 @@ function stepArgs(args) {
 }
 function stepInfo(name, result, exactCall = true) {
   const value = toolResultObject(result);
-  const buildRef = exactCall && name === "chromatic_rom_build" ? toolBuildRef(result, value) : null;
+  const buildRef = exactCall && name === ROM_BUILD_TOOL ? toolBuildRef(result, value) : null;
   if (!value && !buildRef) {
     return null;
   }
@@ -784,14 +803,14 @@ function historyItems(messages, running = false) {
   let stepCount = 0;
   const closeTurn = () => {
     if (agentSinceUser) {
-      const startedAt = [...items].reverse().find((item) => item.kind === "user")?.at ?? null;
+      const startedAt = items.findLast((item) => item.kind === "user" && !item.followup)?.at ?? null;
       items.push({ kind: "end", status: "complete", at: lastAt, startedAt, history: true });
     }
     agentSinceUser = false;
     tools.clear();
   };
   const addTool = (call, at) => {
-    const tool = { id: `history-${stepCount++}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: "done", startedAt: at };
+    const tool = { id: `history-${stepCount++}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: call.name === ROM_BUILD_TOOL ? "unknown" : "done", startedAt: at };
     const last = items[items.length - 1];
     if (last?.kind === "tools") {
       last.tools.push(tool);
@@ -811,8 +830,11 @@ function historyItems(messages, running = false) {
       if (!text2.trim()) {
         continue;
       }
-      closeTurn();
-      items.push({ kind: "user", text: text2, at });
+      const followup = message.display_kind === "steer";
+      if (!followup) {
+        closeTurn();
+      }
+      items.push({ kind: "user", text: text2, at, followup });
     } else if (message.role === "assistant") {
       agentSinceUser = true;
       if (text2.trim()) {
@@ -832,7 +854,8 @@ function historyItems(messages, running = false) {
       const name = message.name ?? message.tool_name;
       const pending = tools.get(id);
       const calls = unwrapCalls(id, name, message.args);
-      const failed = toolFailed({ result: text2 });
+      const result = toolResultObject(text2);
+      const failed = toolFailed({ result });
       const exactCall = calls.length === 1 && (!pending || pending.steps.length === 1);
       const outerResult = pending?.name === "tool_call" && calls.length === 1 && ["tool_call", "tool"].includes(calls[0].name);
       let steps;
@@ -856,6 +879,8 @@ function historyItems(messages, running = false) {
           step.info = stepInfo(step.name, text2, exactCall);
           if (failed) {
             step.state = "failed";
+          } else if (step.state === "unknown" && (step.info?.buildRef || result?.ok === true || result?.structuredContent?.success === true)) {
+            step.state = "done";
           }
         }
         if (pending?.steps.includes(step)) {
@@ -893,10 +918,10 @@ function updateTool(chat, id, change) {
   if (!id) {
     return chat;
   }
-  const matches = (tool) => tool.callId === id && tool.state === "running";
+  const matches = (tool) => tool.callId === id && tool.state === "running" && tool.turn === (chat.turn ?? null);
   for (let index = chat.items.length - 1; index >= 0; index--) {
     const item = chat.items[index];
-    if (item.kind === "user" || item.kind === "end") {
+    if (item.kind === "user" && !item.followup || item.kind === "end") {
       break;
     }
     if (item.kind === "tools" && item.tools.some(matches)) {
@@ -1003,6 +1028,7 @@ function reduceChat(chat, event) {
       const tools = unwrapCalls(payload.tool_id ?? `t${now}`, String(payload.name ?? ""), payload.args).map((call) => ({
         id: call.id,
         callId: payload.tool_id,
+        turn: chat.turn ?? null,
         name: call.name,
         args: stepArgs(call.args),
         report: reportOf(call.name, call.args),
@@ -1145,12 +1171,13 @@ function schedulePromptCheck(stored, delay = 1200) {
 var APPROVAL_LABELS = { once: "Allow once", session: "Allow for this chat", always: "Always allow", deny: "Deny" };
 
 // page/pages/build/chat/actions.js
-async function openBuildChat(stored) {
+async function openBuildChat(stored, game) {
   const known = BUILD_CHATS.get()[stored];
   if (known?.runtime || known?.opening) {
     return;
   }
-  patchChat(stored, (chat) => ({ ...chat, opening: true, failure: null }));
+  game ??= known?.game;
+  patchChat(stored, (chat) => ({ ...chat, game, opening: true, failure: null }));
   await retainChatRoute();
   try {
     const result = await chatRequest("session.resume", { session_id: stored }, 6e4);
@@ -1161,11 +1188,12 @@ async function openBuildChat(stored) {
     const running = typeof result?.running === "boolean" ? result.running : Boolean(BUILD_CHATS.get()[stored]?.busy);
     const pending = result?.pending ?? result?.info?.pending_submissions;
     const at = Date.now();
+    const items = historyItems(result?.messages, running);
     patchChat(stored, (chat) => ({
       ...withInfo(chat, result?.info),
       runtime,
       opening: false,
-      items: historyItems(result?.messages, running),
+      items,
       // Messages Hermes holds for later (behind a running or lost turn) wait under the conversation.
       queued: (Array.isArray(pending) ? pending : []).filter((row) => row?.status === "queued" && typeof row.text === "string" && row.text).map((row) => ({ kind: "user", text: row.text, at })),
       lost: lostTurns(pending),
@@ -1177,10 +1205,28 @@ async function openBuildChat(stored) {
       lastEventAt: Date.now(),
       unreachable: 0
     }));
+    if (game) {
+      void confirmStoredBuilds(stored, game, items);
+    }
   } catch (error) {
     const { message } = describeRequestError(error);
     const missing = error?.code === 4007 || /^session not found$/i.test(message.trim());
     patchChat(stored, (chat) => ({ ...chat, opening: false, failure: message, missing }));
+  }
+}
+async function confirmStoredBuilds(stored, game, items) {
+  const unresolved = items.flatMap((item) => item.kind === "tools" ? item.tools : []).filter((tool) => tool.name === ROM_BUILD_TOOL && tool.state === "unknown" && tool.resultCall && !tool.args?.sourcePath);
+  if (!unresolved.length) {
+    return;
+  }
+  const snapshots = await requestBuildSnapshots(game, stored).catch(() => false);
+  const confirmed = new Set(unresolved.filter((tool) => snapshotFor(tool, snapshots)));
+  if (confirmed.size) {
+    patchChat(stored, (chat) => ({
+      ...chat,
+      // These are the exact tool objects from this resume, even if live events appended more work.
+      items: chat.items.map((item) => item.kind === "tools" && item.tools.some((tool) => confirmed.has(tool)) ? { ...item, tools: item.tools.map((tool) => confirmed.has(tool) ? { ...tool, state: "done" } : tool) } : item)
+    }));
   }
 }
 async function reopenBuildChat(stored) {
@@ -1243,6 +1289,7 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   const live = Boolean(chat?.runtime);
   const paused = Boolean(chat?.lost?.length);
   const behindTurn = Boolean(chat?.busy) || paused;
+  const submission = newId();
   patchChat(stored, (current) => ({
     ...current,
     busy: live && !paused,
@@ -1251,7 +1298,7 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
     lastEventAt: now,
     items: [
       ...sealText(current).items,
-      { kind: "user", text: shown, at: now, ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
+      { kind: "user", text: shown, at: now, submission, followup: Boolean(current.busy), ...current.info?.model ? { model: current.info.model, effort: current.info.effort ?? "" } : {}, ...attachments.length ? { attachments } : {} }
     ]
   }));
   if (!chat?.runtime) {
@@ -1266,15 +1313,21 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   try {
     const named = attachments.length ? `${attachments.map(attachmentLine).join("\n")}
 ${text2}` : text2;
-    const reply = await chatRequest("prompt.submit", { session_id: chat.runtime, submission_id: newId(), text: named });
-    if (reply?.status === "queued" && behindTurn) {
+    const reply = await chatRequest("prompt.submit", { session_id: chat.runtime, submission_id: submission, text: named });
+    if (behindTurn && (reply?.status === "queued" || reply?.status === "streaming")) {
       patchChat(stored, (current) => {
-        const index = current.items.findLastIndex((item2) => item2.kind === "user" && item2.at === now);
+        const index = current.items.findIndex((item2) => item2.submission === submission);
         if (index === -1) {
           return current;
         }
-        const item = current.items[index];
-        return { ...current, items: [...current.items.slice(0, index), ...current.items.slice(index + 1)], queued: [...current.queued ?? [], item] };
+        const item = { ...current.items[index], followup: false };
+        const items = current.items.filter((entry) => entry.submission !== submission);
+        if (reply.status === "queued") {
+          return { ...current, items, queued: [...current.queued ?? [], item] };
+        }
+        const end = items.findIndex((entry, position) => position >= index && entry.kind === "end");
+        const start = end === -1 ? index : end + 1;
+        return { ...current, items: [...items.slice(0, start), item, ...items.slice(start)] };
       });
     }
   } catch (error) {
@@ -5274,6 +5327,9 @@ function stepWords(tool) {
   const short = shortTool(tool.name);
   const words = STEP_WORDS[short];
   const pair2 = typeof words === "function" ? words(tool.args ?? {}) : words;
+  if (tool.state === "unknown") {
+    return [pair2?.[0] ?? "Building", "Build outcome unknown"];
+  }
   if (pair2) {
     return pair2;
   }
@@ -5557,7 +5613,7 @@ function deriveTurns(items) {
   const turns = [];
   let current = null;
   items.forEach((item, index) => {
-    if (item.kind === "user" || !current || current.ended && item.kind !== "end") {
+    if (item.kind === "user" && !item.followup || !current || current.ended && item.kind !== "end") {
       current = { key: `t${index}`, user: item.kind === "user" ? item : null, items: item.kind === "user" ? [] : [item], ended: false };
       turns.push(current);
     } else {
@@ -5656,7 +5712,7 @@ function lastCompile(turn) {
   for (const item of turn.items) {
     if (item.kind === "tools") {
       for (const tool of item.tools) {
-        if (COMPILE_STEPS.has(shortTool(tool.name)) && (tool.state === "done" || tool.state === "failed")) {
+        if (COMPILE_STEPS.has(shortTool(tool.name)) && ["done", "failed", "unknown"].includes(tool.state)) {
           compile = tool;
         }
       }
@@ -5665,10 +5721,10 @@ function lastCompile(turn) {
   return compile;
 }
 function compileState(compile) {
-  return compile ? compile.state === "done" ? "built" : "failed" : null;
+  return compile ? compile.state === "done" ? "built" : compile.state : null;
 }
 function isGameBuild(tool) {
-  return shortTool(tool.name) === "rom_build" && tool.state === "done" && !tool.args?.sourcePath;
+  return shortTool(tool.name) === "rom_build" && tool.state !== "failed" && !tool.args?.sourcePath;
 }
 function buildHistory(turns) {
   const builds = [];
@@ -5717,7 +5773,8 @@ function buildHistory(turns) {
   return builds;
 }
 function turnBuilt(turn) {
-  return compileState(lastCompile(turn)) !== "failed" && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
+  const state = compileState(lastCompile(turn));
+  return (state === null || state === "built") && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
 }
 var LOOK_STEPS = /^(vision_analyze|read_file|search_files|browser_exec|.+_inspect|.+_analyze|graphics_analyze_scene)$/;
 function madeAssets(parts, root) {
@@ -6711,6 +6768,7 @@ function BuildCard({ art, replay, play, build, parts, report, root, took, at, li
           jsx("b", { className: "cs-b-bc-title", children: title }),
           jsx("span", { className: "cs-faint cs-b-bc-meta", children: [took, at ? timeOfDay(at) : null].filter(Boolean).join(" · ") }),
           jsx("span", { className: "cs-grow" }),
+          build?.state === "unknown" ? jsx("span", { className: "cs-faint cs-small", children: "Outcome unknown" }) : null,
           playLabel
         ]
       }),
@@ -6958,6 +7016,7 @@ function BuildPromptCard({ stored, item }) {
 }
 
 // page/pages/build/transcript/worked.js
+var stepIcon = { failed: "error", stopped: "debug-stop", unknown: "question" };
 function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
   const [running, done] = stepWords(tool);
   const live = tool.state === "running";
@@ -6972,7 +7031,7 @@ function StepRow({ tool, assets, onOpenAsset, freshFrom }) {
         children: [
           jsx("span", {
             className: "cs-b-ico",
-            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: tool.state === "failed" ? "error" : tool.state === "stopped" ? "debug-stop" : "check", size: 12 })
+            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: stepIcon[tool.state] ?? "check", size: 12 })
           }),
           jsx("span", { className: live ? "cs-b-tool-name cs-b-shimmer" : "cs-b-tool-name", children: live ? running : tool.state === "failed" ? `${running} failed` : done }),
           detail ? jsx("span", { className: "cs-b-tool-detail", title: detail, children: detail }) : null,
@@ -7033,7 +7092,7 @@ function SimpleStep({ tool, assets, onOpenAsset, freshFrom }) {
         children: [
           jsx("span", {
             className: "cs-b-ico",
-            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: failed ? "error" : tool.state === "stopped" ? "debug-stop" : "check", size: 12 })
+            children: live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: stepIcon[tool.state] ?? "check", size: 12 })
           }),
           jsx("span", { className: live ? "cs-b-tool-name cs-b-shimmer" : "cs-b-tool-name", children: live ? `${running}…` : failed ? `${running} failed` : done }),
           failed && tool.info?.error ? jsx("span", { className: "cs-b-tool-detail", title: tool.info.error, children: tool.info.error }) : null
@@ -7047,15 +7106,16 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
   const steps = group.entries.filter((entry) => entry.type === "step").map((entry) => entry.tool);
   const running = steps.some((tool) => tool.state === "running");
   const failed = !running && steps.length > 0 && steps[steps.length - 1].state === "failed";
+  const unknown = !running && !failed && steps.findLast((tool) => /^(rom_build|web_build)$/.test(shortTool(tool.name)))?.state === "unknown";
   const made = steps.flatMap((tool) => (assetsByStep.get(tool.id) ?? []).filter((asset) => !asset.looked && asset.kind !== "Playtest frame"));
   const seconds = steps.reduce((sum, tool) => sum + (typeof tool.duration === "number" ? tool.duration : 0), 0);
   const shown = group.entries.filter((entry) => !(entry.type === "step" && entry.tool.state === "done" && MINOR_STEPS.test(shortTool(entry.tool.name)) && !assetsByStep.get(entry.tool.id)?.length));
-  const icon = running ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: failed ? "error" : "check", size: 12 });
+  const icon = running ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: failed ? "error" : unknown ? "question" : "check", size: 12 });
   return jsxs("div", {
     className: "cs-b-ph",
     "data-group": group.kind,
     "data-open": open ? "true" : "false",
-    "data-state": running ? "running" : failed ? "failed" : "done",
+    "data-state": running ? "running" : failed ? "failed" : unknown ? "unknown" : "done",
     children: [
       jsxs("button", {
         "aria-expanded": open,
@@ -7064,7 +7124,7 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
         type: "button",
         children: [
           jsx("span", { className: "cs-b-ico", children: icon }),
-          jsx("span", { className: running && live ? "cs-b-ph-name cs-b-shimmer" : "cs-b-ph-name", children: groupTitle(group, running && live, made.length > 0) }),
+          jsx("span", { className: running && live ? "cs-b-ph-name cs-b-shimmer" : "cs-b-ph-name", children: unknown ? "Build outcome unknown" : groupTitle(group, running && live, made.length > 0) }),
           jsx("span", { className: "cs-grow" }),
           made.length && !open ? jsx(AssetStack, { assets: made, max: 3 }) : null,
           jsx("span", { className: "cs-b-ph-meta", children: `${steps.length} ${steps.length === 1 ? "step" : "steps"}${seconds >= 1 ? ` · ${spanWords(seconds * 1e3)}` : ""}` }),
@@ -7178,6 +7238,15 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
 }
 
 // page/pages/build/transcript/turn-view.js
+function UserMessage({ user }) {
+  return jsxs("div", {
+    className: "cs-b-user",
+    children: [
+      user.attachments?.length ? jsx("div", { className: "cs-b-chips", children: user.attachments.map((item) => jsx(AttachmentChip, { item }, attachmentKey(item))) }) : null,
+      jsx("span", { children: user.text })
+    ]
+  });
+}
 function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
   const parts = turnParts(turn, root);
   const user = turn.user;
@@ -7252,13 +7321,10 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   return jsxs("div", {
     className: "cs-b-turn-body",
     children: [
-      user ? jsxs("div", {
-        className: "cs-b-user",
-        children: [
-          user.attachments?.length ? jsx("div", { className: "cs-b-chips", children: user.attachments.map((item) => jsx(AttachmentChip, { item }, attachmentKey(item))) }) : null,
-          jsx("span", { children: user.text })
-        ]
-      }) : null,
+      user ? jsx(UserMessage, { user }) : null,
+      ...turn.items.filter((item) => item.kind === "user" && item.followup).map(
+        (item, index) => jsx(UserMessage, { user: item }, item.submission ?? `followup${index}`)
+      ),
       hasAgent ? jsxs("div", {
         className: "cs-b-her",
         children: [
@@ -7335,6 +7401,7 @@ function TurnView(props) {
               jsx("span", { className: "cs-b-history-number", children: `#${build.n}` }),
               jsx("span", { className: "cs-b-history-title", children: build.title }),
               build.state === "failed" ? jsx("span", { className: "cs-b-history-failed", children: "Failed" }) : null,
+              build.state === "unknown" ? jsx("span", { className: "cs-faint", children: "Outcome unknown" }) : null,
               jsx(Codicon, { name: open ? "chevron-down" : "chevron-right", size: 12 })
             ]
           }),
@@ -7657,6 +7724,8 @@ function BuildPill({ builds, chat, game }) {
   } else if (last?.state === "failed") {
     tone = "bad";
     label = `Build #${last.n} didn’t finish`;
+  } else if (last?.state === "unknown") {
+    label = `Build #${last.n} · outcome unknown`;
   } else if (game.state === "changed") {
     tone = "warn";
     label = good ? `Edited since build #${good.n}` : "Edited since the last build";
@@ -7674,18 +7743,6 @@ function BuildPill({ builds, chat, game }) {
   }
   return jsxs("span", { className: `cs-b-pill ${tone}`, children: [tone === "quiet" ? null : jsx("i", { className: "cs-b-pill-dot" }), label] });
 }
-function snapshotFor(build, snapshots) {
-  if (!Array.isArray(snapshots)) {
-    return null;
-  }
-  const matches = snapshots.flatMap((snap) => {
-    const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : [];
-    const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : [];
-    const candidates = build.buildRef ? [build.buildRef] : calls.filter((call) => build.resultCall && build.resultCall.id === call.id && build.resultCall.timestamp === call.timestamp).map((call) => call.ref);
-    return candidates.filter((ref) => refs.includes(ref)).map((buildRef) => ({ id: String(snap.id), buildRef }));
-  });
-  return matches.length === 1 ? matches[0] : null;
-}
 var snapshotDate = new Intl.DateTimeFormat(void 0, { dateStyle: "medium", timeStyle: "medium" });
 function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
   const [open, setOpen] = useState(false);
@@ -7700,7 +7757,7 @@ function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
     }
     let live = true;
     setSnapshots(null);
-    callStudioOnly(RPC_BUILDS, { game: game.id, stored }, 2e4).then((answer) => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false)).catch(() => live && setSnapshots(false));
+    requestBuildSnapshots(game.id, stored).then((answer) => live && setSnapshots(answer)).catch(() => live && setSnapshots(false));
     const onDown = (event) => {
       if (wrap.current && !wrap.current.contains(event.target)) {
         setOpen(false);
@@ -7720,17 +7777,21 @@ function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
     };
   }, [open, game.id, stored, builds]);
   const newest = builds[builds.length - 1] ?? null;
-  const playingBuild = [...builds].reverse().find((build) => build.state === "built") ?? null;
   const rows = [...builds].reverse().map((build) => ({ build, snapshot: snapshotFor(build, snapshots), key: build.key }));
+  const playingBuild = rows.find(({ build, snapshot }) => build.state === "built" || build.state === "unknown" && snapshot)?.build ?? null;
   const represented = new Set(rows.map((row) => row.snapshot?.id));
+  const manual = [];
   for (const saved of Array.isArray(snapshots) ? snapshots : []) {
     const id = String(saved.id);
     const legacy = saved.builds?.length || saved.reason === "build" && !saved.buildRefs?.length;
-    const date = new Date(saved.at);
-    if (legacy && !represented.has(id) && Number.isFinite(saved.at) && Number.isFinite(date.getTime())) {
-      rows.push({ key: `snapshot:${id}`, snapshot: { id }, savedAt: snapshotDate.format(date) });
+    const backup = saved.reason === "before-restore" || Number.isFinite(saved.backup?.at);
+    const at = Number.isFinite(saved.backup?.at) ? saved.backup.at : saved.at;
+    const date = new Date(at);
+    if ((backup || legacy && !represented.has(id)) && Number.isFinite(at) && Number.isFinite(date.getTime())) {
+      manual.push({ key: `snapshot:${id}`, snapshot: { id }, at, savedAt: snapshotDate.format(date), backup });
     }
   }
+  rows.push(...manual.sort((a, b) => b.at - a.at));
   return jsxs("div", {
     className: "cs-b-swwrap",
     ref: wrap,
@@ -7750,17 +7811,17 @@ function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
           jsx("span", { className: "cs-eyebrow", children: "Builds" }),
           rows.length ? jsx("div", {
             className: "cs-b-sw-list",
-            children: rows.map(({ build, snapshot, key, savedAt }) => {
+            children: rows.map(({ build, snapshot, key, savedAt, backup }) => {
               const current = build === newest;
               const playing = build === playingBuild;
-              const restorable = !build || build.state === "built" && !(playing && current && game.state !== "changed");
+              const restorable = !build || build.state !== "failed" && !(playing && current && game.state !== "changed");
               const sameSnapshot = snapshot?.id === confirm?.snapshot.id && snapshot?.buildRef === confirm?.snapshot.buildRef;
-              const target = build ? `build #${build.n}` : `saved snapshot from ${savedAt}`;
-              const title = build?.title ?? "Saved snapshot";
+              const title = build?.title ?? (backup ? "Before-restore backup" : "Saved snapshot");
+              const target = build ? `build #${build.n}` : `${title.toLowerCase()} from ${savedAt}`;
               const subtitle = build ? [
                 build.endAt ? timeOfDay(build.endAt) : null,
-                build.state === "failed" ? "didn’t finish" : playing ? game.state === "changed" ? "playing now · edited since" : "playing now" : null
-              ].filter(Boolean).join(" · ") : savedAt;
+                build.state === "failed" ? "didn’t finish" : build.state === "unknown" && !snapshot ? "outcome unknown" : playing ? game.state === "changed" ? "playing now · edited since" : "playing now" : null
+              ].filter(Boolean).join(" · ") : backup ? `${savedAt} · ${snapshot.id}` : savedAt;
               return jsxs(
                 "div",
                 {
@@ -9195,7 +9256,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     if (game?.session?.storedId === stored && game.session.exists === false) {
       patchChat(stored, (current) => current.missing ? current : { ...current, missing: true });
     } else {
-      void openBuildChat(stored);
+      void openBuildChat(stored, game?.id);
     }
   }, [stored, chat?.runtime]);
   useEffect(() => {

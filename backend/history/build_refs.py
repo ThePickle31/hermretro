@@ -43,6 +43,8 @@ def public_snapshot(meta: dict, identifier: str, stored: str | None = None) -> d
             answer["buildCalls"] = calls
     if meta.get("from"):
         answer["from"] = meta["from"]
+    if isinstance(meta.get("backup"), dict):
+        answer["backup"] = meta["backup"]
     return answer
 
 

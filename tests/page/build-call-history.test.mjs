@@ -153,3 +153,33 @@ test('a compact result for a batch member stays within its outer occurrence', ()
   assert.equal(buildsFor(items)[0].buildRef, null)
   assert.equal(buildsFor(items)[0].resultCall, null)
 })
+
+test('a redirected user row does not end the active tool occurrence or claim its build', () => {
+  const call = { ...deferred, tool_id: callId, turn_id: 'active' }
+  const started = [
+    { type: 'message.start', payload: { turn_id: 'active' } },
+    { type: 'tool.start', payload: call }
+  ].reduce(reduceChat, { items: [{ kind: 'user', text: 'Build the game' }] })
+  const followup = { kind: 'user', text: 'Make it a little faster', followup: true }
+  const redirected = { ...started, items: [...started.items, followup] }
+  const chat = [
+    { type: 'tool.progress', payload: { ...call, percent: 50 } },
+    { type: 'tool.complete', payload: { ...call, result: { buildRef: ref } } },
+    { type: 'message.complete', payload: { turn_id: 'active', text: 'Built.' } }
+  ].reduce(reduceChat, redirected)
+
+  assert.deepEqual(stepsFor(chat.items).map(step => [step.state, step.info?.buildRef]), [['done', ref]])
+  assert.deepEqual(buildsFor(chat.items).map(build => [build.title, build.buildRef]), [['Build the game', ref]])
+  assert.ok(deriveTurns(chat.items)[0].items.includes(followup))
+})
+
+test('a wrapped compact resume row with no outcome evidence is an unknown build', () => {
+  const items = historyItems([
+    { role: 'user', text: 'Build it', timestamp: 1 },
+    { role: 'tool', tool_call_id: callId, timestamp: 2, ...deferred }
+  ])
+
+  assert.equal(stepsFor(items)[0].state, 'unknown')
+  assert.equal(buildsFor(items)[0].state, 'unknown')
+  assert.deepEqual(buildsFor(items)[0].resultCall, { id: callId, timestamp: 2 })
+})

@@ -142,6 +142,7 @@ export function BuildCard({ art, replay, play, build, parts, report, root, took,
           jsx('b', { className: 'cs-b-bc-title', children: title }),
           jsx('span', { className: 'cs-faint cs-b-bc-meta', children: [took, at ? timeOfDay(at) : null].filter(Boolean).join(' · ') }),
           jsx('span', { className: 'cs-grow' }),
+          build?.state === 'unknown' ? jsx('span', { className: 'cs-faint cs-small', children: 'Outcome unknown' }) : null,
           playLabel
         ]
       }),

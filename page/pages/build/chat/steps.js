@@ -1,5 +1,5 @@
 // A tool call as a step of the conversation.
-import { PRESENT_TOOL, REPORT_TOOL } from '#app/tools.js'
+import { PRESENT_TOOL, REPORT_TOOL, ROM_BUILD_TOOL } from '#app/tools.js'
 import { normalizeReport } from './report.js'
 import { toolBuildRef, toolResultObject } from './tool-results.js'
 
@@ -57,7 +57,7 @@ export function stepArgs(args) {
 /** What the page keeps of a finished step's result: its error, the paths it made, a presentation. */
 export function stepInfo(name, result, exactCall = true) {
   const value = toolResultObject(result)
-  const buildRef = exactCall && name === 'chromatic_rom_build' ? toolBuildRef(result, value) : null
+  const buildRef = exactCall && name === ROM_BUILD_TOOL ? toolBuildRef(result, value) : null
 
   if (!value && !buildRef) {
     return null

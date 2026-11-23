@@ -1,10 +1,9 @@
 // The Build header: where the game stands, and its builds.
 import { Button, Codicon, jsx, jsxs, Tip, useEffect, useRef, useState } from '#sdk'
-import { callStudioOnly } from '#app/backend.js'
 import { AGENT } from '#app/ids.js'
-import { RPC_BUILDS } from '#app/rpc.js'
 import { timeOfDay } from '#shared/ui/time.js'
 import { Elapsed } from '#shared/ui/elapsed.js'
+import { requestBuildSnapshots, snapshotFor } from './build-snapshots.js'
 
 /** One pill beside the title: working, the build you would play, edits since it, or a failed build. */
 export function BuildPill({ builds, chat, game }) {
@@ -25,6 +24,8 @@ export function BuildPill({ builds, chat, game }) {
   } else if (last?.state === 'failed') {
     tone = 'bad'
     label = `Build #${last.n} didn\u2019t finish`
+  } else if (last?.state === 'unknown') {
+    label = `Build #${last.n} · outcome unknown`
   } else if (game.state === 'changed') {
     tone = 'warn'
     label = good ? `Edited since build #${good.n}` : 'Edited since the last build'
@@ -44,28 +45,9 @@ export function BuildPill({ builds, chat, game }) {
   return jsxs('span', { className: `cs-b-pill ${tone}`, children: [tone === 'quiet' ? null : jsx('i', { className: 'cs-b-pill-dot' }), label] })
 }
 
-/** A ROM build's reference can come directly from the result or its exact stored result row. */
-function snapshotFor(build, snapshots) {
-  if (!Array.isArray(snapshots)) {
-    return null
-  }
-
-  const matches = snapshots.flatMap(snap => {
-    const refs = Array.isArray(snap.buildRefs) ? snap.buildRefs : []
-    const calls = Array.isArray(snap.buildCalls) ? snap.buildCalls : []
-    const candidates = build.buildRef
-      ? [build.buildRef]
-      : calls.filter(call => build.resultCall && build.resultCall.id === call.id && build.resultCall.timestamp === call.timestamp).map(call => call.ref)
-
-    return candidates.filter(ref => refs.includes(ref)).map(buildRef => ({ id: String(snap.id), buildRef }))
-  })
-
-  return matches.length === 1 ? matches[0] : null
-}
-
 const snapshotDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
 
-/** Builds ▾: numbered builds and saved legacy snapshots without an exact transcript match. */
+/** Builds ▾: numbered builds, unmatched legacy snapshots and before-restore backups. */
 export function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
   const [open, setOpen] = useState(false)
   const [snapshots, setSnapshots] = useState(null)
@@ -83,8 +65,8 @@ export function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
     let live = true
 
     setSnapshots(null)
-    callStudioOnly(RPC_BUILDS, { game: game.id, stored }, 20_000)
-      .then(answer => live && setSnapshots(answer?.ok && Array.isArray(answer.builds) ? answer.builds : false))
+    requestBuildSnapshots(game.id, stored)
+      .then(answer => live && setSnapshots(answer))
       .catch(() => live && setSnapshots(false))
 
     const onDown = event => {
@@ -109,19 +91,23 @@ export function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
   }, [open, game.id, stored, builds])
 
   const newest = builds[builds.length - 1] ?? null
-  const playingBuild = [...builds].reverse().find(build => build.state === 'built') ?? null
   const rows = [...builds].reverse().map(build => ({ build, snapshot: snapshotFor(build, snapshots), key: build.key }))
+  const playingBuild = rows.find(({ build, snapshot }) => build.state === 'built' || (build.state === 'unknown' && snapshot))?.build ?? null
   const represented = new Set(rows.map(row => row.snapshot?.id))
+  const manual = []
 
   for (const saved of Array.isArray(snapshots) ? snapshots : []) {
     const id = String(saved.id)
     const legacy = saved.builds?.length || (saved.reason === 'build' && !saved.buildRefs?.length)
-    const date = new Date(saved.at)
+    const backup = saved.reason === 'before-restore' || Number.isFinite(saved.backup?.at)
+    const at = Number.isFinite(saved.backup?.at) ? saved.backup.at : saved.at
+    const date = new Date(at)
 
-    if (legacy && !represented.has(id) && Number.isFinite(saved.at) && Number.isFinite(date.getTime())) {
-      rows.push({ key: `snapshot:${id}`, snapshot: { id }, savedAt: snapshotDate.format(date) })
+    if ((backup || (legacy && !represented.has(id))) && Number.isFinite(at) && Number.isFinite(date.getTime())) {
+      manual.push({ key: `snapshot:${id}`, snapshot: { id }, at, savedAt: snapshotDate.format(date), backup })
     }
   }
+  rows.push(...manual.sort((a, b) => b.at - a.at))
 
   return jsxs('div', {
     className: 'cs-b-swwrap',
@@ -144,18 +130,18 @@ export function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
               rows.length
                 ? jsx('div', {
                     className: 'cs-b-sw-list',
-                    children: rows.map(({ build, snapshot, key, savedAt }) => {
+                    children: rows.map(({ build, snapshot, key, savedAt, backup }) => {
                       const current = build === newest
                       const playing = build === playingBuild
                       // Restoring the build you already play changes nothing, unless the game was edited since.
-                      const restorable = !build || (build.state === 'built' && !(playing && current && game.state !== 'changed'))
+                      const restorable = !build || (build.state !== 'failed' && !(playing && current && game.state !== 'changed'))
                       const sameSnapshot = snapshot?.id === confirm?.snapshot.id && snapshot?.buildRef === confirm?.snapshot.buildRef
-                      const target = build ? `build #${build.n}` : `saved snapshot from ${savedAt}`
-                      const title = build?.title ?? 'Saved snapshot'
+                      const title = build?.title ?? (backup ? 'Before-restore backup' : 'Saved snapshot')
+                      const target = build ? `build #${build.n}` : `${title.toLowerCase()} from ${savedAt}`
                       const subtitle = build ? [
                         build.endAt ? timeOfDay(build.endAt) : null,
-                        build.state === 'failed' ? 'didn’t finish' : playing ? (game.state === 'changed' ? 'playing now · edited since' : 'playing now') : null
-                      ].filter(Boolean).join(' · ') : savedAt
+                        build.state === 'failed' ? 'didn’t finish' : build.state === 'unknown' && !snapshot ? 'outcome unknown' : playing ? (game.state === 'changed' ? 'playing now · edited since' : 'playing now') : null
+                      ].filter(Boolean).join(' · ') : backup ? `${savedAt} · ${snapshot.id}` : savedAt
 
                       return jsxs(
                         'div',

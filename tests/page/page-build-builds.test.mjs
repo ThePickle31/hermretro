@@ -89,7 +89,8 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
   const backup = await openMenu()
   check('the time a restore backup was made does not match a build', () => {
     assert.equal(backup.restore.disabled, true)
-    assert.equal(backup.rows.length, 2)
+    assert.equal(backup.rows.length, 3)
+    assert.match(backup.rows[2], /^Before-restore backup.*Restore$/)
   })
   snapshots = [
     { id: 'snap-1', at: 1_010_000, builds: [1_010_000], reason: 'build' },

@@ -1,4 +1,4 @@
-// Legacy snapshots are available even if a game's old conversation is no longer bound.
+// Saved snapshots and backups are available even if the old conversation is no longer bound.
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
@@ -7,13 +7,18 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
   const game = 'fff666fff666'
   const savedAt = Date.UTC(2025, 4, 4, 12, 32, 10)
   const snapshot = String(savedAt)
+  const backupAt = savedAt + 1000
+  const backup = String(backupAt)
   buildScenario({ selected: game })
   scenario.games = answered({ games: [{ id: game, title: 'Frog Post', projectRoot: '/home/u/games/FrogPost',
     kind: 'gbstudio', state: 'changed', rom: null, webExport: false, thumb: null, session: null }] })
   const calls = []
   scenario.byMethod['plugin.hermretro.builds'] = params => {
     calls.push(['builds', params])
-    return { ok: true, builds: [{ id: snapshot, at: savedAt, reason: 'before-restore', builds: [savedAt + 500] }] }
+    return { ok: true, builds: [
+      { id: backup, at: backupAt, reason: 'before-restore', builds: [] },
+      { id: snapshot, at: savedAt, reason: 'build', builds: [savedAt + 500] }
+    ] }
   }
   scenario.byMethod['plugin.hermretro.build_restore'] = params => {
     calls.push(['restore', params])
@@ -36,12 +41,17 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
   await settle(100)
   await click('Builds', view.node.querySelector('.cs-b-head'))
   await settle(25)
-  const row = view.node.querySelector('.cs-b-brow')
-  const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(savedAt)
+  const [backupRow, row] = view.node.querySelectorAll('.cs-b-brow')
+  const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
+  const date = dateFormat.format(savedAt)
   check('an unbound game still lists its saved legacy build by the snapshot date', () => {
     assert.deepEqual(calls, [['builds', { game, stored: null }]])
     assert.equal(row.querySelector('small').textContent, date)
     assert.equal(row.querySelector('button').disabled, false)
+  })
+  check('an unbound game lists its before-restore backup by date and ID', () => {
+    assert.equal(backupRow.querySelector('small').textContent, `${dateFormat.format(backupAt)} · ${backup}`)
+    assert.equal(backupRow.querySelector('button').disabled, false)
   })
 
   await click('Restore', row)

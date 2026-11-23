@@ -270,7 +270,7 @@ kept asset's current version is saved like a delivered image, so the card keeps 
 After each successful `chromatic_rom_build` (Hermes's `post_tool_call`: result without `error`/`isError`
 and `structuredContent.success === true`, not a `sourcePath` build) of a game in the library, the plugin
 copies the project to `<plugin data>/snapshots/<game id>/<ms>/files/` with `<ms>/snapshot.json`
-`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, fingerprint, builds: [ms…], buildRefs? }`.
+`{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, backup?, fingerprint, builds: [ms…], buildRefs? }`.
 Never copied, compared, deleted or restored: top-level `build/`, `artifacts/`, `.git/`, `node_modules/`,
 `captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …), every symlink, and every folder below the
 project that holds a `.gbsproj` of its own (in any case, a file or a link, as the engine finds a project: another
@@ -282,21 +282,26 @@ backup protected during a restore.
 
 - The build's tool result carries `buildRef`, which the snapshot hook records in `buildRefs`.
   `builds { game, stored? }` returns
-  `{ ok, builds: [{ id, at, builds, buildRefs?, buildCalls?, files, bytes, reason, from? }] }`, newest first.
+  `{ ok, builds: [{ id, at, builds, buildRefs?, buildCalls?, files, bytes, reason, from?, backup? }] }`, newest first.
   `buildCalls: [{ id, ref, timestamp }]` gives the call ID and exact result timestamp in Unix seconds
   when a stored result in the bound conversation carries the recorded build reference. The page uses
-  these two fields together when the gateway omits a result body. Historical times in `builds` use
-  milliseconds. An unmatched legacy snapshot is selectable by its saved `at` date and time.
+  these two fields together when the gateway omits a result body. Without a confirmed match or a result
+  body that establishes the outcome, the build shows as unknown. Historical times in `builds` use milliseconds.
+  An unmatched legacy snapshot or before-restore backup is selectable by its saved date and time.
 - Under one per-game lock, `build_restore` verifies the supplied `buildRef` or historical `buildAt`
   against the selected snapshot. An explicitly selected saved snapshot supplies its `id`. Either
   selection checks the saved file count, byte total and fingerprint. The restore then
   rejects redirected project paths and verifies the backup's names and contents before publishing it.
-  The `before-restore` snapshot's `from` field is the restored ID. The restore removes project files
-  absent from the saved build and writes back files that differ using a temporary sibling. Each
-  overwrite or deletion verifies the live file against the backup and checks opened ancestor folders
-  for nested-game markers. A final scan verifies the resulting project paths and contents against the
-  selected snapshot. An unexpected file is preserved and reported. Incomplete restores include the
-  verified backup ID, operation counts and up to 20 file problems. A complete restore requests a rebuild.
+  The `before-restore` snapshot's `from` field is the restored ID. When a restore reuses the newest
+  identical snapshot for the backup, its `backup: { at, from }` records the latest such restore's time in milliseconds
+  and selected ID. The restore removes project files absent from the saved build and writes back
+  files that differ using a temporary sibling. Each
+  overwrite or deletion scans opened ancestor folders for nested-game markers before comparing the live
+  file's identity and bytes against the backup. When restore removes a hard link, it records the change
+  to that inode's stamp for verifying remaining links. A final scan verifies the resulting project
+  paths and contents against the selected snapshot. An unexpected file is preserved and reported.
+  Incomplete restores include the verified backup ID, operation counts and up to 20 file problems.
+  A complete restore requests a rebuild.
 
 ## The game card (`game.json` + `cover.png`)
 

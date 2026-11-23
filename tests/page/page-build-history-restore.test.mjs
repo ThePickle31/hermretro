@@ -23,10 +23,10 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
       args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] } },
     { role: 'assistant', text: 'Done.', timestamp: 1003 },
     ...turn('missing', 2000, 'make it jump higher'),
-    { role: 'user', text: 'build again', timestamp: 2500 },
-    { role: 'tool', name: 'tool_call', tool_call_id: 'first', timestamp: 2502,
-      args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] } },
-    ...turn('latest', 3000, 'make it jump even higher')
+    ...turn('latest', 3000, 'make it jump even higher'),
+    { role: 'user', text: 'build again', timestamp: 3500 },
+    { role: 'tool', name: 'tool_call', tool_call_id: 'first', timestamp: 3502,
+      args: { calls: [{ name: 'chromatic_rom_build', arguments: {} }] } }
   ] })
   scenario.byMethod['plugin.hermretro.builds'] = { ok: true, builds: [
     { id: '46', at: 3_002_500, builds: [], buildRefs: ['latest'], reason: 'build' },
@@ -63,7 +63,7 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
     await click('Restore #1', row)
     await settle(25)
   }
-  const [latest, reused, missing, first, ...saved] = await open()
+  const [reused, latest, missing, first, ...saved] = await open()
   check('an exact snapshot works outside the old time window and a missing reference never falls back', () => {
     assert.equal([...latest.querySelectorAll('button')].find(button => button.textContent === 'Restore')?.disabled, false)
     assert.equal([...first.querySelectorAll('button')].find(button => button.textContent === 'Restore')?.disabled, false)
@@ -71,9 +71,17 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
     assert.equal([...reused.querySelectorAll('button')].find(button => button.textContent === 'Restore')?.disabled, true)
   })
   check('mixed history lists each unmatched legacy snapshot once and keeps exact matches on numbered rows', () => {
-    assert.equal(saved.length, 2)
-    assert.ok(saved.every(row => row.querySelector('b').textContent === 'Saved snapshot'))
+    assert.equal(saved.length, 3)
+    assert.deepEqual(saved.map(row => row.querySelector('b').textContent), ['Saved snapshot', 'Saved snapshot', 'Before-restore backup'])
     assert.ok(saved.every(row => !row.querySelector('.cs-b-bn') && !row.textContent.includes('Show')))
+  })
+  check('compact rows confirm only their exact outcome and leave the reused ID unknown', () => {
+    assert.doesNotMatch(first.textContent, /outcome unknown/)
+    assert.match(reused.textContent, /outcome unknown/)
+    const unknown = view.node.querySelector('.cs-b-bc[data-build="4"]')
+    assert.match(unknown.textContent, /#4.*Outcome unknown/)
+    assert.equal(unknown.querySelector('.cs-b-pc-go'), null)
+    assert.match(view.node.querySelector('.cs-b-pill').textContent, /Build #4 · outcome unknown/)
   })
   await confirm(first)
   check('preflight failure reports the restore error and sends no rebuild', () => {
@@ -91,6 +99,10 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
     assert.match(scenario.notices.at(-1).message, /Restore of build #1 was incomplete.*previous files were saved \(snapshot 50\).*assets\/frog.png/)
   })
 
+  const backupAt = 3_100_000
+  scenario.byMethod['plugin.hermretro.builds'].builds.unshift({
+    id: '50', at: 3_050_000, buildRefs: ['kept-current'], reason: 'build', backup: { at: backupAt, from: '42' }
+  })
   restoreResult = { ok: true, restored: '42', backup: '51', changed: 1, removed: 0 }
   await confirm((await open())[3])
   check('after a complete restore a rejected rebuild is reported separately', () => {
@@ -111,8 +123,9 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
   })
   await act(async () => emit({ type: 'message.complete', session_id: 'rt-of-st-frog', payload: { text: 'Rebuilt.' } }))
   await settle(25)
-  const legacyRow = (await open()).at(-1)
-  const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(1_001_500)
+  const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
+  const date = dateFormat.format(1_001_500)
+  const legacyRow = (await open()).find(row => row.querySelector('small')?.textContent === date)
   await click('Restore', legacyRow)
   check('the confirmation identifies the selected legacy snapshot by date without sending anything', () => {
     assert.match(legacyRow.textContent, /Saved snapshot.*Restore snapshot.*Cancel/)
@@ -133,6 +146,23 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, mount, 
     assert.ok(prompts.at(-1).text.includes(`saved snapshot from ${date} (snapshot 43)`))
     assert.doesNotMatch(prompts.at(-1).text, /build #/)
     assert.equal(view.node.querySelector('.cs-b-builds'), null)
+  })
+  await act(async () => emit({ type: 'message.complete', session_id: 'rt-of-st-frog', payload: { text: 'Rebuilt.' } }))
+  const backupDate = dateFormat.format(backupAt)
+  const backupRow = (await open()).find(row => row.querySelector('small')?.textContent === `${backupDate} · 50`)
+  await click('Restore', backupRow)
+  check('the backup from the partial restore is selectable by date, even when its files were reused', () => {
+    assert.match(backupRow.textContent, /Before-restore backup.*Restore snapshot.*Cancel/)
+    assert.equal(backupRow.querySelector('button').getAttribute('aria-label'), `Restore before-restore backup from ${backupDate}`)
+    assert.equal(asks.length, 5)
+  })
+  restoreResult = { ok: true, restored: '50', backup: '53', changed: 1, removed: 0 }
+  await click('Restore snapshot', backupRow)
+  await settle(25)
+  check('confirming a before-restore backup sends its ID and dates the rebuild request', () => {
+    assert.deepEqual(asks.at(-1), { game, id: '50' })
+    assert.equal(asks.length, 6)
+    assert.match(prompts.at(-1).text, /before-restore backup.*\(snapshot 50\).*Please build it again/)
   })
   await view.close()
 })

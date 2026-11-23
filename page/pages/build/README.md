@@ -46,7 +46,7 @@ the provider notice).
 | Part | File | Classes |
 |---|---|---|
 | The game's title and the game switcher (its menu of games, the library view, the right-click menu, and the "N needs you" / "N working" / new-reply marks for other games) | `switcher.js` `BuildSwitcher` (`switcherEntries` gives its rows) | `.cs-b-sw*`, `.cs-b-ctx`, `.cs-b-needs`, `.cs-b-others`, `.cs-b-otherdot` |
-| The status pill (working, up to date, edited since a build, failed, no builds yet) | `builds-menu.js` `BuildPill` | `.cs-b-pill*` |
+| The status pill (working, up to date, edited since a build, failed, outcome unknown, no builds yet) | `builds-menu.js` `BuildPill` | `.cs-b-pill*` |
 | The Builds menu (the conversation's builds, Show and Restore) | `builds-menu.js` `BuildsMenu` | `.cs-b-brow*`, `.cs-b-sw-pop.cs-b-builds` |
 
 Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-motion changes in
@@ -54,12 +54,13 @@ Their styles are in `header.css.js` (`HEADER_CSS`; narrow-window and reduced-mot
 `build-page.js` is near the size limit (`tests/repo/test_layout.py`: a warning above 400 lines, a failure above 600),
 so a new header part goes in its own file in `page/pages/build/`, with a row in the table above.
 
-`snapshotFor` (`builds-menu.js`) matches ROM builds using the result's `buildRef`. When the compact
+`snapshotFor` (`build-snapshots.js`) matches ROM builds using the result's `buildRef`. When the compact
 transcript omits the result body, it requires the call ID and exact tool-result timestamp confirmed
-by the `builds` RPC for the bound conversation. A raw validation error from a single wrapped tool
-call is paired with that step by its outer call ID. Legacy snapshots that have no exact match get
-their own Restore row labelled with the snapshot's date and time. The confirmation restores the
-chosen snapshot by ID.
+by the `builds` RPC for the bound conversation. Compact ROM results without that evidence show an
+unknown outcome. A raw validation error from a single wrapped tool call is paired with that step by
+its outer call ID. Optimistic follow-ups in a running turn share the original request's work and build.
+Legacy snapshots that have no exact match and before-restore backups get their own dated Restore rows.
+The confirmation restores the chosen snapshot by ID.
 `build-restore.js` submits a rebuild after a complete restore. It reports an incomplete restore with
 the backup ID and reports a failed rebuild submission separately.
 

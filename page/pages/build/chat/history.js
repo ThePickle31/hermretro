@@ -1,7 +1,8 @@
 // A stored session's messages as conversation items.
+import { ROM_BUILD_TOOL } from '#app/tools.js'
 import { reportOf } from './report.js'
 import { stepArgs, stepInfo, toolFailed } from './steps.js'
-import { unwrapCalls } from './tool-results.js'
+import { toolResultObject, unwrapCalls } from './tool-results.js'
 
 /** A stored message's text: projected rows carry `text`, raw rows `content` (a string or parts). */
 function messageText(message) {
@@ -46,7 +47,7 @@ export function historyItems(messages, running = false) {
 
   const closeTurn = () => {
     if (agentSinceUser) {
-      const startedAt = [...items].reverse().find(item => item.kind === 'user')?.at ?? null
+      const startedAt = items.findLast(item => item.kind === 'user' && !item.followup)?.at ?? null
 
       items.push({ kind: 'end', status: 'complete', at: lastAt, startedAt, history: true })
     }
@@ -56,7 +57,7 @@ export function historyItems(messages, running = false) {
   }
 
   const addTool = (call, at) => {
-    const tool = { id: `history-${stepCount++}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: 'done', startedAt: at }
+    const tool = { id: `history-${stepCount++}`, name: call.name, args: stepArgs(call.args), report: reportOf(call.name, call.args), state: call.name === ROM_BUILD_TOOL ? 'unknown' : 'done', startedAt: at }
     const last = items[items.length - 1]
 
     if (last?.kind === 'tools') {
@@ -82,8 +83,11 @@ export function historyItems(messages, running = false) {
         continue
       }
 
-      closeTurn()
-      items.push({ kind: 'user', text, at })
+      const followup = message.display_kind === 'steer'
+      if (!followup) {
+        closeTurn()
+      }
+      items.push({ kind: 'user', text, at, followup })
     } else if (message.role === 'assistant') {
       agentSinceUser = true
 
@@ -106,7 +110,8 @@ export function historyItems(messages, running = false) {
       const name = message.name ?? message.tool_name
       const pending = tools.get(id)
       const calls = unwrapCalls(id, name, message.args)
-      const failed = toolFailed({ result: text })
+      const result = toolResultObject(text)
+      const failed = toolFailed({ result })
       const exactCall = calls.length === 1 && (!pending || pending.steps.length === 1)
       // A raw result can retain the wrapper's name and omit its arguments, including on validation errors.
       const outerResult = pending?.name === 'tool_call' && calls.length === 1 && ['tool_call', 'tool'].includes(calls[0].name)
@@ -139,6 +144,8 @@ export function historyItems(messages, running = false) {
 
           if (failed) {
             step.state = 'failed'
+          } else if (step.state === 'unknown' && (step.info?.buildRef || result?.ok === true || result?.structuredContent?.success === true)) {
+            step.state = 'done'
           }
         }
 

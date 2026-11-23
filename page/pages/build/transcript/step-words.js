@@ -129,6 +129,10 @@ export function stepWords(tool) {
   const words = STEP_WORDS[short]
   const pair = typeof words === 'function' ? words(tool.args ?? {}) : words
 
+  if (tool.state === 'unknown') {
+    return [pair?.[0] ?? 'Building', 'Build outcome unknown']
+  }
+
   if (pair) {
     return pair
   }

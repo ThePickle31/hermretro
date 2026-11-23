@@ -12,7 +12,7 @@ from backend.history import restore_files, rpcs, snapshots
 from tests.support import isolated_home, make_library_game
 
 
-class RestoreFailures(unittest.TestCase):
+class RestoreCase(unittest.TestCase):
     def setUp(self):
         home = isolated_home(self)
         self.store = home.data / "snapshots"
@@ -29,6 +29,8 @@ class RestoreFailures(unittest.TestCase):
     def restore(self, **selection):
         return rpcs.rpc_build_restore(None)({"game": self.game, "id": "1000", **selection})
 
+
+class RestoreFailures(RestoreCase):
     def assert_refused(self, code, **selection):
         answer = self.restore(**selection)
         self.assertEqual((answer.get("ok"), answer.get("code")), (False, code), answer)
