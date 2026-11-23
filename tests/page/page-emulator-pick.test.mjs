@@ -1,6 +1,5 @@
 // The Emulator page plays only the game the user picked on the Games page, remembered across visits; with none
 // picked it plays the demo cartridge. A game a chat builds never loads there by itself.
-// Run alone: node tests/page/page-emulator-pick.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { gamesStudio } from './games-fixture.mjs'

@@ -1,6 +1,5 @@
 // Text about one game reaches only that game's own conversation: its Build conversation first, else the chat that
 // last worked on it, else a new chat; never the chat the user happens to be in (starting state: games-fixture.mjs).
-// Run alone: node tests/page/page-game-chat.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { gamesStudio } from './games-fixture.mjs'

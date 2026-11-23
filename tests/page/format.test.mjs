@@ -1,6 +1,5 @@
 // A plain page helper's test (.agents/skills/hermretro-dev-testing/references/testing.md): every helper in page/app/format.js, formatBytes() (the page's one
 // bytes formatter) and shortPath() (the last folders of a long path).
-// Run alone: node tests/page/format.test.mjs
 import assert from 'node:assert/strict'
 import { registerAliases } from './aliases.mjs'
 import test from 'node:test'

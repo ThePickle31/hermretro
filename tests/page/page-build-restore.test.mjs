@@ -1,6 +1,5 @@
 // The asset viewer's Restore (page/pages/build/viewer/asset-viewer.js): putting a kept version back redraws every
 // picture of that file already on screen, not only the viewer's own, even one asked for by another spelling of its path.
-// Run alone: node tests/page/page-build-restore.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

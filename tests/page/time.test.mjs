@@ -1,5 +1,4 @@
 // A plain page helper's test, the recipe in .agents/skills/hermretro-dev-testing/references/testing.md: page/shared/ui/time.js's clock(), spanWords() and ago().
-// Run alone: node tests/page/time.test.mjs
 import assert from 'node:assert/strict'
 import { registerAliases } from './aliases.mjs'
 import test from 'node:test'

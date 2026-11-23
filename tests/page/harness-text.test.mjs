@@ -1,5 +1,4 @@
 // The page tests' text assertions (harness.mjs): a failure shows the part of the page near the closest match.
-// Run alone: node tests/page/harness-text.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
