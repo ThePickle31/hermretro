@@ -518,6 +518,13 @@ class GamesRpc(unittest.TestCase):
         first = registry.present(str(root), note="one")["presentation"]
         second = registry.present(str(root), note=None)["presentation"]
         rpc = library_rpcs.rpc_presentations(self.ctx)
+        with mock.patch.object(
+            hermes_host, "_registry", side_effect=AssertionError("cursor should not read the library")
+        ):
+            cursor = rpc({"cursorOnly": True})
+        self.assertTrue(cursor["ok"])
+        self.assertGreaterEqual(cursor["now"], second["t"])
+        self.assertEqual(cursor["presentations"], [])
         answer = rpc({"since": first["t"]})
         self.assertEqual([item["t"] for item in answer["presentations"]], [second["t"]])
         self.assertGreaterEqual(answer["now"], second["t"])

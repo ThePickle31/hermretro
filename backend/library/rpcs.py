@@ -292,6 +292,8 @@ def rpc_presentations(ctx):
 
     def presentations(params, **_kwargs):
         try:
+            if (params or {}).get("cursorOnly") is True:
+                return {"ok": True, "now": time.time(), "presentations": []}
             since = (params or {}).get("since")
             since = float(since) if isinstance(since, (int, float)) and not isinstance(since, bool) else None
             here = host._profile_identity()

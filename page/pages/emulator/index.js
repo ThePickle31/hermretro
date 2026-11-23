@@ -33,7 +33,7 @@ export const EMULATOR_PAGE = {
   },
   events: {
     'emulator.presented':
-      'The agent presented a game (chromatic_present_game): { gameId, seq, note, t, knownBy }. A fallback includes its latest possible occurrence on the Desktop clock so Build can skip presentations from before selection.'
+      'The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory }. Build compares recovered records against its selection time on the backend.'
   },
   slots: {
     'emulator.barActions':

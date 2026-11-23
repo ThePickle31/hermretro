@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 d7038b4576abc9f98f12103e2b2c5fbaddbba1b6a518cfc471f4e30b4ca15bbe
- * body: sha256 818b75f9f355ef585e4fceee2a8f062377e0fa5c70b56d30b2a5e349eaa1c79f
+ * sources: sha256 0b29b08ef2cdec2a85ad876341d09abd4ba1e851e9bb7f4c96e0d159074f26e9
+ * body: sha256 5ecd2b03a42747f6dee98db1470cc5af8c26f56416a26cab67268d678dcd57ba
  */
 // page/sdk.js
 import {
@@ -5201,29 +5201,54 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
+function selectionState() {
+  const since = atom(null);
+  let pending = null;
+  const capture = () => {
+    if (since.get() === null && !pending) {
+      pending = callStudioOnly(RPC_PRESENTATIONS, { cursorOnly: true }, 3e3).then((answer) => {
+        if (answer?.ok && Number.isFinite(answer.now)) since.set(answer.now);
+      }).catch(() => {
+      }).finally(() => {
+        pending = null;
+      });
+    }
+    return pending;
+  };
+  return { openFor: null, seen: BUILD_PRESENTED.get(), since, capture };
+}
 function playerSelection() {
-  return { openFor: null, selectedAt: performance.now(), seen: BUILD_PRESENTED.get() };
+  const selection = selectionState();
+  void selection.capture();
+  return selection;
 }
 function createBuildPlayerVisit() {
-  return atom(playerSelection());
+  return atom(selectionState());
 }
 function useInlinePlayer(visit, gameId, chat) {
-  const { openFor } = useValue(visit);
+  const { openFor, since, capture } = useValue(visit);
+  const selectedAt = useValue(since);
   const presentations = useValue(BUILD_PRESENTED);
+  const event = presentations[gameId];
+  const fromHistory = event?.fromHistory ? event : null;
+  useEffect(() => {
+    void capture();
+  }, [capture, fromHistory]);
   useEffect(() => {
     if (!gameId || chat?.busy || chat?.opening) {
       return;
     }
     const current = visit.get();
-    const event = presentations[gameId];
-    if (event && event.seq > (current.seen[gameId]?.seq ?? 0) && (event.knownBy == null || event.knownBy > current.selectedAt)) {
+    const unseen = event && event.seq > (current.seen[gameId]?.seq ?? 0);
+    const afterSelection = !fromHistory || selectedAt !== null && fromHistory.t > selectedAt;
+    if (current.since === since && unseen && afterSelection) {
       visit.set({ ...current, openFor: gameId, seen: presentations });
     }
-  }, [visit, gameId, presentations, chat?.busy, chat?.opening]);
+  }, [visit, gameId, presentations, event, fromHistory, since, selectedAt, chat?.busy, chat?.opening]);
   return {
     playerOpen: Boolean(gameId && openFor === gameId),
     onPlay: () => gameId && visit.set({ ...visit.get(), openFor: gameId }),
-    onClosePlayer: () => visit.set({ ...visit.get(), openFor: null })
+    onClosePlayer: () => visit.set({ ...visit.get(), openFor: null, seen: BUILD_PRESENTED.get() })
   };
 }
 
@@ -9559,7 +9584,10 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     let id = null;
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
-      const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
+      const [recorded] = await Promise.all([
+        buildRpc({ action: "start", stored: id, name: name.trim() || null, plan }),
+        firstTurn.capture()
+      ]);
       const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan });
       if (!await sendBuildChat(id, first, idea.trim(), [], { mustLand: true })) {
         void buildRpc({ action: "cancel", stored: id }).catch(() => {
@@ -9611,7 +9639,9 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     if (refuseWhileUpdating()) {
       return false;
     }
+    const cursor = playerVisit.get().capture();
     if (!fresh) {
+      if (cursor) await cursor;
       return stored ? sendBuildChat(stored, text2, shown, attachments, options) : false;
     }
     const { id, title: title2, projectRoot } = game;
@@ -9624,7 +9654,10 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       if (refuseWhileUpdating()) {
         return false;
       }
-      const recorded = await buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} });
+      const [recorded] = await Promise.all([
+        buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} }),
+        cursor
+      ]);
       setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
       onLibraryChanged();
       return await sendBuildChat(
@@ -15960,20 +15993,20 @@ function presentedGame(payload) {
   }
   return studio;
 }
-function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, knownBy = null } = {}) {
+function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, fromHistory = false } = {}) {
   const mark = `${gameId}:${presentedAt ?? ""}`;
   if (presentedAt != null && presentationsSeen.has(mark)) {
     return false;
   }
   presentationsSeen.add(mark);
   const shown = PRESENTED.get();
-  if (knownBy !== null && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
+  if (fromHistory && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
     return false;
   }
   const seq = (shown[gameId]?.seq ?? 0) + 1;
   const presentation = { seq, note: typeof note === "string" && note.trim() ? note.trim() : null, t: presentedAt ?? null };
   PRESENTED.set({ ...shown, [gameId]: presentation });
-  emit("emulator.presented", { gameId, ...presentation, knownBy });
+  emit("emulator.presented", { gameId, ...presentation, fromHistory });
   BUILD_TICK.set(BUILD_TICK.get() + 1);
   if (fromBuild || buildShowing() === gameId) {
     return false;
@@ -15985,9 +16018,9 @@ function watchBuilds(ctx) {
   if (!listen) {
     return;
   }
-  let since = Date.now() / 1e3 - 5;
+  const startedAt = performance.now();
+  let since = null;
   let pending = null;
-  let turnEnds = /* @__PURE__ */ new Map();
   listen("tool.complete", (event) => {
     const payload = event?.payload;
     if (!payload || event.replayed) {
@@ -16009,42 +16042,32 @@ function watchBuilds(ctx) {
       return;
     }
     pending?.();
-    const completedAt = performance.now();
-    if (event?.session_id) {
-      turnEnds.set(event.session_id, completedAt);
-    }
     const run = async () => {
-      const finished = turnEnds;
-      turnEnds = /* @__PURE__ */ new Map();
-      const requestedAt = performance.now();
       BUILD_TICK.set(BUILD_TICK.get() + 1);
       let answer;
+      const after = since;
       try {
-        answer = (await callBackend(RPC_PRESENTATIONS, { since })).data;
+        answer = (await callBackend(RPC_PRESENTATIONS, { since: after ?? 0 })).data;
       } catch {
         return;
       }
       if (!answer?.ok) {
         return;
       }
-      if (typeof answer.now === "number") {
-        since = answer.now - 1;
+      if (Number.isFinite(answer.now)) {
+        since = Math.max(since ?? 0, answer.now - 1);
       }
+      const earliest = after ?? (Number.isFinite(answer.now) ? answer.now - (performance.now() - startedAt) / 1e3 - 5 : 0);
       const list = Array.isArray(answer.presentations) ? answer.presentations : [];
       const newest = /* @__PURE__ */ new Map();
       for (const item of list) {
-        if (item && typeof item.gameId === "string" && item.thisProfile !== false) {
+        if (item && typeof item.gameId === "string" && item.thisProfile !== false && item.t > earliest) {
           newest.set(item.gameId, item);
         }
       }
       for (const item of newest.values()) {
         const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId);
-        const age = typeof answer.now === "number" && typeof item.t === "number" ? Math.max(0, answer.now - item.t) : null;
-        const reportedBy = age === null ? requestedAt : performance.now() - age * 1e3;
-        const ended = finished.get(item.sessionId) ?? finished.get(item.conversationId);
-        const turnBound = ended ?? (item.sessionId || item.conversationId ? reportedBy : completedAt);
-        const knownBy = Math.min(turnBound, reportedBy);
-        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild, knownBy });
+        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild, fromHistory: true });
       }
     };
     const cancel = ctx.setTimeout?.(() => void run(), 600);
@@ -16149,7 +16172,7 @@ var EMULATOR_PAGE = {
     "setup.demoRequested": (_payload, ctx) => void openSideEmulator(ctx, { ...DEMO_GAME, id: DEMO_ID })
   },
   events: {
-    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t, knownBy }. A fallback includes its latest possible occurrence on the Desktop clock so Build can skip presentations from before selection."
+    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory }. Build compares recovered records against its selection time on the backend."
   },
   slots: {
     "emulator.barActions": "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Rendered on the Emulator page and in the emulator tab beside the chat. Props: { ctx, game, hardwareOn }, plus go(pageId) on the Emulator page only (beside the chat there is no shell: check go before using it)."

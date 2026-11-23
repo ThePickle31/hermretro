@@ -120,38 +120,86 @@ async function switchAfterPresentation({ act, answered, buildScenario, check, cl
   await build.selectGame(comet)
   await settle()
   const method = 'plugin.hermretro.presentations'
+  let now = 200
+  let cursor = () => ({ ok: true, now, presentations: [] })
+  let lookup
   let reply
-  scenario.byMethod[method] = () => new Promise(resolve => { reply = resolve })
-  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Ready again.' } }) })
-  await settle()
-  assert.equal(typeof reply, 'function', 'the background turn requested presentations')
+  const record = { gameId: frog.id, title: frog.title, sessionId: runtime, buildConversation: true }
+  const answer = t => ({ ok: true, now, presentations: [{ ...record, t }] })
+  scenario.byMethod[method] = params => params.cursorOnly ? cursor() : lookup()
+  const holdLookup = async session => {
+    reply = null
+    lookup = () => new Promise(resolve => { reply = resolve })
+    await act(async () => { emit({ type: 'message.complete', session_id: session, payload: {} }) })
+    await settle()
+    assert.equal(typeof reply, 'function', 'the completed turn requested presentations')
+  }
+
+  await holdLookup(runtime)
+  const beforeSwitch = answer(200)
+  now = 201
   await build.selectGame(frog)
   await settle()
   build.assertClosed()
-  // The backend clock is independent of Desktop's. Its answer arrives after the switch.
-  const record = { gameId: frog.id, title: frog.title, sessionId: runtime, buildConversation: true, t: 200 }
-  await act(async () => { reply({ ok: true, now: 200, presentations: [record] }) })
+  await act(async () => { reply(beforeSwitch) })
   check('a delayed fallback for a turn finished before the switch leaves the player closed', build.assertClosed)
-  scenario.byMethod[method] = { ok: true, now: 201, presentations: [{ ...record, t: 201 }] }
-  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'New presentation.' } }) })
+  now = 202
+  lookup = () => answer(202)
+  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: {} }) })
   await settle()
   check('the next presentation found by the fallback opens the selected game', () => build.assertPlaying(frog))
-  await build.closePlayer()
-  // A different turn can discover an older record for the first time, even after the switch has finished.
-  scenario.byMethod[method] = { ok: true, now: 600, presentations: [{ ...record, t: 202 }] }
-  await act(async () => { emit({ type: 'message.complete', session_id: 'rt-elsewhere', payload: {} }) })
-  await settle()
-  check('a later lookup skips a presentation whose backend age predates the selection', build.assertClosed)
+
+  now = 500
   await build.selectGame(comet)
-  reply = null
-  scenario.byMethod[method] = () => new Promise(resolve => { reply = resolve })
+  await build.selectGame(frog)
+  now = 600
+  lookup = () => answer(203)
   await act(async () => { emit({ type: 'message.complete', session_id: 'rt-elsewhere', payload: {} }) })
   await settle()
-  assert.equal(typeof reply, 'function')
+  check('a later lookup skips a presentation recorded before the selection', build.assertClosed)
+  await build.selectGame(comet)
+  await holdLookup('rt-elsewhere')
+  now = 601
   await build.selectGame(frog)
   await settle()
-  await act(async () => { reply({ ok: true, now: 601, presentations: [{ ...record, t: 601 }] }) })
+  now = 602
+  await act(async () => { reply(answer(602)) })
   check('another session’s pending lookup can deliver a fresh presentation after selection', () => build.assertPlaying(frog))
+
+  await build.selectGame(comet)
+  await holdLookup('rt-elsewhere')
+  now = 603
+  const captured = answer(603)
+  now = 604
+  await build.selectGame(frog)
+  await settle()
+  await act(async () => { reply(captured) })
+  check('another session’s reply captured before the switch cannot replay its presentation', build.assertClosed)
+
+  await build.selectGame(comet)
+  await holdLookup(runtime)
+  now = 605
+  let confirmSelection
+  cursor = () => new Promise(resolve => { confirmSelection = resolve })
+  await build.selectGame(frog)
+  await settle()
+  const submissions = () => scenario.calls.filter(([, method]) => method === 'prompt.submit').length
+  const beforeSend = submissions()
+  await typeInto(view.node.querySelector('textarea[aria-label="Message Hermes"]'), 'show the new build')
+  await click('Send', view.node.querySelector('.cs-b-comp'))
+  check('the first Send on a selection lets the backend establish its cutoff before submitting', () => {
+    assert.equal(typeof confirmSelection, 'function')
+    assert.equal(submissions(), beforeSend)
+  })
+  await act(async () => { confirmSelection({ ok: true, now, presentations: [] }) })
+  build.assertBusy(true)
+  now = 606
+  await act(async () => { reply(answer(606)) })
+  build.assertClosed()
+  lookup = () => answer(606)
+  await act(async () => { emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Done.' } }) })
+  await settle()
+  check('a previous turn’s query can discover the next turn’s presentation and play it once idle', () => build.assertPlaying(frog))
   scenario.byMethod[method] = { ok: true, presentations: [] }
   await view.close()
 }

@@ -34,7 +34,8 @@ when the agent is ready to present the game after making it, never for the whole
   completions bump a counter so open beside-chat tabs check their game at once.
 - **Fallback.** The gateway sends `tool.complete` only while the chat's tool progress is not `off`, so every
   `message.complete` (600 ms later) calls RPC `presentations` with `since` = the backend's `now` from the
-  previous answer minus 1 s (first call: plugin start minus 5 s) and presents the newest one per game.
+  previous answer minus 1 s and presents the newest one per game. The first answer uses the backend's
+  clock and elapsed time since plugin startup to keep the same five-second lookback.
   Presentations are de-duplicated by `<gameId>:<presentedAt>`, so one heard through both paths is acted on once.
 - **Presenting again** loads the newest build in the open tab directly (the player query and frame key
   change, no banner): it is an explicit "try this now". The note appears as a slim, dismissible line
@@ -134,10 +135,11 @@ The backend runs one loopback HTTP server (stdlib `ThreadingHTTPServer`, `127.0.
 - Every response: `Access-Control-Allow-Origin: *` (the frame's origin is `null`), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, correct MIME (`.wasm` → `application/wasm`, `.js` → `text/javascript`). Default device colour: the shim seeds `localStorage['codex-gb-studio:device-color:v1']` with the first skin unless the page passes a valid `?color=`.
 
 ### `presentations` → games the agent presented
-Params `{ "since"?: number }` (seconds, backend clock). Result `{ "ok": true, "now": <backend time>,
+Params `{ "since"?: number, "cursorOnly"?: boolean }` (seconds, backend clock). Result `{ "ok": true, "now": <backend time>,
 "presentations": [{ "gameId", "title", "t", "note", "sessionId", "conversationId", "profile", "thisProfile" }] }`,
 oldest first, at most 20, only those with `t > since`. Written by `chromatic_present_game` (registry key
 `presentations`, newest 100 kept). Used by the desktop when `tool.complete` does not arrive.
+Build passes `cursorOnly: true` to capture the selection time. This returns an empty list without opening the registry.
 
 ### `captures` → list
 Params `{ "id": "…" }` → `{ "captures": [{ "path", "kind", "createdAt", "url" }] }` where `url` is the loopback media URL (frame-independent: `http://127.0.0.1:<port>/<token>/<id>/codex-captures/<cid>/media`).

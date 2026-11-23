@@ -12,9 +12,9 @@ Padding `flush`, no footer.
 
 **Tabs:** none.
 
-**Events:** emits `emulator.presented` `{ gameId, seq, note, t, knownBy }` each time the agent presents a game
-(`beside-chat/present.js`). A fallback lookup includes `knownBy` on Desktop's monotonic clock so Build can
-skip a delayed presentation after switching games. Live tool events use `null`. Listens to `setup.demoRequested`
+**Events:** emits `emulator.presented` `{ gameId, seq, note, t, fromHistory }` each time the agent presents a game
+(`beside-chat/present.js`). A lookup sets `fromHistory` so Build can compare the record's backend timestamp
+with the time of the selection. Listens to `setup.demoRequested`
 (opens the bundled demo in the tab beside the chat).
 
 **Slots:** declares `emulator.barActions`: buttons in the bar after the keyboard light, for the user's own game

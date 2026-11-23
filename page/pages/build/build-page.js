@@ -172,7 +172,10 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       id = await createBuildChat(name.trim() || 'New game', draftPick)
       // The backend tells the agent each turn that this is a New Game conversation (and how to start), so
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
-      const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
+      const [recorded] = await Promise.all([
+        buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan }),
+        firstTurn.capture()
+      ])
 
       // Only a first message Hermes accepted starts the game: otherwise New Game keeps the idea to send again.
       const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan })
@@ -249,7 +252,9 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       return false
     }
 
+    const cursor = playerVisit.get().capture()
     if (!fresh) {
+      if (cursor) await cursor
       return stored ? sendBuildChat(stored, text, shown, attachments, options) : false
     }
 
@@ -265,7 +270,10 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
       if (refuseWhileUpdating()) {
         return false
       }
-      const recorded = await buildRpc({ action: 'bind', game: id, stored: target, ...(replaces ? { replace: replaces } : {}) })
+      const [recorded] = await Promise.all([
+        buildRpc({ action: 'bind', game: id, stored: target, ...(replaces ? { replace: replaces } : {}) }),
+        cursor
+      ])
 
       setLocal(current => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }))
       onLibraryChanged()

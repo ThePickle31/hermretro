@@ -15,8 +15,9 @@ read confirming removal returns the page to New Game.
 conversation is idle. A New Game conversation can receive its first presentation before the library lists
 its game. The shell keeps pending presentations and the open or closed player choice through a backend
 reconnect. Switching games closes the player and skips earlier presentations, including delayed lookup
-results. A new game's first Send keeps its own selection through acknowledgement. Leaving Build ends the visit. The transcript
-and empty conversation each place the player in their own layout.
+results. Build reads the selection time from the backend and compares it with the saved presentation time.
+A new game's first Send keeps its own selection through acknowledgement. Leaving Build ends the visit.
+The transcript and empty conversation each place the player in their own layout.
 
 **Tabs:** none (its areas are subfolders, not tabs).
 
