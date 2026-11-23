@@ -213,14 +213,21 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`Registry.describe` in `backend/library/games.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". Read a game's ROM, web export or state from here rather than adding a per-game RPC |
-| `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
+| `games` | none | `{ ok, games[], unavailable[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
+| `game_build_status` | `{ id }` | `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session }, device: { hardwareEnabled } }`: one game's artifacts and chat routing, with the same field shapes as `games` (chat title is null). `INVALID` for an invalid id, `NO_GAME` for an absent entry or project folder, `UNAVAILABLE` for a read failure. |
+| `game_thumb` | `{ id, png }` | `{ ok }`: stores the first title screen for the shelf and preserves any existing thumbnail |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
 | `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete`; each `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }` |
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
 | `builds` | `{ game }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
 | `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
+
+`games` can include an empty `games` array in an error reply. Only `ok: true` supplies shelf and ownership data.
+`unavailable` lists the registered game IDs the shelf could not read.
+Each public pending record has `storedId`, `name` (up to 120 characters or null), `createdAt`
+(finite seconds or null), and `exists`.
+`game_build_status` also returns `UNAVAILABLE` if an existing web export's ROM cannot be read.
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
 Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbstate.json`, written by its web preview
@@ -314,7 +321,7 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 
 ## The game object
 
-One entry of the `games` RPC's `games[]` (`Registry.describe` in `backend/library/games.py`, then `rpc_games` in
+One entry of the `games` RPC's `games[]` (`describe` in `backend/library/shelf.py`, then `rpc_games` in
 `backend/library/rpcs.py`, which reshapes `chat` and `session` and drops `updatedAt`):
 
 | Field | What it holds |

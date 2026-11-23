@@ -58,10 +58,12 @@ export function pageShell(overrides = {}) {
     selectBuild: noop,
     games: answered({ games: [], device: { hardwareEnabled: false } }),
     gameList: [],
+    libraryError: null,
     gamesChanged: noop,
     play: noop,
     player: {
       game: null,
+      gameError: null,
       query: answered(null),
       focused: false,
       rebuilt: false,
