@@ -5,12 +5,12 @@ import { routeProfile, StudioProfileMissing, studioTarget } from '#app/routing.j
 
 // The game the Build page is showing (its pane plays presentations), or null.
 export const BUILD_VIEWING = atom(null)
-// Game id → its latest presentation by the agent ({ seq, note, t }), from the Emulator page's
+// Game id → its latest presentation by the agent, from the Emulator page's
 // `emulator.presented` event (build/index.js listens): the Build page plays it in the conversation.
 export const BUILD_PRESENTED = atom({})
 
-export function notePresented({ gameId, seq, note, t }) {
-  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } })
+export function notePresented({ gameId, ...presentation }) {
+  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: presentation })
 }
 
 /** The game the Build page is showing, or null (for the emulator tab: that game plays here instead). */

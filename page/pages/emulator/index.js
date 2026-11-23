@@ -33,7 +33,7 @@ export const EMULATOR_PAGE = {
   },
   events: {
     'emulator.presented':
-      'The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation.'
+      'The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory, sessionId?, conversationId? }. Build uses the recorded time and the presenting conversation to decide when to play.'
   },
   slots: {
     'emulator.barActions':

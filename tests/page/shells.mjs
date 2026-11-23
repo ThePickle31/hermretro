@@ -6,6 +6,8 @@
 //   import { pageShell, ownPage } from './shells.mjs'
 //   render(jsx(ownPage(pageOf('games')), { shell: pageShell({ games: answered({ games: [game] }) }) }))
 
+import { createBuildPlayerVisit } from '../../page/pages/build/player/use-inline-player.js'
+
 /** A query result as the shell holds it (the stub's useQuery answer): `{ data, isFetching, isPending }`. */
 export const answered = data => ({ data, isFetching: false, isPending: false })
 
@@ -54,6 +56,7 @@ export function pageShell(overrides = {}) {
     setUpDevice: noop,
     buildSelection: null,
     buildPending: [],
+    buildPlayer: overrides.page === 'build' ? createBuildPlayerVisit() : null,
     changeBuildPending: noop,
     selectBuild: noop,
     games: answered({ games: [], device: { hardwareEnabled: false } }),

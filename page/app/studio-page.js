@@ -22,6 +22,7 @@ import { forgetRoute, routing } from './routing.js'
 import { RPC_PLAYER } from './rpc.js'
 import {
   computeSteps,
+  createBuildPlayerVisit,
   ONBOARD_STAGES,
   OnboardHeader,
   Onboarding,
@@ -59,11 +60,21 @@ function pickedGame(ctx) {
   }
 }
 
+function pageVisit(page, visit, selection = null) {
+  const build = page === 'build'
+  return {
+    page, visit,
+    buildSelection: build ? selection : null,
+    buildPending: [],
+    buildPlayer: build ? createBuildPlayerVisit() : null
+  }
+}
+
 export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
-  // Keep Build's selection for this visit even if the backend drops and unmounts the page.
-  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
+  // Build's selection and player survive a backend outage that unmounts the page.
+  const [{ page, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
     let stored = 'build'
 
     try {
@@ -71,7 +82,7 @@ export function StudioPage({ ctx }) {
     } catch {
       // use the default
     }
-    return { page: pageById(stored) ? stored : 'build', buildSelection: null, buildPending: [], visit: 0 }
+    return pageVisit(pageById(stored) ? stored : 'build', 0)
   })
   // Late asynchronous actions from a previous visit must not change the new selection.
   const changeBuildVisit = useCallback(change => {
@@ -247,7 +258,7 @@ export function StudioPage({ ctx }) {
   const go = (id, selection = null) => {
     setNavigation(current => (id === current.page && selection === null
       ? current
-      : { page: id, buildSelection: id === 'build' ? selection : null, buildPending: [], visit: current.visit + 1 }))
+      : pageVisit(id, current.visit + 1, selection)))
 
     try {
       ctx.storage.set('page', id)
@@ -405,6 +416,7 @@ export function StudioPage({ ctx }) {
     // games and the Build visit: selection and locally started games not in the library yet
     buildSelection,
     buildPending,
+    buildPlayer,
     changeBuildPending,
     selectBuild,
     games,

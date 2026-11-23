@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b3e23c4cfe2982201c46a56695d32d0729905e39ff5fbdb4d7c276c5a7caad9c
- * body: sha256 9f1c7b524b8b37e14c8f79360b1d5663b50734e27d509290d2e4f3775924d5e5
+ * sources: sha256 17ea0616d539d8a5217c08049ec0f593257fd58932d59eb0c12afe6dfca8a463
+ * body: sha256 b2944554d14ace6109a30eea947234398ba170ac142caa3325177362d3bfb6ff
  */
 // page/sdk.js
 import {
@@ -630,8 +630,8 @@ function withInfo(chat, info) {
 // page/pages/build/chat/store.js
 var BUILD_VIEWING = atom(null);
 var BUILD_PRESENTED = atom({});
-function notePresented({ gameId, seq, note, t }) {
-  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: { seq, note, t } });
+function notePresented({ gameId, ...presentation }) {
+  BUILD_PRESENTED.set({ ...BUILD_PRESENTED.get(), [gameId]: presentation });
 }
 var buildShowing = () => BUILD_VIEWING.get();
 var BUILD_INJECT = atom({});
@@ -5201,31 +5201,75 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
-function useInlinePlayer(gameId, chat) {
-  const [playerFor, setPlayerFor] = useState(null);
-  const presentationSeq = useValue(BUILD_PRESENTED)[gameId ?? ""]?.seq;
-  const seenPresentation = useRef(presentationSeq ?? 0);
-  const openWhenDone = useRef(false);
-  useEffect(() => {
-    const seq = presentationSeq ?? 0;
-    if (seq !== seenPresentation.current) {
-      seenPresentation.current = seq;
-      openWhenDone.current = true;
+function selectionState(startedChat = null, createdAt = void 0) {
+  const since = atom(Number.isFinite(createdAt) ? createdAt : void 0);
+  let pending = null;
+  const capture = () => {
+    if (since.get() == null && !pending) {
+      pending = callStudioOnly(RPC_PRESENTATIONS, { cursorOnly: true }, 3e3).then((answer) => {
+        since.set(answer?.ok && Number.isFinite(answer.now) ? answer.now : null);
+      }).catch((error) => since.set(describeRequestError(error).notLoaded ? -Infinity : null)).finally(() => {
+        pending = null;
+      });
     }
-  }, [presentationSeq]);
-  useEffect(() => {
-    if (gameId && openWhenDone.current && !chat?.busy && !chat?.opening) {
-      openWhenDone.current = false;
-      setPlayerFor(gameId);
-    }
-  }, [chat?.busy, chat?.opening, presentationSeq, gameId]);
-  useEffect(() => {
-    openWhenDone.current = false;
-  }, [gameId]);
+    return pending;
+  };
+  return { openFor: null, seen: BUILD_PRESENTED.get(), since, capture, startedChat };
+}
+async function playerSelection(startedChat, createdAt) {
+  const selection = selectionState(startedChat, createdAt);
+  await selection.capture();
+  return selection;
+}
+function createBuildPlayerVisit() {
+  const state = atom(selectionState());
+  let pending = null;
+  const accept = (selection) => {
+    pending = null;
+    state.set(selection);
+  };
   return {
-    playerOpen: Boolean(gameId && playerFor === gameId),
-    onPlay: () => gameId && setPlayerFor(gameId),
-    onClosePlayer: () => setPlayerFor(null)
+    state,
+    accept,
+    async choose(onSelect) {
+      const request = onSelect ? playerSelection() : null;
+      pending = request;
+      if (request) {
+        const selection = await request;
+        if (pending === request) {
+          accept(selection);
+          onSelect();
+        }
+      }
+    }
+  };
+}
+function useInlinePlayer(visit, gameId, chat) {
+  const { openFor, since, capture } = useValue(visit);
+  const selectedAt = useValue(since);
+  const presentations = useValue(BUILD_PRESENTED);
+  const event = presentations[gameId];
+  const fromHistory = event?.fromHistory ? event : null;
+  useEffect(() => {
+    void capture();
+  }, [capture, fromHistory]);
+  useEffect(() => {
+    if (!gameId || chat?.busy || chat?.opening) {
+      return;
+    }
+    const current = visit.get();
+    const unseen = event && event.seq > (current.seen[gameId]?.seq ?? 0);
+    const newConversation = current.startedChat && [event?.sessionId, event?.conversationId].some((id) => id === current.startedChat || buildRuntime.get(id) === current.startedChat);
+    const afterSelection = Number.isFinite(event?.t) ? typeof selectedAt === "number" && event.t > selectedAt : !fromHistory && selectedAt !== void 0;
+    if (current.since === since && unseen && (newConversation || afterSelection)) {
+      visit.set({ ...current, openFor: gameId, seen: presentations });
+    }
+  }, [visit, gameId, presentations, event, fromHistory, since, selectedAt, chat?.busy, chat?.opening]);
+  return {
+    playerReady: selectedAt !== void 0,
+    playerOpen: Boolean(gameId && openFor === gameId),
+    onPlay: () => gameId && visit.set({ ...visit.get(), openFor: gameId }),
+    onClosePlayer: () => visit.set({ ...visit.get(), openFor: null, seen: BUILD_PRESENTED.get() })
   };
 }
 
@@ -9461,11 +9505,11 @@ function useMissingBuildGame(id, unavailable) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, playerVisit, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const startingGames = useValue(BUILD_STARTING);
   const [local, setLocal] = useState({ bound: {}, released: {} });
-  const selected = useBuildSelection(ctx, selection, select);
+  const selected = useBuildSelection(ctx, selection, onSelect);
   const rail = useMemo(
     () => games.map((game2) => {
       const session = game2.session && local.released[game2.id] !== game2.session.storedId ? game2.session : null;
@@ -9487,7 +9531,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
   const made = pendingId ? rail.find((game2) => game2.buildSession === pendingId) : null;
   useEffect(() => {
     if (made) {
-      select(made.id);
+      onSelect(made.id);
     }
   }, [made?.id]);
   useEffect(() => {
@@ -9539,7 +9583,10 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat);
+  const { onClosePlayer, onPlay, playerOpen, playerReady } = useInlinePlayer(playerVisit.state, game?.id, chat);
+  const select = (key) => {
+    void playerVisit.choose(key === selected ? null : () => onSelect(key));
+  };
   const refuseWhileUpdating = () => {
     if (!isUpdating()) {
       return false;
@@ -9555,6 +9602,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     try {
       id = await createBuildChat(name.trim() || "New game", draftPick);
       const recorded = await buildRpc({ action: "start", stored: id, name: name.trim() || null, plan });
+      const firstTurn = await playerSelection(id, recorded?.pending?.createdAt);
       const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan });
       if (!await sendBuildChat(id, first, idea.trim(), [], { mustLand: true })) {
         void buildRpc({ action: "cancel", stored: id }).catch(() => {
@@ -9566,7 +9614,8 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       }
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1e3 };
       changePending((current) => [...current, created]);
-      select(`pending:${id}`);
+      playerVisit.accept(firstTurn);
+      onSelect(`pending:${id}`);
       onLibraryChanged();
       return true;
     } catch (error) {
@@ -9605,7 +9654,9 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     if (refuseWhileUpdating()) {
       return false;
     }
+    const cursor = playerVisit.state.get().capture();
     if (!fresh) {
+      if (cursor) await cursor;
       return stored ? sendBuildChat(stored, text2, shown, attachments, options) : false;
     }
     const { id, title: title2, projectRoot } = game;
@@ -9618,7 +9669,10 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       if (refuseWhileUpdating()) {
         return false;
       }
-      const recorded = await buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} });
+      const [recorded] = await Promise.all([
+        buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} }),
+        cursor
+      ]);
       setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
       onLibraryChanged();
       return await sendBuildChat(
@@ -9836,6 +9890,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       }, `composer:${composerKey}`)
     ]
   });
+  if (!playerReady) return jsx(Working, { quiet: true });
   return jsx(AssetGame.Provider, { value: rootOf(game, shownChat?.items ?? []), children: jsx("div", { className: "cs-b", children: main }) });
 }
 
@@ -11886,6 +11941,7 @@ function Build({ shell }) {
     onLibraryChanged: shell.gamesChanged,
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
+    playerVisit: shell.buildPlayer,
     selection: shell.buildSelection,
     unavailable: shell.games.data?.unavailable,
     updating: shell.pluginUpdate?.phase === "updating"
@@ -15953,17 +16009,20 @@ function presentedGame(payload) {
   }
   return studio;
 }
-function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false } = {}) {
+function presentGame(ctx, { gameId, title, note, presentedAt }, { fromBuild = false, fromHistory = false, sessionId, conversationId } = {}) {
   const mark = `${gameId}:${presentedAt ?? ""}`;
   if (presentedAt != null && presentationsSeen.has(mark)) {
     return false;
   }
   presentationsSeen.add(mark);
   const shown = PRESENTED.get();
+  if (Number.isFinite(presentedAt) && shown[gameId]?.t != null && presentedAt < shown[gameId].t) {
+    return false;
+  }
   const seq = (shown[gameId]?.seq ?? 0) + 1;
   const presentation = { seq, note: typeof note === "string" && note.trim() ? note.trim() : null, t: presentedAt ?? null };
   PRESENTED.set({ ...shown, [gameId]: presentation });
-  emit("emulator.presented", { gameId, ...presentation });
+  emit("emulator.presented", { gameId, ...presentation, fromHistory, sessionId, conversationId });
   BUILD_TICK.set(BUILD_TICK.get() + 1);
   if (fromBuild || buildShowing() === gameId) {
     return false;
@@ -15975,7 +16034,8 @@ function watchBuilds(ctx) {
   if (!listen) {
     return;
   }
-  let since = Date.now() / 1e3 - 5;
+  const startedAt = performance.now();
+  let since = null;
   let pending = null;
   listen("tool.complete", (event) => {
     const payload = event?.payload;
@@ -15989,7 +16049,7 @@ function watchBuilds(ctx) {
     } else if (name === PRESENT_TOOL) {
       const studio = presentedGame(payload);
       if (studio) {
-        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id) });
+        presentGame(ctx, studio, { fromBuild: studio.buildConversation === true || isBuildSession(event.session_id), sessionId: event.session_id });
       }
     }
   });
@@ -16001,27 +16061,33 @@ function watchBuilds(ctx) {
     const run = async () => {
       BUILD_TICK.set(BUILD_TICK.get() + 1);
       let answer;
+      const after = since;
       try {
-        answer = (await callBackend(RPC_PRESENTATIONS, { since })).data;
+        answer = (await callBackend(RPC_PRESENTATIONS, { since: after ?? 0 })).data;
       } catch {
         return;
       }
       if (!answer?.ok) {
         return;
       }
-      if (typeof answer.now === "number") {
-        since = answer.now - 1;
+      if (Number.isFinite(answer.now)) {
+        since = Math.max(since ?? 0, answer.now - 1);
       }
+      const earliest = after ?? (Number.isFinite(answer.now) ? answer.now - (performance.now() - startedAt) / 1e3 - 5 : 0);
       const list = Array.isArray(answer.presentations) ? answer.presentations : [];
       const newest = /* @__PURE__ */ new Map();
       for (const item of list) {
-        if (item && typeof item.gameId === "string" && item.thisProfile !== false) {
+        if (item && typeof item.gameId === "string" && item.thisProfile !== false && item.t > earliest) {
           newest.set(item.gameId, item);
         }
       }
       for (const item of newest.values()) {
         const fromBuild = item.buildConversation === true || isBuildSession(item.sessionId) || isBuildSession(item.conversationId);
-        presentGame(ctx, { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t }, { fromBuild });
+        presentGame(
+          ctx,
+          { gameId: item.gameId, title: item.title, note: item.note, presentedAt: item.t },
+          { fromBuild, fromHistory: true, sessionId: item.sessionId, conversationId: item.conversationId }
+        );
       }
     };
     const cancel = ctx.setTimeout?.(() => void run(), 600);
@@ -16126,7 +16192,7 @@ var EMULATOR_PAGE = {
     "setup.demoRequested": (_payload, ctx) => void openSideEmulator(ctx, { ...DEMO_GAME, id: DEMO_ID })
   },
   events: {
-    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t }. seq counts presentations of that game; the Build page plays it in its conversation."
+    "emulator.presented": "The agent presented a game (chromatic_present_game): { gameId, seq, note, t, fromHistory, sessionId?, conversationId? }. Build uses the recorded time and the presenting conversation to decide when to play."
   },
   slots: {
     "emulator.barActions": "Buttons in the bar above the player, after the keyboard light, for the user's own game (not the demo). Rendered on the Emulator page and in the emulator tab beside the chat. Props: { ctx, game, hardwareOn }, plus go(pageId) on the Emulator page only (beside the chat there is no shell: check go before using it)."
@@ -18325,16 +18391,26 @@ function pickedGame(ctx) {
     return null;
   }
 }
+function pageVisit(page, visit, selection = null) {
+  const build = page === "build";
+  return {
+    page,
+    visit,
+    buildSelection: build ? selection : null,
+    buildPending: [],
+    buildPlayer: build ? createBuildPlayerVisit() : null
+  };
+}
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
-  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
+  const [{ page, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
     let stored = "build";
     try {
       stored = ctx.storage.get("page", "build");
     } catch {
     }
-    return { page: pageById(stored) ? stored : "build", buildSelection: null, buildPending: [], visit: 0 };
+    return pageVisit(pageById(stored) ? stored : "build", 0);
   });
   const changeBuildVisit = useCallback((change) => {
     setNavigation((current2) => current2.page === "build" && current2.visit === visit ? change(current2) : current2);
@@ -18454,7 +18530,7 @@ function StudioPage({ ctx }) {
     setPolling((current2) => current2.fast === next.fast && current2.pollDoctor === next.pollDoctor ? current2 : next);
   }, [autoId, toolchainStep?.state, installElsewhere]);
   const go = (id, selection = null) => {
-    setNavigation((current2) => id === current2.page && selection === null ? current2 : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current2.visit + 1 });
+    setNavigation((current2) => id === current2.page && selection === null ? current2 : pageVisit(id, current2.visit + 1, selection));
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -18584,6 +18660,7 @@ function StudioPage({ ctx }) {
     // games and the Build visit: selection and locally started games not in the library yet
     buildSelection,
     buildPending,
+    buildPlayer,
     changeBuildPending,
     selectBuild,
     games,

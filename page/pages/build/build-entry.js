@@ -20,6 +20,7 @@ export function Build({ shell }) {
     onLibraryChanged: shell.gamesChanged,
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
+    playerVisit: shell.buildPlayer,
     selection: shell.buildSelection,
     unavailable: shell.games.data?.unavailable,
     updating: shell.pluginUpdate?.phase === 'updating'

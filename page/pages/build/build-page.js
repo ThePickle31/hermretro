@@ -13,7 +13,7 @@ import { BuildComposer } from './composer/composer.js'
 import { ChatModelPicker, DraftModelPicker, useDraftPick } from './composer/model-picker.js'
 import { InlinePlayer } from './player/inline-player.js'
 import { PlayCard } from './player/play-card.js'
-import { useInlinePlayer } from './player/use-inline-player.js'
+import { playerSelection, useInlinePlayer } from './player/use-inline-player.js'
 import { BuildStatus } from './transcript/status.js'
 import { rootOf } from './transcript/groups.js'
 import { AssetGame } from './assets/cache.js'
@@ -35,13 +35,13 @@ import { CartShelf } from './cart-shelf.js'
 import { useBuildSelection, useMissingBuildGame } from './selection.js'
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, playerVisit, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
   // released: game id → the stored id it let go of with Stop editing, until the library stops listing it.
   const [local, setLocal] = useState({ bound: {}, released: {} })
-  const selected = useBuildSelection(ctx, selection, select)
+  const selected = useBuildSelection(ctx, selection, onSelect)
 
   const rail = useMemo(
     () =>
@@ -70,7 +70,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
   const made = pendingId ? rail.find(game => game.buildSession === pendingId) : null
   useEffect(() => {
     if (made) {
-      select(made.id)
+      onSelect(made.id)
     }
   }, [made?.id])
 
@@ -140,7 +140,10 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  const { onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat)
+  const { onClosePlayer, onPlay, playerOpen, playerReady } = useInlinePlayer(playerVisit.state, game?.id, chat)
+  const select = key => {
+    void playerVisit.choose(key === selected ? null : () => onSelect(key))
+  }
 
   // Nothing that starts work in the hermretro profile runs while hermretro is updating (the update reloads it).
   const refuseWhileUpdating = () => {
@@ -166,6 +169,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       // The backend tells the agent each turn that this is a New Game conversation (and how to start), so
       // the idea is sent as the user wrote it. An older backend gets the instructions in the message.
       const recorded = await buildRpc({ action: 'start', stored: id, name: name.trim() || null, plan })
+      const firstTurn = await playerSelection(id, recorded?.pending?.createdAt)
 
       // Only a first message Hermes accepted starts the game: otherwise New Game keeps the idea to send again.
       const first = recorded ? idea.trim() : newGamePrompt({ idea, name, plan })
@@ -183,7 +187,8 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       const created = { storedId: id, name: name.trim() || null, createdAt: Date.now() / 1000 }
 
       changePending(current => [...current, created])
-      select(`pending:${id}`)
+      playerVisit.accept(firstTurn)
+      onSelect(`pending:${id}`)
       onLibraryChanged()
 
       return true
@@ -241,7 +246,9 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       return false
     }
 
+    const cursor = playerVisit.state.get().capture()
     if (!fresh) {
+      if (cursor) await cursor
       return stored ? sendBuildChat(stored, text, shown, attachments, options) : false
     }
 
@@ -257,7 +264,10 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
       if (refuseWhileUpdating()) {
         return false
       }
-      const recorded = await buildRpc({ action: 'bind', game: id, stored: target, ...(replaces ? { replace: replaces } : {}) })
+      const [recorded] = await Promise.all([
+        buildRpc({ action: 'bind', game: id, stored: target, ...(replaces ? { replace: replaces } : {}) }),
+        cursor
+      ])
 
       setLocal(current => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }))
       onLibraryChanged()
@@ -534,6 +544,7 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
           ]
         })
 
+  if (!playerReady) return jsx(Working, { quiet: true })
   // The game whose images this page shows (the backend answers no other game's).
   return jsx(AssetGame.Provider, { value: rootOf(game, shownChat?.items ?? []), children: jsx('div', { className: 'cs-b', children: main }) })
 }

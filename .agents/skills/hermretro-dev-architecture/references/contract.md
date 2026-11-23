@@ -241,7 +241,7 @@ instead of throwing.
 | `game_build_status` | `{ id }` | `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session }, device: { hardwareEnabled } }`: one game's artifacts and chat routing, with the same field shapes as `games` (chat title is null). `INVALID` for an invalid id, `NO_GAME` for an absent entry or project folder, `UNAVAILABLE` for a read failure. |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores the first title screen for the shelf and preserves any existing thumbnail |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
-| `presentations` | `{ since? }` | `{ ok, now, presentations[] }`: what `chromatic_present_game` showed, for a desktop that missed `tool.complete`; each `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }` |
+| `presentations` | `{ since?, cursorOnly? }` | `{ ok, now, presentations[] }`. Each record has `{ gameId, title, t, note, sessionId, conversationId, profile, thisProfile, buildConversation }`. With `cursorOnly: true`, returns the backend time and an empty list without reading the library. |
 | `captures` | `{ id }` | `{ ok, captures[] }`: screenshots and videos saved from the player |
 | `capture_image` | `{ id, png }` | `{ ok, path }`: saves a frame for Ask Hermes / annotate |
 | `builds` | `{ game, stored? }` | `{ ok, builds[] }` newest first, or `NO_GAME`: the game's build history (below) |
@@ -251,6 +251,7 @@ instead of throwing.
 `unavailable` lists the registered game IDs the shelf could not read.
 Each public pending record has `storedId`, `name` (up to 120 characters or null), `createdAt`
 (finite seconds or null), and `exists`.
+The `build` start reply includes `pending.storedId`, `pending.name`, and the registry's `pending.createdAt` before Desktop sends the first message.
 `game_build_status` also returns `UNAVAILABLE` if an existing web export's ROM cannot be read.
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").

@@ -11,8 +11,14 @@ If the library read fails, the page shows the error and keeps the current select
 games or conversations. The page also keeps a selected game listed as unavailable by the shelf. A successful
 read confirming removal returns the page to New Game.
 
-`player/use-inline-player.js` keeps track of which game's player is open and opens it after a presentation
-once the conversation is ready. The transcript and empty conversation each place the player in their own layout.
+`player/use-inline-player.js` opens the player when the selected game has a new presentation and its
+conversation is idle. A New Game conversation can receive its first presentation before the library lists
+its game. The shell keeps pending presentations and the open or closed player choice through a backend
+reconnect. Switching games closes the player and skips earlier presentations, including delayed lookup
+results. Build keeps the current game visible while the backend timestamps the switch, then compares both
+live and saved presentations with that time. A new conversation keeps its own presentations through
+acknowledgement and project binding, including when the time lookup fails. Leaving Build ends the visit.
+The transcript and empty conversation each place the player in their own layout.
 
 **Tabs:** none (its areas are subfolders, not tabs).
 
@@ -37,6 +43,8 @@ profile).
 **Tests:** `tests/page/page-build.test.mjs` (New Game and the streamed conversation),
 `tests/page/page-build-transcript-media.test.mjs` (steps, build results, pictures, suggestions and mentions),
 `tests/page/page-build-inline-player.test.mjs` (playing builds, the play-test checklist and keyboard focus),
+`tests/page/page-build-player-switching.test.mjs` (game switches and delayed presentations),
+`tests/page/page-build-player-presentation.test.mjs` (first presentations, binding, and reconnects),
 `tests/page/page-build-interrupted-conversations.test.mjs` (removed conversations and lost turns),
 `tests/page/page-build-model-picker.test.mjs` (model and effort picks, plus questions in other games),
 `tests/page/page-build-builds.test.mjs` (the Builds menu),

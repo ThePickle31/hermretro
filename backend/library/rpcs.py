@@ -292,6 +292,8 @@ def rpc_presentations(ctx):
 
     def presentations(params, **_kwargs):
         try:
+            if (params or {}).get("cursorOnly") is True:
+                return {"ok": True, "now": time.time(), "presentations": []}
             since = (params or {}).get("since")
             since = float(since) if isinstance(since, (int, float)) and not isinstance(since, bool) else None
             here = host._profile_identity()
@@ -393,7 +395,7 @@ def rpc_build(ctx):
             registry = host._registry()
             if action == "start":
                 record = registry.build_start(stored, here, params.get("name"), plan=params.get("plan") is True)
-                return {"ok": True, "pending": {"storedId": record["storedId"], "name": record["name"]}}
+                return {"ok": True, "pending": {key: record[key] for key in ("storedId", "name", "createdAt")}}
             if action == "bind":
                 entry = registry.bind(str(params.get("game") or ""), stored, here, replace=params.get("replace"))
                 return {"ok": True, "game": entry["id"], "session": library.public_session(entry.get("session"))}
