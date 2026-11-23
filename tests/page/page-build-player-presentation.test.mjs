@@ -210,6 +210,56 @@ async function presentOnFirstEdit({ act, answered, buildScenario, check, click, 
   await view.close()
 }
 
+async function reconnectBeforeBinding({ act, answered, buildScenario, check, emit, mount, notLoaded, page, scenario, settle, tab }) {
+  const stored = 'st-reconnect'
+  const runtime = `rt-of-${stored}`
+  const game = playable({ ...lamplight(), session: { storedId: stored } })
+  buildScenario({ selected: `pending:${stored}` })
+  scenario.games = answered({ games: [], pending: [{ storedId: stored, name: game.title }] })
+  const online = scenario.status
+  const view = await mount(page)
+  const build = buildView(view.node, act, scenario)
+  const reconnect = async () => {
+    scenario.status = notLoaded
+    await view.rerender()
+    assert.equal(view.node.querySelector('.cs-b-sw'), null, 'the outage unmounts Build')
+    scenario.status = online
+    await view.rerender()
+  }
+  await settle()
+  await act(async () => {
+    emit({ type: 'message.start', session_id: runtime, payload: { turn_id: 'before-outage' } })
+    emit(presentation(game, runtime, 103))
+    emit({ type: 'message.complete', session_id: runtime, payload: { text: 'Ready to play.' } })
+  })
+  build.assertBusy(false)
+  build.assertClosed()
+  await reconnect()
+  build.assertSelected(`pending:${stored}`, game.title)
+  scenario.games = answered({ games: [game], pending: [] })
+  await view.rerender()
+  await settle()
+  check('reconnect keeps the finished presentation until the shelf lists its game', () => {
+    build.assertSelected(game.id, game.title)
+    build.assertPlaying(game)
+    assert.equal(scenario.workspaces.length, 0)
+  })
+  await reconnect()
+  check('reconnecting while the presented game is open restores its frame', () => build.assertPlaying(game))
+  await build.closePlayer()
+  await reconnect()
+  check('another reconnect leaves a dismissed presentation closed', build.assertClosed)
+  await build.play()
+  build.assertPlaying(game)
+  await tab('Games')
+  await tab('Build')
+  check('leaving Build ends the player visit even when the same game is selected on return', () => {
+    build.assertSelected(game.id, game.title)
+    build.assertClosed()
+  })
+  await view.close()
+}
+
 await runScenario(async env => {
   env.holdTimers()
   env.scenario.byMethod['session.resume'] = resumeConversation()
@@ -221,4 +271,5 @@ await runScenario(async env => {
   await switchAfterPresentation(env)
   await presentPendingGame(env)
   await presentOnFirstEdit(env)
+  await reconnectBeforeBinding(env)
 })

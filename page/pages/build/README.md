@@ -13,8 +13,9 @@ read confirming removal returns the page to New Game.
 
 `player/use-inline-player.js` opens the player when the selected game has a new presentation and its
 conversation is idle. A New Game conversation can receive its first presentation before the library lists
-its game. Switching games skips earlier presentations. The transcript and empty conversation each place
-the player in their own layout.
+its game. The shell keeps pending presentations and the open or closed player choice through a backend
+reconnect. Switching games skips earlier presentations. Leaving Build ends the visit. The transcript
+and empty conversation each place the player in their own layout.
 
 **Tabs:** none (its areas are subfolders, not tabs).
 

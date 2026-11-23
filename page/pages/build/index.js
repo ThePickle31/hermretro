@@ -23,6 +23,7 @@ import { WORKED_CSS } from './transcript/worked.css.js'
 import { VIEWER_CSS } from './viewer/viewer.css.js'
 
 export { buildShowing, isBuildSession } from './chat/store.js'
+export { createBuildPlayerVisit } from './player/use-inline-player.js'
 export { toolResultObject, unwrapCalls } from './chat/tool-results.js'
 
 /** Make cover art on the Games shelf: put the request in that game's message box, not sent. */

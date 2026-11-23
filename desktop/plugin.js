@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 da550d6ada0da320e96e08274f3db71cddc45f784230dc7390e556df5c096a11
- * body: sha256 b0dadc218b74b464847a14276d7278f4caa209217a9fde895a85c59f40d55be1
+ * sources: sha256 eb94102e9b20641325e43cdbd42be4baf216a790a45770ce6fb653cf36882f5b
+ * body: sha256 3ec5dabda92774b83c83afd3cb80e8ead6a8d7143f26a41ebc17625c42ee1507
  */
 // page/sdk.js
 import {
@@ -5201,27 +5201,26 @@ function PlayCard({ game, frame, state, note, build = null, compact = false, onP
 }
 
 // page/pages/build/player/use-inline-player.js
-function useInlinePlayer(gameId, chat) {
-  const [playerFor, setPlayerFor] = useState(null);
+function createBuildPlayerVisit() {
+  return atom({ openFor: null, seen: BUILD_PRESENTED.get() });
+}
+function useInlinePlayer(visit, gameId, chat) {
+  const { openFor } = useValue(visit);
   const presentations = useValue(BUILD_PRESENTED);
-  const seen = useRef(presentations);
   useEffect(() => {
     if (!gameId || chat?.busy || chat?.opening) {
       return;
     }
-    if ((presentations[gameId]?.seq ?? 0) > (seen.current[gameId]?.seq ?? 0)) {
-      seen.current = presentations;
-      setPlayerFor(gameId);
+    if ((presentations[gameId]?.seq ?? 0) > (visit.get().seen[gameId]?.seq ?? 0)) {
+      visit.set({ openFor: gameId, seen: presentations });
     }
-  }, [gameId, presentations, chat?.busy, chat?.opening]);
+  }, [visit, gameId, presentations, chat?.busy, chat?.opening]);
   return {
     // Take a new baseline on navigation. Attaching a conversation or its project stays in the same visit.
-    markPresentationsSeen: () => {
-      seen.current = BUILD_PRESENTED.get();
-    },
-    playerOpen: Boolean(gameId && playerFor === gameId),
-    onPlay: () => gameId && setPlayerFor(gameId),
-    onClosePlayer: () => setPlayerFor(null)
+    markPresentationsSeen: () => visit.set({ ...visit.get(), seen: BUILD_PRESENTED.get() }),
+    playerOpen: Boolean(gameId && openFor === gameId),
+    onPlay: () => gameId && visit.set({ ...visit.get(), openFor: gameId }),
+    onClosePlayer: () => visit.set({ ...visit.get(), openFor: null })
   };
 }
 
@@ -9457,7 +9456,7 @@ function useMissingBuildGame(id, unavailable) {
 }
 
 // page/pages/build/build-page.js
-function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, playerVisit, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const startingGames = useValue(BUILD_STARTING);
   const [local, setLocal] = useState({ bound: {}, released: {} });
@@ -9535,7 +9534,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy]);
-  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat);
+  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat);
   const select = (key) => {
     if (key !== selected) {
       markPresentationsSeen();
@@ -11889,6 +11888,7 @@ function Build({ shell }) {
     onLibraryChanged: shell.gamesChanged,
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
+    playerVisit: shell.buildPlayer,
     selection: shell.buildSelection,
     unavailable: shell.games.data?.unavailable,
     updating: shell.pluginUpdate?.phase === "updating"
@@ -18328,16 +18328,26 @@ function pickedGame(ctx) {
     return null;
   }
 }
+function pageVisit(page, visit, selection = null) {
+  const build = page === "build";
+  return {
+    page,
+    visit,
+    buildSelection: build ? selection : null,
+    buildPending: [],
+    buildPlayer: build ? createBuildPlayerVisit() : null
+  };
+}
 function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
-  const [{ page, buildSelection, buildPending, visit }, setNavigation] = useState(() => {
+  const [{ page, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
     let stored = "build";
     try {
       stored = ctx.storage.get("page", "build");
     } catch {
     }
-    return { page: pageById(stored) ? stored : "build", buildSelection: null, buildPending: [], visit: 0 };
+    return pageVisit(pageById(stored) ? stored : "build", 0);
   });
   const changeBuildVisit = useCallback((change) => {
     setNavigation((current2) => current2.page === "build" && current2.visit === visit ? change(current2) : current2);
@@ -18457,7 +18467,7 @@ function StudioPage({ ctx }) {
     setPolling((current2) => current2.fast === next.fast && current2.pollDoctor === next.pollDoctor ? current2 : next);
   }, [autoId, toolchainStep?.state, installElsewhere]);
   const go = (id, selection = null) => {
-    setNavigation((current2) => id === current2.page && selection === null ? current2 : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current2.visit + 1 });
+    setNavigation((current2) => id === current2.page && selection === null ? current2 : pageVisit(id, current2.visit + 1, selection));
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -18587,6 +18597,7 @@ function StudioPage({ ctx }) {
     // games and the Build visit: selection and locally started games not in the library yet
     buildSelection,
     buildPending,
+    buildPlayer,
     changeBuildPending,
     selectBuild,
     games,

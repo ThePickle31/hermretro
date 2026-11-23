@@ -35,7 +35,7 @@ import { CartShelf } from './cart-shelf.js'
 import { useBuildSelection, useMissingBuildGame } from './selection.js'
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, playerVisit, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
@@ -140,7 +140,7 @@ export function BuildPage({ ctx, games, selection, onSelect, pendingGames, local
     }
   }, [stored, chat?.lastCompleteAt, chat?.busy])
 
-  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(game?.id, chat)
+  const { markPresentationsSeen, onClosePlayer, onPlay, playerOpen } = useInlinePlayer(playerVisit, game?.id, chat)
   const select = key => {
     if (key !== selected) {
       markPresentationsSeen()
