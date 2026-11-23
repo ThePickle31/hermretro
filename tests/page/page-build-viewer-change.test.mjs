@@ -1,4 +1,3 @@
-// Run alone: node tests/page/page-build-viewer-change.test.mjs [path to a node_modules folder]
 import assert from 'node:assert/strict'
 import { runScenario } from './harness.mjs'
 
@@ -48,7 +47,12 @@ await runScenario(async ({ act, answered, buildScenario, check, click, emit, hol
   const shownPath = () => dialog().querySelector('.cs-v-name').title
   const shownVersion = () => dialog().querySelector('.cs-v-ver[aria-pressed="true"]')?.textContent
   await settle()
-  await act(async () => view.node.querySelector('button[aria-label="Look closer at frame.png"]').click())
+  const card = view.node.querySelector('.cs-b-bc')
+  await click('Details', card)
+  await settle()
+  const opener = card.querySelector('.cs-b-bc-changes button[aria-label="Look closer at frame.png"]')
+  assert.ok(opener)
+  await act(async () => opener.click())
   await settle()
   await publish('message.start', { turn_id: 'unrelated-turn' })
   check('Restore is disabled during an unrelated Build turn', () => assert.equal(control('Restore v1')?.disabled, true))
