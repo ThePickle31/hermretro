@@ -2,7 +2,7 @@
 
 The Hermes layer: the one door to Hermes itself (`api.py`, every Hermes name in `USED`), how features declare what they add (`declare.py`), the helpers every feature's Hermes side shares and the engine tool handler (`host.py`), the engine's pinned tool contracts (`contracts.py`), result shaping (`results.py`) and the helpers any feature's tool uses (`tool_args.py`: `tool_error`, `tool_project`). Importing it hands Hermes's answer for its home to `backend.system` (`__init__.py`).
 
-Edit Build instructions in `workflow.py`. The system prompt, per-game hook and engine results share its wording. Bundling derives the Desktop fallback for older backends from its two start modes. The studio personality lives in `profile/SOUL.md`.
+Edit Build instructions in `workflow.py`. The system prompt, per-game hook and engine results share its wording. Bundling derives the Desktop fallback for older backends from its two start modes. The bundle watch rebuilds it when `workflow.py` changes. The studio personality lives in `profile/SOUL.md`.
 
 ## What it adds
 

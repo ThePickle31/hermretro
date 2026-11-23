@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b8178bd8b6805ea4f4720a6ae882f4760804ae78f9238a3aa7eef6e66f6f0823
- * body: sha256 ed938088a27a943fac301b594f27d332e88d097ea4f838d8535121fb365e451a
+ * sources: sha256 4525a6954eea3d66ee0bab4b99fb7333ca65f5164b65d8b534ffb4a4df454965
+ * body: sha256 ae6c68f5be325f7306cf20eca18055000aee7db2b2c1b6f0789621a49fe6a379
  */
 // page/sdk.js
 import {
@@ -7358,7 +7358,7 @@ function LostTurnCard({ chat, stored }) {
 }
 
 // page/pages/build/workflow.js
-var BUILD_START = "Ask the user a few quick questions in one short message, offering sensible defaults. Once they have answered, reply with a short list of what you will make (concept, controls, core loop, rooms or levels, characters, how to win and lose, art and colours, what is left out) and end your turn: change the list whenever the user asks, and create nothing until they approve it. Once the user approves the list, create the project, save the approved list in it as docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: keep building while any is missing, and name in the build report only an item no tool can make.";
+var BUILD_START = "Ask the user a few quick questions in one short message, offering sensible defaults. Once they have answered, reply with a short list of what you will make (concept, controls, core loop, rooms or levels, characters, how to win and lose, art and colours, what is left out) and end your turn: change the list whenever the user asks, and create nothing until they approve it. Once the user approves the list, create the project, save the approved list in it as docs/game/FIRST-BUILD.md and build all of it in one go. Before presenting, check every item against the build: keep building while any is missing, and name in the build report only an item no tool can make. Then show it with chromatic_present_game in the hermretro emulator.";
 var PLAN_START = "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write the game brief, backlog and test plan into it, and wait for the user to approve the brief before authoring anything. Once the user approves the brief, build everything in its scope in one go, then check the test plan against the build before presenting.";
 
 // page/pages/build/binding.js

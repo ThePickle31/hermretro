@@ -40,6 +40,12 @@ class OneWorkflow(unittest.TestCase):
     def test_the_steps_are_in_order_wherever_they_are_said(self):
         in_order(self, workflow.GAME_STEPS)
 
+    def test_the_build_it_fallback_hands_the_complete_game_to_the_users_emulator(self):
+        start = workflow.BUILD_START
+        self.assertLess(
+            start.index("check every item"), start.index("chromatic_present_game in the hermretro emulator")
+        )
+
     def test_the_prompt_section_carries_the_steps_and_the_rules_within_its_limit(self):
         section = workflow.SYSTEM_PROMPT_SECTION
         self.assertLessEqual(len(section), 2000)

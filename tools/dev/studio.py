@@ -103,11 +103,8 @@ def create(desktop: Path) -> None:
         "profile", "create", hermes.STUDIO, "--no-alias", "--no-skills", "--no-credentials", "--description",
         "hermretro: Game Boy Color development for the ModRetro Chromatic",
     )  # fmt: skip
-    # The plugin's own setup of its profile (the step the page runs after Hermes creates it).
-    sys.path.insert(0, str(TOP))
-    from backend.setup import studio_profile
-
-    studio_profile.finish(HOME, target=PROFILE, enabled=[], run=lambda home, *args: run_hermes(*args, home=home))
+    # Profile setup uses Hermes's config reader, so run it in the Hermes Python environment.
+    run_hermes("--run-module", "cProfile", "-o", os.devnull, str(Path(__file__).resolve()), "--finish-profile")
     # Installed in the default profile too, as a user's is: the page asks the profile the app is on first.
     (HOME / "plugins").mkdir(exist_ok=True)
     (HOME / "plugins" / hermes.PLUGIN).symlink_to(TOP, target_is_directory=True)
@@ -372,3 +369,12 @@ def release() -> None:
     """End a scripted turn that waits (`"hold": true`), such as the `working` scenario's."""
     port = settings()["ports"]["model"]
     urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{port}/control/release", data=b"{}"), timeout=5)
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] != ["--finish-profile"]:
+        raise SystemExit("Run python tools/dev studio up to create the sandbox.")
+    sys.path.insert(0, str(TOP))
+    from backend.setup import studio_profile
+
+    studio_profile.finish(HOME, target=PROFILE, enabled=[])

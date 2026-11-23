@@ -14,6 +14,7 @@ modified at all.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -25,6 +26,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from ..hermes import api as hermes_api
@@ -58,31 +60,42 @@ def refresh_soul(profile_home: Path) -> bool:
     ``hermes plugins update`` or as a linked checkout. Answers whether it was written; a failed write raises
     OSError."""
     soul = profile_home / "SOUL.md"
-    return _shipped_before(soul) and _write_soul(soul, only_over_older=True)
+    return _replace_soul(soul, _shipped_before)
 
 
-def _shipped_before(soul: Path) -> bool:
-    """Whether ``soul`` is a plain file (not a link, nor anything a read could wait on) holding a SOUL an earlier
-    release shipped."""
+def _read_soul(soul: Path) -> bytes | None:
+    """Read a plain SOUL file without following a link or waiting on a pipe."""
     try:
         handle = os.open(soul, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
     except OSError:
-        return False
+        return None
     with os.fdopen(handle, "rb") as reader:
         try:
-            if not stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
-                return False
-            data = reader.read()
+            if stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
+                return reader.read()
         except OSError:
-            return False
-    return hashlib.sha256(data).hexdigest() in OLDER_SOULS
+            pass
+    return None
 
 
-def _write_soul(soul: Path, *, only_over_older: bool = False) -> bool:
-    """The shipped SOUL at ``soul``, whole or not at all (Hermes may be reading it for a new chat), with the
-    permissions the file had. ``only_over_older``: only while ``soul`` still holds a SOUL an earlier release shipped,
-    checked again just before the swap, so an edit made meanwhile is kept and of several processes refreshing at once
-    only one writes. Answers whether it was written."""
+def _shipped_before(soul: Path) -> bool:
+    data = _read_soul(soul)
+    return data is not None and hashlib.sha256(data).hexdigest() in OLDER_SOULS
+
+
+def _initial_soul(soul: Path) -> bool:
+    try:
+        soul.lstat()
+    except FileNotFoundError:
+        return True
+    data = _read_soul(soul)
+    return data is not None and data == hermes_api.default_soul()
+
+
+def _replace_soul(soul: Path, can_replace: Callable[[Path], bool]) -> bool:
+    """Replace a matching SOUL atomically, keeping its mode and rechecking before the swap."""
+    if not can_replace(soul):
+        return False
     try:
         mode = stat.S_IMODE(soul.stat().st_mode)
     except OSError:
@@ -92,7 +105,7 @@ def _write_soul(soul: Path, *, only_over_older: bool = False) -> bool:
         with os.fdopen(handle, "wb") as writer:
             writer.write(SOUL_FILE.read_bytes())
         os.chmod(partial, mode)
-        if only_over_older and not _shipped_before(soul):
+        if not can_replace(soul):
             Path(partial).unlink()
             return False
         os.replace(partial, soul)
@@ -262,7 +275,7 @@ _flight: dict = {}
 
 
 def finish(home: Path, **options) -> dict:
-    """Make the freshly created studio profile a Chromatic one. Safe to run again; single-flight per process."""
+    """Make the studio profile a Chromatic one. Concurrent calls in this process share the result."""
     with _finishing:
         flight = _flight.get("current")
         leader = flight is None
@@ -291,13 +304,30 @@ def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None
     target = target or studio_dir()
     if not _exists(target):
         raise StudioProfileError("NOT_CREATED", "The hermretro profile has not been created yet.")
-    if not (_ours(target) or _has_plugin(target)):
+    ours = _ours(target)
+    if not (ours or _has_plugin(target)):
         raise StudioProfileError(
             "NAME_TAKEN",
             f"A profile named {STUDIO_PROFILE} already exists and was not made by Chromatic "
             "Studio. Rename or remove it, then try again.",
         )
 
+    marker = target / MARKER
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    # The lock also covers Hermes commands from a different gateway or plugin host finishing this profile.
+    with marker.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return _configure(home, target, enabled, run, seed_defaults=ours and not marker.is_file())
+
+
+def _seed_turn_limit(target: Path, run) -> None:
+    config = hermes_api.profile_config(target)
+    agent = config.get("agent", {})
+    if isinstance(agent, dict) and "max_turns" not in agent and "max_turns" not in config:
+        run(target, "config", "set", "agent.max_turns", str(TURN_LIMIT))
+
+
+def _configure(home: Path, target: Path, enabled: list[str] | None, run, *, seed_defaults: bool) -> dict:
     plugin = _link(paths.PLUGIN_ROOT, target / "plugins" / paths.PLUGIN_ID)
     providers = []
     for folder in _provider_plugins(home, _enabled_plugins() if enabled is None else enabled):
@@ -318,21 +348,17 @@ def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None
     # Pinned, not inherited: the approval prompt before anything touches the Chromatic only appears
     # while approvals are on.
     run(target, "config", "set", "approvals.mode", "smart")
-    marker = target / MARKER
-    first_time = not marker.is_file()
-    if first_time:
-        run(target, "config", "set", "agent.max_turns", str(TURN_LIMIT))
+    if seed_defaults:
+        _seed_turn_limit(target, run)
     # Every chat in the profile opens in its own workspace folder (an absolute, existing directory is
     # what Hermes accepts as terminal.cwd). Games themselves still go in the plugin's games folder.
     workspace = target / WORKSPACE
     workspace.mkdir(parents=True, exist_ok=True)
     run(target, "config", "set", "terminal.cwd", str(workspace.resolve()))
 
-    if first_time:
-        _write_soul(target / "SOUL.md")
-    write_soul = first_time or refresh_soul(target)
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(
+    write_soul = seed_defaults and _replace_soul(target / "SOUL.md", _initial_soul)
+    write_soul = write_soul or refresh_soul(target)
+    (target / MARKER).write_text(
         json.dumps(
             {
                 "made_by": paths.PLUGIN_ID,

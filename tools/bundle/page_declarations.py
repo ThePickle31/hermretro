@@ -10,8 +10,9 @@ import rpc_names
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--workflow-only", action="store_true", help="skip the RPC declarations")
     args = parser.parse_args()
-    if rpc_names.main(["--check"] if args.check else []):
+    if not args.workflow_only and rpc_names.main(["--check"] if args.check else []):
         return 1
 
     workflow = runpy.run_path(str(rpc_names.ROOT / "backend/hermes/workflow.py"))

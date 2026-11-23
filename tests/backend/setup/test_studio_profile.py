@@ -26,6 +26,13 @@ class StudioProfile(unittest.TestCase):
         (self.home / "plugins" / "other").mkdir()
         (self.home / "plugins" / "other" / "plugin.yaml").write_text("name: other\nkind: tool\n")
         self.commands = []
+        for name, options in (
+            ("profile_config", {"side_effect": self.read_config}),
+            ("default_soul", {"return_value": b"default soul"}),
+        ):
+            patch = unittest.mock.patch.object(sp.hermes_api, name, **options)
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -35,13 +42,23 @@ class StudioProfile(unittest.TestCase):
         self.target.mkdir(parents=True)
         (self.target / "profile.yaml").write_text(f"description: '{description}'\n")
         (self.target / "SOUL.md").write_text("default soul")
+        (self.target / "config.yaml").write_text("{}")
+
+    @staticmethod
+    def read_config(target):
+        return json.loads((target / "config.yaml").read_text())
+
+    def run_command(self, target, *args):
+        self.commands.append((target, args))
+        if args[:3] == ("config", "set", "agent.max_turns"):
+            (target / "config.yaml").write_text(json.dumps({"agent": {"max_turns": int(args[3])}}))
 
     def finish(self):
         return sp.finish(
             self.home,
             target=self.target,
             enabled=["my-provider", "other", "gone"],
-            run=lambda target, *args: self.commands.append((target, args)),
+            run=self.run_command,
         )
 
     def test_the_page_is_told_which_profile_answers_and_how_to_create_the_studio_one(self):
@@ -138,11 +155,13 @@ class StudioProfile(unittest.TestCase):
         self.created()
         self.finish()
         (self.target / "SOUL.md").write_text("edited by the user")
+        (self.target / "config.yaml").write_text('{"agent": {"max_turns": 47}}')
         self.commands.clear()
         again = self.finish()
         self.assertFalse(any("agent.max_turns" in args for _target, args in self.commands))
         self.assertEqual((again["ok"], again["soul_written"]), (True, False))
         self.assertEqual((self.target / "SOUL.md").read_text(), "edited by the user")
+        self.assertEqual(self.read_config(self.target)["agent"]["max_turns"], 47)
 
     def test_running_it_again_updates_a_soul_left_as_an_older_release_shipped_it(self):
         self.created()
@@ -253,6 +272,39 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(sp.describe(self.home, self.target)["studio"]["installed"], False)
         self.assertEqual(self.finish()["ok"], True)
         self.assertEqual(sp.describe(self.home, self.target)["studio"]["installed"], True)
+
+    def test_retry_preserves_each_edited_preference_even_before_setup_seeds_it(self):
+        root = self.target.parent
+        for failure in (("plugins", "enable"), ("config", "set", "terminal.cwd")):
+            for edit in ("turn limit", "SOUL"):
+                with self.subTest(failure=failure, edit=edit):
+                    self.target = root / f"{failure[-1]}-{edit}"
+                    self.created()
+
+                    def fail(target, *args, failure=failure):
+                        if args[: len(failure)] == failure:
+                            raise sp.StudioProfileError("HERMES_COMMAND_FAILED", "interrupted")
+                        self.run_command(target, *args)
+
+                    with self.assertRaises(sp.StudioProfileError):
+                        sp.finish(self.home, target=self.target, enabled=[], run=fail)
+                    self.assertFalse((self.target / sp.MARKER).exists())
+
+                    soul = self.target / "SOUL.md"
+                    if edit == "turn limit":
+                        (self.target / "config.yaml").write_text('{"agent": {"max_turns": 61}}')
+                    else:
+                        soul.write_text("edited in the unfinished profile")
+
+                    self.assertTrue(self.finish()["ok"])
+                    self.assertEqual(
+                        self.read_config(self.target)["agent"]["max_turns"], 61 if edit == "turn limit" else 1000
+                    )
+                    self.assertEqual(
+                        soul.read_text(),
+                        "edited in the unfinished profile" if edit == "SOUL" else sp.SOUL_FILE.read_text(),
+                    )
+                    self.assertTrue((self.target / sp.MARKER).is_file())
 
     def test_a_hermes_command_that_cannot_start_or_hangs_is_a_plain_error(self):
         import subprocess

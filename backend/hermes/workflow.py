@@ -6,10 +6,11 @@ CHECKPOINT = (
     "only then "
 )
 # Handing the game to the user, in order, once everything agreed is built; the prompt section's steps end with it too.
+PRESENT = "show it with chromatic_present_game in the hermretro emulator"
 DELIVER = (
     "playtest it yourself with the chromatic_emulator_* tools; fill in its game card with chromatic_game_info; "
-    "show it with chromatic_present_game; end the turn with "
-    "chromatic_build_report."
+    + PRESENT
+    + "; end the turn with chromatic_build_report."
 )
 
 GAME_STEPS = (
@@ -60,7 +61,7 @@ BUILD_THE_BRIEF = (
     "the build before presenting."
 )
 
-BUILD_START = AGREE_A_LIST + " " + BUILD_THE_LIST
+BUILD_START = AGREE_A_LIST + " " + BUILD_THE_LIST + " Then " + PRESENT + "."
 PLAN_START = (
     "Plan it first: load hermretro:game-planning, interview the user briefly, create the project, write "
     "the game brief, backlog and test plan into it, and wait for the user to approve the brief before "

@@ -17,8 +17,8 @@
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
  * tools/npm/node_modules, or a Hermes Desktop checkout).
  *
- * Before building, it regenerates page/app/rpc-names.js from the backend's @rpc declarations with
- * tools/bundle/rpc_names.py (Python from PATH); --check fails when that file is stale.
+ * Before building, tools/bundle/page_declarations.py generates RPC names and Build fallback instructions
+ * from the backend (Python from PATH). --check verifies both, and --watch tracks changes to workflow.py.
  */
 import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 
 import { lineCount, lintSources, sourceFiles } from './lint.mjs'
 import { findModules, MISSING_HINT } from './node-modules.mjs'
-import { pageDeclarations } from './page-declarations.mjs'
+import { pageDeclarations, watchWorkflow, WORKFLOW_SOURCE } from './page-declarations.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SOURCE = 'page'
@@ -71,6 +71,7 @@ const TARGETS = [
     output: 'desktop/plugin.js',
     entry: `${SOURCE}/index.js`,
     sources: [SOURCE],
+    declarations: [WORKFLOW_SOURCE],
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
@@ -99,6 +100,7 @@ const TARGETS = [
     output: 'player/frame-shim.js',
     entry: `${SOURCE}/frame/index.js`,
     sources: [`${SOURCE}/frame`, `${SOURCE}/shared`],
+    declarations: [],
     about: [
       'hermretro \u2014 the player frame shim. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/frame/. Rebuild: node tools/bundle/bundle.mjs`,
@@ -169,12 +171,12 @@ const options = target => ({
 
 const buildAll = tools => Promise.all(TARGETS.map(target => tools.esbuild.build(options(target))))
 
-/** SHA-256 over a target's source folders and this tool: path, a zero byte, then the bytes, in path order. */
+/** SHA-256 over a target's source folders, backend declarations and this tool, in path order. */
 function sourcesHash(target) {
   const hash = createHash('sha256')
   const files = target.sources.flatMap(folder => sourceFiles(abs(folder)).map(name => `${folder}/${name}`))
 
-  for (const file of [...files, 'tools/bundle/bundle.mjs'].sort()) {
+  for (const file of [...files, ...target.declarations, 'tools/bundle/bundle.mjs'].sort()) {
     hash.update(file).update('\0').update(readFileSync(abs(file)))
   }
 
@@ -260,7 +262,7 @@ export function staleReasons() {
 
     return [
       sha256(text.slice(stamp.length)) === stamp.body ? null : `${target.output} was edited by hand (its body hash differs)`,
-      sourcesHash(target) === stamp.sources ? null : `${target.output} is stale (${target.sources.join('/, ')}/ or the build tool changed since it was built)`
+      sourcesHash(target) === stamp.sources ? null : `${target.output} is stale (its sources or the build tool changed since it was built)`
     ].filter(Boolean)
   })
 }
@@ -346,22 +348,27 @@ async function watch(tools) {
         emit(latest, tools)
       }
     }
-    const context = await tools.esbuild.context({ ...options(target), plugins: [artDataUrl, { name: 'emit', setup: build => build.onEnd(onEnd) }] })
+    const buildOptions = options(target)
+    if (target.declarations.includes(WORKFLOW_SOURCE)) {
+      buildOptions.plugins.push(watchWorkflow(ROOT))
+    }
+    buildOptions.plugins.push({ name: 'emit', setup: build => build.onEnd(onEnd) })
+    const context = await tools.esbuild.context(buildOptions)
 
     await context.watch()
   }
 
-  console.log(`watching ${SOURCE}/ (Ctrl+C to stop)`)
+  console.log(`watching ${SOURCE}/ and ${WORKFLOW_SOURCE} (Ctrl+C to stop)`)
 
   return new Promise(() => {})
 }
 
 async function main(flags) {
   const tools = toolchain()
-  const names = pageDeclarations(ROOT, flags.has('--check'))
+  const declarations = pageDeclarations(ROOT, ...(flags.has('--check') ? ['--check'] : []))
 
-  if (names.length) {
-    return fail(names)
+  if (declarations.length) {
+    return fail(declarations)
   }
 
   if (flags.has('--check')) {

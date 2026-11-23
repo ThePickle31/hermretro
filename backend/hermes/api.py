@@ -19,6 +19,8 @@ USED = (
     ("hermes_constants", "get_default_hermes_root"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
+    ("hermes_cli.config", "require_readable_config_before_write"),
+    ("hermes_cli.default_soul", "DEFAULT_SOUL_MD"),
 )
 
 
@@ -27,7 +29,7 @@ def missing() -> list[str]:
     gone = []
     for module, attribute in USED:
         try:
-            if not callable(getattr(importlib.import_module(module), attribute, None)):
+            if not hasattr(importlib.import_module(module), attribute):
                 gone.append(f"{module}.{attribute}")
         except Exception:  # noqa: BLE001 - a module that fails to import is as good as missing
             gone.append(f"{module}.{attribute}")
@@ -76,3 +78,17 @@ def enabled_plugins() -> list[str]:
         return [str(name) for name in enabled]
     except Exception:  # noqa: BLE001 - an unreadable config means no plugins are on
         return []
+
+
+def profile_config(profile_home: Path) -> dict:
+    """Read the settings explicitly written in a profile, raising on unreadable or malformed config."""
+    from hermes_cli.config import require_readable_config_before_write
+
+    return require_readable_config_before_write(profile_home / "config.yaml")
+
+
+def default_soul() -> bytes:
+    """The SOUL Hermes seeds when it creates a profile."""
+    from hermes_cli.default_soul import DEFAULT_SOUL_MD
+
+    return DEFAULT_SOUL_MD.encode("utf-8")
