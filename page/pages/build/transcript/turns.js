@@ -1,6 +1,6 @@
 // A conversation as turns, and the numbered builds among them.
 import { replyAssets } from './reply.js'
-import { assetKind, BUILD_STEPS, HIDDEN_STEPS, shortTool, stepImages, stepWords } from './step-words.js'
+import { assetKind, capturedFrames, BUILD_STEPS, HIDDEN_STEPS, shortTool, stepImages, stepWords } from './step-words.js'
 
 /** The flat transcript as turns: each user message and everything until the next one. */
 export function deriveTurns(items) {
@@ -70,8 +70,11 @@ export function turnParts(turn, root) {
   const entries = first === -1 ? [] : tokens.slice(first, last + 1).map(token => (token.type === 'text' ? { type: 'note', item: token.item } : token))
   const steps = entries.filter(entry => entry.type === 'step').map(entry => entry.tool)
   const assets = []
+  const frames = []
 
   for (const tool of steps) {
+    const samples = capturedFrames(tool, root)
+    const byPath = new Map()
     for (const path of stepImages(tool, root)) {
       const known = assets.findIndex(asset => asset.path === path)
       // Only looked at (never written) by every step of the turn that touched it.
@@ -81,7 +84,16 @@ export function turnParts(turn, root) {
         assets.splice(known, 1)
       }
 
-      assets.push({ path, version: tool.id, kind: assetKind(path), step: stepWords(tool)[1], at: tool.startedAt ?? null, looked })
+      const asset = { path, version: tool.id, kind: assetKind(path), step: stepWords(tool)[1], at: tool.startedAt ?? null, looked }
+
+      assets.push(asset)
+      byPath.set(path, asset)
+      if (!samples.length && !looked && asset.kind === 'Playtest frame') {
+        frames.push(asset)
+      }
+    }
+    for (const path of samples) {
+      frames.push(byPath.get(path))
     }
   }
 
@@ -98,6 +110,7 @@ export function turnParts(turn, root) {
     errors,
     end,
     assets,
+    frames,
     built: builds.some(tool => tool.state === 'done'),
     buildFailed: lastBuild?.state === 'failed' ? (lastBuild.info?.error ?? 'The build failed.') : null,
     buildState: compileState(lastCompile(turn)),

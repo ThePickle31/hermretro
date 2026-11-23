@@ -12,8 +12,19 @@ export function playsBuild(game, build) {
   return Boolean(build?.startAt && madeAt && madeAt * 1000 >= build.startAt - 2000)
 }
 
-export function PlayCard({ game, frame, state, note, build = null, onPlay }) {
+export function PlayCard({ game, frame, state, note, build = null, compact = false, onPlay }) {
   const ready = state === 'ready'
+  const label = build ? `Play build #${build}` : 'Play'
+  if (compact) {
+    return jsxs('div', {
+      className: `cs-b-pc compact ${state}`,
+      children: [ready
+        ? jsxs('button', { className: 'cs-b-pc-go', onClick: onPlay, type: 'button', children: [jsx(Codicon, { name: 'play', size: 12 }), label] })
+        : jsx('span', { className: 'cs-faint cs-small', children: 'The playable copy is not ready yet' }),
+        note && ready ? jsx('p', { className: 'cs-b-pc-note', children: note }) : null]
+    })
+  }
+
   const picture = frame
     ? jsx(AssetImage, { asset: frame, className: 'cs-b-pc-img', fallback: jsx(Screen, { className: 'cs-b-pc-img', game }) })
     : jsx(Screen, { className: 'cs-b-pc-img', game })
@@ -38,7 +49,7 @@ export function PlayCard({ game, frame, state, note, build = null, onPlay }) {
                 className: 'cs-b-pc-go',
                 onClick: onPlay,
                 type: 'button',
-                children: [jsx(Codicon, { name: 'play', size: 13 }), build ? `Play build #${build}` : 'Play']
+                children: [jsx(Codicon, { name: 'play', size: 13 }), label]
               })
             : jsx('span', {
                 className: 'cs-b-pc-wait',
