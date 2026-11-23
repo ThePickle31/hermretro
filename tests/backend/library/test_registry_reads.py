@@ -104,13 +104,26 @@ class RegistryReads(unittest.TestCase):
                 raise PermissionError("temporarily unavailable")
             return real_stat(path, **kwargs)
 
-        self.registry.upsert(str(self.second))
-        with mock.patch.object(Path, "stat", stat):
-            self.assertEqual(self.status({"id": self.game})["code"], "UNAVAILABLE")
-            self.assertEqual([game["title"] for game in self.registry.library()], ["Second Game"])
-        self.root.rename(self.root.with_name("Outside the library"))
-        self.assertEqual(self.status({"id": self.game})["code"], "NO_GAME")
-        self.assertEqual(self.status({"id": "a" * 12})["code"], "NO_GAME")
+        second_id = self.registry.upsert(str(self.second))["id"]
+        list_games = rpcs.rpc_games(self.ctx)
+        with mock.patch.object(host, "try_connect", return_value=(None, None)):
+            with mock.patch.object(Path, "stat", stat):
+                self.assertEqual(self.status({"id": self.game})["code"], "UNAVAILABLE")
+                answer = list_games({})
+            self.assertTrue(answer["ok"])
+            self.assertEqual([game["id"] for game in answer["games"]], [second_id])
+            self.assertEqual(answer["unavailable"], [self.game])
+
+            recovered = list_games({})
+            self.assertEqual([game["id"] for game in recovered["games"]], [second_id, self.game])
+            self.assertEqual(recovered["unavailable"], [])
+
+            self.root.rename(self.root.with_name("Outside the library"))
+            removed = list_games({})
+            self.assertEqual([game["id"] for game in removed["games"]], [second_id])
+            self.assertEqual(removed["unavailable"], [])
+            self.assertEqual(self.status({"id": self.game})["code"], "NO_GAME")
+            self.assertEqual(self.status({"id": "a" * 12})["code"], "NO_GAME")
 
     def test_status_does_not_report_a_native_rom_as_a_rebuild_after_a_failed_web_read(self):
         config = self.root / "build" / "web" / "gbstudio.json"

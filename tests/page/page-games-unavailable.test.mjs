@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ answered, buildScenario, check, hides, mount, page, scenario, shows, tab }) => {
+await runScenario(async ({ answered, buildScenario, check, hides, mount, notLoaded, page, scenario, shows, tab }) => {
   const id = 'aaa111aaa111'
   const game = { id, state: 'ready', title: 'Comet Drift' }
   const failure = 'Could not read the game library.'
@@ -31,7 +31,7 @@ await runScenario(async ({ answered, buildScenario, check, hides, mount, page, s
     assert.equal(scenario.storage.emulatorGame, id)
   })
 
-  const loaded = { ok: true, games: [game], pending: [] }
+  const loaded = { ok: true, games: [game], unavailable: [], pending: [] }
   scenario.byMethod[method] = loaded
   scenario.games = answered(await scenario.fns.games())
   await tab('Build')
@@ -48,13 +48,47 @@ await runScenario(async ({ answered, buildScenario, check, hides, mount, page, s
     shows(failure)
     assert.equal(scenario.storage.buildSelected, id)
   })
+
+  const partial = { ok: true, games: [], unavailable: [id], pending: [] }
+  scenario.games = answered(partial)
+  await studio.rerender()
+  check('an unavailable game on a successful shelf keeps its Build selection and shows an error', () => {
+    shows('Could not read the selected game.')
+    hides('Reading your games')
+    assert.equal(scenario.storage.buildSelected, id)
+  })
+
+  scenario.games = answered({ ok: true, games: [], pending: [] })
+  await studio.rerender()
+  check('Build checks the missing game separately when an older shelf omits availability', () => {
+    shows('Reading your games')
+    assert.equal(scenario.queries.filter(query => query.key === 'buildSelectionStatus').at(-1).enabled, true)
+    assert.equal(scenario.storage.buildSelected, id)
+  })
+  scenario.byMethod['plugin.hermretro.game_build_status'] = () => { throw notLoaded.error }
+  scenario.buildSelectionStatus = await scenario.fns.buildSelectionStatus().catch(error => ({ isError: true, error }))
+  await studio.rerender()
+  check('an older backend without the individual check keeps the selection and reports the error', () => {
+    shows('Could not read the selected game.')
+    hides('Reading your games')
+    assert.equal(scenario.storage.buildSelected, id)
+  })
+  scenario.games = answered(loaded)
+  await studio.rerender()
+  check('the selected game reopens when the shelf recovers', () => {
+    shows('Comet Drift')
+    hides('Could not read the selected game.')
+    assert.equal(scenario.storage.buildSelected, id)
+  })
+
+  scenario.games = { ...result, data: loaded }
   await tab('Games')
   check('a failed refresh leaves the cached shelf visible with the error', () => {
     shows('Comet Drift')
     shows(failure)
   })
 
-  scenario.games = answered({ ok: true, games: [], pending: [] })
+  scenario.games = answered({ ok: true, games: [], unavailable: [], pending: [] })
   await studio.rerender()
   check('a successful empty library shows the empty state', () => { shows('No games yet') })
   await tab('Build')
@@ -62,4 +96,15 @@ await runScenario(async ({ answered, buildScenario, check, hides, mount, page, s
     assert.equal(scenario.storage.buildSelected, 'new')
   })
   await studio.close()
+
+  buildScenario({ selected: id })
+  scenario.games = answered({ ok: true, games: [], pending: [] })
+  const older = await mount(page)
+  scenario.byMethod['plugin.hermretro.game_build_status'] = { ok: false, code: 'NO_GAME' }
+  scenario.buildSelectionStatus = answered(await scenario.fns.buildSelectionStatus())
+  await older.rerender()
+  check('an older shelf clears the missing selection after the separate check confirms removal', () => {
+    assert.equal(scenario.storage.buildSelected, 'new')
+  })
+  await older.close()
 })

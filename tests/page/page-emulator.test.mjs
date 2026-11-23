@@ -146,6 +146,18 @@ await runScenario(async helpers => {
     assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.game_build_status'], { id: games[0].id })
     assert.deepEqual(status, rebuilt)
   })
+  scenario.byMethod['plugin.hermretro.game_build_status'] = { ok: false, code: 'UNAVAILABLE', error: 'could not read the ROM' }
+  const error = await scenario.fns.gameBuildStatus().catch(error => error)
+  assert.match(error.message, /could not read the ROM/)
+  scenario.gameBuildStatus = { ...answered(rebuilt), isError: true, error }
+  await studio.rerender()
+  check('a failed status refresh hides the cached rebuild action and keeps the frame', () => {
+    assert.ok(!button('Load the new build'))
+    assert.equal(frame(), loadedFrame)
+  })
+  scenario.gameBuildStatus = answered(rebuilt)
+  await studio.rerender()
+  check('a successful status refresh restores the rebuild action', () => { assert.ok(button('Load the new build')) })
   await click('Later')
   check('Later hides the banner for that build', () => { assert.ok(!text().includes('Hermes rebuilt')) })
   scenario.player = { isError: true, isFetching: false, error: Object.assign(new Error('unknown method'), { code: -32601 }) }

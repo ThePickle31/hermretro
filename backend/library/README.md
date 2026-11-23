@@ -43,8 +43,8 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
 
 `Registry.load()["games"]` holds raw entries, including games whose folders are gone. The registry key determines
 the game id used by the shelf, chat bindings, and thumbnails. After seeding, the `games` RPC reads one snapshot
-for the games, pending conversations, and chat ownership. `Registry.library()` skips unreadable project folders
-and describes the rest through `shelf.describe` in descending `updatedAt` order.
+for the games, pending conversations, and chat ownership. `Registry.library_listing()` returns the games
+described through `shelf.describe` in descending `updatedAt` order and the IDs of unreadable entries.
 The emulator checks one game through `game_build_status`, including whether its project is unavailable or gone.
 That RPC reads the build files and chat link, while shelf descriptions also inspect source timestamps and card
 files. A recorded native ROM path that cannot be read does not invalidate a healthy web ROM. The shelf keeps a

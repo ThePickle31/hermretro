@@ -1,6 +1,6 @@
 // The emulator tab beside the chat.
 import { Codicon, host, jsx, jsxs, useEffect, useQuery, useRef, useState, useValue } from '#sdk'
-import { callBackend } from '#app/backend.js'
+import { callBackend, callStudio } from '#app/backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from '#app/ids.js'
 import { RPC_PLAYER } from '#app/rpc.js'
 import { readGameBuildStatus } from '#app/player/build-status.js'
@@ -56,6 +56,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
   const [paneShown] = useState(() => (typeof host.paneVisibility === 'function' ? host.paneVisibility(paneId) : ALWAYS_VISIBLE))
   const shown = useValue(paneShown) !== false
   const live = owner === surface
+  const checking = live && shown && !demo
 
   // Nobody is playing (the Studio page was left, another tab closed): a visible tab takes the game.
   useEffect(() => {
@@ -68,20 +69,23 @@ function SideEmulator({ ctx, initialGame, paneId }) {
 
   const buildStatus = useQuery({
     queryKey: [ID, 'gameBuildStatus', 'side', gameId],
-    queryFn: () => readGameBuildStatus(async (method, params) => (await callBackend(method, params)).data, gameId),
-    enabled: !demo,
-    refetchInterval: demo ? false : shown ? 5_000 : 30_000,
+    queryFn: () => readGameBuildStatus(callStudio, gameId),
+    enabled: checking,
+    refetchInterval: checking ? 5_000 : false,
     staleTime: 2_000,
     retry: false
   })
-  const lastTick = useRef(tick)
+  const lastCheck = useRef({ checking, tick })
 
   useEffect(() => {
-    if (!demo && tick !== lastTick.current) {
-      lastTick.current = tick
-      void buildStatus.refetch?.()
+    const previous = lastCheck.current
+
+    lastCheck.current = { checking, tick }
+
+    if (checking && (!previous.checking || tick !== previous.tick)) {
+      void buildStatus.refetch?.({ cancelRefetch: previous.checking })
     }
-  }, [tick])
+  }, [checking, tick])
 
   const game = demo
     ? DEMO_GAME
@@ -119,7 +123,7 @@ function SideEmulator({ ctx, initialGame, paneId }) {
   const stageRef = useRef(null)
   const scopeRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = buildStatus.isError && !buildStatus.data?.game ? null : playableSha(game)
+  const currentSha = buildStatus.isError ? null : playableSha(game)
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: data => annotateGame(ctx, game, data), scopeRef, visible: live && shown })
   const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled)

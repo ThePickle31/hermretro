@@ -213,7 +213,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
+| `games` | none | `{ ok, games[], unavailable[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
 | `game_build_status` | `{ id }` | `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session }, device: { hardwareEnabled } }`: one game's artifacts and chat routing, with the same field shapes as `games` (chat title is null). `INVALID` for an invalid id, `NO_GAME` for an absent entry or project folder, `UNAVAILABLE` for a read failure. |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores a title screen for the shelf |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
@@ -224,6 +224,7 @@ instead of throwing.
 | `build_restore` | `{ game, id }` | `{ ok, restored, backup, changed, removed, problems? }`, or `NO_GAME` / `MISSING` / `TOO_LARGE` |
 
 `games` can include an empty `games` array in an error reply. Only `ok: true` supplies shelf and ownership data.
+`unavailable` lists the registered game IDs the shelf could not read.
 `game_build_status` also returns `UNAVAILABLE` if an existing web export's ROM cannot be read.
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").

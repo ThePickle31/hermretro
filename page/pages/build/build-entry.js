@@ -21,6 +21,7 @@ export function Build({ shell }) {
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
     selection: shell.buildSelection,
+    unavailable: shell.games.data?.unavailable,
     updating: shell.pluginUpdate?.phase === 'updating'
   }, 'build')
 }

@@ -564,16 +564,23 @@ class Registry:
         return shelf.describe(entry, identifier if identifier is not None else game_id(root), root, self.thumb)
 
     def library(self, *, snapshot: dict | None = None) -> list[dict]:
+        listed, _ = self.library_listing(snapshot=snapshot)
+        return listed
+
+    def library_listing(self, *, snapshot: dict | None = None) -> tuple[list[dict], list[str]]:
+        """Describe the shelf and identify registered games whose projects cannot be read."""
         data = self.load() if snapshot is None else snapshot
         games = []
+        unavailable = []
         for identifier, entry in data["games"].items():
-            if not valid_id(identifier) or not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
+            if not valid_id(identifier):
                 continue
             try:
                 described = self.describe(entry, identifier=identifier)
             except OSError:
-                described = None
+                unavailable.append(identifier)
+                continue
             if described:
                 games.append(described)
         games.sort(key=lambda g: project.timestamp(g.get("updatedAt")), reverse=True)
-        return games
+        return games, unavailable

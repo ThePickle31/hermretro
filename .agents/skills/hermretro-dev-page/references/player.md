@@ -52,9 +52,11 @@ when the agent is ready to present the game after making it, never for the whole
 - **Tab content.** Same `EmulatorBar`, `PlayerNotice`, `PlayerStage` and annotate / Ask Hermes code as
   the page, in `.cs-page.cs-side` (stage fills the tab; the player inside scales by height and width).
   Page keys reach the game only after the user last clicked inside the tab, so the chat keeps its keys.
-- **Rebuilt check.** Both surfaces poll `game_build_status` every 5 s while visible for a player's own
-  game. They compare the player's `romSha256` with the web export's `web.sha256` and retain the last
-  successful status when a read fails. An explicit `web: null` leaves the build comparison unavailable.
+- **Rebuilt check.** The Emulator page polls `game_build_status` every 5 s while visible for a player's own
+  game. The beside-chat tab checks at the same interval while visible and holding playback. It also checks
+  on taking playback, showing the live tab again, and a build or turn ending while the tab is active.
+  Both keep the last successful status when a read fails and hide the rebuild action until a check succeeds.
+  An explicit `web: null` leaves the build comparison unavailable.
   The Studio shelf keeps its 30 s refresh for edits outside the page. A remembered pick is cleared only when
   the per-game check confirms it is gone.
 - **Agent side.** `rom_build` / `web_preview` results no longer carry any Studio address
@@ -88,6 +90,7 @@ Params: none. Result:
     "session": { "storedId": "…", "createdAt": 1731400000, "thisProfile": true, "profileName": null, "exists": true } | null,
     "error": "<last build error, ≤240 chars>" | null
   } ],
+  "unavailable": [ "<unreadable registered game id>", … ],
   "pending": [ … ],
   "gamesDir": "/abs/…/games",
   "demo": { "id": "demo", "title": "Hello Color", "kind": "gbdk", "note": "ModRetro example" },
@@ -98,6 +101,8 @@ Params: none. Result:
 The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM named by the export's `gbstudio.json`, or is null if it is missing or unreadable. The rebuilt banner compares the ROM the web player loads against `web.sha256`.
 
 On `ok: false` the page shows the read error and retains any cached result. An empty library requires a successful answer.
+The Build page keeps the selected ID if it appears in `unavailable`. With an older shelf that omits the field,
+Build asks `game_build_status` before clearing a missing selection.
 
 ### `game_build_status` → check one game's build
 Params `{ "id": "…" }`. Result `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session },

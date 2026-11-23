@@ -31,10 +31,10 @@ import { Background } from '#app/background.js'
 import { Working } from '#shared/ui/working.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
-import { useBuildSelection } from './selection.js'
+import { useBuildSelection, useMissingBuildGame } from './selection.js'
 
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
-export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, onLibraryChanged, updating = false }) {
+export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
   const startingGames = useValue(BUILD_STARTING)
   // Bindings made this visit, until the library answers with them (and the only record on an older backend).
@@ -82,14 +82,17 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
 
   const game = made ?? rail.find(item => item.id === selected) ?? null
   const pendingItem = pending.find(item => item.storedId === pendingId) ?? null
-  const waitingForSelection = !loaded && selected !== 'new' && !game && !pendingItem
+  const missingSelection = selected !== 'new' && !game && !pendingItem
+  const missingGame = useMissingBuildGame(loaded && missingSelection && !pendingId ? selected : null, unavailable)
+  const removed = loaded && missingSelection && (pendingId ? !chats[pendingId]?.busy : missingGame.removed)
+  const waitingForSelection = missingSelection && (!loaded || !pendingId)
 
   // A remembered selection that is gone (game removed, New Game discarded elsewhere) falls back to New game.
   useEffect(() => {
-    if (loaded && selected !== 'new' && !game && !pendingItem && !(pendingId && chats[pendingId]?.busy)) {
+    if (removed) {
       select('new')
     }
-  }, [loaded, selected, Boolean(game), Boolean(pendingItem)])
+  }, [removed, selected])
 
   // Presentations of the game shown here play in this conversation, not in a tab beside the chat.
   useEffect(() => {
@@ -466,11 +469,12 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
     })
   })
 
-  const libraryNotice = libraryError ? jsx('p', { className: 'cs-error cs-b-library-error', role: 'alert', children: libraryError }, 'library-error') : null
+  const selectionError = libraryError || missingGame.error
+  const libraryNotice = selectionError ? jsx('p', { className: 'cs-error cs-b-library-error', role: 'alert', children: selectionError }, 'library-error') : null
   let body
 
   if (waitingForSelection) {
-    body = libraryError ? null : jsx('div', {
+    body = selectionError ? null : jsx('div', {
       className: 'cs-b-empty',
       children: jsx(Working, { quiet: true, children: 'Reading your games…' })
     })

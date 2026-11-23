@@ -351,7 +351,7 @@ export function StudioPage({ ctx }) {
   const frameRef = useRef(null)
   const stageRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = buildStatus.isError && !current ? null : playableSha(game)
+  const currentSha = buildStatus.isError ? null : playableSha(game)
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
   const thumbTried = useRef(new Set())
 

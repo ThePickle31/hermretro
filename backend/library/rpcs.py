@@ -149,7 +149,7 @@ def rpc_games(ctx):
             except Exception:
                 logger.debug("hermretro: seeding the library from the broker failed", exc_info=True)
             snapshot = registry.load()
-            listed = registry.library(snapshot=snapshot)
+            listed, unavailable = registry.library_listing(snapshot=snapshot)
             pending = registry.pending(host._profile_identity(), snapshot=snapshot)
             _route_games(listed, snapshot["games"], pending, lookup_titles=True)
             for game in listed:
@@ -159,6 +159,7 @@ def rpc_games(ctx):
             return {
                 "ok": True,
                 "games": listed,
+                "unavailable": unavailable,
                 "pending": pending,
                 "demo": _demo_entry(),
                 "gamesDir": str(_games_dir_made()),

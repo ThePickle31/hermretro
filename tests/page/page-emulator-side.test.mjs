@@ -28,8 +28,13 @@ await runScenario(async helpers => {
   const buildStatus = id => ({ ok: true, game: library13.find(game => game.id === id), device: { hardwareEnabled: true } })
   scenario.byMethod['plugin.hermretro.game_build_status'] = params => buildStatus(params.id)
   let buildRefetches = 0
+  let buildError = null
+  let paneShown = true
+  host.paneVisibility = () => ({ get: () => paneShown })
   scenario.gameBuildStatus = queryKey => ({
     ...answered(buildStatus(queryKey[3])),
+    isError: Boolean(buildError),
+    error: buildError,
     refetch: () => { buildRefetches += 1 }
   })
   // The backend answers with its own clock (here ahead of this one) and only presentations after `since`.
@@ -75,6 +80,7 @@ await runScenario(async helpers => {
   const side = await mount({ render: scenario.workspaces[0].options.render })
   const sideFrame = () => side.node.querySelector('.cs-rp-stage iframe')
   const sideReload = () => scenario.queries.filter(query => query.key === 'player' && query.queryKey?.[2] === 'side').at(-1)?.queryKey?.[4]
+  const sideStatus = () => scenario.queries.filter(query => query.key === 'gameBuildStatus' && query.queryKey[2] === 'side').at(-1)
   await studio.rerender()
   check('one live player: the presented tab runs the game, the page says where it is', () => {
     assert.ok(sideFrame(), 'the tab runs the player'); assert.equal(sideFrame().getAttribute('src'), 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html')
@@ -94,7 +100,8 @@ await runScenario(async helpers => {
   await side.rerender()
   await scenario.fns.gameBuildStatus()
   check('the tab polls only its own game', () => {
-    assert.equal(scenario.queries.filter(query => query.key === 'gameBuildStatus' && query.queryKey[2] === 'side').at(-1).refetchInterval, 5_000)
+    assert.equal(sideStatus().enabled, true)
+    assert.equal(sideStatus().refetchInterval, 5_000)
     assert.deepEqual(scenario.paramsByMethod['plugin.hermretro.game_build_status'], { id: 'aaa111aaa111' })
     assert.ok(!scenario.queries.some(query => query.key === 'games' && query.queryKey[2] === 'side'))
   })
@@ -107,12 +114,37 @@ await runScenario(async helpers => {
     assert.equal(sideFrame(), loadedFrame)
   })
   library13[0] = readyGame
+  const beforeInactive = buildRefetches
   await click('Bring it here', studio.node)
   check('Bring it here moves the game back to the page and the tab shows a placeholder', () => {
     assert.ok(pageFrame()); assert.ok(!sideFrame()); assert.match(side.node.textContent, /Playing in hermretro/)
   })
+  await finish('rt-comet', 'chromatic_rom_build', built)
+  check('a side tab without ownership neither polls nor refetches on builds', () => {
+    assert.equal(sideStatus().enabled, false)
+    assert.equal(sideStatus().refetchInterval, false)
+    assert.equal(buildRefetches, beforeInactive)
+  })
   await click('Bring it here', side.node)
-  check('and back beside the chat again', () => { assert.ok(sideFrame()); assert.ok(!pageFrame()) })
+  check('bringing playback back re-enables the side check and refreshes immediately', () => {
+    assert.ok(sideFrame()); assert.ok(!pageFrame())
+    assert.equal(sideStatus().enabled, true)
+    assert.equal(buildRefetches, beforeInactive + 1)
+  })
+  paneShown = false
+  await side.rerender()
+  await finish('rt-comet', 'chromatic_rom_build', built)
+  check('a hidden side tab does not poll or refetch while it owns playback', () => {
+    assert.equal(sideStatus().enabled, false)
+    assert.equal(sideStatus().refetchInterval, false)
+    assert.equal(buildRefetches, beforeInactive + 1)
+  })
+  paneShown = true
+  await side.rerender()
+  check('showing the live side tab refreshes its status again', () => {
+    assert.equal(sideStatus().refetchInterval, 5_000)
+    assert.equal(buildRefetches, beforeInactive + 2)
+  })
   await tab('Games'); await tab('Emulator')
   check('visiting the Emulator page again does not take (and restart) the game playing beside the chat', () => {
     assert.ok(sideFrame()); assert.ok(!pageFrame()); assert.match(studio.node.textContent, /Playing beside the chat/)
@@ -138,6 +170,19 @@ await runScenario(async helpers => {
     assert.equal(sideReload(), reloadBefore); assert.ok(sideFrame() === frameBefore, 'the player frame is retained')
     assert.equal(buildRefetches, refetchBefore + 1)
   })
+  const statusMethod = 'plugin.hermretro.game_build_status'
+  scenario.byMethod[statusMethod] = { ok: false, code: 'UNAVAILABLE', error: 'could not read the ROM' }
+  buildError = await scenario.fns.gameBuildStatus().catch(error => error)
+  assert.match(buildError.message, /could not read the ROM/)
+  await side.rerender()
+  check('a failed side status refresh hides the cached rebuild action and keeps the frame', () => {
+    assert.ok(!side.node.textContent.includes('Load the new build'))
+    assert.equal(sideFrame(), frameBefore)
+  })
+  scenario.byMethod[statusMethod] = params => buildStatus(params.id)
+  buildError = null
+  await side.rerender()
+  check('a successful side status refresh restores the rebuild action', () => { assert.match(side.node.textContent, /Load the new build/) })
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/aaa111aaa111/index.html', romSha256: 'sha-two', title: 'Comet Drift' })
   await finish('rt-comet', 'chromatic_present_game', presented('aaa111aaa111', 'Comet Drift', 'Now the ledge is lower: try it again.', 102))
   await side.rerender()
@@ -218,5 +263,27 @@ await runScenario(async helpers => {
   delete scenario.byMethod['plugin.hermretro.presentations']
   await turnEnd('rt-old')
   check('an older backend without the presentations RPC breaks nothing', () => { assert.equal(scenario.workspaces.length, opened + 1) })
+
+  const statusRpc = 'plugin.hermretro.status'
+  const gamesRpc = 'plugin.hermretro.games'
+  scenario.byMethod[statusRpc] = { ...scenario.ambient, profile: { ...scenario.ambient.profile, studio: { installed: true } } }
+  scenario.requestProfileHook = (_route, method) => {
+    if (method === statusRpc) return complete
+    if (method === gamesRpc) return { ok: true, games: library13 }
+    throw Object.assign(new Error('unknown method'), { code: -32601 })
+  }
+  assert.equal((await scenario.fns.status()).via_profile, 'hermretro')
+  await click('Open beside the chat', studio.node)
+  const olderSide = await mount({ render: scenario.workspaces.at(-1).options.render })
+  scenario.calls.length = 0
+  await assert.rejects(scenario.fns.gameBuildStatus(), { code: -32601 })
+  await scenario.fns.games()
+  check('a missing side status RPC keeps subsequent calls on the healthy studio route', () => {
+    assert.deepEqual(scenario.calls, [
+      ['requestProfile', 'hermretro', statusMethod],
+      ['requestProfile', 'hermretro', gamesRpc]
+    ])
+  })
+  await olderSide.close()
   await studio.close()
 })
