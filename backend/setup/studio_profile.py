@@ -321,10 +321,14 @@ def _finish(home: Path, *, target: Path | None = None, enabled: list[str] | None
 
 
 def _seed_turn_limit(target: Path, run) -> None:
+    receipt = (target / MARKER).with_name("turn-limit-seeded")
+    if receipt.is_file():
+        return
     config = hermes_api.profile_config(target)
     agent = config.get("agent", {})
     if isinstance(agent, dict) and "max_turns" not in agent and "max_turns" not in config:
         run(target, "config", "set", "agent.max_turns", str(TURN_LIMIT))
+    receipt.touch()
 
 
 def _configure(home: Path, target: Path, enabled: list[str] | None, run, *, seed_defaults: bool) -> dict:

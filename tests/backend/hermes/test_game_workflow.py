@@ -104,7 +104,8 @@ class OneWorkflow(unittest.TestCase):
 
     def test_a_games_own_chat_hears_the_steps_and_the_rules(self):
         context = self.context("game", {"title": "Robin", "projectRoot": "/g/robin"})
-        self.assertIn(workflow.GAME_STEPS, context)
+        self.assertIn(workflow.AUTHOR_AND_DELIVER, context)
+        self.assertNotIn("create the project", context)
         self.assertIn(workflow.GAME_RULES, context)
 
     def test_a_planned_game_keeps_waiting_for_approval_on_later_turns(self):

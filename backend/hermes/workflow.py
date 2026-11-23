@@ -13,11 +13,14 @@ DELIVER = (
     + "; end the turn with chromatic_build_report."
 )
 
+AUTHOR_AND_DELIVER = (
+    "author everything agreed with the chromatic_* tools, building with chromatic_rom_build as you go "
+    "(a build is a checkpoint, not a hand-off); once all of it is in, " + DELIVER
+)
 GAME_STEPS = (
     "Make a game in this order: agree what to make with the user (a few quick questions, then a short list of what "
     "you will make that they change until they approve it; or with hermretro:game-planning a brief, kept in the new "
-    "project, that they approve); create the project; author everything agreed with the chromatic_* tools, building "
-    "with chromatic_rom_build as you go (a build is a checkpoint, not a hand-off); once all of it is in, " + DELIVER
+    "project, that they approve); create the project; " + AUTHOR_AND_DELIVER
 )
 # What keeps the game the user's real, buildable project.
 GAME_RULES = (

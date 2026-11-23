@@ -29,7 +29,8 @@ def build_context(session_id=None, is_first_turn=False, **_kwargs):
                 "hermretro Build page. "
                 + workflow.SHOW_ART_CONTEXT
                 + " "
-                + workflow.GAME_STEPS
+                + "For changes to this game, "
+                + workflow.AUTHOR_AND_DELIVER
                 + " "
                 + workflow.BUILD_REPORT_GUIDANCE
                 + " "

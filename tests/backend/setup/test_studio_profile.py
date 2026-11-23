@@ -276,7 +276,10 @@ class StudioProfile(unittest.TestCase):
     def test_retry_preserves_each_edited_preference_even_before_setup_seeds_it(self):
         root = self.target.parent
         for failure in (("plugins", "enable"), ("config", "set", "terminal.cwd")):
-            for edit in ("turn limit", "SOUL"):
+            edits = ["turn limit", "SOUL"]
+            if failure[-1] == "terminal.cwd":
+                edits.append("remove limit")
+            for edit in edits:
                 with self.subTest(failure=failure, edit=edit):
                     self.target = root / f"{failure[-1]}-{edit}"
                     self.created()
@@ -293,12 +296,15 @@ class StudioProfile(unittest.TestCase):
                     soul = self.target / "SOUL.md"
                     if edit == "turn limit":
                         (self.target / "config.yaml").write_text('{"agent": {"max_turns": 61}}')
+                    elif edit == "remove limit":
+                        (self.target / "config.yaml").write_text('{"agent": {}}')
                     else:
                         soul.write_text("edited in the unfinished profile")
 
                     self.assertTrue(self.finish()["ok"])
                     self.assertEqual(
-                        self.read_config(self.target)["agent"]["max_turns"], 61 if edit == "turn limit" else 1000
+                        self.read_config(self.target)["agent"].get("max_turns"),
+                        {"turn limit": 61, "SOUL": 1000, "remove limit": None}[edit],
                     )
                     self.assertEqual(
                         soul.read_text(),
