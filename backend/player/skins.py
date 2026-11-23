@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from pathlib import Path
 
 from ..system import paths
+from . import skin_image
 
 logger = logging.getLogger(__name__)
 
@@ -40,28 +40,6 @@ def _text(value) -> str | None:
     return value.strip()
 
 
-def _personal_image(path: Path) -> bool:
-    """Check a personal finish before using it in place of a bundled one."""
-    if not path.is_file():
-        return False
-    try:
-        with path.open("rb") as stream:
-            size = os.fstat(stream.fileno()).st_size
-            header = stream.read(24)
-            if path.suffix == ".png":
-                if size < 57 or header[:16] != b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR":
-                    return False
-                stream.seek(-12, os.SEEK_END)
-                return stream.read() == b"\x00\x00\x00\x00IEND\xaeB`\x82"
-            if size < 26 or header[:4] != b"RIFF" or header[8:12] != b"WEBP":
-                return False
-            declared = int.from_bytes(header[4:8], "little") + 8
-            first_chunk = int.from_bytes(header[16:20], "little")
-            return declared == size and 0 < first_chunk <= size - 20 and header[12:16] in (b"VP8 ", b"VP8L", b"VP8X")
-    except OSError:
-        return False
-
-
 def _read(folder: Path, *, personal: bool) -> dict | None:
     """One skin from its folder, or None (logged) when it cannot be used."""
     skin_id = folder.name
@@ -79,7 +57,7 @@ def _read(folder: Path, *, personal: bool) -> dict | None:
     if any(path.is_symlink() for path in files.values()):
         logger.warning("hermretro: skin %s skipped: its files must be files, not links", skin_id)
         return None
-    usable = _personal_image if personal else Path.is_file
+    usable = skin_image.usable if personal else Path.is_file
     image = next((files[kind] for kind in IMAGE_TYPES if usable(files[kind])), None)
     if image is None:
         logger.warning("hermretro: skin %s skipped: its folder has no usable skin.webp or skin.png", skin_id)
@@ -88,7 +66,7 @@ def _read(folder: Path, *, personal: bool) -> dict | None:
     if files[".json"].is_file():
         try:
             data = json.loads((folder / "skin.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, RecursionError) as error:
             logger.warning("hermretro: skin %s skipped: its skin.json does not read: %s", skin_id, error)
             return None
     data = data if isinstance(data, dict) else {}

@@ -98,9 +98,21 @@ class AFolderOfSkins(unittest.TestCase):
             self.assertEqual(skins.image_for("sunset"), bundled)
         personal.unlink()
         personal.mkdir()
-        (personal / "skin.webp").write_bytes(reference[:16])
-        with self.assertLogs(skins.logger, "WARNING"):
-            self.assertEqual(skins.image_for("sunset"), bundled)
+        # A declared canvas without pixels cannot display a finish.
+        empty_webp = b"WEBPVP8X" + (10).to_bytes(4, "little") + bytes(10)
+        empty_webp = b"RIFF" + len(empty_webp).to_bytes(4, "little") + empty_webp
+        png = (skins.paths.SKINS_DIR / "supply-co" / "skin.png").read_bytes()
+        for name, data in (
+            ("skin.webp", reference[:16]),
+            ("skin.webp", empty_webp),
+            ("skin.png", png[:33] + png[-12:]),
+        ):
+            with self.subTest(name=name, size=len(data)):
+                file = personal / name
+                file.write_bytes(data)
+                with self.assertLogs(skins.logger, "WARNING"):
+                    self.assertEqual(skins.image_for("sunset"), bundled)
+                file.unlink()
 
     def test_a_folder_with_only_its_image_is_a_skin_with_defaults(self):
         self.add("sunset-orange", None, image=".png")
@@ -130,10 +142,11 @@ class AFolderOfSkins(unittest.TestCase):
         self.add("no-image", {}, image=None)
         self.add("Bad_Id", {})
         self.add("broken", "{not json")
+        self.add("too-deep", "[" * 4000)
         self.add("good", {})
         with self.assertLogs(skins.logger, "WARNING") as logged:
             self.assertEqual([skin["id"] for skin in skins.skins()], ["good"])
-        self.assertEqual(len(logged.output), 3)
+        self.assertEqual(len(logged.output), 4)
 
     def test_engine_ids_are_skins_and_the_rail_lists_every_skin_in_order(self):
         self.add("cloud", {"order": 2, "background": "#e5e6e3", "ink": "#27272b"})

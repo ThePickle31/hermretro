@@ -156,11 +156,30 @@ class PlayerServer(unittest.TestCase):
         path = directory / "large.webm"
         path.write_bytes(media)
         url = self.url(f"codex-captures/{captures.capture_id(self.gid, path.name)}/media")
-        with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("whole-file read")):
+        original = Path.open
+        sizes = []
+
+        def opened(file, *args, **kwargs):
+            stream = original(file, *args, **kwargs)
+            if file == path:
+                read = stream.read
+
+                def recorded(size=-1):
+                    sizes.append(size)
+                    return read(size)
+
+                stream.read = recorded
+            return stream
+
+        with mock.patch.object(Path, "open", opened):
             for method in ("HEAD", "GET"):
                 status, headers, body = fetch(url, method=method)
                 self.assertEqual((status, headers["Content-Length"]), (200, str(len(media))))
                 self.assertEqual(body, b"" if method == "HEAD" else media)
+                if method == "HEAD":
+                    self.assertEqual(sizes, [])
+            self.assertGreater(len(sizes), 1)
+            self.assertTrue(all(0 < size < len(media) for size in sizes))
 
     def test_engine_modules_wasm_and_device_art(self):
         status, headers, body = fetch(self.url("codex-annotations/bridge.js"))
