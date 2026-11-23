@@ -16,10 +16,10 @@ import {
   useValue
 } from '#sdk'
 import { ART_DATA } from '#shared/art/index.js'
-import { callStudio, describeRequestError, useBackend } from './backend.js'
+import { callStudio, readGamesShelf, studioError, useBackend } from './backend.js'
 import { DEMO_GAME, DEMO_ID, ID } from './ids.js'
 import { forgetRoute, routing } from './routing.js'
-import { RPC_GAME_THUMB, RPC_GAMES, RPC_PLAYER } from './rpc.js'
+import { RPC_PLAYER } from './rpc.js'
 import {
   computeSteps,
   ONBOARD_STAGES,
@@ -32,7 +32,8 @@ import {
 } from '#pages/index.js'
 import { usePlayerBridge } from '#shared/player/bridge.js'
 import { annotateGame, askAboutGame } from './player/capture.js'
-import { shrinkFrame } from '#shared/player/frame-image.js'
+import { buildStatusUnsupported, readGameBuildStatus } from './player/build-status.js'
+import { useTitleScreen } from './player/title-screen.js'
 import { claimLive, LIVE_PLAYER, releaseLive } from '#shared/player/live.js'
 import { playableSha, PlayerAway, PlayerStage } from './player/stage.js'
 import { PageStyle } from './style.js'
@@ -270,34 +271,49 @@ export function StudioPage({ ctx }) {
 
   // ── games and the player ──
   const onEmulator = page === 'emulator'
+  const liveOwner = useValue(LIVE_PLAYER)
+  const pageLive = liveOwner === 'page'
   const games = useQuery({
     queryKey: [ID, 'games', viaProfile],
-    queryFn: () => callStudio(RPC_GAMES),
+    queryFn: readGamesShelf,
     enabled: running,
-    // While the player is on screen, a rebuild in chat is noticed within seconds.
-    refetchInterval: onEmulator ? 5_000 : 30_000,
+    refetchInterval: 30_000,
     staleTime: 2_000,
     retry: false
   })
   const gameList = Array.isArray(games.data?.games) ? games.data.games : []
+  const libraryError = games.isError ? studioError(games.error, 'list your games') : null
   const [emu, setEmu] = useState(() => ({ id: pickedGame(ctx), reload: 0 }))
   const [emuOpened, setEmuOpened] = useState(false)
   const [dismissed, setDismissed] = useState(null)
   const [capturesOpen, setCapturesOpen] = useState(false)
+  const checkPicked = running && Boolean(emu.id && emu.id !== DEMO_ID)
+  const buildStatus = useQuery({
+    queryKey: [ID, 'gameBuildStatus', viaProfile, emu.id],
+    queryFn: () => readGameBuildStatus(callStudio, emu.id),
+    enabled: checkPicked,
+    refetchInterval: checkPicked && onEmulator && pageLive ? 5_000 : false,
+    retry: false
+  })
   const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
-  // The page plays only the game picked on the Games page (remembered across visits), even without a web build (its
-  // error says how to build it); with none picked the demo cartridge. A game a chat builds or presents never loads
-  // here by itself. Nothing is chosen until the library has answered (a picked game, until it answered
-  // successfully), so the frame does not load the demo and then switch.
-  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games))
+  // The page plays the game picked on the Games page, or the demo when there is no pick.
   const libraryKnown = Boolean(games.data) || games.isError
-  const picked = emu.id === DEMO_ID ? demo : gameList.find(item => item.id === emu.id)
-  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null)
+  const picked = gameList.find(item => item.id === emu.id)
+  const unavailable = Array.isArray(games.data?.unavailable) && games.data.unavailable.includes(emu.id)
+  // The shelf can seed the pick from the broker after the status lookup has already answered NO_GAME.
+  const shelfSettled = games.data?.ok === true && !games.isFetching && !games.isError
+  const removed = checkPicked && shelfSettled && !picked && !unavailable
+    && buildStatus.data?.code === 'NO_GAME' && !buildStatus.isFetching && !buildStatus.isError
+  const current = buildStatus.data?.game
+  const game = removed || emu.id === DEMO_ID || (!emu.id && libraryKnown)
+    ? demo
+    : current ? { ...picked, ...current } : picked ?? null
+  const gameError = game ? null : buildStatus.isError ? studioError(buildStatus.error, 'read the game build') : libraryError
 
   // A picked game gone from the library is forgotten, so a different game made later in its folder (with the same
   // id) is never played here without a new Play.
   useEffect(() => {
-    if (libraryRead && emu.id && !picked) {
+    if (removed) {
       setEmu(current => ({ id: null, reload: current.reload }))
       try {
         ctx.storage.set(EMULATOR_GAME, null)
@@ -305,7 +321,7 @@ export function StudioPage({ ctx }) {
         // for this visit only
       }
     }
-  }, [libraryRead, emu.id, Boolean(picked)])
+  }, [removed, emu.id])
 
   useEffect(() => {
     if (onEmulator && game) {
@@ -316,9 +332,6 @@ export function StudioPage({ ctx }) {
   // One game runs at a time. Visiting the Emulator page never takes the game from a tab beside the
   // chat (that would restart a game the user is playing); the page offers "Bring it here" instead and
   // only plays when nothing else does.
-  const liveOwner = useValue(LIVE_PLAYER)
-  const pageLive = liveOwner === 'page'
-
   useEffect(() => {
     if (onEmulator && running && liveOwner === null) {
       claimLive('page')
@@ -339,44 +352,15 @@ export function StudioPage({ ctx }) {
   const frameRef = useRef(null)
   const stageRef = useRef(null)
   const loadedSha = player.data?.url ? (player.data.romSha256 ?? null) : null
-  const currentSha = playableSha(game)
+  const shelfBuild = buildStatusUnsupported(buildStatus.error) && !games.isError && games.data?.ok === true ? picked : null
+  const currentSha = playableSha(buildStatus.isError ? shelfBuild : current)
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha)
-  const thumbTried = useRef(new Set())
 
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: data => annotateGame(ctx, game, data), visible: onEmulator && running && pageLive })
   const ask = () => askAboutGame(ctx, game, bridge.snap)
 
-  // After a game first loads, keep its title screen for the shelf (when it has none yet).
-  const onFrameLoad = () => {
-    const target = game
-
-    if (!target || target.id === DEMO_ID || target.thumb || thumbTried.current.has(target.id)) {
-      return
-    }
-
-    thumbTried.current.add(target.id)
-
-    const attempt = async remaining => {
-      const png = await shrinkFrame(await bridge.snap())
-
-      if (!png) {
-        if (remaining > 0) {
-          ctx.setTimeout(() => void attempt(remaining - 1), 5_000)
-        }
-
-        return
-      }
-
-      try {
-        await callStudio(RPC_GAME_THUMB, { id: target.id, png })
-        void queryClient.invalidateQueries({ queryKey: [ID, 'games'] })
-      } catch (error) {
-        console.warn('[hermretro] title screen not saved:', describeRequestError(error).message)
-      }
-    }
-
-    ctx.setTimeout(() => void attempt(3), 3_000)
-  }
+  const thumbnailGame = shelfSettled && pageLive && !unavailable && picked && !picked.thumb && picked.id === game?.id ? picked.id : null
+  const onFrameLoad = useTitleScreen(ctx, frameRef, thumbnailGame, bridge.snap)
 
   const play = id => {
     setEmu(current => ({ id, reload: current.reload }))
@@ -425,11 +409,13 @@ export function StudioPage({ ctx }) {
     selectBuild,
     games,
     gameList,
+    libraryError,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, 'games'] }),
     play,
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,
+      gameError,
       query: player,
       focused: bridge.focused,
       rebuilt,
@@ -472,7 +458,7 @@ export function StudioPage({ ctx }) {
   const stage =
     running && !onboardScreen && (emuOpened || onEmulator)
       ? pageLive
-        ? jsx(PlayerStage, { ctx, frameKey: `${game?.id ?? 'none'}:${emu.reload}`, frameRef, game, onLoad: onFrameLoad, player, stageRef, visible: onEmulator }, 'player')
+        ? jsx(PlayerStage, { ctx, frameKey: `${game?.id ?? 'none'}:${emu.reload}`, frameRef, game, gameError, onLoad: onFrameLoad, player, stageRef, visible: onEmulator }, 'player')
         : onEmulator
           ? jsx(PlayerAway, { onBring: () => claimLive('page'), where: 'Playing beside the chat' }, 'player')
           : null

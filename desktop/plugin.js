@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 e5740f469de87533d4a5c12287a7e0e7243d4c21c03e10b2d210477a5caf6a58
- * body: sha256 a5f0ba0efb16c69f2db418c51d31b6713f61bf3b5b0cc322e880dd31a1183aec
+ * sources: sha256 19416e0d741bf6c412aff23ef949c89d4765f3d2b0b335e6e7cafe1c67179654
+ * body: sha256 2089a2cbf878ce6c9dc04bec36717b258b6c820e2fee2fa15932519c94d59c84
  */
 // page/sdk.js
 import {
@@ -102,6 +102,7 @@ var BUILD_CSS = `
 .cs-studio-needed { align-self: center; display: flex; flex-direction: column; gap: 12px; margin: 48px auto; max-width: 60ch; }
 .cs-studio-needed > h2 { font-size: 1.15rem; margin: 0; }
 .cs-b { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100svh - 130px); min-height: 480px; position: relative; }
+.cs-b-library-error { padding: 0 24px; }
 .cs-b-game { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--ui-text-secondary); cursor: pointer; display: flex; font: inherit; gap: 8px; padding: 7px 8px; text-align: left; transition: background .12s ease; }
 .cs-b-game[aria-current] { background: var(--ui-bg-quaternary); box-shadow: inset 2px 0 0 var(--ui-accent); color: var(--ui-text-primary); }
 .cs-b-game:hover, .cs-b-game:focus-visible { background: var(--ui-bg-quaternary); }
@@ -190,6 +191,7 @@ var RPC_NAMES = Object.freeze({
   capture_image: `plugin.${ID}.capture_image`,
   captures: `plugin.${ID}.captures`,
   doctor: `plugin.${ID}.doctor`,
+  game_build_status: `plugin.${ID}.game_build_status`,
   game_thumb: `plugin.${ID}.game_thumb`,
   games: `plugin.${ID}.games`,
   install: `plugin.${ID}.install`,
@@ -210,6 +212,7 @@ var RPC_BUILDS = RPC_NAMES.builds;
 var RPC_CAPTURE_IMAGE = RPC_NAMES.capture_image;
 var RPC_CAPTURES = RPC_NAMES.captures;
 var RPC_DOCTOR = RPC_NAMES.doctor;
+var RPC_GAME_BUILD_STATUS = RPC_NAMES.game_build_status;
 var RPC_GAME_THUMB = RPC_NAMES.game_thumb;
 var RPC_GAMES = RPC_NAMES.games;
 var RPC_INSTALL = RPC_NAMES.install;
@@ -409,6 +412,13 @@ function nodeState(node) {
 }
 async function callStudio(method, params = {}, timeoutMs) {
   return routing.route ? host.requestProfile(routing.route, method, params, timeoutMs) : host.request(method, params, timeoutMs);
+}
+async function readGamesShelf() {
+  const data = await callStudio(RPC_GAMES);
+  if (data?.ok !== true || !Array.isArray(data.games)) {
+    throw new Error(data?.error || "The games list could not be read.");
+  }
+  return data;
 }
 async function callStudioOnly(method, params = {}, timeoutMs) {
   const target = studioTarget();
@@ -4023,7 +4033,7 @@ function Working({ children, quiet = false }) {
 
 // page/app/player/stage.js
 function playableSha(game) {
-  return game?.web?.sha256 ?? game?.rom?.sha256 ?? null;
+  return game?.web === void 0 ? game?.rom?.sha256 ?? null : game.web?.sha256 ?? null;
 }
 function playerFailure(game, player) {
   if (player?.isError) {
@@ -4031,8 +4041,8 @@ function playerFailure(game, player) {
   }
   return game?.id === DEMO_ID && player?.data?.error ? String(player.data.error) : null;
 }
-function PlayerNotice({ game, player, onRefresh, refreshing }) {
-  const reason = playerFailure(game, player);
+function PlayerNotice({ game, gameError, player, onRefresh, refreshing }) {
+  const reason = gameError || playerFailure(game, player);
   if (!reason) {
     return null;
   }
@@ -4045,7 +4055,7 @@ function PlayerNotice({ game, player, onRefresh, refreshing }) {
     ]
   });
 }
-function PlayerStage({ game, player, visible, frameRef, stageRef, frameKey, onLoad, ctx, query = "" }) {
+function PlayerStage({ game, gameError, player, visible, frameRef, stageRef, frameKey, onLoad, ctx, query = "" }) {
   let inner = null;
   if (game) {
     const data = player?.data;
@@ -4069,7 +4079,7 @@ function PlayerStage({ game, player, visible, frameRef, stageRef, frameKey, onLo
     } else {
       inner = jsx("div", { className: "cs-rp-msg", children: jsx(Working, { children: `Starting the player for ${game.title}…` }) });
     }
-  } else {
+  } else if (!gameError) {
     inner = jsx("div", { className: "cs-rp-msg", children: jsx(Working, { quiet: true, children: "Reading your games…" }) });
   }
   return jsx("div", { "aria-hidden": visible ? void 0 : true, className: visible ? "cs-rp-stage" : "cs-rp-stage off", ref: stageRef, children: inner });
@@ -8466,18 +8476,19 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
     children: jsxs("button", { className: "cs-hwchip", onClick: onSetUpDevice, type: "button", children: [jsx("i", {}), "Emulator only · Set up my Chromatic"] })
   });
 }
-function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
+function GamesPage({ ctx, games, libraryError, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games;
   const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, "folder");
   const newGame = jsxs(Button, { onClick: onNewGame, size: "sm", variant: "default", children: [jsx(Codicon, { name: "add", size: 14 }), "New game"] });
-  if (games.isError || games.data && !Array.isArray(list)) {
+  const notice = libraryError ? jsx(Lede, { children: libraryError }) : null;
+  if (libraryError && !list?.length) {
     return [
       jsx(PageHead, { title: "Your games" }, "head"),
       jsxs("div", {
         className: "cs-col",
         style: { gap: 12, maxWidth: "72ch" },
         children: [
-          jsx(Lede, { children: games.isError ? studioError(games.error, "list your games") : games.data?.error || "The games list could not be read." }),
+          jsx("div", { role: "alert", children: notice }),
           jsx("div", { children: newGame })
         ]
       }, "err")
@@ -8518,6 +8529,7 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, o
   }
   return [
     jsx(PageHead, { title: "Your games", children: [jsx(DeviceChip, { hardwareOn, onSetUpDevice }, "hw"), jsx("span", { style: { display: "contents" }, children: newGame }, "new")] }, "head"),
+    notice ? jsx("div", { role: "alert", children: notice }, "err") : null,
     jsxs(
       "div",
       {
@@ -8562,9 +8574,12 @@ function GamesPage({ ctx, games, hardwareOn, onPlay, onNewGame, onSetUpDevice, o
   ];
 }
 function Games({ shell }) {
+  const unavailable = shell.games.data?.unavailable;
+  const partialError = Array.isArray(unavailable) && unavailable.length ? "Some games could not be read." : null;
   return jsx(GamesPage, {
     ctx: shell.ctx,
     games: shell.games,
+    libraryError: shell.libraryError || partialError,
     hardwareOn: shell.hardwareOn,
     // Make cover art: the request goes into that game's Build conversation (Build listens), not sent.
     onMakeCover: (game) => {
@@ -8991,12 +9006,34 @@ function CartShelf({ entries, others, onSelect, onAll }) {
   });
 }
 
-// page/pages/build/build-page.js
-function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onLibraryChanged, updating = false }) {
-  const chats = useValue(BUILD_CHATS);
-  const startingGames = useValue(BUILD_STARTING);
-  const [local, setLocal] = useState({ bound: {}, released: {} });
-  const [rememberedSelection] = useState(() => {
+// page/app/player/build-status.js
+var buildStatusUnsupported = (error) => error?.code === -32601;
+async function readGameBuildStatus(call, id) {
+  const data = await call(RPC_GAME_BUILD_STATUS, { id });
+  if (data?.ok === true || data?.code === "NO_GAME") {
+    return data;
+  }
+  throw new Error(data?.error || "Could not read the game build.");
+}
+async function readSideBuildStatus(id) {
+  try {
+    return await readGameBuildStatus(callStudio, id);
+  } catch (error) {
+    if (!buildStatusUnsupported(error)) {
+      throw error;
+    }
+  }
+  const shelf = await readGamesShelf();
+  if (Array.isArray(shelf.unavailable) && shelf.unavailable.includes(id)) {
+    throw new Error("Could not read the game build.");
+  }
+  const game = shelf.games.find((item) => item?.id === id) ?? null;
+  return { ok: true, game, device: shelf.device };
+}
+
+// page/pages/build/selection.js
+function useBuildSelection(ctx, selection, select) {
+  const [remembered] = useState(() => {
     if (selection !== null) {
       return selection;
     }
@@ -9006,7 +9043,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       return "new";
     }
   });
-  const selected = selection ?? rememberedSelection;
+  const selected = selection ?? remembered;
   useEffect(() => {
     if (selection === null) {
       select(selected);
@@ -9017,6 +9054,30 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     } catch {
     }
   }, [ctx, select, selected, selection]);
+  return selected;
+}
+function useMissingBuildGame(id, unavailable) {
+  const hasMembership = Array.isArray(unavailable);
+  const status = useQuery({
+    queryKey: [ID, "buildSelectionStatus", id],
+    queryFn: () => readGameBuildStatus(callStudio, id),
+    enabled: Boolean(id) && !hasMembership,
+    retry: false
+  });
+  if (!id) {
+    return { removed: false, error: null };
+  }
+  const removed = hasMembership ? !unavailable.includes(id) : status.data?.code === "NO_GAME" && !status.isError && !status.isFetching;
+  const settled = hasMembership || status.isError || Boolean(status.data) && !status.isFetching;
+  return { removed, error: settled && !removed ? "Could not read the selected game." : null };
+}
+
+// page/pages/build/build-page.js
+function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded, libraryError, unavailable, onLibraryChanged, updating = false }) {
+  const chats = useValue(BUILD_CHATS);
+  const startingGames = useValue(BUILD_STARTING);
+  const [local, setLocal] = useState({ bound: {}, released: {} });
+  const selected = useBuildSelection(ctx, selection, select);
   const rail = useMemo(
     () => games.map((game2) => {
       const session = game2.session && local.released[game2.id] !== game2.session.storedId ? game2.session : null;
@@ -9048,11 +9109,15 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
   }, [pending.map((item) => chats[item.storedId]?.busy).join(",")]);
   const game = made ?? rail.find((item) => item.id === selected) ?? null;
   const pendingItem = pending.find((item) => item.storedId === pendingId) ?? null;
+  const missingSelection = selected !== "new" && !game && !pendingItem;
+  const missingGame = useMissingBuildGame(loaded && missingSelection && !pendingId ? selected : null, unavailable);
+  const removed = loaded && missingSelection && (pendingId ? !chats[pendingId]?.busy : missingGame.removed);
+  const waitingForSelection = missingSelection && (!loaded || !pendingId);
   useEffect(() => {
-    if (loaded && selected !== "new" && !game && !pendingItem && !(pendingId && chats[pendingId]?.busy)) {
+    if (removed) {
       select("new");
     }
-  }, [loaded, selected, Boolean(game), Boolean(pendingItem)]);
+  }, [removed, selected]);
   useEffect(() => {
     BUILD_VIEWING.set(game?.id ?? null);
     return () => BUILD_VIEWING.set(null);
@@ -9266,7 +9331,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     }
     return statesRef.current.value;
   }, [chats, stored]);
-  const title = game?.title ?? pendingItem?.name ?? "New game";
+  const title = game?.title ?? pendingItem?.name ?? (waitingForSelection ? "Build" : "New game");
   const entries = useMemo(() => switcherEntries(rail, pending, states, selected), [rail, pending, states, selected]);
   const library = useMemo(() => rail.filter((item) => !item.buildSession && item.id !== selected), [rail, selected]);
   useEffect(() => {
@@ -9323,8 +9388,15 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
       ]
     })
   });
+  const selectionError = libraryError || missingGame.error;
+  const libraryNotice = selectionError ? jsx("p", { className: "cs-error cs-b-library-error", role: "alert", children: selectionError }, "library-error") : null;
   let body2;
-  if (elsewhere) {
+  if (waitingForSelection) {
+    body2 = selectionError ? null : jsx("div", {
+      className: "cs-b-empty",
+      children: jsx(Working, { quiet: true, children: "Reading your games…" })
+    });
+  } else if (elsewhere) {
     body2 = jsx("div", {
       className: "cs-b-empty",
       children: jsx("p", {
@@ -9382,6 +9454,7 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     children: [
       jsx(Background, { id: "platformer" }, "level"),
       header,
+      libraryNotice,
       jsx(BuildNewGame, { onStart: startGame, updating, picker: jsx(DraftModelPicker, { ctx, onPick: setDraftPick, options: draftOptions, pick: draftPick, up: false }) }, "new"),
       jsx(CartShelf, { entries, onAll: (view) => setSwitcherRequest((current) => ({ view, seq: (current?.seq ?? 0) + 1 })), onSelect: select, others: library }, "shelf")
     ]
@@ -9389,8 +9462,9 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
     className: "cs-b-chat",
     children: [
       header,
+      libraryNotice,
       body2,
-      jsx(BuildComposer, {
+      !waitingForSelection && jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
         fresh,
@@ -11451,13 +11525,15 @@ function Build({ shell }) {
   return jsx(BuildPage, {
     ctx: shell.ctx,
     games: shell.gameList,
-    loaded: Boolean(shell.games.data),
+    loaded: Boolean(shell.games.data) && !shell.games.isError,
+    libraryError: shell.libraryError,
     localPending: shell.buildPending,
     changePending: shell.changeBuildPending,
     onLibraryChanged: shell.gamesChanged,
     onSelect: shell.selectBuild,
     pendingGames: shell.games.data?.pending ?? [],
     selection: shell.buildSelection,
+    unavailable: shell.games.data?.unavailable,
     updating: shell.pluginUpdate?.phase === "updating"
   }, "build");
 }
@@ -15370,7 +15446,7 @@ function openSideEmulator(ctx, game) {
       dock: { pane: "workspace", pos: "right" },
       minWidth: "22rem",
       title: `Emulator · ${game.title}`,
-      render: () => jsx(SideEmulator, { ctx, gameId: game.id, paneId: `plugin-workspace:${key}`, title: game.title }),
+      render: () => jsx(SideEmulator, { ctx, initialGame: game, paneId: `plugin-workspace:${key}` }),
       onClose: () => {
         sideTabs.delete(game.id);
         releaseLive(surface);
@@ -15385,35 +15461,39 @@ function openSideEmulator(ctx, game) {
     return false;
   }
 }
-function SideEmulator({ ctx, gameId, title, paneId }) {
+function SideEmulator({ ctx, initialGame, paneId }) {
+  const gameId = initialGame.id;
+  const demo = gameId === DEMO_ID;
   const surface = sideSurface(gameId);
   const owner = useValue(LIVE_PLAYER);
   const tick = useValue(BUILD_TICK);
   const [paneShown] = useState(() => typeof host.paneVisibility === "function" ? host.paneVisibility(paneId) : ALWAYS_VISIBLE);
   const shown = useValue(paneShown) !== false;
   const live = owner === surface;
+  const checking = live && shown && !demo;
   useEffect(() => {
     if (owner === null && shown) {
       claimLive(surface);
     }
   }, [owner, shown]);
   useEffect(() => () => releaseLive(surface), []);
-  const games = useQuery({
-    queryKey: [ID, "games", "side", gameId],
-    queryFn: async () => (await callBackend(RPC_GAMES)).data,
-    refetchInterval: shown ? 5e3 : 3e4,
+  const buildStatus = useQuery({
+    queryKey: [ID, "gameBuildStatus", "side", gameId],
+    queryFn: () => readSideBuildStatus(gameId),
+    enabled: checking,
+    refetchInterval: checking ? 5e3 : false,
     staleTime: 2e3,
     retry: false
   });
-  const firstTick = useRef(tick);
+  const lastCheck = useRef({ checking, tick });
   useEffect(() => {
-    if (tick !== firstTick.current) {
-      void games.refetch?.();
+    const previous = lastCheck.current;
+    lastCheck.current = { checking, tick };
+    if (checking && (!previous.checking || tick !== previous.tick)) {
+      void buildStatus.refetch?.({ cancelRefetch: previous.checking });
     }
-  }, [tick]);
-  const list = Array.isArray(games.data?.games) ? games.data.games : [];
-  const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
-  const game = gameId === DEMO_ID ? demo : list.find((item) => item.id === gameId) ?? { id: gameId, title, rom: null, web: null, chat: null };
+  }, [checking, tick]);
+  const game = demo ? DEMO_GAME : buildStatus.data?.game ?? (buildStatus.data?.code === "NO_GAME" ? { id: gameId, title: initialGame.title } : initialGame);
   const [reload, setReload] = useState(0);
   const [dismissed, setDismissed] = useState(null);
   const [capturesOpen, setCapturesOpen] = useState(false);
@@ -15426,7 +15506,6 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
       seenSeq.current = seq;
       setDismissed(null);
       setReload((value) => value + 1);
-      void games.refetch?.();
     }
   }, [presentation?.seq]);
   const note = presentation?.note && noteHidden !== presentation.seq ? presentation.note : null;
@@ -15443,10 +15522,10 @@ function SideEmulator({ ctx, gameId, title, paneId }) {
   const stageRef = useRef(null);
   const scopeRef = useRef(null);
   const loadedSha = player.data?.url ? player.data.romSha256 ?? null : null;
-  const currentSha = playableSha(game);
+  const currentSha = buildStatus.isError ? null : playableSha(buildStatus.data?.game);
   const rebuilt = Boolean(live && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha);
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: (data) => annotateGame(ctx, game, data), scopeRef, visible: live && shown });
-  const hardwareOn = Boolean(games.data?.device?.hardwareEnabled);
+  const hardwareOn = Boolean(buildStatus.data?.device?.hardwareEnabled);
   return jsxs("div", {
     className: "cs-page cs-side",
     "data-page": "emulator",
@@ -15630,7 +15709,7 @@ function Emulator({ shell }) {
       },
       "bar"
     ),
-    jsx(PlayerNotice, { game: player.game, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, "notice")
+    jsx(PlayerNotice, { game: player.game, gameError: player.gameError, onRefresh: player.refresh, player: player.query, refreshing: player.query.isFetching }, "notice")
   ];
 }
 
@@ -16950,6 +17029,49 @@ function shrinkFrame(dataUrl) {
   });
 }
 
+// page/app/player/title-screen.js
+function useTitleScreen(ctx, frameRef, gameId, snap) {
+  const [loadedFrame, setLoadedFrame] = useState(null);
+  const tried = useRef(/* @__PURE__ */ new Set());
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!gameId || !loadedFrame || loadedFrame !== frameRef.current || tried.current.has(gameId)) {
+      return void 0;
+    }
+    let active = true;
+    let cancelTimer;
+    const current = () => active && loadedFrame === frameRef.current;
+    const capture = async (remaining) => {
+      if (!current()) {
+        return;
+      }
+      const png = await shrinkFrame(await snap());
+      if (!current()) {
+        return;
+      }
+      if (!png && remaining > 0) {
+        cancelTimer = ctx.setTimeout(() => void capture(remaining - 1), 5e3);
+        return;
+      }
+      tried.current.add(gameId);
+      if (png) {
+        try {
+          await callStudio(RPC_GAME_THUMB, { id: gameId, png });
+          void queryClient.invalidateQueries({ queryKey: [ID, "games"] });
+        } catch (error) {
+          console.warn("[hermretro] title screen not saved:", describeRequestError(error).message);
+        }
+      }
+    };
+    cancelTimer = ctx.setTimeout(() => void capture(3), 3e3);
+    return () => {
+      active = false;
+      cancelTimer();
+    };
+  }, [ctx, frameRef, gameId, loadedFrame, queryClient, snap]);
+  return () => setLoadedFrame(frameRef.current);
+}
+
 // page/app/update/flow.js
 var UPDATE_STEPS = ["Downloading and checking the new version", "Loading it into the hermretro profile", "Refreshing this page"];
 var UPDATE_MARKER = "update";
@@ -17864,13 +17986,13 @@ function StudioPage({ ctx }) {
     return { page: pageById(stored) ? stored : "build", buildSelection: null, buildPending: [], visit: 0 };
   });
   const changeBuildVisit = useCallback((change) => {
-    setNavigation((current) => current.page === "build" && current.visit === visit ? change(current) : current);
+    setNavigation((current2) => current2.page === "build" && current2.visit === visit ? change(current2) : current2);
   }, [visit]);
   const selectBuild = useCallback((selection) => {
-    changeBuildVisit((current) => current.buildSelection === selection ? current : { ...current, buildSelection: selection });
+    changeBuildVisit((current2) => current2.buildSelection === selection ? current2 : { ...current2, buildSelection: selection });
   }, [changeBuildVisit]);
   const changeBuildPending = (change) => {
-    changeBuildVisit((current) => ({ ...current, buildPending: change(current.buildPending) }));
+    changeBuildVisit((current2) => ({ ...current2, buildPending: change(current2.buildPending) }));
   };
   const [pinned, setPinned] = useState(null);
   const [polling, setPolling] = useState({ fast: true, pollDoctor: false });
@@ -17960,9 +18082,9 @@ function StudioPage({ ctx }) {
     const finishedMs = Number(finishedAt) * 1e3 || 0;
     const asked2 = doctorAsked.current;
     const answeredAt = asked2.answerAt || Math.max(doctor.dataUpdatedAt ?? 0, doctor.errorUpdatedAt ?? 0);
-    const current = doctor.isFetching ? asked2.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs;
+    const current2 = doctor.isFetching ? asked2.at >= finishedMs : Boolean(doctor.data || doctor.isError) && answeredAt >= finishedMs;
     verifiedRun.current = doneRun;
-    if (!finishedMs || !current) {
+    if (!finishedMs || !current2) {
       void doctor.refetch?.();
     }
   }, [doneRun, doctor.isFetching]);
@@ -17978,10 +18100,10 @@ function StudioPage({ ctx }) {
       // install (its end triggers one check above), only while a chat installs where this page cannot see it.
       pollDoctor: Boolean(toolchainOpen) && installElsewhere
     };
-    setPolling((current) => current.fast === next.fast && current.pollDoctor === next.pollDoctor ? current : next);
+    setPolling((current2) => current2.fast === next.fast && current2.pollDoctor === next.pollDoctor ? current2 : next);
   }, [autoId, toolchainStep?.state, installElsewhere]);
   const go = (id, selection = null) => {
-    setNavigation((current) => id === current.page && selection === null ? current : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current.visit + 1 });
+    setNavigation((current2) => id === current2.page && selection === null ? current2 : { page: id, buildSelection: id === "build" ? selection : null, buildPending: [], visit: current2.visit + 1 });
     try {
       ctx.storage.set("page", id);
     } catch {
@@ -17999,41 +18121,53 @@ function StudioPage({ ctx }) {
     go("setup");
   };
   const onEmulator = page === "emulator";
+  const liveOwner = useValue(LIVE_PLAYER);
+  const pageLive = liveOwner === "page";
   const games = useQuery({
     queryKey: [ID, "games", viaProfile],
-    queryFn: () => callStudio(RPC_GAMES),
+    queryFn: readGamesShelf,
     enabled: running,
-    // While the player is on screen, a rebuild in chat is noticed within seconds.
-    refetchInterval: onEmulator ? 5e3 : 3e4,
+    refetchInterval: 3e4,
     staleTime: 2e3,
     retry: false
   });
   const gameList = Array.isArray(games.data?.games) ? games.data.games : [];
+  const libraryError = games.isError ? studioError(games.error, "list your games") : null;
   const [emu, setEmu] = useState(() => ({ id: pickedGame(ctx), reload: 0 }));
   const [emuOpened, setEmuOpened] = useState(false);
   const [dismissed, setDismissed] = useState(null);
   const [capturesOpen, setCapturesOpen] = useState(false);
+  const checkPicked = running && Boolean(emu.id && emu.id !== DEMO_ID);
+  const buildStatus = useQuery({
+    queryKey: [ID, "gameBuildStatus", viaProfile, emu.id],
+    queryFn: () => readGameBuildStatus(callStudio, emu.id),
+    enabled: checkPicked,
+    refetchInterval: checkPicked && onEmulator && pageLive ? 5e3 : false,
+    retry: false
+  });
   const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
-  const libraryRead = Boolean(games.data && games.data.ok !== false && Array.isArray(games.data.games));
   const libraryKnown = Boolean(games.data) || games.isError;
-  const picked = emu.id === DEMO_ID ? demo : gameList.find((item) => item.id === emu.id);
-  const game = picked ?? ((emu.id ? libraryRead : libraryKnown) ? demo : null);
+  const picked = gameList.find((item) => item.id === emu.id);
+  const unavailable = Array.isArray(games.data?.unavailable) && games.data.unavailable.includes(emu.id);
+  const shelfSettled = games.data?.ok === true && !games.isFetching && !games.isError;
+  const removed = checkPicked && shelfSettled && !picked && !unavailable && buildStatus.data?.code === "NO_GAME" && !buildStatus.isFetching && !buildStatus.isError;
+  const current = buildStatus.data?.game;
+  const game = removed || emu.id === DEMO_ID || !emu.id && libraryKnown ? demo : current ? { ...picked, ...current } : picked ?? null;
+  const gameError = game ? null : buildStatus.isError ? studioError(buildStatus.error, "read the game build") : libraryError;
   useEffect(() => {
-    if (libraryRead && emu.id && !picked) {
-      setEmu((current) => ({ id: null, reload: current.reload }));
+    if (removed) {
+      setEmu((current2) => ({ id: null, reload: current2.reload }));
       try {
         ctx.storage.set(EMULATOR_GAME, null);
       } catch {
       }
     }
-  }, [libraryRead, emu.id, Boolean(picked)]);
+  }, [removed, emu.id]);
   useEffect(() => {
     if (onEmulator && game) {
       setEmuOpened(true);
     }
   }, [onEmulator, game?.id]);
-  const liveOwner = useValue(LIVE_PLAYER);
-  const pageLive = liveOwner === "page";
   useEffect(() => {
     if (onEmulator && running && liveOwner === null) {
       claimLive("page");
@@ -18052,36 +18186,15 @@ function StudioPage({ ctx }) {
   const frameRef = useRef(null);
   const stageRef = useRef(null);
   const loadedSha = player.data?.url ? player.data.romSha256 ?? null : null;
-  const currentSha = playableSha(game);
+  const shelfBuild = buildStatusUnsupported(buildStatus.error) && !games.isError && games.data?.ok === true ? picked : null;
+  const currentSha = playableSha(buildStatus.isError ? shelfBuild : current);
   const rebuilt = Boolean(pageLive && loadedSha && currentSha && loadedSha !== currentSha && dismissed !== currentSha);
-  const thumbTried = useRef(/* @__PURE__ */ new Set());
   const bridge = usePlayerBridge({ ctx, frameRef, onAnnotate: (data) => annotateGame(ctx, game, data), visible: onEmulator && running && pageLive });
   const ask = () => askAboutGame(ctx, game, bridge.snap);
-  const onFrameLoad = () => {
-    const target = game;
-    if (!target || target.id === DEMO_ID || target.thumb || thumbTried.current.has(target.id)) {
-      return;
-    }
-    thumbTried.current.add(target.id);
-    const attempt = async (remaining) => {
-      const png = await shrinkFrame(await bridge.snap());
-      if (!png) {
-        if (remaining > 0) {
-          ctx.setTimeout(() => void attempt(remaining - 1), 5e3);
-        }
-        return;
-      }
-      try {
-        await callStudio(RPC_GAME_THUMB, { id: target.id, png });
-        void queryClient.invalidateQueries({ queryKey: [ID, "games"] });
-      } catch (error) {
-        console.warn("[hermretro] title screen not saved:", describeRequestError(error).message);
-      }
-    };
-    ctx.setTimeout(() => void attempt(3), 3e3);
-  };
+  const thumbnailGame = shelfSettled && pageLive && !unavailable && picked && !picked.thumb && picked.id === game?.id ? picked.id : null;
+  const onFrameLoad = useTitleScreen(ctx, frameRef, thumbnailGame, bridge.snap);
   const play = (id) => {
-    setEmu((current) => ({ id, reload: current.reload }));
+    setEmu((current2) => ({ id, reload: current2.reload }));
     try {
       ctx.storage.set(EMULATOR_GAME, id);
     } catch {
@@ -18124,11 +18237,13 @@ function StudioPage({ ctx }) {
     selectBuild,
     games,
     gameList,
+    libraryError,
     gamesChanged: () => void queryClient.invalidateQueries({ queryKey: [ID, "games"] }),
     play,
     // the one player, kept by the shell so it survives page switches (the Emulator page shows it)
     player: {
       game,
+      gameError,
       query: player,
       focused: bridge.focused,
       rebuilt,
@@ -18137,10 +18252,10 @@ function StudioPage({ ctx }) {
       fullScreen: () => void stageRef.current?.requestFullscreen?.()?.catch?.(() => {
       }),
       later: () => setDismissed(currentSha),
-      reload: () => setEmu((current) => ({ id: game.id, reload: current.reload + 1 })),
+      reload: () => setEmu((current2) => ({ id: game.id, reload: current2.reload + 1 })),
       refresh: () => {
         refresh();
-        setEmu((current) => ({ id: current.id, reload: current.reload + 1 }));
+        setEmu((current2) => ({ id: current2.id, reload: current2.reload + 1 }));
       },
       toggleCaptures: () => setCapturesOpen((open) => !open)
     }
@@ -18161,7 +18276,7 @@ function StudioPage({ ctx }) {
   }
   const pad = running && !onboardScreen ? currentPage.pad ?? null : null;
   const broken = running && settled && !onboardScreen && page !== "setup" ? steps.find((step) => !step.hardware && !step.complete) : null;
-  const stage = running && !onboardScreen && (emuOpened || onEmulator) ? pageLive ? jsx(PlayerStage, { ctx, frameKey: `${game?.id ?? "none"}:${emu.reload}`, frameRef, game, onLoad: onFrameLoad, player, stageRef, visible: onEmulator }, "player") : onEmulator ? jsx(PlayerAway, { onBring: () => claimLive("page"), where: "Playing beside the chat" }, "player") : null : null;
+  const stage = running && !onboardScreen && (emuOpened || onEmulator) ? pageLive ? jsx(PlayerStage, { ctx, frameKey: `${game?.id ?? "none"}:${emu.reload}`, frameRef, game, gameError, onLoad: onFrameLoad, player, stageRef, visible: onEmulator }, "player") : onEmulator ? jsx(PlayerAway, { onBring: () => claimLive("page"), where: "Playing beside the chat" }, "player") : null : null;
   return jsx(ScrollArea, {
     className: "h-full",
     style: { height: "100%" },

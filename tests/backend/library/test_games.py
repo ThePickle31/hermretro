@@ -262,7 +262,7 @@ class GamesRpc(unittest.TestCase):
                 "card",
                 "displayTitle",
             },
-            "the games RPC's keys changed: change Registry.describe (backend/library/games.py), this set, the "
+            "the games RPC's keys changed: change describe (backend/library/shelf.py), this set, the "
             ".agents/skills/hermretro-dev-architecture/references/contract.md games row and the .agents/skills/hermretro-dev-page/references/player.md games JSON together "
             "(backend/library/README.md, 'Adding here')",
         )
@@ -534,6 +534,9 @@ class GamesRpc(unittest.TestCase):
         )
         self.assertFalse(thumb({"id": "000000000000", "png": "x"})["ok"])
         self.assertFalse(thumb({"id": identifier, "png": "data:image/png;base64,!!"})["ok"])
+        later = "data:image/png;base64," + base64.b64encode(PNG + b"later frame").decode()
+        self.assertTrue(thumb({"id": identifier, "png": later})["ok"])
+        self.assertEqual((games.Registry(paths.library_dir()).thumbs / f"{identifier}.png").read_bytes(), PNG)
         self.assertTrue(library_rpcs.rpc_games(self.ctx)({})["games"][0]["thumb"].startswith("data:image/png"))
 
 

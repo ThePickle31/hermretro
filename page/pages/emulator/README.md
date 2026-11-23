@@ -21,7 +21,8 @@ Padding `flush`, no footer.
 beside the chat has no shell): a contribution checks `go` before using it. Games fills it with Install.
 
 **Starts with the plugin** (`register`): `watchBuilds(ctx)`, which opens the tab beside the chat on a
-presentation and refreshes open players after builds.
+presentation and refreshes the live beside-chat tab after builds. Both players check their own game through
+`game_build_status` and use the shelf for build notifications when an older backend lacks that RPC.
 
 **Uses from other pages:** `#pages/build/index.js` (is a session a Build conversation, which game Build shows,
 tool results).
@@ -36,8 +37,8 @@ Errors inside the player frame reach the app's developer console as `[Chromatic 
 (`page/shared/player/bridge.js`, forwarded by `page/frame/sandbox.js`). The stage (`page/app/player/stage.js`)
 says what it is waiting for: "Starting the player for <game>…" while the `player` RPC runs, "The player could not
 start" with Refresh when that RPC failed, and with Build it in chat when the game has no web export. A frame that
-loads but stays black: compare the game's `webExport` and `web.sha256` (the `games` RPC) with the `player` RPC's
-`romSha256`; when they differ the bar offers "Load the new build" (`emulator-bar.js`). More in
+loads but stays black: compare the game's `webExport` and `web.sha256` (the `game_build_status` RPC) with the `player` RPC's
+`romSha256`; when they differ after a successful status check, the bar offers "Load the new build" (`emulator-bar.js`). More in
 `.agents/skills/hermretro-dev-debugging/references/debugging.md`, "Common symptoms".
 
 ## Adding a tab here
