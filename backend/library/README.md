@@ -1,8 +1,9 @@
 # backend/library
 
-- `games.py` owns the registry file, Build conversation bindings and broker observations.
+- `games.py` owns registry storage, file locking and broker observations. `bindings.py` handles Build conversation
+  ownership, session aliases, pending New Game records and the game's linked chat.
 - `thumbnails.py` reads title-screen thumbnails and decodes PNG uploads.
-- `project.py` reads project titles, build files and sources, and checks playable-copy freshness.
+- `project.py` handles game IDs, reads project titles, build files and sources, and checks playable-copy freshness.
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
 - `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png`.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.

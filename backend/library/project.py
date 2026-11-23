@@ -27,6 +27,20 @@ _hash_cache: dict[tuple, str] = {}
 _hash_lock = threading.Lock()
 
 
+def game_id(root: str | os.PathLike) -> str:
+    """Stable id of a project: the first 12 hex digits of SHA-1 over its canonical root."""
+    return hashlib.sha1(os.path.realpath(str(root)).encode()).hexdigest()[:12]
+
+
+def valid_id(value) -> bool:
+    return isinstance(value, str) and len(value) == 12 and all(c in "0123456789abcdef" for c in value)
+
+
+def identified_game(identifier: str, entry: dict) -> dict:
+    """Use the registry key even when a stored record names a different id."""
+    return {**entry, "id": identifier}
+
+
 def _file_stamp(info: os.stat_result) -> tuple:
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
