@@ -2,15 +2,16 @@
 // the backend kept its files (plugin.hermretro.builds). A build's startAt/endAt are page times in milliseconds
 // (a message's `timestamp`, Unix seconds, × 1000), and so is a snapshot's `at`/`builds`: a snapshot matches a build
 // when one of its times falls from 2 s before the turn started to 5 s after it ended.
-// Run alone: node tests/page/page-build-builds.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
 
-await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mount, check, answered }) => {
+await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click, settle, key, mount, check, answered }) => {
   buildScenario({ selected: 'fff666fff666' })
   scenario.games = answered({ games: [{ id: 'fff666fff666', title: 'Frog Post', projectRoot: '/home/u/games/FrogPost', kind: 'gbstudio',
-    state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],
+    state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } },
+    { id: 'ddd666ddd666', title: 'Cloud Hop', projectRoot: '/home/u/games/CloudHop', kind: 'gbstudio', state: 'ready',
+      rom: null, webExport: true, session: { storedId: 'st-cloud' } }],
   device: { hardwareEnabled: false, skipped: true } })
   const callOf = (id, name) => ({ id, function: { name, arguments: '{}' } })
   scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : [
@@ -21,12 +22,47 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
     { role: 'user', content: 'make it jump higher', timestamp: 2000 },
     { role: 'assistant', content: '', timestamp: 2001, tool_calls: [callOf('b2', 'chromatic_rom_build')] },
     { role: 'tool', tool_call_id: 'b2', content: JSON.stringify({ ok: true }), timestamp: 2020 },
-    { role: 'assistant', content: 'Higher now.', timestamp: 2030 }] })
+    { role: 'assistant', content: '', timestamp: 2021, tool_calls: [callOf('frames', 'chromatic_emulator_step')] },
+    { role: 'tool', tool_call_id: 'frames', content: JSON.stringify({ images: [
+      { file: 'MEDIA:/home/u/games/FrogPost/playtests/start.png' }, { file: 'MEDIA:/home/u/games/FrogPost/playtests/end.png' }, { file: 'MEDIA:/home/u/games/FrogPost/playtests/start.png' }
+    ] }), timestamp: 2022 },
+    { role: 'assistant', content: 'Higher now.\nMEDIA:/home/u/games/FrogPost/jump.wav', timestamp: 2030 }] })
   const asked = []
   let snapshots = []
   scenario.byMethod['plugin.hermretro.builds'] = params => { asked.push(params); return { ok: true, builds: snapshots } }
+  let releaseImage
+  const slowImage = new Promise(resolve => { releaseImage = resolve })
+  scenario.byMethod['plugin.hermretro.asset'] = async ({ path }) => {
+    if (path.endsWith('/end.png')) await slowImage
+    return { ok: true, path, name: path.split('/').pop(), width: 160, height: 144, dataUrl: 'data:image/png;base64,iVBORw0KGgo=' }
+  }
   const view = await mount(page)
   await settle(100)
+  check('a captured frame sequence is a result with the work log folded', () => {
+    assert.equal(view.node.querySelector('.cs-b-wk-head').getAttribute('aria-expanded'), 'false')
+    assert.equal(view.node.querySelector('input[aria-label="Playtest frame"]').max, '3')
+    assert.match(view.node.querySelector('.cs-b-replay').textContent, /Frame 1 of 3/)
+  })
+  const clock = holdTimers(350)
+  await click('Replay frames', view.node.querySelector('.cs-b-replay'))
+  await clock.fire()
+  await clock.fire()
+  check('an audio reply keeps its replay and the replay waits for an uncached frame', () => {
+    assert.match(view.node.textContent, /jump\.wav/)
+    assert.match(view.node.querySelector('.cs-b-replay').textContent, /Frame 2 of 3.*Pause/)
+  })
+  await click('Pause', view.node.querySelector('.cs-b-replay'))
+  await act(async () => releaseImage())
+  await settle()
+  assert.match(view.node.querySelector('.cs-b-replay').textContent, /Frame 2 of 3.*Resume/)
+  await click('Resume', view.node.querySelector('.cs-b-replay'))
+  await clock.fire()
+  await clock.fire()
+  check('the sequence retains the repeated first capture at the end', () => {
+    const result = view.node.querySelector('.cs-b-replay')
+    assert.match(result.textContent, /Frame 3 of 3.*Replay frames/)
+    assert.ok(result.querySelector('button[aria-label="Look closer at start.png"]'))
+  })
   const openMenu = async () => {
     await click('Builds', view.node.querySelector('.cs-b-head'))
     await settle(30)
@@ -51,6 +87,17 @@ await runScenario(async ({ buildScenario, scenario, page, click, settle, key, mo
   const lost = await openMenu()
   check('a snapshot from outside the build\u2019s turn matches nothing, so Restore stays disabled', () => {
     assert.ok(lost.restore); assert.equal(lost.restore.disabled, true)
+  })
+  await click('Builds', view.node.querySelector('.cs-b-head'))
+  await settle()
+  await click('Show', view.node.querySelectorAll('.cs-b-brow')[1])
+  assert.equal(view.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'true')
+  await act(async () => view.node.querySelector('.cs-b-sw').click())
+  await click('Cloud Hop', view.node.querySelector('.cs-b-sw-pop'))
+  await settle()
+  check('another game with the same turn keys starts with its own folded history', () => {
+    assert.equal(view.node.querySelector('.cs-b-sw h2').textContent, 'Cloud Hop')
+    assert.equal(view.node.querySelector('.cs-b-history-row').getAttribute('aria-expanded'), 'false')
   })
   await view.close()
 

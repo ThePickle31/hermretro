@@ -1,7 +1,6 @@
 // The platformer background (page/backgrounds/platformer/): the real game run headless, without a canvas. For a few
 // window sizes and layouts, minutes of play each: she never falls or stays stuck, uses the whole level, coins come
 // back only when 90% are taken and are all reachable, the form takes no part in it, and the sprites keep their rules.
-// Run alone: node tests/page/platformer.test.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 

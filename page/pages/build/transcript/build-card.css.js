@@ -2,7 +2,7 @@ import { MONO } from '#shared/styles/tokens.js'
 
 export const BUILD_CARD_CSS = `
 /* a build: one quiet line (number, title, time), what changed under it, what was tested; no box around it */
-.cs-b-bc { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cs-b-bc { animation: cs-b-in .2s ease-out; display: flex; flex-direction: column; background: var(--ui-bg-secondary); border: 1px solid var(--ui-stroke-tertiary); border-radius: 10px; box-sizing: border-box; gap: 8px; max-width: 565px; min-width: 0; padding: 10px 12px; }
 .cs-b-bc-head { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; min-height: 26px; }
 .cs-b-bc-title { color: var(--ui-text-primary); font-size: 13.5px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .cs-b-bc-meta { font-size: 11.5px; white-space: nowrap; }
@@ -33,6 +33,11 @@ export const BUILD_CARD_CSS = `
 .cs-b-ba-side.now .cs-b-ba-cap { color: var(--ui-text-secondary); }
 .cs-b-ba-arrow { color: var(--ui-text-quaternary); flex: none; font-size: 16px; }
 .cs-b-ba-acts { gap: 8px; }
+.cs-b-replay { align-items: center; display: flex; flex-wrap: wrap; gap: 16px; max-width: 565px; }
+.cs-b-replay .cs-b-th { aspect-ratio: 160 / 144; height: auto; max-width: 100%; padding: 0; width: 160px; }
+.cs-b-replay .cs-b-th img { image-rendering: pixelated; object-fit: contain; }
+.cs-b-replay .cs-b-link { align-items: center; align-self: flex-start; display: inline-flex; gap: 4px; }
+.cs-b-replay input { accent-color: var(--ui-accent); max-width: 120px; }
 /* next steps (a reply's suggestions) */
 .cs-b-next-steps { display: flex; flex-wrap: wrap; gap: 8px; }
 .cs-b-sugg-chip { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); color: var(--ui-text-secondary); cursor: pointer; display: inline-flex; font: inherit; font-size: 12.5px; gap: 5px; padding: 5px 12px; transition: box-shadow .12s ease, color .12s ease; }
