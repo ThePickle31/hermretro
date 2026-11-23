@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 
 import { lineCount, lintSources, sourceFiles } from './lint.mjs'
 import { findModules, MISSING_HINT } from './node-modules.mjs'
-import { rpcNames } from './rpc-names.mjs'
+import { pageDeclarations } from './page-declarations.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SOURCE = 'page'
@@ -358,7 +358,7 @@ async function watch(tools) {
 
 async function main(flags) {
   const tools = toolchain()
-  const names = rpcNames(ROOT, flags.has('--check'))
+  const names = pageDeclarations(ROOT, flags.has('--check'))
 
   if (names.length) {
     return fail(names)

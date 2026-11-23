@@ -138,7 +138,9 @@ class StudioProfile(unittest.TestCase):
         self.created()
         self.finish()
         (self.target / "SOUL.md").write_text("edited by the user")
+        self.commands.clear()
         again = self.finish()
+        self.assertFalse(any("agent.max_turns" in args for _target, args in self.commands))
         self.assertEqual((again["ok"], again["soul_written"]), (True, False))
         self.assertEqual((self.target / "SOUL.md").read_text(), "edited by the user")
 
@@ -153,8 +155,7 @@ class StudioProfile(unittest.TestCase):
             again = self.finish()
         self.assertTrue(again["soul_written"])
         soul = (self.target / "SOUL.md").read_text()
-        self.assertIn("chromatic_present_game", soul)
-        self.assertIn("games folder", soul)
+        self.assertEqual(soul, sp.SOUL_FILE.read_text())
 
     def test_an_older_shipped_soul_is_replaced_and_any_other_kept(self):
         import hashlib
@@ -237,14 +238,6 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual((self.target / "SOUL.md").read_bytes(), older)
         self.assertEqual([path.name for path in self.target.iterdir() if path.name.endswith(".tmp")], [])
 
-    def test_the_shipped_soul_uses_the_present_tool_and_the_games_folder(self):
-        soul = sp.SOUL_FILE.read_text()
-        self.assertIn("chromatic_present_game", soul)
-        self.assertNotIn("keep the playable game on screen", soul)
-        import hashlib
-
-        self.assertNotIn(hashlib.sha256(soul.encode()).hexdigest(), sp.OLDER_SOULS)
-
     def test_a_failed_hermes_command_is_reported_and_the_step_can_be_run_again(self):
         self.created()
 
@@ -270,46 +263,6 @@ class StudioProfile(unittest.TestCase):
                 with self.assertRaises(sp.StudioProfileError) as raised:
                     sp._run_hermes(self.target, "plugins", "enable", "x")
             self.assertEqual(raised.exception.code, "HERMES_COMMAND_FAILED")
-
-    def test_a_hermes_command_tells_the_plugin_inside_it_to_leave_the_config_alone(self):
-        from unittest import mock
-
-        done = mock.Mock(returncode=0, stdout="", stderr="")
-        with mock.patch.object(sp.subprocess, "run", return_value=done) as ran:
-            sp._run_hermes(self.target, "config", "set", "agent.max_turns", "1000")
-        environment = ran.call_args.kwargs["env"]
-        self.assertEqual((environment["HERMES_HOME"], environment[sp.CONFIGURING]), (str(self.target), "1"))
-
-    def pinned(self, config, environment=None):
-        """What pin_turn_limit runs in the studio profile whose config.yaml reads as ``config`` (None: unreadable)."""
-        from unittest import mock
-
-        self.commands = []
-        self.target.mkdir(parents=True, exist_ok=True)
-        (self.target / "config.yaml").write_text("agent: {}\n")
-        clean = {k: v for k, v in os.environ.items() if k != sp.CONFIGURING}
-        with (
-            mock.patch.object(sp.hermes_api, "profile_config", return_value=config),
-            mock.patch.dict(os.environ, {**clean, **(environment or {})}, clear=True),
-        ):
-            sp.pin_turn_limit(self.target, run=lambda target, *args: self.commands.append((target, args)))
-        return self.commands
-
-    def test_the_turn_limit_is_put_back_whatever_the_profile_says(self):
-        for config in ({}, {"agent": {"max_turns": 150}}, {"agent": {"max_turns": "unlimited"}}, {"agent": None}):
-            self.assertEqual(self.pinned(config), [(self.target, ("config", "set", "agent.max_turns", "1000"))], config)
-
-    def test_the_turn_limit_is_left_alone_when_it_is_already_set_or_cannot_be_read(self):
-        self.assertEqual(self.pinned({"agent": {"max_turns": 1000}}), [])
-        self.assertEqual(self.pinned(None), [])
-
-    def test_the_turn_limit_is_not_set_inside_a_hermes_command_this_plugin_runs(self):
-        self.assertEqual(self.pinned({}, {sp.CONFIGURING: "1"}), [])
-
-    def test_a_folder_without_a_config_is_not_a_profile_to_pin(self):
-        self.target.mkdir(parents=True)
-        sp.pin_turn_limit(self.target, run=lambda target, *args: self.commands.append((target, args)))
-        self.assertEqual(self.commands, [])
 
     def test_a_profile_that_only_resembles_ours_keeps_its_soul(self):
         self.created(description="hermretro: my own notes")
