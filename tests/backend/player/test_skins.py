@@ -12,10 +12,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.player import skins  # noqa: E402 - the repository root goes on sys.path first
 
+from tests.support import isolated_home  # noqa: E402 - repository root above
+
 WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 "
 
 
 class ShippedSkins(unittest.TestCase):
+    def setUp(self):
+        isolated_home(self)
+
     def test_the_hermes_skins_ship_in_order_and_the_first_is_the_default(self):
         ids = [skin["id"] for skin in skins.skins()]
         self.assertEqual(
@@ -55,6 +60,7 @@ class ShippedSkins(unittest.TestCase):
 
 class AFolderOfSkins(unittest.TestCase):
     def setUp(self):
+        isolated_home(self)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.folder = Path(tmp.name)
@@ -69,6 +75,15 @@ class AFolderOfSkins(unittest.TestCase):
             (folder / f"skin{image}").write_bytes(WEBP)
         if data is not None:
             (folder / "skin.json").write_text(data if isinstance(data, str) else json.dumps(data))
+
+    def test_personal_finish_overrides_its_bundled_id(self):
+        self.add("sunset", {})
+        before = skins.signature()
+        personal = skins.paths.hermretro_home() / "skins" / "sunset"
+        personal.mkdir(parents=True)
+        (personal / "skin.webp").write_bytes(WEBP)
+        self.assertNotEqual(skins.signature(), before)
+        self.assertEqual([skin["image"] for skin in skins.skins()], [personal / "skin.webp"])
 
     def test_a_folder_with_only_its_image_is_a_skin_with_defaults(self):
         self.add("sunset-orange", None, image=".png")

@@ -5,7 +5,7 @@ shown); this page's `Page` (`emulator-page.js`) adds the bar above it with the r
 (`emulator-bar.js`) and the notice;
 the captures strip there (`Captures` in `emulator-bar.js`, shown while the bar's captures toggle is open, refetched
 every 5 s) lists the `captures` RPC (`backend/library/rpcs.py`, which reads `list_captures` in
-`backend/player/server.py`: the game's `captures/` folder, newest first by `createdAt`);
+`backend/player/captures.py`: the game's `captures/` folder, newest first by `createdAt`);
 the descriptor adds the row under it (`beside-chat/row.js`). `beside-chat/` is the emulator tab beside the chat that opens when
 the agent presents a game. The nav segment carries a live dot while a game is loaded elsewhere (`Badge`).
 Padding `flush`, no footer.

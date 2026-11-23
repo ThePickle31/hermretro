@@ -80,12 +80,23 @@ def _read(folder: Path) -> dict | None:
     return skin
 
 
+def _roots() -> tuple[Path, Path]:
+    return SKINS_DIR, paths.hermretro_home() / "skins"
+
+
 def skins() -> list[dict]:
     """Every usable skin, in order: ``{id, name, edition, background, ink, order, image}``."""
-    if not SKINS_DIR.is_dir():
-        return []
-    found = [skin for folder in sorted(SKINS_DIR.iterdir()) if folder.is_dir() and (skin := _read(folder))]
-    return sorted(found, key=lambda skin: (skin["order"], skin["id"]))
+    found = {}
+    for root in _roots():
+        try:
+            for folder in root.iterdir():
+                if folder.is_dir() and (skin := _read(folder)):
+                    found[skin["id"]] = skin
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            logger.warning("hermretro: cannot read skins in %s: %s", root, error)
+    return sorted(found.values(), key=lambda skin: (skin["order"], skin["id"]))
 
 
 def default_skin() -> str:
@@ -106,7 +117,15 @@ def page_skins() -> list[dict]:
 
 def signature() -> tuple:
     """What changes when a skin is added, removed or edited (for caches built from them)."""
-    return tuple((str(path), path.lstat().st_mtime_ns) for path in sorted(SKINS_DIR.glob("*/skin.*")))
+    files = []
+    for root in _roots():
+        for path in sorted(root.glob("*/skin.*")):
+            try:
+                stat = path.lstat()
+            except OSError:
+                continue
+            files.append((str(path), stat.st_mtime_ns, stat.st_size))
+    return tuple(files)
 
 
 def rail_entries() -> str:

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.player import captures, frame  # noqa: E402 - the repository root goes on sys.path first
 from backend.player import server as player_server  # noqa: E402 - the repository root goes on sys.path first
 from backend.player import skins  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
@@ -141,6 +142,19 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual(context["sourceRevision"], "rev-123")
         self.assertRegex(context["captures"]["generation"], r"^[a-f0-9]{32}$")
 
+    def test_head_and_get_a_recording_without_buffering_the_whole_file(self):
+        media = b"recorded frame" * 100_000
+        directory = captures.captures_dir(self.root, self.gid)
+        directory.mkdir(exist_ok=True)
+        path = directory / "large.webm"
+        path.write_bytes(media)
+        url = self.url(f"codex-captures/{captures.capture_id(self.gid, path.name)}/media")
+        with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("whole-file read")):
+            for method in ("HEAD", "GET"):
+                status, headers, body = fetch(url, method=method)
+                self.assertEqual((status, headers["Content-Length"]), (200, str(len(media))))
+                self.assertEqual(body, b"" if method == "HEAD" else media)
+
     def test_engine_modules_wasm_and_device_art(self):
         status, headers, body = fetch(self.url("codex-annotations/bridge.js"))
         self.assertEqual((status, headers["Content-Type"]), (200, "text/javascript; charset=utf-8"))
@@ -218,7 +232,7 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual((status, headers["Content-Type"], raw), (200, "image/png", media))
         status, _headers, raw = fetch(self.url(receipt["metadataUrl"][2:]))
         self.assertEqual(json.loads(raw)["metadata"], {"width": 160})
-        listed = player_server.list_captures(self.root, self.gid)
+        listed = captures.list_captures(self.root, self.gid)
         self.assertIn(receipt["id"], [c["id"] for c in listed])
         stale = {**headers, "Content-Type": kind, "x-codex-preview-capture": "0" * 32}
         self.assertEqual(fetch(self.url("codex-captures"), "POST", body, stale)[0], 409)
@@ -252,7 +266,7 @@ class PlayerServer(unittest.TestCase):
 
 class Pieces(unittest.TestCase):
     def test_frame_shim_is_valid_javascript_with_its_placeholders_filled(self):
-        shim = player_server.frame_shim()
+        shim = frame.frame_shim()
         self.assertNotIn("__DEFAULT_COLOR__", shim)
         self.assertNotIn("__COLOR_KEY__", shim)
         self.assertNotIn("</script", shim)
@@ -268,16 +282,16 @@ class Pieces(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             view = Path(tmp) / "view.js"
             view.write_text("export const COLORS = [];\n")
-            with self.assertLogs(player_server.logger, "WARNING"):
-                self.assertEqual(player_server.patched_view(view), b"export const COLORS = [];\n")
+            with self.assertLogs(frame.logger, "WARNING"):
+                self.assertEqual(frame.patched_view(view), b"export const COLORS = [];\n")
 
     def test_an_export_without_the_official_player_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = make_export(Path(tmp))
             (root / "build/web/index.html").write_text("<html><body></body></html>")
-            build = player_server.game_build(root)
-            with self.assertRaises(player_server.PlayerError):
-                player_server.frame_document(root, build, "0" * 32)
+            build = frame.game_build(root)
+            with self.assertRaises(frame.PlayerError):
+                frame.frame_document(root, build, "0" * 32)
 
 
 class PlayerRpcs(unittest.TestCase):
@@ -328,7 +342,7 @@ class PlayerRpcs(unittest.TestCase):
 
     def test_captures_list_the_newest_first(self):
         # The sidecar's createdAt decides the order, not the file name or the folder's order.
-        folder = player_server.captures_dir(self.root, self.gid)
+        folder = captures.captures_dir(self.root, self.gid)
         folder.mkdir()
         for name, created in (
             ("b.png", "2026-01-02T00:00:00.000Z"),
