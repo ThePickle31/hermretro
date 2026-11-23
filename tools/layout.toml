@@ -37,4 +37,3 @@ exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-
 
 [exceptions]
 # Files allowed above the size limit, each with its reason. Split the file instead when you can.
-"tests/page/page-build-turns.test.mjs" = "One scenario script over the Build transcript; split by turn kind later"
