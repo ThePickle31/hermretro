@@ -66,7 +66,7 @@ Which title the user sees: the card's `title` (the project's `game.json`, set by
 
 ## Captures
 
-Screenshots and videos saved from the player live in `<project>/captures/` (the demo cartridge's in `<library>/captures/demo`): `captures_dir(root, game_id)` in `backend/player/server.py` (not in the player's front door) names the folder, and `player.list_captures(root, game_id)` (`from ..player import list_captures`) lists its media files newest first as `{id, path, kind, createdAt, file}` (`kind` from the `.json` sidecar, else `screenshot` for a PNG and `video` otherwise; `createdAt` an ISO time; there is no size field: `stat` the `path`). The `captures` RPC (`rpcs.py`) reads them through `list_captures` and answers `{path, kind, createdAt, url}` for each. Writes go through `save_capture`: the `capture_image` RPC saves a page-sent game-screen PNG there as an `annotation` capture, and the player server's `codex-captures` POST saves the player's own.
+Screenshots and videos saved from the player live in `<project>/captures/` (the demo cartridge's in `<library>/captures/demo`): `captures_dir(root, game_id)` in `backend/player/captures.py` (not in the player's front door) names the folder, and `player.list_captures(root, game_id)` (`from ..player import list_captures`) lists its media files newest first as `{id, path, kind, createdAt, file}` (`kind` from the `.json` sidecar, else `screenshot` for a PNG and `video` otherwise; `createdAt` an ISO time; there is no size field: `stat` the `path`). The `captures` RPC (`rpcs.py`) reads them through `list_captures` and answers `{path, kind, createdAt, url}` for each. Writes go through `save_capture`: the `capture_image` RPC saves a page-sent game-screen PNG there as an `annotation` capture, and the player server's `codex-captures` POST saves the player's own.
 
 ## Save states
 
@@ -86,7 +86,7 @@ What the plugin reads from a GB Studio project (the engine writes them; `backend
 
 - `<root>/project/scenes/<folder>/scene.gbsres`: one scene, a JSON object with its `name` and `id` (and `_index`, its order); its actors are `<root>/project/scenes/<folder>/actors/*.gbsres`.
 - `<root>/project/settings.gbsres`: the project's settings (JSON).
-- Captures (screenshots, recordings, the page's annotated images; the plugin writes these, not the engine): media files directly in `<root>/captures/`, listed newest first by `player.list_captures(root, game_id)` and saved by `player.save_capture` (`backend/player/server.py`). The demo cartridge has no project, so its captures live in `<library>/captures/demo/`. Get the right `root` for any game id with `player.capture_root(game_id, host._game_root)` (None for an unknown game), as the `captures` and `capture_image` RPCs and the player server do.
+- Captures (screenshots, recordings, the page's annotated images; the plugin writes these, not the engine): media files directly in `<root>/captures/`, listed newest first by `player.list_captures(root, game_id)` and saved by `player.save_capture` (`backend/player/captures.py`). The demo cartridge has no project, so its captures live in `<library>/captures/demo/`. Get the right `root` for any game id with `player.capture_root(game_id, host._game_root)` (None for an unknown game), as the `captures` and `capture_image` RPCs and the player server do.
 - `<root>/project/palettes/*.gbsres` (`id`, `colors`) and the sidecars `<root>/assets/sprites/*.gbsres` and `<root>/assets/backgrounds/*.gbsres` (`id`; the image is the same name without `.gbsres`).
 
 ## Adding here

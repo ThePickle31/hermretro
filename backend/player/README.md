@@ -1,6 +1,6 @@
 # backend/player
 
-The browser player: ModRetro's real web player served from a loopback server in the gateway process (`server.py`), for the page's emulator and `chromatic_present_game`; game captures, the demo cartridge and the device skins in `player/skins/` (`skins.py`).
+The loopback HTTP routes live in `server.py`. `frame.py` assembles the game or demo frame and adapts the engine player. `captures.py` owns media files, sidecars and stable capture IDs. `skins.py` reads bundled finishes and the user's skins folder.
 
 ## What it adds
 

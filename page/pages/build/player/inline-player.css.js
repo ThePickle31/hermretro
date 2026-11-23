@@ -50,7 +50,7 @@ export const INLINE_PLAYER_CSS = `
 .cs-ip-screen[data-view=screen] { border-radius: 4px; box-shadow: 0 0 0 1px color-mix(in srgb, white 8%, transparent), 0 20px 50px color-mix(in srgb, black 55%, transparent); overflow: hidden; }
 .cs-ip-screen:fullscreen { align-items: center; background: black; border-radius: 0; display: flex; height: 100%; justify-content: center; width: 100%; }
 .cs-ip-fit { flex: none; max-width: 100%; }
-.cs-ip-fit .cs-rp-stage, .cs-ip-fit .cs-rp-stage:not(.off) { height: 100%; width: 100%; }
+.cs-ip-fit > .cs-rp-stage { height: 100%; width: 100%; }
 .cs-ip-panel { background: var(--ui-bg-secondary); border-left: 1px solid var(--ui-stroke-tertiary); display: flex; flex: none; flex-direction: column; gap: 4px; font-size: 12.5px; overflow-y: auto; padding: 12px 14px; width: 300px; }
 .cs-ip-panel.tabs { border-left: 0; border-top: 1px solid var(--ui-stroke-tertiary); padding-top: 0; width: auto; }
 .cs-ip-sec { display: flex; flex-direction: column; gap: 6px; }
