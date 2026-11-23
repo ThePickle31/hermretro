@@ -16,7 +16,6 @@ const WORK_GROUPS = [
   ['other', 'Working on it', 'Worked on it']
 ]
 export const GROUP_MIN_STEPS = 8
-export const GIST_WORDS = { plan: 'planned', art: 'drew the art', level: 'set up the level', build: 'built it', test: 'played it' }
 const ART_HINT = /\.(png|gif|aseprite)\b|art-src|sprite|background|cover|palette/i
 
 function phaseOf(tool) {
