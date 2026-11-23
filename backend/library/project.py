@@ -153,14 +153,22 @@ def web_rom(root: Path, *, required: bool = False) -> Path | None:
     return None
 
 
-def _newest_build_rom(root: Path) -> Path | None:
+def _build_roms(root: Path) -> list[tuple[Path, float]]:
     try:
         files = list((root / "build").iterdir())
     except (FileNotFoundError, NotADirectoryError):
-        return None
-    roms = ((path, _file_info(path)) for path in files if path.suffix.lower() in (".gb", ".gbc"))
-    newest = max(((path, info.st_mtime) for path, info in roms if info), key=lambda item: item[1], default=None)
-    return newest[0] if newest else None
+        return []
+    roms = []
+    for path in files:
+        if path.suffix.lower() not in (".gb", ".gbc"):
+            continue
+        try:
+            info = _file_info(path)
+        except OSError:
+            continue
+        if info is not None:
+            roms.append((path, info.st_mtime))
+    return sorted(roms, key=lambda item: item[1], reverse=True)
 
 
 def _rom_info(path: Path | None) -> tuple[dict | None, float | None]:
@@ -185,6 +193,17 @@ def _recorded_rom(last: dict) -> tuple[dict | None, float | None]:
     return None, None
 
 
+def _native_rom_info(root: Path) -> tuple[dict | None, float | None]:
+    for path, _ in _build_roms(root):
+        try:
+            rom, built = _rom_info(path)
+        except OSError:
+            continue
+        if rom is not None:
+            return rom, built
+    return None, None
+
+
 def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) -> tuple[dict, float | None]:
     """The native build and the web export, which can have different ROMs."""
     exported = has_web_export(root)
@@ -199,7 +218,7 @@ def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) ->
         raise OSError("The web build's ROM is unavailable.")
     rom, built = _recorded_rom(last)
     if rom is None:
-        rom, built = (web_rom_info, web_time) if web_rom_info else _rom_info(_newest_build_rom(root))
+        rom, built = (web_rom_info, web_time) if web_rom_info else _native_rom_info(root)
     web = {"sha256": web_rom_info["sha256"], "builtAt": web_rom_info["builtAt"]} if exported and web_rom_info else None
     return {"rom": rom, "webExport": exported, "web": web}, built
 
@@ -297,11 +316,8 @@ def export_freshness(
     older game than the one being worked on."""
     last = last_build if isinstance(last_build, dict) else None
     recorded = timestamp(last.get("t")) if last else 0.0
-    newest_rom = _newest_build_rom(root)
-    try:
-        rom_time = newest_rom.stat().st_mtime if newest_rom is not None else None
-    except OSError:
-        rom_time = None
+    roms = _build_roms(root)
+    rom_time = roms[0][1] if roms else None
     # When hermretro's own successful build is the newest ROM, only its playable copy is missing: building the
     # same thing again would loop, so the copy is made from it. A newer ROM nobody recorded needs a real build.
     remake = bool(last and last.get("ok")) and recorded + FRESH_SLACK_SECONDS >= (rom_time or 0.0)

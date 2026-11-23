@@ -164,6 +164,57 @@ class RegistryReads(unittest.TestCase):
         self.assertTrue(game["webExport"])
         self.assertEqual(game["web"]["sha256"], self.status({"id": self.game})["game"]["web"]["sha256"])
 
+    def test_unusable_native_rom_candidates_do_not_hide_a_healthy_build(self):
+        root = make_project(self.home.base, "Native Game", web=False)
+        identifier = self.registry.upsert(str(root))["id"]
+        rom = root / "build" / "project.gb"
+        loop = rom.with_name("loop.gb")
+        loop.symlink_to(loop.name)
+        unreadable = rom.with_name("unreadable.gbc")
+        unreadable.touch()
+        now = rom.stat().st_mtime + 10
+        os.utime(unreadable, (now, now))
+        file_sha256 = project.file_sha256
+
+        def sha256(path):
+            if path == unreadable:
+                raise PermissionError("cannot read this ROM")
+            return file_sha256(path)
+
+        with mock.patch.object(project, "file_sha256", sha256):
+            answer = self.status({"id": identifier})
+            games_on_shelf = {game["id"]: game for game in self.registry.library()}
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual(answer["game"]["rom"]["path"], str(rom))
+        self.assertEqual(games_on_shelf[identifier]["rom"], answer["game"]["rom"])
+
+    def test_invalid_registry_key_cannot_claim_a_valid_games_chat(self):
+        self.registry.bind(self.game, "stored-first", host._profile_identity())
+        data = self.registry.load()
+        data["games"]["invalid-id"] = data["games"][self.game]
+        self.registry.path.write_text(json.dumps(data))
+        with mock.patch.object(host, "try_connect", return_value=(None, None)):
+            listed = rpcs.rpc_games(self.ctx)({})["games"]
+        self.assertEqual([game["id"] for game in listed], [self.game])
+        self.assertEqual(listed[0]["chat"]["sessionId"], "stored-first")
+        self.assertEqual(self.status({"id": self.game})["game"]["chat"]["sessionId"], "stored-first")
+
+    def test_public_game_timestamps_are_finite_without_rewriting_the_registry(self):
+        self.registry.bind(self.game, "stored-first", host._profile_identity())
+        data = self.registry.load()
+        entry = data["games"][self.game]
+        entry["session"]["createdAt"] = float("nan")
+        entry["updatedAt"] = float("inf")
+        original = json.dumps(data).encode()
+        self.registry.path.write_bytes(original)
+        [game] = self.registry.library()
+        self.assertIsNone(game["updatedAt"])
+        self.assertIsNone(game["session"]["createdAt"])
+        with mock.patch.object(host, "try_connect", return_value=(None, None)):
+            json.dumps(rpcs.rpc_games(self.ctx)({}), allow_nan=False)
+        json.dumps(self.status({"id": self.game}), allow_nan=False)
+        self.assertEqual(self.registry.path.read_bytes(), original)
+
     def test_games_rpc_uses_one_snapshot_and_routes_chat_using_the_registry_key(self):
         profile = host._profile_identity()
         self.registry.bind(self.game, "stored-first", profile)

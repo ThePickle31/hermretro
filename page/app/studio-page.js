@@ -290,10 +290,13 @@ export function StudioPage({ ctx }) {
   })
   const demo = { ...DEMO_GAME, ...(games.data?.demo && typeof games.data.demo === 'object' ? games.data.demo : {}), id: DEMO_ID }
   // The page plays the game picked on the Games page, or the demo when there is no pick.
-  // Only a successful lookup confirming removal can clear a remembered pick.
   const libraryKnown = Boolean(games.data) || games.isError
-  const removed = checkPicked && buildStatus.data?.code === 'NO_GAME' && !buildStatus.isFetching && !buildStatus.isError
   const picked = gameList.find(item => item.id === emu.id)
+  const unavailable = Array.isArray(games.data?.unavailable) && games.data.unavailable.includes(emu.id)
+  // The shelf can seed the pick from the broker after the status lookup has already answered NO_GAME.
+  const shelfSettled = games.data?.ok === true && !games.isFetching && !games.isError
+  const removed = checkPicked && shelfSettled && !picked && !unavailable
+    && buildStatus.data?.code === 'NO_GAME' && !buildStatus.isFetching && !buildStatus.isError
   const current = buildStatus.data?.game
   const game = removed || emu.id === DEMO_ID || (!emu.id && libraryKnown)
     ? demo

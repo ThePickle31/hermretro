@@ -11,7 +11,7 @@ await runScenario(async helpers => {
   scenario.player = answered({ url: 'http://127.0.0.1:4567/tok/x/index.html', romSha256: 'sha', title: 'x' })
   // The page's own player query (the tab beside the chat asks with 'side' in the same place).
   const playing = () => scenario.queries.filter(query => query.key === 'player' && query.queryKey[2] !== 'side').at(-1)?.queryKey[2]
-  const library = list => { scenario.games = answered({ games: list, device: { hardwareEnabled: true, skipped: false } }) }
+  const library = (list, unavailable = []) => { scenario.games = answered({ ok: true, games: list, unavailable, device: { hardwareEnabled: true, skipped: false } }) }
   const rebuilt = (list, id, builtAt) => list.map(game => (game.id === id ? { ...game, rom: { ...game.rom, sha256: `sha-${builtAt}`, builtAt } } : game))
 
   await tab('Emulator')
@@ -67,15 +67,31 @@ await runScenario(async helpers => {
   check('once the library answers, the remembered game plays', () => { assert.equal(playing(), 'aaa111aaa111') })
   await failing.close()
 
+  scenario.gameBuildStatus = answered({ ok: false, code: 'NO_GAME' })
+  scenario.games = { ...answered({ ok: true, games: [], unavailable: [] }), isFetching: true }
+  const seeding = await mount(page)
+  await tab('Emulator')
+  check('an early NO_GAME keeps the pick while the shelf seeds broker games', () => {
+    assert.equal(playing(), null)
+    assert.equal(scenario.storage.emulatorGame, 'aaa111aaa111')
+  })
+  library(games)
+  await seeding.rerender()
+  check('a game seeded by the shelf plays even while the earlier NO_GAME is cached', () => {
+    assert.equal(playing(), 'aaa111aaa111')
+    assert.equal(scenario.storage.emulatorGame, 'aaa111aaa111')
+  })
+  await seeding.close()
+
   scenario.storage.emulatorGame = 'fff999fff999' // a game since removed from the library
-  scenario.gameBuildStatus = { isError: true, isFetching: false, error: new Error('Project is unavailable') }
+  library(games, ['fff999fff999'])
   const later = await mount(page)
   await tab('Emulator')
   check('a successful shelf refresh that omits an unavailable project keeps the remembered pick', () => {
     assert.equal(playing(), null)
     assert.equal(scenario.storage.emulatorGame, 'fff999fff999')
   })
-  scenario.gameBuildStatus = answered({ ok: false, code: 'NO_GAME' })
+  library(games)
   await later.rerender()
   check('a remembered game no longer in the library falls back to the demo cartridge and is forgotten', () => {
     assert.equal(playing(), 'demo')

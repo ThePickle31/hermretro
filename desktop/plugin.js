@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 33aa38909148bd1593a5e58ee0e81d0fc92fc96ec389887073177f1d844a8e5d
- * body: sha256 065b9a9f8e17cf0b7aafa67240b7e2b928c74681656fa4cbcd39369512d74145
+ * sources: sha256 259d34eadd82cfd3a5406cfeb7435f204ad8d0c588b2c9d7eaeaa4f3278f4757
+ * body: sha256 fcdd2eb0daa0afdb8e62920ab18c196bd4850eb6d71b8dc6b49a98fe60dcf49d
  */
 // page/sdk.js
 import {
@@ -8827,6 +8827,9 @@ async function readSideBuildStatus(id) {
     }
   }
   const shelf = await readGamesShelf();
+  if (Array.isArray(shelf.unavailable) && shelf.unavailable.includes(id)) {
+    throw new Error("Could not read the game build.");
+  }
   const game = shelf.games.find((item) => item?.id === id) ?? null;
   return { ok: true, game, device: shelf.device };
 }
@@ -17700,8 +17703,10 @@ function StudioPage({ ctx }) {
   });
   const demo = { ...DEMO_GAME, ...games.data?.demo && typeof games.data.demo === "object" ? games.data.demo : {}, id: DEMO_ID };
   const libraryKnown = Boolean(games.data) || games.isError;
-  const removed = checkPicked && buildStatus.data?.code === "NO_GAME" && !buildStatus.isFetching && !buildStatus.isError;
   const picked = gameList.find((item) => item.id === emu.id);
+  const unavailable = Array.isArray(games.data?.unavailable) && games.data.unavailable.includes(emu.id);
+  const shelfSettled = games.data?.ok === true && !games.isFetching && !games.isError;
+  const removed = checkPicked && shelfSettled && !picked && !unavailable && buildStatus.data?.code === "NO_GAME" && !buildStatus.isFetching && !buildStatus.isError;
   const current = buildStatus.data?.game;
   const game = removed || emu.id === DEMO_ID || !emu.id && libraryKnown ? demo : current ? { ...picked, ...current } : picked ?? null;
   const gameError = game ? null : buildStatus.isError ? studioError(buildStatus.error, "read the game build") : libraryError;

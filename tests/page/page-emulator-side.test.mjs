@@ -269,7 +269,8 @@ await runScenario(async helpers => {
 
   const statusRpc = 'plugin.hermretro.status'
   const gamesRpc = 'plugin.hermretro.games'
-  let legacyShelf = { ok: true, games: library13, device: { hardwareEnabled: true } }
+  const legacyGame = { ...library13[0], chat: { sessionId: 'stored-legacy-chat' } }
+  let legacyShelf = { ok: true, games: [legacyGame], device: { hardwareEnabled: true } }
   let legacyStatusError = Object.assign(new Error('unknown method'), { code: -32601 })
   scenario.byMethod[statusRpc] = { ...scenario.ambient, profile: { ...scenario.ambient.profile, studio: { installed: true } } }
   scenario.requestProfileHook = (_route, method) => {
@@ -301,12 +302,27 @@ await runScenario(async helpers => {
   legacyShelf = { ok: false, error: 'shelf unavailable', games: library13 }
   await assert.rejects(scenario.fns.gameBuildStatus(), /shelf unavailable/)
   legacyShelf = { ok: true, games: [], unavailable: [library13[0].id] }
-  const unreadableFallback = await scenario.fns.gameBuildStatus()
-  scenario.gameBuildStatus = key => key[2] === 'side' ? answered(unreadableFallback) : undefined
+  const unreadableFallback = await scenario.fns.gameBuildStatus().catch(error => error)
+  check('the legacy fallback treats an unavailable game as a read failure', () => {
+    assert.ok(unreadableFallback instanceof Error)
+  })
+  scenario.gameBuildStatus = key => key[2] === 'side'
+    ? { ...answered(fallback), isError: true, error: unreadableFallback }
+    : undefined
   await olderSide.rerender()
   check('a shelf missing the selected game preserves playback without a rebuild action', () => {
     assert.ok(!olderSide.node.textContent.includes('Load the new build'))
     assert.ok(olderSide.node.querySelector('iframe'))
+  })
+  const olderFrame = olderSide.node.querySelector('iframe').contentWindow
+  olderFrame.postMessage = ({ type, id }) => {
+    if (type === 'snap') {
+      dom.window.dispatchEvent(new dom.window.MessageEvent('message', { source: olderFrame, data: { cs: 'snap', id } }))
+    }
+  }
+  await click('Ask Hermes', olderSide.node)
+  check('Ask Hermes keeps the chat from the last successful legacy status', () => {
+    assert.deepEqual(scenario.calls.find(call => call[0] === 'openSession'), ['openSession', 'stored-legacy-chat', 'hermretro'])
   })
   legacyStatusError = Object.assign(new Error('unknown method'), { code: -32000 })
   scenario.calls.length = 0

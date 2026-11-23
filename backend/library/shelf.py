@@ -30,7 +30,7 @@ def public_session(binding) -> dict | None:
     profile = binding.get("profile")
     return {
         "storedId": binding["storedId"],
-        "createdAt": binding.get("createdAt"),
+        "createdAt": project.timestamp(binding.get("createdAt"), None),
         "profile": profile if isinstance(profile, str) else None,
     }
 
@@ -82,5 +82,5 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
         "card": card,
         "displayTitle": (card or {}).get("title") or game["title"],
         "error": (str(last.get("error") or "The build failed."))[:ERROR_CHARS] if state == "failed" else None,
-        "updatedAt": entry.get("updatedAt"),
+        "updatedAt": project.timestamp(entry.get("updatedAt"), None),
     }

@@ -24,6 +24,11 @@ export async function readSideBuildStatus(id) {
   }
 
   const shelf = await readGamesShelf()
+
+  if (Array.isArray(shelf.unavailable) && shelf.unavailable.includes(id)) {
+    throw new Error('Could not read the game build.')
+  }
+
   const game = shelf.games.find(item => item?.id === id) ?? null
 
   return { ok: true, game, device: shelf.device }

@@ -120,7 +120,9 @@ def _route_games(
     owned = {}
     if wanted:
         for identifier, entry in entries.items():
-            session = entry.get("session") if isinstance(entry, dict) else None
+            if not library.valid_id(identifier) or not isinstance(entry, dict):
+                continue
+            session = entry.get("session")
             if isinstance(session, dict) and isinstance(session.get("storedId"), str):
                 for value in (session["storedId"], *library.session_aliases(session)):
                     if value in wanted:
