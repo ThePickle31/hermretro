@@ -15,6 +15,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     }]
   })
   const roomChange = [{ kind: 'changed', text: 'Workshop room', asset: `file://${room}` }]
+  const playerChange = { kind: 'changed', text: 'Workshop player', asset: player }
   const reportResult = reportedAt => ({ ok: true, reportedAt, report: { title: 'Tinker Shop', changes: roomChange } })
 
   buildScenario({ selected: game })
@@ -30,10 +31,11 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     { role: 'user', content: 'Edit the workshop room.', timestamp: 2000 },
     { role: 'assistant', content: '', timestamp: 2001, tool_calls: [{ id: 'r2', function: {
       name: 'tool_call', arguments: JSON.stringify({ calls: [{
-        name: 'chromatic_build_report', arguments: { title: 'Tinker Shop', changes: roomChange }
+        name: 'chromatic_build_report', arguments: { title: 'Tinker Shop', changes: [...roomChange, playerChange] }
       }] })
     } }] },
-    { role: 'tool', tool_call_id: 'r2', tool_name: 'chromatic_build_report', timestamp: 2007, content: JSON.stringify(reportResult(2_005_001.625)) },
+    { role: 'tool', tool_call_id: 'r2', tool_name: 'chromatic_build_report', timestamp: 2007, content: JSON.stringify({ ...reportResult(2_005_001.625),
+      report: { title: 'Tinker Shop', changes: [...roomChange, playerChange] } }) },
     { role: 'assistant', content: `Made the changes.\nMEDIA:${cover}`, timestamp: 2010 }
   ] })
 
@@ -41,7 +43,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     { id: '10', at: 1_004_000 }, { id: '11', at: 1_900_000 }, { id: '12', at: 2_004_000 },
     { id: '13', at: 2_006_000 }, { id: '14', at: 2_200_000, current: true }
   ]
-  const playerHistory = [{ id: '21', at: 1_004_000 }, { id: '22', at: 2_200_000, current: true }]
+  const playerHistory = [{ id: '21', at: 1_004_000 }, { id: '22', at: 2_003_000 }, { id: '23', at: 2_200_000, current: true }]
   let liveRoom = history.at(-1)
   let liveReadsAfterRestore = 0
   const kind = path => path === player ? 'sprite' : path === room ? 'background' : 'cover'
@@ -91,8 +93,20 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   const view = await mount(page)
   await settle()
   const cards = view.node.querySelectorAll('.cs-b-bc')
+  assert.equal(cards.length, 2)
+  check('the result features the room comparison and keeps additional edits folded', () => {
+    assert.equal(cards[1].querySelectorAll('.cs-b-ba').length, 1)
+    assert.ok(cards[1].querySelector('button[aria-label="Look closer at before version of workshop.png"]'))
+    assert.equal(cards[1].querySelector('.cs-b-bc-details'), null)
+  })
+  for (const card of cards) {
+    await click('Details', card)
+  }
   const dialog = () => view.node.querySelector('[role="dialog"]')
-  const thumbnail = (card, label) => card.querySelector(`button[aria-label="${label}"]`)
+  const thumbnail = (card, label) => {
+    const area = label.includes('version of') ? card : card.querySelector('.cs-b-bc-changes')
+    return area?.querySelector(`button[aria-label="${label}"]`)
+  }
   const open = async (card, label) => {
     const opener = thumbnail(card, label)
     assert.ok(opener, label)
@@ -138,6 +152,14 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
     await close()
   }
 
+  await open(cards[1], 'Look closer at after version of workshop_player.png')
+  check('Details keeps the additional comparison at the end-of-turn version', () => {
+    assert.ok(cards[1].querySelector('.cs-b-bc-details button[aria-label="Look closer at after version of workshop_player.png"]'))
+    assert.equal(shownPath(), player)
+    assert.equal(shownVersion(), 'v2')
+  })
+  await close()
+
   const session_id = 'rt-of-st-tinker'
   await act(async () => {
     emit({ type: 'message.start', session_id })
@@ -149,6 +171,7 @@ await runScenario(async ({ act, answered, buildScenario, check, click, dom, emit
   })
   await settle()
   const liveCard = [...view.node.querySelectorAll('.cs-b-bc')].at(-1)
+  await click('Details', liveCard)
   check('a delayed completion shows the image from the Hermes report time', () => {
     assert.equal(thumbnail(liveCard, roomLabel).querySelector('img').src, imageUrl(room, '12'))
   })

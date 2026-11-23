@@ -1,7 +1,6 @@
 // The Build model panel's rail, stars and Standard / Fast bar (page/pages/build/composer/model-list.js,
 // model-settings.js): Fast only for ChatGPT or Codex Subscription and OpenAI API models that list fast mode, only on
 // their provider's tab, per conversation and in the New Game draft pick.
-// Run alone: node tests/page/page-build-speed.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'

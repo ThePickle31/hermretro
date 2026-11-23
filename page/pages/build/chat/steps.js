@@ -66,7 +66,6 @@ export function stepInfo(name, result) {
   const images = (Array.isArray(parsed.images) ? parsed.images : [])
     .map(image => (typeof image?.file === 'string' ? image.file.replace(/^MEDIA:/, '') : null))
     .filter(Boolean)
-    .slice(0, 8)
   const report = String(name ?? '') === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
 
   return {
@@ -74,7 +73,7 @@ export function stepInfo(name, result) {
     projectRoot: text(content.projectRoot),
     assetPath: text(content.assetPath),
     outputPath: text(content.outputPath) ?? (text(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
-    images,
+    images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
     note: String(name ?? '') === PRESENT_TOOL && parsed.ok === true ? text(parsed.studio?.note) : null,
     report,
     reportedAt: report && Number.isFinite(parsed.reportedAt) && parsed.reportedAt > 0 ? parsed.reportedAt : null

@@ -1,6 +1,5 @@
 // The asset viewer's Restore (page/pages/build/viewer/asset-viewer.js): putting a kept version back redraws every
 // picture of that file already on screen, not only the viewer's own, even one asked for by another spelling of its path.
-// Run alone: node tests/page/page-build-restore.test.mjs [path to a node_modules folder] (the harness is harness.mjs).
 import assert from 'node:assert/strict'
 
 import { runScenario } from './harness.mjs'
@@ -11,12 +10,16 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, key, 
     state: 'ready', rom: null, webExport: true, thumb: null, chat: null, error: null, session: { storedId: 'st-frog' } }],
   device: { hardwareEnabled: false, skipped: true } })
   const art = '/home/u/games/FrogPost/assets/ui/frame.png'
+  const cover = '/home/u/games/FrogPost/cover.png'
   scenario.byMethod['session.resume'] = params => ({ session_id: `rt-of-${params.session_id}`, running: false, messages: params.omit_messages ? [] : [
     { role: 'user', content: 'draw a frame', timestamp: 1000 },
     { role: 'assistant', content: '', timestamp: 1001, tool_calls: [{ id: 'i1', function: { name: 'chromatic_asset_import', arguments: JSON.stringify({ assetPath: 'assets/ui/frame.png', kind: 'ui' }) } }] },
     { role: 'tool', tool_call_id: 'i1', content: JSON.stringify({ ok: true }), timestamp: 1010 },
     { role: 'assistant', content: '', timestamp: 1011, tool_calls: [{ id: 'i2', function: { name: 'chromatic_asset_import', arguments: JSON.stringify({ assetPath: 'assets/ui/../ui/frame.png', kind: 'ui' }) } }] },
     { role: 'tool', tool_call_id: 'i2', content: JSON.stringify({ ok: true }), timestamp: 1012 },
+    { role: 'assistant', content: '', timestamp: 1013, tool_calls: [{ id: 'r1', function: { name: 'chromatic_build_report', arguments: '{}' } }] },
+    { role: 'tool', tool_call_id: 'r1', content: JSON.stringify({ ok: true, report: { title: 'Frame and cover',
+      changes: [{ kind: 'added', text: 'Cover', asset: cover }] } }), timestamp: 1014 },
     { role: 'assistant', content: `Drawn.\nMEDIA:${art}\nMEDIA:${art}`, timestamp: 1020 }] })
   // The file on disk is v2 until v1 is put back.
   const look = { v1: 'data:image/png;base64,djE=', v2: 'data:image/png;base64,djI=' }
@@ -25,6 +28,10 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, key, 
   const reload = new Promise(resolve => { finishReload = resolve })
   let reloads = 0
   scenario.byMethod['plugin.hermretro.asset'] = params => {
+    if (params.path === cover) {
+      return { ok: true, path: cover, name: 'cover.png', kind: 'cover', width: 16, height: 16, versionId: '1', dataUrl: look.v1 }
+    }
+
     const shown = params.version === '1' ? 'v1' : params.version === '2' ? 'v2' : onDisk
     const answer = { ok: true, path: art, name: 'frame.png', relative: 'assets/ui/frame.png', kind: 'ui', width: 16, height: 16, bytes: 4,
       earlier: Boolean(params.version) && shown !== onDisk, versionId: shown === 'v1' ? '1' : '2', dataUrl: look[shown] }
@@ -45,6 +52,7 @@ await runScenario(async ({ act, buildScenario, dom, scenario, page, click, key, 
   await settle(100)
   const stacked = () => [...view.node.querySelectorAll('.cs-b-wk-row .cs-b-stack-i img')].map(node => node.getAttribute('src'))
   check('the turn shows both spellings of the picture it made as the file is now', () => { assert.deepEqual(stacked(), [look.v2, look.v2]) })
+  assert.ok(view.node.querySelector('.cs-b-bc .cs-b-ba-side.now[aria-label="Look closer at cover.png"]'))
   const openers = () => [...view.node.querySelectorAll('.cs-b-rchip[aria-label="Look closer at frame.png"]')]
   const [, opener] = openers()
   assert.ok(opener)
