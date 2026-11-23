@@ -31,14 +31,6 @@ import { Background } from '#app/background.js'
 import { BuildSwitcher, switcherEntries } from './switcher.js'
 import { CartShelf } from './cart-shelf.js'
 
-function rememberSelection(ctx, selection) {
-  try {
-    ctx.storage.set('buildSelected', selection)
-  } catch {
-    // this visit only
-  }
-}
-
 /** `updating`: hermretro is being updated: nothing new is sent until it is done (the update reloads the plugin). */
 export function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS)
@@ -63,8 +55,12 @@ export function BuildPage({ ctx, games, selection, onSelect: select, pendingGame
   useEffect(() => {
     if (selection === null) {
       select(selected)
-    } else {
-      rememberSelection(ctx, selection)
+      return
+    }
+    try {
+      ctx.storage.set('buildSelected', selection)
+    } catch {
+      // This visit only.
     }
   }, [ctx, select, selected, selection])
 

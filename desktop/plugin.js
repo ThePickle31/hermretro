@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 10dbe6a30196a4bf5a5a5bb40228303750cf6a56a491c4f5e0c0f200aa401891
- * body: sha256 6a37a633909a62fd3755cd57c64de0ad7a7d6255ffd98c194626361c47603999
+ * sources: sha256 c06f8b43eb8d246c481751d7835a1e4c903b45072ab771b410c10371b2253977
+ * body: sha256 7d74255f94022f411ca2c722c7c9eef6bc4a6b4ecada34917d2b3f89f61dbeb7
  */
 // page/sdk.js
 import {
@@ -8992,12 +8992,6 @@ function CartShelf({ entries, others, onSelect, onAll }) {
 }
 
 // page/pages/build/build-page.js
-function rememberSelection(ctx, selection) {
-  try {
-    ctx.storage.set("buildSelected", selection);
-  } catch {
-  }
-}
 function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, localPending, changePending, loaded = true, onLibraryChanged, updating = false }) {
   const chats = useValue(BUILD_CHATS);
   const startingGames = useValue(BUILD_STARTING);
@@ -9016,8 +9010,11 @@ function BuildPage({ ctx, games, selection, onSelect: select, pendingGames, loca
   useEffect(() => {
     if (selection === null) {
       select(selected);
-    } else {
-      rememberSelection(ctx, selection);
+      return;
+    }
+    try {
+      ctx.storage.set("buildSelected", selection);
+    } catch {
     }
   }, [ctx, select, selected, selection]);
   const rail = useMemo(
