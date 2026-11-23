@@ -3,7 +3,7 @@
 The per-user broker process (`python -m backend.broker`): the single authority over engine workers, project writers and the hardware gate (`broker.py`, `lane.py`, `control.py`, `install.py` (the desktop page's toolchain install: start, MCP cancel, stall
 watch, journal), `server.py`, `engine.py`, `leases.py`), and the client the gateway uses to reach it (`client.py`). Standard library only, no Hermes: `tests/repo/test_broker_imports.py` walks everything it imports. The broker never emits events (their listeners live in the gateway).
 
-The client bounds handshakes and passive status requests. Lane status allows the engine to complete its 15-second session probe. Engine tool calls use their own execution budgets.
+The client bounds startup, handshakes, status and install cancellation requests. Lane status allows the engine to complete its 15-second session probe. Engine tool calls use their own execution budgets.
 
 ## What it adds
 
@@ -12,7 +12,7 @@ The client bounds handshakes and passive status requests. Lane status allows the
 
 ## Front door
 
-`backend.broker`: `ensure_broker`, `try_connect`, `BrokerUnavailable`. The broker itself imports other features only through their front doors (`backend.library`, `backend.setup`), which therefore stay stdlib-only. Read `tests/backend/broker/test_broker_socket.py` before changing the socket protocol.
+`backend.broker`: `ensure_broker`, `try_connect`, `BrokerUnavailable` and its subclasses `BrokerNotRunning` and `OtherCopyBusy`. `BrokerNotRunning` means the socket was missing or refused the connection. The broker itself imports other features only through their front doors (`backend.library`, `backend.setup`), which therefore stay stdlib-only. Read `tests/backend/broker/test_broker_socket.py` before changing the socket protocol.
 
 ## Tests
 

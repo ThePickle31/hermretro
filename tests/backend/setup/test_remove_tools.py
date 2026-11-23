@@ -121,6 +121,25 @@ class RemoveDownloads(unittest.TestCase):
         self.assertTrue(answer["ok"])
         self.assertFalse((self.cache / "toolchain").exists())
 
+    def test_a_timeout_during_the_handshake_or_shutdown_leaves_the_tools_in_place(self):
+        run = self.home / "run"
+        run.mkdir()
+        error = hermes_host.BrokerUnavailable("Broker did not answer before its deadline")
+        connected = FakeBrokerClient({})
+        with (
+            mock.patch.object(paths, "runtime_dir", return_value=run),
+            mock.patch.object(connected, "request", side_effect=error),
+            mock.patch.object(setup_rpcs, "_broker_lock") as lock,
+            mock.patch.object(setup_rpcs, "emit") as emit,
+        ):
+            for result in ((None, error), (connected, None)):
+                with mock.patch.object(hermes_host, "try_connect", return_value=result):
+                    answer = setup_rpcs.rpc_remove_tools(None)({})
+                self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))
+                self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
+        lock.assert_not_called()
+        emit.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

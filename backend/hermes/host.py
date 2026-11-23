@@ -130,21 +130,28 @@ _STAY_IN_TOOLS = (
 )
 
 
+def _broker_activity(ids: list[str]) -> dict:
+    if not ids:
+        return {}
+    client, _ = try_connect(paths.runtime_dir())
+    if client is None:
+        return {}
+    try:
+        with client:
+            return client.request({"op": "activity", "profile": _profile_identity(), "ids": ids, "limit": 1})
+    except (BrokerUnavailable, ValueError):
+        return {}
+
+
 def _other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str) -> dict:
     """The answer when another copy of the plugin's broker still runs games: whether one of them is this very
     chat's (hermretro's folder changed while the chat was working), only other chats', or, when that copy cannot
     be asked (an older version), unknown."""
     own = None
     ids = [value for value in (conversation_id, session_id) if value]
-    client, _ = try_connect(paths.runtime_dir()) if ids else (None, None)
-    if client is not None:
-        with client:
-            try:
-                answer = client.request({"op": "activity", "profile": _profile_identity(), "ids": ids, "limit": 1})
-            except (BrokerUnavailable, ValueError):
-                answer = {}
-        if answer.get("ok"):
-            own = answer.get("matched") == "chat" and bool((answer.get("lane") or {}).get("alive"))
+    answer = _broker_activity(ids)
+    if answer.get("ok"):
+        own = answer.get("matched") == "chat" and bool((answer.get("lane") or {}).get("alive"))
     where = f" ({error.plugin_root})" if error.plugin_root else ""
     if own:
         message = (
@@ -268,15 +275,9 @@ def _chat_project(conversation_id: str, session_id: str) -> str | None:
     bound = _bound_game(conversation_id, session_id)
     if bound is not None and isinstance(bound.get("projectRoot"), str):
         return bound["projectRoot"]
-    client, _error = try_connect(paths.runtime_dir())
-    if client is not None:
-        with client:
-            answer = client.request({"op": "activity", "profile": _profile_identity(), "ids": ids, "limit": 1})
-        root = (
-            (answer.get("lane") or {}).get("project_root")
-            if answer.get("ok") and answer.get("matched") == "chat"
-            else None
-        )
+    answer = _broker_activity(ids)
+    if answer.get("ok") and answer.get("matched") == "chat":
+        root = (answer.get("lane") or {}).get("project_root")
         if isinstance(root, str) and root:
             return root
     here = _profile_identity()

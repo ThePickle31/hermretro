@@ -85,7 +85,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
         self.addCleanup(held.close)
         started: list[Running] = []
 
-        def spawn(state, _node):  # what the update's first call starts: a broker of the new files
+        def spawn(state, _node, *, deadline):  # what the update's first call starts: a broker of the new files
             started.append(self.start())
             process = mock.Mock()
             process.poll.return_value = None
@@ -122,7 +122,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
 
         started: list[Running] = []
 
-        def spawn(state, _node):
+        def spawn(state, _node, *, deadline):
             server.Handler.handle = real  # the new broker is of this build
             started.append(self.start())
             process = mock.Mock()

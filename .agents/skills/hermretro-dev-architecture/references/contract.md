@@ -73,7 +73,8 @@ fails when it is stale); the agent tool names it reacts to are in
 ```
 
 `project` is `null` or `{ "root": "/abs/path", "name": "folder", "emulator_active": false, "writer": true }`
-for the conversation named by `chat` (the focused chat's id). `plugin.installed_in` names the profile Hermes installed
+for the conversation named by `chat` (the focused chat's id). When the handshake cannot be confirmed,
+`broker.running` is `null`. `plugin.installed_in` names the profile Hermes installed
 this copy into (the studio profile only links it), where the page runs Hermes's `plugins.manage update`; it is
 `{ "profile": null, "linked": true }` for a checkout linked in from elsewhere, which Hermes does not update. It is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
 
@@ -140,7 +141,8 @@ Hermes before trying again, and until that worker is gone the broker does not st
 a chat's `chromatic_toolchain_prepare` and `remove_tools` are refused. A broker from before cancel answers
 `cancel` with `CANCEL_UNSUPPORTED` (`ok: false`; its install goes on). `status` and `cancel` are passive and never
 start the broker; with no broker running, `status` reports the last install from its journal
-(`<deps root>/page-install.json`), a `running` one as `interrupted`. All return:
+(`<deps root>/page-install.json`), a `running` one as `interrupted`. An unanswered broker request returns
+`UNAVAILABLE`. A cancel also returns `UNAVAILABLE` when there is no broker to acknowledge it. Successful calls return:
 
 ```json
 {
@@ -183,6 +185,7 @@ and their receipts; only its lock file stays); games and the library stay, and l
 followed. Asks a running broker to stop, then holds the broker's election lock for the whole removal (no broker
 can start meanwhile). Returns `{ ok, removed_bytes, left_bytes, root }` or `{ ok: false, code, error }` with `code`
 `BUSY` (a game's chat has a live worker, an install runs, or the broker did not stop within 15 s),
+`UNAVAILABLE` (the handshake or shutdown could not be confirmed),
 `CUSTOM_LOCATION` (`HERMRETRO_DEPS_ROOT` / `GB_STUDIO_SETUP_ROOT` set), `UNEXPECTED_LOCATION` or `PARTLY_REMOVED`
 (some files could not be deleted; a retry finishes them). Setup can then install again.
 

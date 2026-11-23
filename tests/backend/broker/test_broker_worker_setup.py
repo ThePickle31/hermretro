@@ -63,7 +63,7 @@ class StaleWorkerSetup(unittest.TestCase):
         self.addCleanup(running.close)
         return running
 
-    def spawn(self, _state, node):  # what ensure_broker starts: a broker of the Node it found now
+    def spawn(self, _state, node, *, deadline):  # what ensure_broker starts: a broker of the Node it found now
         self.temp_broken = False  # a fresh broker inherits the client's (fixed) TMPDIR
         self.started.append(self.start(Path(node)))
         process = mock.Mock()

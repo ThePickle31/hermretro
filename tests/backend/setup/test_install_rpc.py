@@ -4,6 +4,7 @@ import os
 import unittest
 from unittest import mock
 
+from backend.broker import BrokerNotRunning, BrokerUnavailable
 from backend.broker.broker import Broker, Denied
 from backend.hermes import host as hermes_host
 from backend.setup import recovery, rpcs as setup_rpcs
@@ -29,8 +30,34 @@ class InstallRpc(unittest.TestCase):
         self.assertIn("free_bytes", answer["space"], "the page can check the space before it starts")
 
     def test_with_no_broker_and_no_journal_it_is_idle(self):
-        with mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)):
+        with mock.patch.object(hermes_host, "try_connect", return_value=(None, BrokerNotRunning("missing socket"))):
             self.assertEqual(self.rpc({"action": "status"})["install"], {"state": "idle"})
+            cancel = self.rpc({"action": "cancel", "run_id": "run-a"})
+        self.assertEqual((cancel["ok"], cancel["code"]), (False, "UNAVAILABLE"))
+
+    def test_install_status_and_cancel_are_unavailable_when_the_handshake_times_out(self):
+        recovery.write_journal({"state": "running", "started_at": 100.0, "broker": "unknown"})
+        error = BrokerUnavailable("Broker did not answer hello before its deadline")
+        with mock.patch.object(hermes_host, "try_connect", return_value=(None, error)):
+            for action in ("status", "cancel"):
+                with self.subTest(action=action):
+                    answer = self.rpc({"action": action, "run_id": "run-a"})
+                    self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))
+                    self.assertIn("hello", answer["error"])
+                    self.assertIn("manifest", answer)
+                    self.assertNotIn("install", answer)
+
+    def test_install_status_and_cancel_are_unavailable_when_the_request_times_out(self):
+        connected = FakeBrokerClient({})
+        with mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)):
+            for action in ("status", "cancel"):
+                with (
+                    self.subTest(action=action),
+                    mock.patch.object(connected, "request", side_effect=BrokerUnavailable("Broker request timed out")),
+                ):
+                    answer = self.rpc({"action": action, "run_id": "run-a"})
+                    self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))
+                    self.assertNotIn("install", answer)
 
     def test_cancel_goes_to_the_broker_with_its_run_and_never_starts_one(self):
         client = FakeBrokerClient({"ok": True, "install": {"state": "running", "cancelling": True}})
