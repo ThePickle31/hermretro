@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from backend.hermes import host
-from backend.library import games, game_card, project, rpcs, shelf
+from backend.library import freshness, games, game_card, project, rpcs, shelf
 from tests.support import FakeBrokerClient, isolated_home, make_project
 
 
@@ -245,7 +245,7 @@ class RegistryReads(unittest.TestCase):
         real_artifacts = project.build_artifacts
         with (
             mock.patch.object(project, "build_artifacts", wraps=real_artifacts) as artifacts,
-            mock.patch.object(project, "sources_newer_than", side_effect=AssertionError("source walk")),
+            mock.patch.object(freshness, "sources_newer_than", side_effect=AssertionError("source walk")),
             mock.patch.object(game_card, "public", side_effect=AssertionError("card read")),
             mock.patch.object(shelf, "describe", side_effect=AssertionError("shelf description")),
             mock.patch.object(host, "try_connect", side_effect=AssertionError("broker request")),

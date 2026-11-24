@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import game_card, project
+from . import freshness, game_card, project
 
 # A failed build's error, as recorded in lastBuild and answered by the games RPC.
 ERROR_CHARS = 240
@@ -66,7 +66,7 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
         state = "failed"
     elif built is None:
         state = "unbuilt"
-    elif project.sources_newer_than(root, built):
+    elif freshness.sources_newer_than(root, built):
         state = "changed"
     else:
         state = "ready"

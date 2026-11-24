@@ -3,7 +3,8 @@
 - `games.py` owns registry storage, file locking and broker observations. `bindings.py` handles Build conversation
   ownership, session aliases, pending New Game records and the game's linked chat.
 - `thumbnails.py` reads title-screen thumbnails and decodes PNG uploads.
-- `project.py` handles game IDs, reads project titles, build files and sources, and checks playable-copy freshness.
+- `project.py` handles game IDs, reads project titles, settings, the game's ROM and build files. `freshness.py` says
+  whether the playable copy is the current game (`export_freshness`, `source_digest`, `sources_newer_than`).
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
 - `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png`.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
@@ -71,7 +72,8 @@ Every build of a project writes one ROM, `project.canonical_rom(root)` (front do
 or `build/game.gb` when `project/settings.gbsres` says `colorMode: "mono"`. The broker sets `chromatic_rom_build`'s
 `outputPath` to it and refuses any other (`game_rom_arguments` in `backend/broker/broker.py`, code `ROM_PATH`); a
 standalone C build (`sourcePath`) is not a project build. The engine writes that ROM's bytes into the web export of the
-same sources (`engine/CHANGES.md`), so `export_freshness` counts a copy that plays other bytes as stale. The shelf's
+same sources (`engine/CHANGES.md`), so `export_freshness` counts a copy that plays other bytes as stale, except in a
+project with batteryless saves on, whose web copy GB Studio compiles without them. The shelf's
 `rom` is that file; a game last built before it existed falls back to `lastBuild.rom`, then to the web export's ROM.
 Other ROMs left in `build/` are never the game.
 

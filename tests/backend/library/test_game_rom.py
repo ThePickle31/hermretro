@@ -31,6 +31,11 @@ class GameRom(unittest.TestCase):
                 self.color_mode(mode)
                 self.assertEqual(project.canonical_rom(self.root), rom)
 
+    def test_an_older_single_file_project_names_its_rom_from_its_own_settings(self):
+        descriptor = self.root / "rom-game.gbsproj"
+        descriptor.write_text(json.dumps({"name": "Rom Game", "settings": {"colorMode": "mono"}}))
+        self.assertEqual(project.canonical_rom(self.root), "build/game.gb")
+
     def test_a_newer_rom_left_in_build_is_not_the_game(self):
         stray = self.root / "build" / "playtest.gbc"
         stray.write_bytes(b"\4" * 1024)

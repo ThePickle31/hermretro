@@ -68,6 +68,16 @@ class PresentFreshness(unittest.TestCase):
         self.assertIn("build/game.gbc", why)
         self.assertIn("chromatic_rom_build", next_step)
 
+    def test_a_batteryless_games_copy_is_its_own_compilation(self):
+        rom = self.root / "build" / "game.gbc"
+        stamp = rom.stat().st_mtime
+        rom.write_bytes(b"\3" * 512)  # GB Studio compiles the web copy without batteryless saves
+        os.utime(rom, (stamp, stamp))
+        settings = self.root / "project" / "settings.gbsres"
+        settings.write_text(json.dumps({"batterylessEnabled": True}))
+        os.utime(settings, (stamp - 300, stamp - 300))
+        self.assertEqual(self.freshness(), (True, None, None))
+
     def test_a_copy_moved_in_from_elsewhere_keeps_its_record_but_must_match_it(self):
         other = self.root.parent / "elsewhere"
         shutil.copytree(self.web, other)
