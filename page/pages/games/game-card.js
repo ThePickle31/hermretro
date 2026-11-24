@@ -157,6 +157,17 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   })
 }
 
+/** What is wrong with the game folder's layout (`layout` in the games RPC), when anything is. */
+function LayoutTag({ layout }) {
+  const findings = [...(layout?.problems ?? []), ...(layout?.warnings ?? [])]
+
+  if (!findings.length) {
+    return null
+  }
+
+  return jsxs('span', { className: `cs-gst ${layout.problems?.length ? 'bad' : 'warn'}`, title: findings.map(item => item.message).join('\n'), children: [jsx('i', {}), 'Layout'] })
+}
+
 export function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   const title = game.displayTitle || game.title
   const card = game.card ?? null
@@ -189,7 +200,7 @@ export function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
           jsxs('div', {
             className: 'cs-gline',
             title: meta.join(' · '),
-            children: [jsxs('span', { className: `cs-gst ${tone}`, children: [jsx('i', {}), status] }), jsx('span', { children: built })]
+            children: [jsxs('span', { className: `cs-gst ${tone}`, children: [jsx('i', {}), status] }), jsx('span', { children: built }), jsx(LayoutTag, { layout: game.layout })]
           })
         ]
       }),

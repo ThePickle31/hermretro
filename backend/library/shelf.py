@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import freshness, game_card, project
+from . import freshness, game_card, layout, project
 
 # A failed build's error, as recorded in lastBuild and answered by the games RPC.
 ERROR_CHARS = 240
@@ -60,6 +60,10 @@ def game_details(entry: dict, identifier: str, root: Path, artifacts: dict) -> d
 
 
 def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
+    try:
+        layout.ensure(root)  # every game the library reads has the game layout
+    except OSError:
+        pass
     last = last_build(entry)
     artifacts, built = project.build_artifacts(root, last)
     if last.get("ok") is False and (built is None or project.timestamp(last.get("t")) >= built):
@@ -80,6 +84,7 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
         "thumb": cover or thumb(identifier),
         "cover": bool(cover),
         "card": card,
+        "layout": layout.check(root),
         "displayTitle": (card or {}).get("title") or game["title"],
         "error": (str(last.get("error") or "The build failed."))[:ERROR_CHARS] if state == "failed" else None,
         "updatedAt": project.timestamp(entry.get("updatedAt"), None),

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from backend import library
 from backend.broker.engine import EngineProcess
+from backend.library import layout
 from backend.system import paths
 from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
 
@@ -67,6 +68,18 @@ def create_and_edit(suite, client_a, client_b):
         and first_status["lane"]["engine_pid"] != sb["lane"]["engine_pid"],
         a=first_status.get("lane"),
         b=sb.get("lane"),
+    )
+    made = {str(root): layout.check(root) for root in (suite.project_a, suite.project_b)}
+    suite.check(
+        "G1",
+        "Each new game is made in the game layout: its id, README, changelog and .gitignore",
+        all(report["ok"] for report in made.values())
+        and all(
+            layout.game_identity(root)
+            and all((root / name).is_file() for name in ("README.md", "CHANGELOG.md", ".gitignore"))
+            for root in (suite.project_a, suite.project_b)
+        ),
+        layout=made,
     )
     snap_a0, snap_b0 = snapshot(suite.project_a), snapshot(suite.project_b)
 

@@ -7,8 +7,8 @@ import hashlib
 import os
 from pathlib import Path
 
-from . import game_card
 from .project import (
+    GAME_FILES,
     NOT_SOURCE,
     _game_rom,
     _legacy_rom,
@@ -202,8 +202,8 @@ def sources_newer_than(root: Path, moment: float) -> bool:
     for directory, folders, files in os.walk(root):
         folders[:] = [f for f in folders if not f.startswith(".") and f not in NOT_SOURCE]
         for name in files:
-            # The game card (game.json, cover.png) describes the game; it is not game source.
-            if name.startswith(".") or (directory == top and name in game_card.CARD_FILES):
+            # The game card, README, changelog and licence describe the game; they are not game source.
+            if name.startswith(".") or (directory == top and name in GAME_FILES):
                 continue
             seen += 1
             if seen > MAX_SOURCE_FILES:

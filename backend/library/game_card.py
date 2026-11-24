@@ -101,6 +101,14 @@ def _write(root: Path, data: dict) -> None:
         raise
 
 
+def set_fields(root: Path, fields: dict) -> dict:
+    """Merge ``fields`` into the stored card and write it, unchecked: the game layout's own fields (``id``,
+    ``gameVersion``, ``rom``; ``backend/library/layout.py``), which ``update`` never takes."""
+    data = {**load(root), **fields}
+    _write(root, data)
+    return data
+
+
 def scaffold(root: Path, title: str) -> dict:
     """Write a starter card (the title, everything else empty) unless the game has one."""
     root = Path(root)

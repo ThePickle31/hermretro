@@ -11,7 +11,8 @@ from .. import player as player_server
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
-from . import game_card, games as library
+from . import game_card, layout
+from . import games as library
 from .tool_args import other_game_refusal, tool_error, tool_project
 
 logger = host.logger  # one logger for the Hermes side of the backend
@@ -93,6 +94,14 @@ def present_game_handler(args: dict, **kwargs) -> str:
                     "problems": card["problems"],
                     "nextStep": game_card.next_step(card["missing"]) + " Then call chromatic_present_game again.",
                 }
+            )
+        problems = layout.check(Path(root))["problems"]
+        if problems:
+            return tool_error(
+                "The game folder is not in the game layout: " + " ".join(item["message"] for item in problems),
+                "LAYOUT",
+                "Restore what is missing (the game's .gbsproj, its project/ folder and a readable game.json), then "
+                "call chromatic_present_game again. Never edit the id in game.json or anything in .hermretro/.",
             )
         chat = None
         if conversation_id:
@@ -246,6 +255,10 @@ def game_info_handler(args: dict, **kwargs) -> str:
                     }
                 )
             state = result["status"]
+            try:
+                layout.ensure(path)  # the README follows the card
+            except OSError:
+                pass
         else:
             state = game_card.status(path, strict=True)
         card = game_card.public(path) or {}

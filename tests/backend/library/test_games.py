@@ -260,6 +260,7 @@ class GamesRpc(unittest.TestCase):
                 "session",
                 "cover",
                 "card",
+                "layout",
                 "displayTitle",
             },
             "the games RPC's keys changed: change describe (backend/library/shelf.py), this set, the "
@@ -270,6 +271,7 @@ class GamesRpc(unittest.TestCase):
         self.assertTrue(game["thumb"].startswith("data:image/png;base64,"))
         self.assertEqual(game["card"]["tagline"], "Fly a tiny ship through a meteor field.")
         self.assertTrue(game["card"]["complete"])
+        self.assertEqual(game["layout"], {"ok": True, "problems": [], "warnings": []})
         self.assertIsNone(game["session"])
         self.assertEqual(answer["pending"], [])
         self.assertEqual(game["chat"]["sessionId"], "run-1")

@@ -17,7 +17,7 @@ export function libraryGames(now2) {
       webExport: true, thumb: 'data:image/png;base64,AAAA', chat: { sessionId: 'stored-comet', title: 'Comet Drift — first level' }, error: null,
       card: { title: 'Comet Drift', tagline: 'Dodge, boost, survive.', description: 'Steer a comet through an asteroid field.', about: null,
         genres: ['Arcade', 'Shooter'], tags: ['space'], controls: { A: 'Boost', 'D-Pad': 'Steer' },
-        complete: true, missing: [], hasCover: true, coverForBuild: 'sha-one' } },
+        complete: true, missing: [], hasCover: true, coverForBuild: 'sha-one' }, layout: { ok: true, problems: [], warnings: [] } },
     { id: 'bbb222bbb222', title: 'Robo Run', projectRoot: '/home/u/ChromaticGames/RoboRun', kind: 'gbdk', state: 'failed', rom: null,
       webExport: false, thumb: null, chat: null, error: 'background uses 212 tiles (limit 192)' },
     { id: 'ddd444ddd444', title: 'Ace Arena', projectRoot: '/home/u/ChromaticGames/AceArena', kind: 'gbstudio', state: 'unbuilt', rom: null,
@@ -25,7 +25,8 @@ export function libraryGames(now2) {
     { id: 'ccc333ccc333', title: 'Old Orbit', projectRoot: '/home/u/ChromaticGames/OldOrbit', kind: 'gbstudio', state: 'ready', // built first:
       rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null,
       card: { title: 'Old Orbit', tagline: null, description: null, about: null, genres: ['Puzzle'], tags: [], controls: {},
-        complete: false, missing: ['tagline', 'description', 'cover'], hasCover: false, coverForBuild: null } }
+        complete: false, missing: ['tagline', 'description', 'cover'], hasCover: false, coverForBuild: null },
+      layout: { ok: true, problems: [], warnings: [{ code: 'UNKNOWN_ENTRY', path: 'notes.txt', message: 'notes.txt is not part of the game layout; it stays local.' }] } }
   ]
 }
 
