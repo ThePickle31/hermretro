@@ -165,7 +165,7 @@ function LayoutTag({ layout }) {
     return null
   }
 
-  return jsxs('span', { className: `cs-gst ${layout.problems?.length ? 'bad' : 'warn'}`, title: findings.map(item => item.message).join('\n'), children: [jsx('i', {}), 'Layout'] })
+  return jsxs('span', { className: `cs-gst ${layout.problems?.length ? 'bad' : 'warn'}`, title: findings.map(item => item.path || item.code).join('\n'), children: [jsx('i', {}), 'Layout'] })
 }
 
 export function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {

@@ -261,7 +261,8 @@ Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbs
 
 `chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
 web export the engine made of the current sources (else `BUILD_FIRST`) and a complete game card (else
-`GAME_INFO_INCOMPLETE` with `missing`, `problems` and `nextStep`), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
+`GAME_INFO_INCOMPLETE` with `missing`, `problems` and `nextStep`; before the card, a game folder out of its layout gets
+`LAYOUT` with `nextStep`: `layout.check`'s problems, `backend/library/README.md`, "The game folder"), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
 title, note, presentedAt, buildConversation } }` (`buildConversation`: the game's own Build conversation presented
 it, so the Build page plays it); otherwise the desktop opens the emulator in a tab docked right of the chat. Builds
 open nothing. Setting `live_player` ("Keep the playable copy current", default on) makes every successful
@@ -344,7 +345,9 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 
 ```
 { version: 1, title, tagline, description, about, genres: [..], tags: [..], controls: { button: action },
-  cover: "cover.png", coverSha256, coverForBuild /* ROM sha when the cover was set */, createdAt, updatedAt }
+  cover: "cover.png", coverSha256, coverForBuild /* ROM sha when the cover was set */, createdAt, updatedAt,
+  id /* the portable game id */, gameVersion /* "0.1.0" until a release */, rom /* "build/game.gbc" */,
+  remixOf? /* { id, version } of the game a remix came from */ }
 ```
 
 - **Required to present:** title (1–60), tagline (8–90), description (40–400), 1–3 genres from `Action,
@@ -375,6 +378,7 @@ One entry of the `games` RPC's `games[]` (`describe` in `backend/library/shelf.p
 | rom | `{ path, sha256, size, builtAt }` of the game's ROM (`build/game.gbc` or `build/game.gb`, the newer); for a game last built before it had one, the last recorded build's ROM, else the newest in `build/`, else the web export's; or null |
 | webExport, web | Whether a web export exists; its ROM `{ sha256, builtAt }`, or null |
 | thumb, cover | A data URL for the shelf (the cover, else the captured title screen, else null); whether it is the cover |
+| layout | `layout.check()` (`backend/library/layout.py`): `{ ok, problems, warnings }`, each `{ code, path, message }`; a problem blocks presenting, a warning names what stays local |
 | card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |
 | chat | `{ sessionId, title, conversationId, profile, thisProfile }` of the chat working on it (the last to select it), or null |
 | session | The Build conversation bound to it: `{ storedId, createdAt, thisProfile, profileName, exists }`, or null |

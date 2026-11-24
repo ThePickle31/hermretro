@@ -7,7 +7,7 @@
   whether the playable copy is the current game (`export_freshness`, `source_digest`, `sources_newer_than`).
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
 - `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png`.
-- `layout.py` keeps every game folder in the game layout (below) and lists what a publish would hold.
+- `layout.py` keeps every game folder in the game layout (below); `release.py` says what a publish holds and records.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
@@ -85,27 +85,35 @@ Every game has one layout from the moment it is made (`layout.py`), so it can be
 source, and updated without being reshaped:
 
 - **game** (every publish): `game.json`, `cover.png`, `README.md`, `CHANGELOG.md`, `LICENSE`, `.gitignore`
-  (`project.GAME_FILES`) and the ROM, `project.canonical_rom(root)`.
-- **source** (a publish with the source): the `.gbsproj`, `project/`, `assets/`, `plugins/`, `art/`, `docs/`.
-- **local** (never published): `build/` but the ROM, `captures/`, `save-states/`, `artifacts/`, `node_modules/`,
-  `.hermretro/`, and anything else (`check` warns about an unknown top-level entry).
+  (`project.GAME_FILES`) and the ROM, `layout.game_rom(root)`: `project.canonical_rom(root)`, or for a game
+  installed without its source the `build/game.gb[c]` its `game.json` names.
+- **source** (a publish with the source): the `.gbsproj`, `project/`, `assets/`, `plugins/`, `art/`.
+- **local** (never published): `build/` but the ROM, `docs/` (the agent's plans), `captures/`, `save-states/`,
+  `artifacts/`, `node_modules/`, `.hermretro/`, and anything else (`check` warns about an unknown top-level entry).
 
 `layout.ensure(root)` runs when a project is created (`Registry.observe`), whenever the shelf describes a game
 (`shelf.describe`) and after `chromatic_game_info` changes the card. It gives the game an id (32 hex digits, the same
 on every machine, unlike the library's path id) kept in `.hermretro/identity.json` and copied into `game.json`
-(`id`), `gameVersion` (`0.1.0` until a publish raises it) and `rom` in `game.json` (`game_card.set_fields`; the card's
+(`id`), `gameVersion` (`0.1.0` until a release raises it) and `rom` in `game.json` (`game_card.set_fields`; the card's
 own `version` is its schema), writes `README.md` from the card, `CHANGELOG.md` and `.gitignore`, and restores an
 edited id. It rewrites only files whose first line says hermretro made them (and a template project's own README),
-and never moves or deletes anything. None of these files is game source (`freshness.sources_newer_than` skips them).
+and never moves or deletes anything; for a game installed without its source it only keeps the author's id. None of
+these files is game source (`freshness.sources_newer_than` skips them). `layout.new_identity` makes a copy (a remix) a
+game of its own: a new id, the first version, a fresh changelog, no publish or install record, and `remixOf: {id,
+version}` in `game.json`.
 
 `layout.check(root)` answers `{ok, problems, warnings}` (each `{code, path, message}`), which the games RPC returns
-as `layout`. A problem (`NO_PROJECT`, `NO_SOURCE`, `CARD_UNREADABLE`, `ID_CHANGED`) makes `chromatic_present_game`
-refuse with `LAYOUT`; a warning (`UNKNOWN_ENTRY`, `OWN_README`) shows the Games card's Layout tag.
+as `layout`. A problem (`NO_PROJECT`, `NO_ROM` for a game without its source, `NO_SOURCE`, `CARD_UNREADABLE`,
+`ID_CHANGED`) makes `chromatic_present_game` refuse with `LAYOUT`; a warning (`UNKNOWN_ENTRY`, `OWN_README`) shows the
+Games card's Layout tag.
 
-For publishing: `layout.files(root, source=...)` lists what a publish holds; `record_publish` writes
-`.hermretro/publish.json` (`{repo, commit, version, romSha256, sources, t}`), sets `gameVersion` and adds a
-`CHANGELOG.md` entry; `published`, `unpublished_changes` and `next_version` read it; `new_identity` makes a copy (a
-remix) a game of its own: a new id, the first version and no publish record.
+`release.py` is what a publish holds and records (nothing reaches the network): `readiness(root, source=...)`
+(layout, a complete card, a current ROM, the project for a source publish), `prepare_release(root, version, notes)`
+before the commit (`gameVersion`, one changelog entry, the README), `files(root, source=...)` (exactly what to commit:
+no hidden files, links or linked folders), and after the push `record_publish` (`.hermretro/publish.json`: `{repo,
+commit, version, source, payload, t}`, `payload` being `payload_digest`); `published`, `unpublished_changes` and
+`next_version` read it. `record_install`/`installed` keep where an installed game came from
+(`.hermretro/install.json`: `{repo, commit, source, t}`).
 
 ## Captures
 

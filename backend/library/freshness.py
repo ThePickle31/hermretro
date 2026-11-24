@@ -196,10 +196,20 @@ def export_freshness(
 
 
 def sources_newer_than(root: Path, moment: float) -> bool:
-    """Whether any game source file under the project changed after ``moment`` (a ROM's mtime)."""
+    """Whether any game source file under the project changed after ``moment`` (a ROM's mtime). For a GB Studio
+    project that is what a build reads: its ``.gbsproj``, ``project/``, ``assets/`` and ``plugins/`` (a file the game
+    layout keeps local never counts); for any other project, every file but build output and the game files."""
+    descriptor = project_file(Path(root))
+    if descriptor is not None:
+        try:
+            if descriptor.stat().st_mtime > moment + 1.0:
+                return True
+        except OSError:
+            pass
     seen = 0
     top = os.fspath(root)
-    for directory, folders, files in os.walk(root):
+    walks = [os.walk(Path(root, folder)) for folder in EXPORT_SOURCES] if descriptor is not None else [os.walk(root)]
+    for directory, folders, files in (step for walk in walks for step in walk):
         folders[:] = [f for f in folders if not f.startswith(".") and f not in NOT_SOURCE]
         for name in files:
             # The game card, README, changelog and licence describe the game; they are not game source.

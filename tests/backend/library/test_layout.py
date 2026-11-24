@@ -5,8 +5,10 @@ Run alone: python -m unittest tests.backend.library.test_layout
 """
 
 import json
+import os
 import shutil
 import sys
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -14,7 +16,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import freshness, game_card, games, hooks, layout  # noqa: E402 - the repository root goes first
+from backend.library import freshness, game_card, games, hooks, layout, release  # noqa: E402 - the repository root goes first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home, make_library_game, make_project  # noqa: E402 - the repository root goes first
@@ -41,7 +43,7 @@ class Layout(unittest.TestCase):
         readme = (self.root / "README.md").read_text()
         self.assertIn("# Space Game", readme)
         self.assertIn("![Space Game](cover.png)", readme)
-        self.assertIn("- ROM: `build/game.gbc`", readme)
+        self.assertIn("- ROM: [build/game.gbc](build/game.gbc)", readme)
         self.assertEqual((self.root / "CHANGELOG.md").read_text(), "# Changelog\n")
         ignored = (self.root / ".gitignore").read_text().splitlines()
         self.assertIn("/build/*", ignored)
@@ -95,7 +97,7 @@ class Layout(unittest.TestCase):
             [(item["code"], item["path"]) for item in report["warnings"]], [("UNKNOWN_ENTRY", "notes.txt")]
         )
         self.assertEqual(layout.kind_of(self.root, "notes.txt"), "local")
-        self.assertNotIn("notes.txt", layout.files(self.root, source=True))
+        self.assertNotIn("notes.txt", release.files(self.root, source=True))
 
     def test_a_missing_project_or_unreadable_card_is_a_problem(self):
         (self.root / "game.json").write_text("{")
@@ -103,58 +105,46 @@ class Layout(unittest.TestCase):
         codes = [item["code"] for item in layout.check(self.root)["problems"]]
         self.assertEqual(codes, ["NO_SOURCE", "CARD_UNREADABLE"])
 
-    def test_files_lists_the_game_alone_or_with_its_source(self):
-        layout.ensure(self.root)
-        (self.root / "assets" / "sprites").mkdir(parents=True)
-        (self.root / "assets" / "sprites" / "hero.png").write_bytes(b"png")
-        (self.root / "assets" / ".DS_Store").write_bytes(b"")
-        (self.root / "assets" / "link.png").symlink_to(self.root / "assets" / "sprites" / "hero.png")
-        (self.root / "docs" / "game").mkdir(parents=True)
-        (self.root / "docs" / "game" / "GAME-BRIEF.md").write_text("brief")
-        (self.root / "captures").mkdir()
-        (self.root / "captures" / "shot.png").write_bytes(b"png")
-        game = ["CHANGELOG.md", "README.md", "build/game.gbc", "cover.png", "game.json"]
-        self.assertEqual(layout.files(self.root, source=False), sorted(game + [".gitignore"]))
-        self.assertEqual(
-            layout.files(self.root, source=True),
-            sorted(
-                game
-                + [".gitignore", "layout-game.gbsproj", "project/scene.gbsres"]
-                + ["assets/sprites/hero.png", "docs/game/GAME-BRIEF.md"]
-            ),
-        )
-
     def test_a_remix_is_a_game_of_its_own(self):
         layout.ensure(self.root)
         original = self.card()["id"]
-        layout.record_publish(self.root, repo="https://example.invalid/game", commit="c" * 40, version="0.2.0")
+        release.prepare_release(self.root, "0.2.0", "First levels.")
+        release.record_publish(
+            self.root, repo="https://example.invalid/game", commit="c" * 40, version="0.2.0", source=True
+        )
+        release.record_install(self.root, repo="https://example.invalid/game", commit="c" * 40, source=True)
         identifier = layout.new_identity(self.root)
         self.assertNotEqual(identifier, original)
-        self.assertEqual((self.card()["id"], self.card()["gameVersion"]), (identifier, "0.1.0"))
-        self.assertIsNone(layout.published(self.root))
+        card = self.card()
+        self.assertEqual((card["id"], card["gameVersion"]), (identifier, "0.1.0"))
+        self.assertEqual(card["remixOf"], {"id": original, "version": "0.2.0"})
+        self.assertEqual((self.root / "CHANGELOG.md").read_text(), "# Changelog\n")
+        self.assertIsNone(release.published(self.root))
+        self.assertIsNone(release.installed(self.root))
 
-    def test_a_publish_is_recorded_and_later_changes_are_seen(self):
+    def test_the_agents_plans_and_an_older_single_file_project_fit_the_layout(self):
+        self.assertEqual(layout.kind_of(self.root, "docs"), "local")
+        shutil.rmtree(self.root / "project")
+        (self.root / "layout-game.gbsproj").write_text(json.dumps({"name": "Layout Game", "scenes": []}))
         layout.ensure(self.root)
-        self.assertIsNone(layout.unpublished_changes(self.root))
-        record = layout.record_publish(
-            self.root, repo="https://example.invalid/game", commit="c" * 40, version="0.2.0", notes="First levels."
-        )
-        self.assertEqual(layout.published(self.root), record)
-        self.assertEqual(self.card()["gameVersion"], "0.2.0")
-        changelog = (self.root / "CHANGELOG.md").read_text()
-        self.assertRegex(changelog, r"^# Changelog\n\n## 0\.2\.0 \(\d{4}-\d{2}-\d{2}\)\n\nFirst levels\.\n")
-        self.assertIn("- Version: 0.2.0", (self.root / "README.md").read_text())
-        self.assertFalse(layout.unpublished_changes(self.root))
-        (self.root / "project" / "scene.gbsres").write_text('{"changed": true}')
-        self.assertTrue(layout.unpublished_changes(self.root))
-        with self.assertRaises(ValueError):
-            layout.record_publish(self.root, repo="r", commit="c", version="1.0")
+        self.assertEqual(layout.check(self.root)["problems"], [])
 
-    def test_next_version(self):
-        self.assertEqual(
-            [layout.next_version("1.2.3", part) for part in ("patch", "minor", "major")], ["1.2.4", "1.3.0", "2.0.0"]
-        )
-        self.assertEqual(layout.next_version("nonsense"), "0.1.1")
+    def test_a_game_installed_without_its_source(self):
+        layout.ensure(self.root)
+        identifier, rom = self.card()["id"], self.root / "build" / "game.gbc"
+        for name in ("layout-game.gbsproj", ".hermretro"):
+            path = self.root / name
+            shutil.rmtree(path) if path.is_dir() else path.unlink()
+        shutil.rmtree(self.root / "project")
+        (self.root / "build" / "web").rename(self.home.base / "web-elsewhere")
+        game_card.set_fields(self.root, {"rom": "build/game.gb"})
+        rom.rename(self.root / "build" / "game.gb")
+        self.assertEqual(layout.game_rom(self.root), "build/game.gb")
+        self.assertEqual(layout.ensure(self.root), [".hermretro/identity.json"], "only the author's id is kept")
+        self.assertEqual(layout.game_identity(self.root), identifier)
+        self.assertTrue(layout.check(self.root)["ok"])
+        (self.root / "build" / "game.gb").unlink()
+        self.assertEqual([item["code"] for item in layout.check(self.root)["problems"]], ["NO_ROM"])
 
     def test_what_ensure_writes_is_not_a_change_to_the_game(self):
         moment = (self.root / "build" / "game.gbc").stat().st_mtime
@@ -187,24 +177,94 @@ class Layout(unittest.TestCase):
             with self.subTest(tool=tool, args=args):
                 self.assertIsNone(hooks.guard_game_record(tool_name=tool, args=args))
 
+    def test_a_game_made_before_the_layout_gets_it_on_the_shelf(self):
+        root = make_project(self.home.base, "Older Game", card=False)
+        (root / "README.md").write_text(
+            (paths.ENGINE_ROOT / "examples" / "starter" / "README.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        registry = games.Registry(self.home.base / "shelf")
+        registry.upsert(str(root))
+        (root / "notes.txt").write_text("ideas")
+        [game] = [item for item in registry.library() if item["projectRoot"] == os.path.realpath(root)]
+        card = game_card.load(root)
+        self.assertEqual((card["title"], card["rom"], card["gameVersion"]), ("Older Game", "build/game.gbc", "0.1.0"))
+        self.assertIn("# Older Game", (root / "README.md").read_text())
+        self.assertEqual(game["layout"]["problems"], [])
+        self.assertEqual([item["path"] for item in game["layout"]["warnings"]], ["notes.txt"])
+
+    def test_a_local_file_is_never_a_change_to_the_game(self):
+        layout.ensure(self.root)
+        moment = (self.root / "build" / "game.gbc").stat().st_mtime
+        for name in ("notes.txt", "docs/BRIEF.md", "art/draw.py"):
+            path = self.root / name
+            path.parent.mkdir(exist_ok=True)
+            path.write_text("later")
+            os.utime(path, (moment + 60, moment + 60))
+        self.assertFalse(freshness.sources_newer_than(self.root, moment))
+        scene = self.root / "project" / "scene.gbsres"
+        os.utime(scene, (moment + 60, moment + 60))
+        self.assertTrue(freshness.sources_newer_than(self.root, moment))
+
+    def test_only_its_own_marker_line_makes_a_file_replaceable(self):
+        layout.ensure(self.root)
+        mine = f"# Notes: {layout.GENERATED} is what hermretro puts in its files\n"
+        (self.root / "README.md").write_text(mine)
+        layout.ensure(self.root)
+        self.assertEqual((self.root / "README.md").read_text(), mine)
+
+    def test_two_processes_laying_out_one_game_agree_on_its_id(self):
+        root = make_project(self.home.base, "Raced Game", card=False)
+        results = []
+        threads = [threading.Thread(target=lambda: results.append(layout.ensure(root))) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(game_card.load(root)["id"], layout.game_identity(root))
+        self.assertEqual(sum(".hermretro/identity.json" in written for written in results), 1)
+
+    def test_the_hook_reads_where_a_tool_writes_not_what_it_writes(self):
+        record = self.root / ".hermretro"
+        record.mkdir(exist_ok=True)
+        alias = self.home.base / "alias"
+        alias.symlink_to(record)
+
+        def blocked(tool, args):
+            return (hooks.guard_game_record(tool_name=tool, args=args) or {}).get("action") == "block"
+
+        notes = (
+            "*** Begin Patch\n*** Update File: docs/notes.md\n@@\n+ids live in .hermretro/identity.json\n*** End Patch"
+        )
+        self.assertFalse(blocked("patch", {"mode": "patch", "patch": notes}))
+        self.assertTrue(blocked("write_file", {"path": str(alias / "identity.json")}))
+        self.assertTrue(blocked("write_file", {"path": str(self.root / ".HermRetro" / "identity.json")}))
+
 
 class PresentLayout(unittest.TestCase):
-    def test_a_game_out_of_its_layout_is_not_presented(self):
+    def setUp(self):
         home = isolated_home(self)
         patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
         patch.start()
         self.addCleanup(patch.stop)
-        _id, root = make_library_game(home)
-        layout.ensure(root)
-        game_card.set_fields(root, {"id": "f" * 32})
-        answer = json.loads(
-            library_tools.present_game_handler({"project": str(root)}, conversation_id="", session_id="")
+        _id, self.root = make_library_game(home)
+
+    def present(self):
+        return json.loads(
+            library_tools.present_game_handler({"project": str(self.root)}, conversation_id="", session_id="")
         )
+
+    def test_an_edited_id_is_put_back_before_the_game_is_shown(self):
+        layout.ensure(self.root)
+        identifier = game_card.load(self.root)["id"]
+        game_card.set_fields(self.root, {"id": "f" * 32})
+        self.assertTrue(self.present()["ok"])
+        self.assertEqual(game_card.load(self.root)["id"], identifier)
+
+    def test_an_unreadable_card_is_a_layout_problem_not_missing_fields(self):
+        (self.root / "game.json").write_text("{")
+        answer = self.present()
         self.assertEqual(answer["code"], "LAYOUT")
-        self.assertIn("game.json's id is not this game's id", answer["error"])
-        layout.ensure(root)
-        answer = library_tools.present_game_handler({"project": str(root)}, conversation_id="", session_id="")
-        self.assertTrue(json.loads(answer)["ok"])
+        self.assertIn("game.json cannot be read", answer["error"])
 
 
 if __name__ == "__main__":

@@ -76,11 +76,20 @@ def present_game_handler(args: dict, **kwargs) -> str:
         )
         if not fresh:
             return tool_error(why or "The playable copy is not this build.", "BUILD_FIRST", next_step)
-        # Every game reaches the user with its card: cover art, title, tagline, description, genres.
+        # Every game reaches the user in the game layout, with its card: cover art, title, tagline, description,
+        # genres.
         try:
-            game_card.scaffold(Path(root), library.project_title(Path(root)))
+            layout.ensure(Path(root))
         except OSError:
             pass
+        problems = layout.check(Path(root))["problems"]
+        if problems:
+            return tool_error(
+                "The game folder is not in the game layout: " + " ".join(item["message"] for item in problems),
+                "LAYOUT",
+                "Restore what is missing (the game's .gbsproj, its project/ folder and a readable game.json), then "
+                "call chromatic_present_game again. Never edit the id in game.json or anything in .hermretro/.",
+            )
         card = game_card.status(Path(root), strict=True)
         if not card["complete"]:
             return json.dumps(
@@ -94,14 +103,6 @@ def present_game_handler(args: dict, **kwargs) -> str:
                     "problems": card["problems"],
                     "nextStep": game_card.next_step(card["missing"]) + " Then call chromatic_present_game again.",
                 }
-            )
-        problems = layout.check(Path(root))["problems"]
-        if problems:
-            return tool_error(
-                "The game folder is not in the game layout: " + " ".join(item["message"] for item in problems),
-                "LAYOUT",
-                "Restore what is missing (the game's .gbsproj, its project/ folder and a readable game.json), then "
-                "call chromatic_present_game again. Never edit the id in game.json or anything in .hermretro/.",
             )
         chat = None
         if conversation_id:

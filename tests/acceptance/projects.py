@@ -13,7 +13,7 @@ from pathlib import Path
 
 from backend import library
 from backend.broker.engine import EngineProcess
-from backend.library import layout
+from backend.library import game_card, layout
 from backend.system import paths
 from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
 
@@ -76,7 +76,11 @@ def create_and_edit(suite, client_a, client_b):
         all(report["ok"] for report in made.values())
         and all(
             layout.game_identity(root)
-            and all((root / name).is_file() for name in ("README.md", "CHANGELOG.md", ".gitignore"))
+            and game_card.load(root).get("id") == layout.game_identity(root)
+            and game_card.load(root).get("rom") == "build/game.gbc"
+            and game_card.load(root).get("gameVersion") == "0.1.0"
+            and (root / "README.md").read_text().startswith(layout.MARKERS[0])
+            and all((root / name).is_file() for name in ("CHANGELOG.md", ".gitignore"))
             for root in (suite.project_a, suite.project_b)
         ),
         layout=made,

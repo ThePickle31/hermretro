@@ -69,6 +69,17 @@ class Snapshots(unittest.TestCase):
         self.assertEqual(meta["root"], os.path.realpath(self.root))
         self.assertFalse(any(name.endswith(".part") for name in os.listdir(self.store / "g")))
 
+    def test_a_restore_never_touches_the_games_record(self):
+        snapshots.take(self.store, "g", self.root, "build", now_ms=1000)  # an old build, before the game had a record
+        record = self.root / ".hermretro" / "identity.json"
+        record.parent.mkdir()
+        record.write_text('{"id": "' + "a" * 32 + '"}')
+        snapshots.restore(self.store, "g", self.root, "1000", now_ms=2000)
+        self.assertEqual(record.read_text(), '{"id": "' + "a" * 32 + '"}')
+        snapshots.take(self.store, "g", self.root, "build", now_ms=3000)
+        kept = [name for item in snapshots.list_snapshots(self.store, "g") for name in self.files_of(item["id"])]
+        self.assertFalse(any(name.startswith(".hermretro") for name in kept))
+
     def test_an_unchanged_project_adds_its_build_to_the_newest_snapshot(self):
         snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
         self.assertEqual(

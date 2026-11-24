@@ -38,8 +38,9 @@ from .restore_files import (
 
 # Top-level folders that are build output, tool state or the user's own captures, never game source.
 # captures/ and save-states/ are kept out too: restoring an older build must not delete screenshots,
-# recordings or saved states the user made since.
-EXCLUDED_TOP = frozenset({"build", "artifacts", ".git", "node_modules", "captures", "save-states"})
+# recordings or saved states the user made since. .hermretro/ is the game's own record (its id, what was published):
+# a restore must never take it back to an older build's.
+EXCLUDED_TOP = frozenset({"build", "artifacts", ".git", "node_modules", "captures", "save-states", ".hermretro"})
 TEMP_SUFFIXES = (".part", ".tmp", ".swp", "~", ".hr-restore")
 MAX_BYTES = 64 * 1024 * 1024
 MAX_FILES = 20000

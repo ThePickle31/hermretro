@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 862af438a49e16321dc169ce38d9ca5acaf7c4aaf6adf62ead27f76cc91cca78
- * body: sha256 d2941af690de0ca41e3336cad19c8c584b93bea08d654766c40ce056154455f7
+ * sources: sha256 13546a73d401bde672447f78fb25b90c5e737d54418cb51a9439671248a7955a
+ * body: sha256 b72677aac36ffeca6499a66b146fd5a4e0e647101ce48ed2495c3b8529842c62
  */
 // page/sdk.js
 import {
@@ -8838,7 +8838,7 @@ function LayoutTag({ layout }) {
   if (!findings.length) {
     return null;
   }
-  return jsxs("span", { className: `cs-gst ${layout.problems?.length ? "bad" : "warn"}`, title: findings.map((item) => item.message).join("\n"), children: [jsx("i", {}), "Layout"] });
+  return jsxs("span", { className: `cs-gst ${layout.problems?.length ? "bad" : "warn"}`, title: findings.map((item) => item.path || item.code).join("\n"), children: [jsx("i", {}), "Layout"] });
 }
 function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   const title = game.displayTitle || game.title;

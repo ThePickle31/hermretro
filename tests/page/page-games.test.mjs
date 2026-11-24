@@ -26,7 +26,7 @@ await runScenario(async helpers => {
     assert.ok(!comet.querySelector('.cs-gline').textContent.includes('Layout'), 'a game in the layout has no tag')
     const layoutTag = [...cardFor('Old Orbit').querySelectorAll('.cs-gst')].find(tag => tag.textContent === 'Layout')
     assert.ok(layoutTag?.classList.contains('warn'), 'a warning shows the Layout tag')
-    assert.match(layoutTag.getAttribute('title'), /notes\.txt is not part of the game layout/)
+    assert.equal(layoutTag.getAttribute('title'), 'notes.txt', 'the tag names what it is about')
     assert.match(cards().at(-1).textContent, /Blank cartridge/)
     assert.doesNotMatch(text(), /in your studio|Games showcase/)
   })
