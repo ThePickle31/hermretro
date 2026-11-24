@@ -44,12 +44,34 @@ class GameRom(unittest.TestCase):
         artifacts, _built = project.build_artifacts(self.root, {})
         self.assertEqual(artifacts["rom"]["path"], str(self.root / "build" / "game.gbc"))
 
+    def test_the_games_own_rom_wins_over_an_older_recorded_build(self):
+        older = self.root / "build" / "project.gb"
+        older.write_bytes(b"\5" * 512)
+        artifacts, _built = project.build_artifacts(self.root, {"ok": True, "rom": str(older)})
+        self.assertEqual(artifacts["rom"]["path"], str(self.root / "build" / "game.gbc"))
+
     def test_a_game_built_before_the_one_rom_keeps_its_recorded_build(self):
         (self.root / "build" / "game.gbc").unlink()
         older = self.root / "build" / "project.gb"
         older.write_bytes(b"\5" * 512)
         artifacts, _built = project.build_artifacts(self.root, {"ok": True, "rom": str(older)})
         self.assertEqual(artifacts["rom"]["path"], str(older))
+
+    def test_a_game_built_before_the_one_rom_without_a_record_shows_its_newest_rom(self):
+        (self.root / "build" / "game.gbc").unlink()
+        older = self.root / "build" / "project.gb"
+        older.write_bytes(b"\5" * 512)
+        artifacts, built = project.build_artifacts(self.root, {})
+        self.assertEqual(artifacts["rom"]["path"], str(older))
+        self.assertIsNotNone(built)
+
+    def test_after_a_colour_mode_change_the_newer_of_the_games_roms_counts(self):
+        color = self.root / "build" / "game.gbc"
+        mono = self.root / "build" / "game.gb"
+        mono.write_bytes(b"\6" * 512)
+        later = color.stat().st_mtime + 60
+        os.utime(mono, (later, later))
+        self.assertEqual(project.build_artifacts(self.root, {})[0]["rom"]["path"], str(mono))
 
     def test_the_registry_records_the_rom_the_build_wrote(self):
         registry = games.Registry(self.home.base / "library")

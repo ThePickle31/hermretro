@@ -67,6 +67,7 @@ class PresentFreshness(unittest.TestCase):
         self.assertFalse(fresh)
         self.assertIn("build/game.gbc", why)
         self.assertIn("chromatic_rom_build", next_step)
+        self.assertIn("do not build again", next_step, "a copy that still differs after a build is not a loop")
 
     def test_a_batteryless_games_copy_is_its_own_compilation(self):
         rom = self.root / "build" / "game.gbc"

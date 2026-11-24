@@ -76,7 +76,7 @@ class Registry(unittest.TestCase):
             "rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root), conversation_id="c"
         )
         [game] = self.registry.library()
-        self.assertEqual(game["rom"]["path"], str(rom))
+        self.assertEqual(game["rom"]["path"], os.path.realpath(rom))  # the registry keeps the real project path
         self.assertEqual(game["web"]["sha256"], games.file_sha256(root / "build" / "web" / "rom" / "game.gbc"))
         self.assertEqual(game["web"]["sha256"], game["rom"]["sha256"])
         self.assertIsInstance(game["web"]["builtAt"], int)
@@ -120,7 +120,7 @@ class Registry(unittest.TestCase):
             "rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root), conversation_id="c"
         )
         game = self.registry.library()[0]
-        self.assertEqual((game["state"], game["rom"]["path"], game["error"]), ("ready", str(rom), None))
+        self.assertEqual((game["state"], game["rom"]["path"], game["error"]), ("ready", os.path.realpath(rom), None))
         self.assertFalse(game["webExport"])
         future = time.time() + 30
         os.utime(root / "project" / "scene.gbsres", (future, future))

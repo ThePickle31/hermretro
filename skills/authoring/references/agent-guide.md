@@ -341,7 +341,8 @@ chromatic_rom_inspect {"romPath":"<returned ROM outputPath>"}
 ```
 
 In hermretro every project build writes the game's one ROM, `build/game.gbc` (`build/game.gb` for a monochrome
-project), and the playable copy plays that same file. Leave `outputPath` out; any other path is refused.
+project), and the playable copy plays that same file (unless batteryless saves are on: GB Studio then compiles
+the playable copy without them). Leave `outputPath` out; any other path is refused.
 
 `chromatic_rom_build` invokes the official native game project compiler and validates the
 resulting cartridge header. The separate `sourcePath` option instead compiles a

@@ -372,7 +372,7 @@ One entry of the `games` RPC's `games[]` (`describe` in `backend/library/shelf.p
 | id, title, displayTitle | The game's id, its project's title, and the card's title when set (else `title`) |
 | projectRoot, kind | The project folder; `gbstudio` (it has a `.gbsproj`) or `gbdk` |
 | state, error | `ready`, `changed` (sources newer than the ROM), `unbuilt` or `failed`; `error` only when `failed` |
-| rom | `{ path, sha256, size, builtAt }` of the last build's ROM (else the web export's, else the newest in `build/`), or null |
+| rom | `{ path, sha256, size, builtAt }` of the game's ROM (`build/game.gbc` or `build/game.gb`, the newer); for a game last built before it had one, the last recorded build's ROM, else the newest in `build/`, else the web export's; or null |
 | webExport, web | Whether a web export exists; its ROM `{ sha256, builtAt }`, or null |
 | thumb, cover | A data URL for the shelf (the cover, else the captured title screen, else null); whether it is the cover |
 | card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |

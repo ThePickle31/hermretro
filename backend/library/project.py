@@ -180,14 +180,36 @@ def project_settings(root: Path) -> dict:
     return legacy if isinstance(legacy, dict) else {}
 
 
-def _game_rom(root: Path) -> tuple[Path, float] | None:
-    """The game's ROM (``canonical_rom``) and its file time; None when it has not been built."""
-    path = root / canonical_rom(root)
+def _build_roms(root: Path) -> list[tuple[Path, float]]:
+    """The ROMs directly in ``build/``, newest first."""
     try:
-        info = _file_info(path)
+        files = list((Path(root) / "build").iterdir())
     except OSError:
-        return None
-    return (path, info.st_mtime) if info is not None else None
+        return []
+    roms = []
+    for path in files:
+        if path.suffix.lower() not in (".gb", ".gbc"):
+            continue
+        try:
+            info = _file_info(path)
+        except OSError:
+            continue
+        if info is not None:
+            roms.append((path, info.st_mtime))
+    return sorted(roms, key=lambda item: item[1], reverse=True)
+
+
+def _game_rom(root: Path) -> tuple[Path, float] | None:
+    """The game's ROM and its file time: ``build/game.gbc`` or ``build/game.gb`` (the newer, when a colour mode
+    change left both; ``canonical_rom`` names the one the next build writes). None when it has not been built."""
+    own = {ROM_STEM.rsplit("/", 1)[1] + suffix for suffix in (".gb", ".gbc")}
+    return next(((path, moment) for path, moment in _build_roms(root) if path.name in own), None)
+
+
+def _legacy_rom(root: Path) -> tuple[Path, float] | None:
+    """The newest ROM in ``build/`` of a game last built before every build wrote the game's ROM."""
+    roms = _build_roms(root)
+    return roms[0] if roms else None
 
 
 def _rom_info(path: Path | None) -> tuple[dict | None, float | None]:
@@ -212,8 +234,8 @@ def _recorded_rom(last: dict) -> tuple[dict | None, float | None]:
     return None, None
 
 
-def _native_rom_info(root: Path) -> tuple[dict | None, float | None]:
-    found = _game_rom(root)
+def _native_rom_info(root: Path, find=_game_rom) -> tuple[dict | None, float | None]:
+    found = find(root)
     try:
         return _rom_info(found[0]) if found else (None, None)
     except OSError:
@@ -221,8 +243,9 @@ def _native_rom_info(root: Path) -> tuple[dict | None, float | None]:
 
 
 def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) -> tuple[dict, float | None]:
-    """The game's ROM and the web export's. The ROM is the canonical one; a game last built before every build
-    wrote it falls back to the ROM its last recorded build made, then to the web export's."""
+    """The game's ROM and the web export's. The ROM is the game's own (``_game_rom``); a game last built before
+    every build wrote it falls back to the ROM its last recorded build made, its newest ROM in ``build/``, then the
+    web export's."""
     exported = has_web_export(root)
     required = exported and require_web_rom
     try:
@@ -236,6 +259,8 @@ def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) ->
     rom, built = _native_rom_info(root)
     if rom is None:
         rom, built = _recorded_rom(last)
+    if rom is None:
+        rom, built = _native_rom_info(root, _legacy_rom)
     if rom is None:
         rom, built = web_rom_info, web_time
     web = {"sha256": web_rom_info["sha256"], "builtAt": web_rom_info["builtAt"]} if exported and web_rom_info else None

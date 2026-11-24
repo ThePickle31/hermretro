@@ -11,8 +11,8 @@ from . import game_card
 from .project import (
     NOT_SOURCE,
     _game_rom,
+    _legacy_rom,
     _json,
-    canonical_rom,
     file_sha256,
     has_web_export,
     project_file,
@@ -83,6 +83,13 @@ def _plays_rom(root: Path, rom: Path) -> bool:
         return False
 
 
+def plays_game_rom(root: Path) -> bool:
+    """Whether the playable copy plays the game's ROM byte for byte (true before the game has its own ROM, and for
+    a batteryless project)."""
+    game = _game_rom(Path(root))
+    return game is None or _plays_rom(Path(root), game[0])
+
+
 # What a GB Studio web export is made from (the engine's own source fingerprint covers the same).
 EXPORT_SOURCES = ("project", "assets", "plugins")
 
@@ -120,6 +127,11 @@ _REBUILD = (
     "makes the playable copy; with it off, call chromatic_web_preview after it), then call "
     "chromatic_present_game again."
 )
+_MISMATCH = (
+    "Run chromatic_rom_build for this project (with the 'Keep the playable copy current' setting off, call "
+    "chromatic_web_preview after it), then call chromatic_present_game again. If it still says the copy plays "
+    "another build, tell the user the playable copy could not be made from this build; do not build again."
+)
 _REMAKE = (
     "Call chromatic_web_preview to make the playable copy from the current build, then call chromatic_present_game "
     "again. If chromatic_web_preview fails, tell the user what it said instead of building again."
@@ -138,7 +150,8 @@ def export_freshness(
     last = last_build if isinstance(last_build, dict) else None
     recorded = timestamp(last.get("t")) if last else 0.0
     game_rom = _game_rom(root)
-    rom_time = game_rom[1] if game_rom else None
+    newest = game_rom or _legacy_rom(root)  # a game last built before it had its own ROM
+    rom_time = newest[1] if newest else None
     # When hermretro's own successful build is the newest ROM, only its playable copy is missing: building the
     # same thing again would loop, so the copy is made from it. A newer ROM nobody recorded needs a real build.
     remake = bool(last and last.get("ok")) and recorded + FRESH_SLACK_SECONDS >= (rom_time or 0.0)
@@ -156,8 +169,9 @@ def export_freshness(
     if game_rom is not None and not _plays_rom(root, game_rom[0]):  # never true of a batteryless project
         return (
             False,
-            f"The playable copy does not play this game's ROM ({canonical_rom(root)}), so it is another build.",
-            _REBUILD,
+            f"The playable copy does not play this game's ROM ({game_rom[0].relative_to(root).as_posix()}), so it is "
+            "another build.",
+            _MISMATCH,
         )
     if isinstance(last_web_export, dict):
         exported = max(exported, timestamp(last_web_export.get("t")))
