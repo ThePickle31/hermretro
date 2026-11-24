@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sys
 import threading
 import time
 from pathlib import Path
@@ -48,6 +49,48 @@ def _env_seconds(name: str, default: float) -> float:
         return float(os.environ.get(name, default))
     except ValueError:
         return default
+
+
+def game_rom_arguments(root: str, arguments: dict) -> dict:
+    """A project build writes the game's one ROM (``library.canonical_rom``) from the game's own ``.gbsproj``: its
+    ``outputPath`` is set here, and a build naming another ROM or another project file is refused, so ``build/``
+    never collects ROMs nobody knows to be the game."""
+    rom = library.canonical_rom(Path(root))
+    if "sourcePath" in arguments:
+        return standalone_rom_arguments(root, arguments)
+    descriptor = library.project_file(Path(root))
+    for key, wanted, retry in (
+        ("outputPath", Path(root, rom), f"Every build of a hermretro game writes its one ROM, {rom}."),
+        ("projectPath", descriptor, "A hermretro game builds only from its own project file."),
+    ):
+        asked = arguments.get(key)
+        if asked is not None and (wanted is None or not _same_path(Path(root), asked, wanted)):
+            raise Denied("ROM_PATH", f"{retry} Call chromatic_rom_build again without {key}.")
+    return {**arguments, "outputPath": rom}
+
+
+def standalone_rom_arguments(root: str, arguments: dict) -> dict:
+    """A standalone C build (``sourcePath``) may write any ROM but the game's own: its output, as given or the
+    engine's default (``build/<source name>.gb``, ``.gbc`` for a colour build), must not be ``build/game.gb[c]``."""
+    stem = Path(str(arguments["sourcePath"])).stem
+    default = f"build/{stem}.{'gbc' if arguments.get('colorMode') in ('gbc', 'gbc-only') else 'gb'}"
+    output = arguments.get("outputPath", default)
+    if any(_same_path(Path(root), output, Path(root, library.ROM_STEM + suffix)) for suffix in (".gb", ".gbc")):
+        raise Denied(
+            "ROM_PATH",
+            f"{library.ROM_STEM}.gb and .gbc are the game's ROM. Give the standalone C build another outputPath.",
+        )
+    return arguments
+
+
+def _same_path(root: Path, asked, wanted: Path) -> bool:
+    """Whether ``asked`` (relative to ``root``, or absolute) names ``wanted``; letter case aside on macOS, whose
+    volumes ignore it."""
+    try:
+        first, second = str(Path(root, asked).resolve()), str(wanted.resolve())
+    except (TypeError, ValueError, OSError):
+        return False
+    return first == second or (sys.platform == "darwin" and first.lower() == second.lower())
 
 
 class Broker(LaneMixin, ControlMixin):
@@ -218,6 +261,8 @@ class Broker(LaneMixin, ControlMixin):
         engine = self.ensure_engine(lane)
         if not delegated and kind in ("read", "project-write", "runtime"):
             self.select_bound_game(lane, engine)
+        if tool == "rom_build" and lane.selected_root:
+            arguments = game_rom_arguments(lane.selected_root, arguments)
         writes = kind == "project-write"
         if writes:
             self.acquire_writer(lane)

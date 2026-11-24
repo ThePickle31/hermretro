@@ -19,15 +19,20 @@ from .games import (
     web_rom,
 )
 from .games import _json as read_json
+from .freshness import plays_game_rom
+from .project import ROM_STEM, canonical_rom
 
 __all__ = [
     "PNG_MAGIC",
+    "ROM_STEM",
     "SELECTORS",
     "Registry",
+    "canonical_rom",
     "cover_path",
     "file_sha256",
     "game_id",
     "has_web_export",
+    "plays_game_rom",
     "project_file",
     "read_json",
     "valid_id",

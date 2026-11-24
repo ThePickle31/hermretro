@@ -121,7 +121,7 @@ For the selected source project, request a successful official build with
 `debugMode:"source"` in the same MCP session:
 
 ```text
-chromatic_rom_build {"outputPath":"build/debug.gbc","captureDebugArtifacts":true}
+chromatic_rom_build {"captureDebugArtifacts":true}
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","restart":true,"initialFrames":120,"debugMode":"source"}
 chromatic_emulator_debug {"variableNames":["Has key"],"includeScene":true}
 ```

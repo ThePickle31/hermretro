@@ -336,9 +336,13 @@ After selecting the intended native project, compile and inspect its cartridge:
 
 ```text
 chromatic_toolchain_doctor {}
-chromatic_rom_build {"outputPath":"build/my-game.gbc"}
-chromatic_rom_inspect {"romPath":"build/my-game.gbc"}
+chromatic_rom_build {}
+chromatic_rom_inspect {"romPath":"<returned ROM outputPath>"}
 ```
+
+In hermretro every project build writes the game's one ROM, `build/game.gbc` (`build/game.gb` for a monochrome
+project), and the playable copy plays that same file (unless batteryless saves are on: GB Studio then compiles
+the playable copy without them). Leave `outputPath` out; any other path is refused.
 
 `chromatic_rom_build` invokes the official native game project compiler and validates the
 resulting cartridge header. The separate `sourcePath` option instead compiles a
@@ -348,7 +352,7 @@ native `.gbsproj` compiles.
 Request authenticated same-build debugging artifacts only when required:
 
 ```text
-chromatic_rom_build {"outputPath":"build/my-game.gbc","captureDebugArtifacts":true}
+chromatic_rom_build {"captureDebugArtifacts":true}
 ```
 
 The successful native-build response includes compiler `symbols.noi` and

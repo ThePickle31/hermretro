@@ -169,6 +169,20 @@ class LivePlayer(unittest.TestCase):
         self.assertEqual((player["ready"], player["moved"], player["first"]), (True, False, False))
         self.assertEqual(engine.calls, ["web_preview"])
 
+    def test_a_copy_that_plays_another_rom_is_not_reported_ready(self):
+        from tests.support import isolated_home, make_project
+
+        root = make_project(isolated_home(self).base, "Other Rom")
+        broker = guards_broker()
+        a = lane(broker, "a", root=str(root))
+        self.assertTrue(broker.refresh_player(a, ScriptedEngine(opened("http://127.0.0.1:1/x/")))["ready"])
+        (root / "build" / "game.gbc").write_bytes(b"\7" * 512)  # the web copy still plays the earlier bytes
+        player = broker.refresh_player(a, ScriptedEngine(opened("http://127.0.0.1:1/x/")))
+        self.assertEqual(
+            (player["ready"], player["error"]),
+            (False, "The playable copy was made, but it does not play this build's ROM."),
+        )
+
     def test_a_first_preview_that_fails_leaves_nothing_stale(self):
         broker = guards_broker()
         a = lane(broker, "a")

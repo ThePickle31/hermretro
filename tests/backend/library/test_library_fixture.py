@@ -27,14 +27,14 @@ class LibraryGameFixture(unittest.TestCase):
         root, fresh, complete, game = self.state("Ready Game")  # the name stays the second positional argument
         self.assertEqual(root.name, "ready-game")
         self.assertEqual((fresh, complete), (True, True))
-        self.assertTrue((root / "build" / "project.gb").is_file())
+        self.assertTrue((root / "build" / "game.gbc").is_file())
         self.assertEqual(host._registry().get(game)["title"], "Ready Game")
 
     def test_the_switches_make_a_not_ready_game(self):
         self.assertEqual(self.state("No Copy", web=False)[1:3], (False, True))
         self.assertEqual(self.state("No Card", card=False)[1:3], (True, False))
         root, _fresh, _complete, _game = self.state("No Rom", built=False)
-        self.assertFalse((root / "build" / "project.gb").exists())
+        self.assertFalse((root / "build" / "game.gbc").exists())
         self.assertTrue((root / "build" / "web" / "index.html").is_file())
 
 

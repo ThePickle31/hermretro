@@ -3,7 +3,8 @@
 - `games.py` owns registry storage, file locking and broker observations. `bindings.py` handles Build conversation
   ownership, session aliases, pending New Game records and the game's linked chat.
 - `thumbnails.py` reads title-screen thumbnails and decodes PNG uploads.
-- `project.py` handles game IDs, reads project titles, build files and sources, and checks playable-copy freshness.
+- `project.py` handles game IDs, reads project titles, settings, the game's ROM and build files. `freshness.py` says
+  whether the playable copy is the current game (`export_freshness`, `source_digest`, `sources_newer_than`).
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
 - `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png`.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
@@ -17,7 +18,7 @@
 
 ## Front door
 
-`backend.library`: `Registry`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
+`backend.library`: `Registry`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
 
 ## Tests
 
@@ -37,7 +38,7 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
   - `updatedAt`: the last time the library recorded something about the game: the broker saw it created or selected (`project_create`, `project_create_blank`, `project_select`), built (`rom_build`) or exported (`web_preview` open), or `chromatic_present_game` showed it (`Registry.upsert` and `Registry.present`; each `games` RPC also adds projects the running broker has selected that the library lacks, setting it only for those). Binding a conversation, editing the game card or a thumbnail does not change it. The Games page lists games newest `updatedAt` first: this is what "recent" means. Nothing records when the user opened a game.
   - `chat`: `{conversationId, sessionId, profile}` of the chat that last selected, created (with `select`), built, exported or presented it (the seeded entries carry only `sessionId`).
   - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null)}`.
-  - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `project.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
+  - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `freshness.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
   - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
   - `initialPlan`: the mode recorded when New Game first bound the project. True for Plan first, false for Build it.
     Kept across conversation changes. An older entry can still carry the mode in its session. For an older
@@ -64,6 +65,17 @@ validates the current cover and checks for copies from `assets/` on every call.
 Automatic capture fills a missing thumbnail once. Thumbnails are `<library>/thumbs/<id>.png`; the card is the project's own `game.json` and `cover.png` (`game_card.py`).
 
 Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`project.project_title`: the `.gbsproj` name, else the web export's, else the stored title or folder name).
+
+## The game's ROM
+
+Every build of a project writes one ROM, `project.canonical_rom(root)` (front door `canonical_rom`): `build/game.gbc`,
+or `build/game.gb` when `project/settings.gbsres` says `colorMode: "mono"`. The broker sets `chromatic_rom_build`'s
+`outputPath` to it and refuses any other (`game_rom_arguments` in `backend/broker/broker.py`, code `ROM_PATH`); a
+standalone C build (`sourcePath`) is not a project build. The engine writes that ROM's bytes into the web export of the
+same sources (`engine/CHANGES.md`), so `export_freshness` counts a copy that plays other bytes as stale, except in a
+project with batteryless saves on, whose web copy GB Studio compiles without them. The shelf's
+`rom` is that file; a game last built before it existed falls back to `lastBuild.rom`, then to the web export's ROM.
+Other ROMs left in `build/` are never the game.
 
 ## Captures
 

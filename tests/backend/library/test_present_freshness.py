@@ -58,6 +58,27 @@ class PresentFreshness(unittest.TestCase):
         self.assertFalse(games.engine_made_export(self.root))
         self.assertEqual(self.present()["code"], "BUILD_FIRST")
 
+    def test_a_copy_that_plays_another_build_of_the_game_is_refused(self):
+        rom = self.root / "build" / "game.gbc"
+        stamp = rom.stat().st_mtime
+        rom.write_bytes(b"\3" * 512)  # a rebuild the copy was not made from
+        os.utime(rom, (stamp, stamp))
+        fresh, why, next_step = self.freshness()
+        self.assertFalse(fresh)
+        self.assertIn("build/game.gbc", why)
+        self.assertIn("chromatic_rom_build", next_step)
+        self.assertIn("do not build again", next_step, "a copy that still differs after a build is not a loop")
+
+    def test_a_batteryless_games_copy_is_its_own_compilation(self):
+        rom = self.root / "build" / "game.gbc"
+        stamp = rom.stat().st_mtime
+        rom.write_bytes(b"\3" * 512)  # GB Studio compiles the web copy without batteryless saves
+        os.utime(rom, (stamp, stamp))
+        settings = self.root / "project" / "settings.gbsres"
+        settings.write_text(json.dumps({"batterylessEnabled": True}))
+        os.utime(settings, (stamp - 300, stamp - 300))
+        self.assertEqual(self.freshness(), (True, None, None))
+
     def test_a_copy_moved_in_from_elsewhere_keeps_its_record_but_must_match_it(self):
         other = self.root.parent / "elsewhere"
         shutil.copytree(self.web, other)
@@ -90,7 +111,7 @@ class PresentFreshness(unittest.TestCase):
         self.assertNotIn("Run chromatic_rom_build", next_step)
 
     def test_a_newer_rom_nobody_recorded_asks_for_a_real_build(self):
-        rom = self.root / "build" / "project.gb"
+        rom = self.root / "build" / "game.gbc"
         later = time.time()
         os.utime(rom, (later, later))
         self.assertIn("Run chromatic_rom_build", self.freshness()[2])

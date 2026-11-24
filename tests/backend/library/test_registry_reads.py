@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from backend.hermes import host
-from backend.library import games, game_card, project, rpcs, shelf
+from backend.library import freshness, games, game_card, project, rpcs, shelf
 from tests.support import FakeBrokerClient, isolated_home, make_project
 
 
@@ -139,7 +139,7 @@ class RegistryReads(unittest.TestCase):
             [game] = self.registry.library()
         self.assertTrue(game["webExport"])
         self.assertIsNone(game["web"])
-        self.assertEqual(game["rom"]["path"], str(self.root / "build" / "project.gb"))
+        self.assertEqual(game["rom"]["path"], str(self.root / "build" / "game.gbc"))
 
     def test_status_leaves_a_malformed_web_export_unavailable_until_it_can_be_read(self):
         config = self.root / "build" / "web" / "gbstudio.json"
@@ -167,7 +167,7 @@ class RegistryReads(unittest.TestCase):
     def test_unusable_native_rom_candidates_do_not_hide_a_healthy_build(self):
         root = make_project(self.home.base, "Native Game", web=False)
         identifier = self.registry.upsert(str(root))["id"]
-        rom = root / "build" / "project.gb"
+        rom = root / "build" / "game.gbc"
         loop = rom.with_name("loop.gb")
         loop.symlink_to(loop.name)
         unreadable = rom.with_name("unreadable.gbc")
@@ -245,7 +245,7 @@ class RegistryReads(unittest.TestCase):
         real_artifacts = project.build_artifacts
         with (
             mock.patch.object(project, "build_artifacts", wraps=real_artifacts) as artifacts,
-            mock.patch.object(project, "sources_newer_than", side_effect=AssertionError("source walk")),
+            mock.patch.object(freshness, "sources_newer_than", side_effect=AssertionError("source walk")),
             mock.patch.object(game_card, "public", side_effect=AssertionError("card read")),
             mock.patch.object(shelf, "describe", side_effect=AssertionError("shelf description")),
             mock.patch.object(host, "try_connect", side_effect=AssertionError("broker request")),

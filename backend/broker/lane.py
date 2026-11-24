@@ -208,6 +208,9 @@ class LaneMixin:
             moved=moved,
             seconds=round(time.time() - started, 2),
         )
+        if lane.selected_root and not library.plays_game_rom(Path(lane.selected_root)):
+            self.trace(event="player_plays_another_rom", owner_key=lane.key)
+            return {"ready": False, "error": "The playable copy was made, but it does not play this build's ROM."}
         return {"ready": True, "url": url, "first": previous is None, "moved": moved}
 
     def ensure_engine(self, lane: Lane) -> EngineProcess:
