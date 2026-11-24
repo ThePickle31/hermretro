@@ -21,6 +21,8 @@ MAX_SOURCE_FILES = 20000
 FRESH_SLACK_SECONDS = 2.0
 # The record the engine writes into each web export it makes (engine/modretro-chromatic/dist/web-build.js).
 WEB_MANIFEST = ".codex-web-build.json"
+# The game's one ROM, without its extension (``canonical_rom``).
+ROM_STEM = "build/game"
 
 
 _hash_cache: dict[tuple, str] = {}
@@ -167,22 +169,22 @@ def web_rom(root: Path, *, required: bool = False) -> Path | None:
     return None
 
 
-def _build_roms(root: Path) -> list[tuple[Path, float]]:
+def canonical_rom(root: Path) -> str:
+    """The game's one ROM, relative to its project: every build of the project writes it (the broker sets
+    ``chromatic_rom_build``'s ``outputPath``). ``build/game.gb`` for a monochrome project (``colorMode`` ``mono``
+    in ``project/settings.gbsres``), else ``build/game.gbc``."""
+    mode = _json(Path(root) / "project" / "settings.gbsres").get("colorMode")
+    return ROM_STEM + (".gb" if mode == "mono" else ".gbc")
+
+
+def _game_rom(root: Path) -> tuple[Path, float] | None:
+    """The game's ROM (``canonical_rom``) and its file time; None when it has not been built."""
+    path = root / canonical_rom(root)
     try:
-        files = list((root / "build").iterdir())
-    except (FileNotFoundError, NotADirectoryError):
-        return []
-    roms = []
-    for path in files:
-        if path.suffix.lower() not in (".gb", ".gbc"):
-            continue
-        try:
-            info = _file_info(path)
-        except OSError:
-            continue
-        if info is not None:
-            roms.append((path, info.st_mtime))
-    return sorted(roms, key=lambda item: item[1], reverse=True)
+        info = _file_info(path)
+    except OSError:
+        return None
+    return (path, info.st_mtime) if info is not None else None
 
 
 def _rom_info(path: Path | None) -> tuple[dict | None, float | None]:
@@ -208,18 +210,16 @@ def _recorded_rom(last: dict) -> tuple[dict | None, float | None]:
 
 
 def _native_rom_info(root: Path) -> tuple[dict | None, float | None]:
-    for path, _ in _build_roms(root):
-        try:
-            rom, built = _rom_info(path)
-        except OSError:
-            continue
-        if rom is not None:
-            return rom, built
-    return None, None
+    found = _game_rom(root)
+    try:
+        return _rom_info(found[0]) if found else (None, None)
+    except OSError:
+        return None, None
 
 
 def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) -> tuple[dict, float | None]:
-    """The native build and the web export, which can have different ROMs."""
+    """The game's ROM and the web export's. The ROM is the canonical one; a game last built before every build
+    wrote it falls back to the ROM its last recorded build made, then to the web export's."""
     exported = has_web_export(root)
     required = exported and require_web_rom
     try:
@@ -230,9 +230,11 @@ def build_artifacts(root: Path, last: dict, *, require_web_rom: bool = False) ->
         web_rom_info, web_time = None, None
     if required and web_rom_info is None:
         raise OSError("The web build's ROM is unavailable.")
-    rom, built = _recorded_rom(last)
+    rom, built = _native_rom_info(root)
     if rom is None:
-        rom, built = (web_rom_info, web_time) if web_rom_info else _native_rom_info(root)
+        rom, built = _recorded_rom(last)
+    if rom is None:
+        rom, built = web_rom_info, web_time
     web = {"sha256": web_rom_info["sha256"], "builtAt": web_rom_info["builtAt"]} if exported and web_rom_info else None
     return {"rom": rom, "webExport": exported, "web": web}, built
 
@@ -274,6 +276,16 @@ def engine_made_export(root: Path) -> bool:
         if current != hashes.get(relative):
             return False
     return True
+
+
+def _plays_rom(root: Path, rom: Path) -> bool:
+    """Whether the web export's ROM is byte for byte ``rom``: the engine writes the ROM the last build made into
+    every export of the same sources (``engine/CHANGES.md``)."""
+    played = web_rom(root)
+    try:
+        return played is not None and file_sha256(played) == file_sha256(rom)
+    except OSError:
+        return False
 
 
 # What a GB Studio web export is made from (the engine's own source fingerprint covers the same).
@@ -330,8 +342,8 @@ def export_freshness(
     older game than the one being worked on."""
     last = last_build if isinstance(last_build, dict) else None
     recorded = timestamp(last.get("t")) if last else 0.0
-    roms = _build_roms(root)
-    rom_time = roms[0][1] if roms else None
+    game_rom = _game_rom(root)
+    rom_time = game_rom[1] if game_rom else None
     # When hermretro's own successful build is the newest ROM, only its playable copy is missing: building the
     # same thing again would loop, so the copy is made from it. A newer ROM nobody recorded needs a real build.
     remake = bool(last and last.get("ok")) and recorded + FRESH_SLACK_SECONDS >= (rom_time or 0.0)
@@ -345,6 +357,12 @@ def export_freshness(
             "The playable copy in build/web was not made by hermretro's build, or was changed after it, so it may "
             "not be this game as its sources stand.",
             "Never make, copy or edit files in build/ yourself. " + recover,
+        )
+    if game_rom is not None and not _plays_rom(root, game_rom[0]):
+        return (
+            False,
+            f"The playable copy does not play this game's ROM ({canonical_rom(root)}), so it is another build.",
+            _REBUILD,
         )
     if isinstance(last_web_export, dict):
         exported = max(exported, timestamp(last_web_export.get("t")))

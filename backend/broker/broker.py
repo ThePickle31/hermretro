@@ -50,6 +50,20 @@ def _env_seconds(name: str, default: float) -> float:
         return default
 
 
+def game_rom_arguments(root: str, arguments: dict) -> dict:
+    """A project build writes the game's one ROM (``library.canonical_rom``): its ``outputPath`` is set here, and
+    one naming any other file is refused, so ``build/`` never collects ROMs nobody knows to be the game."""
+    rom = library.canonical_rom(Path(root))
+    asked = arguments.get("outputPath")
+    if asked is not None and (not isinstance(asked, str) or Path(root, asked).resolve() != Path(root, rom).resolve()):
+        raise Denied(
+            "ROM_PATH",
+            f"Every build of a hermretro game writes its one ROM, {rom}. Call chromatic_rom_build again without "
+            "outputPath.",
+        )
+    return {**arguments, "outputPath": rom}
+
+
 class Broker(LaneMixin, ControlMixin):
     def __init__(self, state_dir: Path, node: str):
         self.state_dir = state_dir
@@ -218,6 +232,8 @@ class Broker(LaneMixin, ControlMixin):
         engine = self.ensure_engine(lane)
         if not delegated and kind in ("read", "project-write", "runtime"):
             self.select_bound_game(lane, engine)
+        if tool == "rom_build" and "sourcePath" not in arguments and lane.selected_root:
+            arguments = game_rom_arguments(lane.selected_root, arguments)
         writes = kind == "project-write"
         if writes:
             self.acquire_writer(lane)

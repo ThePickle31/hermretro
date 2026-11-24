@@ -67,18 +67,18 @@ class Registry(unittest.TestCase):
         self.assertEqual(game["rom"]["size"], 512)
         self.assertRegex(game["rom"]["sha256"], r"^[0-9a-f]{64}$")
 
-    def test_the_web_exports_own_rom_is_reported_for_the_players_rebuilt_check(self):
-        # The web export is its own compilation: its ROM is not the native build's bytes, and the page
-        # must compare the player's loaded hash with this one, or every build looks "rebuilt".
+    def test_the_web_exports_rom_is_reported_for_the_players_rebuilt_check(self):
+        # The page compares the player's loaded hash with the web export's ROM. The engine writes the build's ROM
+        # into the export (engine/CHANGES.md), so the two are one file's bytes.
         root = make_project(self.base)
-        rom = root / "build" / "project.gb"
+        rom = root / "build" / "game.gbc"
         self.registry.observe(
             "rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root), conversation_id="c"
         )
         [game] = self.registry.library()
         self.assertEqual(game["rom"]["path"], str(rom))
         self.assertEqual(game["web"]["sha256"], games.file_sha256(root / "build" / "web" / "rom" / "game.gbc"))
-        self.assertNotEqual(game["web"]["sha256"], game["rom"]["sha256"])
+        self.assertEqual(game["web"]["sha256"], game["rom"]["sha256"])
         self.assertIsInstance(game["web"]["builtAt"], int)
         self.assertIsNone(
             games.Registry(self.base / "lib2").describe(
@@ -114,7 +114,7 @@ class Registry(unittest.TestCase):
         self.assertEqual(game["state"], "failed")
         self.assertLessEqual(len(game["error"]), 240)
         (root / "build").mkdir()
-        rom = root / "build" / "project.gb"
+        rom = root / "build" / "game.gbc"
         rom.write_bytes(b"\2" * 256)
         self.registry.observe(
             "rom_build", {}, {"success": True, "outputPath": str(rom)}, False, lane_root=str(root), conversation_id="c"
@@ -371,7 +371,7 @@ class GamesRpc(unittest.TestCase):
 
     def test_present_requires_a_fresh_web_export(self):
         root = make_project(self.base)
-        rom = root / "build" / "project.gb"
+        rom = root / "build" / "game.gbc"
         later = rom.stat().st_mtime + 60
         os.utime(rom, (later, later))  # a newer native build than the web copy
         seen, connect = self.lane_client(root)
@@ -407,7 +407,7 @@ class GamesRpc(unittest.TestCase):
         # Seen for real: a rebuild without source changes rewrites build/*.gb but the engine reuses the
         # web export without touching its files. The broker's record of that web_preview proves it current.
         root = make_project(self.base)
-        rom = root / "build" / "project.gb"
+        rom = root / "build" / "game.gbc"
         later = rom.stat().st_mtime + 600
         os.utime(rom, (later, later))
         registry = games.Registry(paths.library_dir())

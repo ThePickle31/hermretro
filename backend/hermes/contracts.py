@@ -112,6 +112,15 @@ def hermes_schema(tool: dict) -> dict:
                 f"Optional. Default: {games}/<name>. Only for a folder the user "
                 f"asked for: an absolute new path under an existing parent."
             )
+    if tool["name"] == "rom_build":
+        # The broker sets a project build's outputPath (backend/broker/broker.py game_rom_arguments).
+        output = parameters.get("properties", {}).get("outputPath")
+        if isinstance(output, dict):
+            output["description"] = (
+                "Leave it out for a project build: hermretro writes every build of a game to its one ROM, "
+                "build/game.gbc (build/game.gb for a monochrome project), and refuses any other path. Only for "
+                "standalone C (sourcePath)."
+            )
     if tool["name"] == "project_select":
         # hermretro's own argument, removed by the broker before the engine sees it.
         parameters.setdefault("properties", {})["continueInThisChat"] = {

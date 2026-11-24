@@ -42,7 +42,7 @@ illustrative; choose a route that exercises your own game.
 
 ```text
 chromatic_project_select {"projectPath":"/absolute/path/to/MyGame/project.gbsproj"}
-chromatic_rom_build {"outputPath":"build/playtest-before.gbc"}
+chromatic_rom_build {}
 chromatic_rom_inspect {"romPath":"<returned ROM outputPath>"}
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","restart":true,"initialFrames":120,"recording":{}}
 chromatic_emulator_observe {}
@@ -127,7 +127,7 @@ relevant native source edit, then build a new cartridge and repeat those steps:
 
 ```text
 chromatic_emulator_close {}
-chromatic_rom_build {"outputPath":"build/playtest-after.gbc"}
+chromatic_rom_build {}
 chromatic_rom_inspect {"romPath":"<new ROM outputPath>"}
 chromatic_emulator_run {"romPath":"<new ROM outputPath>","restart":true,"initialFrames":120,"recording":{}}
 chromatic_emulator_step {"buttons":["right"],"frames":12}

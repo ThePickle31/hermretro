@@ -65,6 +65,16 @@ Automatic capture fills a missing thumbnail once. Thumbnails are `<library>/thum
 
 Which title the user sees: the card's `title` (the project's `game.json`, set by `chromatic_game_info`; `game_card.scaffold` writes a starter card with the project's name), which the `games` RPC answers as `displayTitle` and the pages show (`game.displayTitle || game.title`). The registry's and the RPC's `title` is the project's own name (`project.project_title`: the `.gbsproj` name, else the web export's, else the stored title or folder name).
 
+## The game's ROM
+
+Every build of a project writes one ROM, `project.canonical_rom(root)` (front door `canonical_rom`): `build/game.gbc`,
+or `build/game.gb` when `project/settings.gbsres` says `colorMode: "mono"`. The broker sets `chromatic_rom_build`'s
+`outputPath` to it and refuses any other (`game_rom_arguments` in `backend/broker/broker.py`, code `ROM_PATH`); a
+standalone C build (`sourcePath`) is not a project build. The engine writes that ROM's bytes into the web export of the
+same sources (`engine/CHANGES.md`), so `export_freshness` counts a copy that plays other bytes as stale. The shelf's
+`rom` is that file; a game last built before it existed falls back to `lastBuild.rom`, then to the web export's ROM.
+Other ROMs left in `build/` are never the game.
+
 ## Captures
 
 Screenshots and videos saved from the player live in `<project>/captures/` (the demo cartridge's in `<library>/captures/demo`): `captures_dir(root, game_id)` in `backend/player/captures.py` (not in the player's front door) names the folder, and `player.list_captures(root, game_id)` (`from ..player import list_captures`) lists its media files newest first as `{id, path, kind, createdAt, file}` (`kind` from the `.json` sidecar, else `screenshot` for a PNG and `video` otherwise; `createdAt` an ISO time; there is no size field: `stat` the `path`). The `captures` RPC (`rpcs.py`) reads them through `list_captures` and answers `{path, kind, createdAt, url}` for each. Writes go through `save_capture`: the `capture_image` RPC saves a page-sent game-screen PNG there as an `annotation` capture, and the player server's `codex-captures` POST saves the player's own.

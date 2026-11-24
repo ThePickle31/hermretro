@@ -195,7 +195,7 @@ def make_project(base: Path, name="Space Game", web=True, built=True, card=True)
     (root / "project" / "scene.gbsres").write_text("{}")
     if built:
         (root / "build").mkdir()
-        (root / "build" / "project.gb").write_bytes(b"\0" * 512)
+        (root / "build" / "game.gbc").write_bytes(b"\1" * 512)  # the canonical ROM, which the web copy plays
     if web:
         web_dir = root / "build" / "web"
         (web_dir / "js").mkdir(parents=True)

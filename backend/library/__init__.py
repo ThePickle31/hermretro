@@ -19,11 +19,13 @@ from .games import (
     web_rom,
 )
 from .games import _json as read_json
+from .project import canonical_rom
 
 __all__ = [
     "PNG_MAGIC",
     "SELECTORS",
     "Registry",
+    "canonical_rom",
     "cover_path",
     "file_sha256",
     "game_id",
