@@ -3,12 +3,15 @@
 import base64
 import hashlib
 import json
+import os
+import signal
 import struct
 import threading
 import time
 import urllib.request
 from pathlib import Path
 
+from backend import library
 from backend.broker.engine import EngineProcess
 from backend.system import paths
 from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
@@ -26,6 +29,12 @@ def png_info(block: dict) -> dict:
         "sha256": hashlib.sha256(data).hexdigest(),
         "mimeType": block.get("mimeType"),
     }
+
+
+def played_hash(root: Path) -> str | None:
+    """The SHA-256 of the ROM the playable copy in ``root``'s ``build/web`` plays."""
+    played = library.web_rom(root)
+    return hashlib.sha256(played.read_bytes()).hexdigest() if played else None
 
 
 def create_and_edit(suite, client_a, client_b):
@@ -129,7 +138,9 @@ def build_roms(suite, client_a, client_b):
 
     plain = structured(builds["A"]["response"])
     live_1 = client_a.call(OWNER_A, "rom_build", {}, policy={"live_player": True})
+    live_1["played"] = played_hash(suite.project_a)
     live_2 = client_a.call(OWNER_A, "rom_build", {}, policy={"live_player": True})
+    live_2["played"] = played_hash(suite.project_a)
     player_1, player_2 = live_1.get("player") or {}, live_2.get("player") or {}
     served = None
     if player_1.get("url"):
@@ -155,9 +166,63 @@ def build_roms(suite, client_a, client_b):
         same_url=player_1.get("url") == player_2.get("url"),
         http=served,
     )
+    suite.check(
+        "V2",
+        "After each live build the playable copy plays the very ROM that build made, byte for byte",
+        all(
+            live["played"] and live["played"] == (structured(live).get("rom") or {}).get("sha256")
+            for live in (live_1, live_2)
+        ),
+        built=[(structured(live).get("rom") or {}).get("sha256") for live in (live_1, live_2)],
+        played=[live["played"] for live in (live_1, live_2)],
+    )
     client_a.call(OWNER_A, "web_preview_close", {})
-    hash_a = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest()  # A was rebuilt; later checks use this ROM
+    check_rom_after_restart(suite, client_b)
+    # A and B were rebuilt, and every build has its own save signature: later checks use these ROMs.
+    hash_a = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest()
+    hash_b = hashlib.sha256(Path(rom_b).read_bytes()).hexdigest()
     return rom_a, rom_b, hash_a, hash_b
+
+
+def check_rom_after_restart(suite, client_b):
+    """A build's ROM is still the one the playable copy plays when another worker makes the copy. On B, whose worker
+    no later check pins."""
+    built = structured(client_b.call(OWNER_B, "rom_build", {}))  # the live player off: no copy is made now
+    os.kill(client_b.call(OWNER_B, "session_status")["lane"]["engine_pid"], signal.SIGKILL)
+    time.sleep(1.0)
+    opened = structured(client_b.call(OWNER_B, "web_preview", {}))
+    played = played_hash(suite.project_b)
+    suite.check(
+        "V3",
+        "A worker started after a build still plays that build's ROM in the playable copy",
+        opened.get("success") is not False and played is not None and played == (built.get("rom") or {}).get("sha256"),
+        built=(built.get("rom") or {}).get("sha256"),
+        played=played,
+        error=built.get("error") or opened.get("error"),
+    )
+    client_b.call(OWNER_B, "web_preview_close", {})
+
+    # GB Studio compiles the web copy without batteryless saves on purpose: that copy keeps its own ROM.
+    settings = suite.project_b / "project" / "settings.gbsres"
+    saved = settings.read_text()
+    settings.write_text(json.dumps({**json.loads(saved), "batterylessEnabled": True}, indent=2))
+    try:
+        batteryless = structured(client_b.call(OWNER_B, "rom_build", {}))
+        opened = structured(client_b.call(OWNER_B, "web_preview", {}))
+        played = played_hash(suite.project_b)
+        suite.check(
+            "V4",
+            "With batteryless saves on, the playable copy keeps GB Studio's own web compile",
+            batteryless.get("success") is not False
+            and opened.get("success") is not False
+            and played is not None
+            and played != (batteryless.get("rom") or {}).get("sha256"),
+            built=(batteryless.get("rom") or {}).get("sha256"),
+            played=played,
+        )
+        client_b.call(OWNER_B, "web_preview_close", {})
+    finally:
+        settings.write_text(saved)
 
 
 def check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b):

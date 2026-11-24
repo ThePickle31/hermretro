@@ -19,7 +19,7 @@ when the agent is ready to present the game after making it, never for the whole
   content digest; for an older record, no source file newer than the copy), where the
   export's time is the later of its ROM file and `lastWebExport.t`, which the broker records on every successful
   `web_preview` open, because the engine reuses an export whose sources did not change without rewriting its
-  files; a failed build after it also counts as stale); otherwise `{ok:false, code:"BUILD_FIRST", error,
+  files, unless a newer build of those sources made another ROM, which the export then plays (`engine/CHANGES.md`); a failed build after it also counts as stale); otherwise `{ok:false, code:"BUILD_FIRST", error,
   nextStep}`, the next step saying whether to build again or only to remake the copy with `chromatic_web_preview`. On success it records the presentation in the games registry
   (`games[id].chat`, `games[id].presented = {t, note}`, and the bounded `presentations` list) and returns
   `{ok:true, studio:{gameId, playerUrl, title, note, presentedAt}, message:"Shown to the user beside the chat."}`.

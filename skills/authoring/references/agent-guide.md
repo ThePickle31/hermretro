@@ -513,7 +513,9 @@ Restore requires a `stateId` from `list_states`. Build options `outputPath`,
 `chromatic_web_build` and `chromatic_web_preview`'s `open` action return `exportIdentity.rom`
 (relative path, SHA256 and bytes), the index identity and the complete validated
 export inventory's digest/count/bytes.
-These identify this web compilation's own output, not a separately built native ROM.
+These identify the ROM the export plays: the exact bytes of the last successful
+`chromatic_rom_build` of the same sources, else (no such build, or batteryless saves on) this
+web compilation's own output.
 `sourceRevision` already includes project-plugin contents; `sourceIdentityScope`
 states whether the other inputs came from the selected indexed revision or direct
 descriptor/resource/asset hashes. The before/after fingerprint check is not a

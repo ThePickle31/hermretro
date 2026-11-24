@@ -15,3 +15,10 @@ files, what changed and why.
   `CHROMATIC_DEVICE_SKINS` (the broker sets it, for the prepared copy outside the plugin), else the plugin's own
   `player/skins/` beside the bundled engine, loose rather than packed, for its web preview and the hardware
   live-feed window (`deviceArtworkFile` maps `chromatic-<id>.<ext>` to `<id>/skin.<ext>`), so each picture exists once.
+- `dist/server.js` (`dist/web-build.js` module, `rom_build`): the browser export plays the ROM `rom_build` made. A
+  successful build of the selected project writes `build/.codex-rom-build.json`, a receipt of its ROM (path and
+  SHA-256) and the export's source fingerprint (taken before and after the build), signed with the key that
+  attests web exports. A web build of the same sources writes that ROM's bytes over the one `make:web` compiled and
+  does not reuse a cached export holding another; a project with batteryless saves on keeps `make:web`'s ROM, which
+  GB Studio compiles without them on purpose. GB Studio puts a per-compile save signature in every ROM, so the two
+  compiles always differed: the game played, flashed and shared is now one file with one hash.

@@ -58506,6 +58506,64 @@ async function withOutputLock(output, operation) {
       BUILD_LOCKS.delete(output);
   }
 }
+var NATIVE_ROM_RECEIPT = path37.join("build", ".codex-rom-build.json");
+async function nativeRomRevision(projectRoot, projectPath) {
+  const root = await realpath20(path37.resolve(projectRoot));
+  return { root, revision: await sourceFingerprint(root, await realpath20(projectPath)) };
+}
+function nativeRomSignature(attestationKey, receipt) {
+  return createHmac("sha256", attestationKey).update("codex-gb-studio\0native-rom-receipt\0v1\0").update(JSON.stringify(receipt)).digest("hex");
+}
+async function batterylessProject(root) {
+  const read = async (file) => JSON.parse(await readFile13(path37.join(root, file), "utf8"));
+  const settings = await read(path37.join("project", "settings.gbsres")).catch(() => null);
+  if (settings && typeof settings === "object")
+    return settings.batterylessEnabled === true;
+  const descriptor = (await readdir9(root)).find((name3) => name3.toLowerCase().endsWith(".gbsproj"));
+  const project2 = descriptor ? await read(descriptor).catch(() => null) : null;
+  return project2?.settings?.batterylessEnabled === true;
+}
+async function rememberNativeRom(before, projectPath, rom, toolchainRoot) {
+  const receiptPath = path37.join(before.root, NATIVE_ROM_RECEIPT);
+  await rm5(receiptPath, { force: true });
+  const romPath = path37.relative(before.root, rom.path).split(path37.sep).join("/");
+  if (romPath.startsWith("../") || path37.isAbsolute(romPath) || !/^[a-f\d]{64}$/u.test(rom.sha256 ?? ""))
+    return;
+  if ((await nativeRomRevision(before.root, projectPath)).revision !== before.revision)
+    return;
+  const runtime = runtimeOptions({});
+  const official = await findOfficialCli(before.root, runtime, toolchainRoot);
+  const receipt = { version: 1, sourceRevision: before.revision, romPath, sha256: rom.sha256 };
+  const signature = nativeRomSignature(await signingKey(before.root, official.toolchainRoot, runtime), receipt);
+  await mkdir11(path37.dirname(receiptPath), { recursive: true });
+  const temporary = `${receiptPath}.${process.pid}-${Date.now()}`;
+  await writeFile2(temporary, JSON.stringify({ ...receipt, signature }) + "\n", { flag: "wx", mode: 384 });
+  await rename6(temporary, receiptPath);
+}
+async function nativeRomFor(root, sourceRevision, attestationKey) {
+  try {
+    if (await batterylessProject(root))
+      return null;
+    const { signature, ...receipt } = JSON.parse(await readFile13(path37.join(root, NATIVE_ROM_RECEIPT), "utf8"));
+    if (receipt.version !== 1 || receipt.sourceRevision !== sourceRevision || typeof receipt.romPath !== "string" || typeof receipt.sha256 !== "string" || typeof signature !== "string" || !/^[a-f\d]{64}$/u.test(signature))
+      return null;
+    if (!timingSafeEqual2(Buffer.from(signature, "hex"), Buffer.from(nativeRomSignature(attestationKey, receipt), "hex")))
+      return null;
+    const romPath = path37.resolve(root, receipt.romPath);
+    if (!isInside2(root, romPath))
+      return null;
+    const bytes2 = await readFile13(romPath);
+    return createHash33("sha256").update(bytes2).digest("hex") === receipt.sha256 ? { sha256: receipt.sha256, bytes: bytes2 } : null;
+  } catch {
+    return null;
+  }
+}
+async function adoptNativeRom(staging, native) {
+  const roms = (await collectArtifacts(staging)).filter((entry) => /\.(?:gb|gbc)$/iu.test(entry.path));
+  if (roms.length !== 1)
+    throw new Error("Official game web export must contain exactly one genuine Game Boy ROM.");
+  await writeFile2(path37.join(staging, roms[0].path), native.bytes);
+}
 async function buildWeb(options, platformOptions = {}) {
   const runtime = runtimeOptions(platformOptions);
   assertSafePlatformPath(options.projectRoot, runtime.platform);
@@ -58566,9 +58624,11 @@ async function buildWeb(options, platformOptions = {}) {
     try {
       if (options.signal?.aborted)
         throw Object.assign(new Error("The web build was cancelled before compilation."), { name: "AbortError" });
+      const native = options.revision === void 0 ? await nativeRomFor(root, sourceRevision, attestationKey) : null;
       if (!options.force && await exists4(outputPath)) {
         const cached2 = await readCachedManifest(outputPath, sourceRevision, attestationKey);
-        if (cached2) {
+        const replacedRom = native && cached2 && exportIdentity(cached2).rom.sha256 !== native.sha256;
+        if (cached2 && !replacedRom) {
           if (await sourceFingerprint(root, source, options.revision) !== sourceRevision) {
             throw new Error("Selected web-build source revision or plugin contents changed during cache validation.");
           }
@@ -58610,6 +58670,8 @@ async function buildWeb(options, platformOptions = {}) {
       if (await sourceFingerprint(root, source, options.revision) !== sourceRevision) {
         throw new Error("Selected web-build source revision or plugin contents changed during compilation.");
       }
+      if (native)
+        await adoptNativeRom(staging, native);
       const manifest = await validateArtifacts(staging, sourceRevision, attestationKey);
       await writeFile2(path37.join(staging, MANIFEST_FILENAME), JSON.stringify(manifest, null, 2) + "\n", {
         encoding: "utf8",
@@ -66725,7 +66787,12 @@ function createGbStudioServer(options = {}) {
     }
     return performProjectArtifact(async (project2, access4) => {
       const projectPath = input.projectPath ?? project2.projectPath;
+      const selected = path45.resolve(project2.projectRoot, projectPath) === path45.resolve(project2.projectPath);
+      const before = selected ? await nativeRomRevision(project2.projectRoot, project2.projectPath).catch(() => null) : null;
       const result = await buildRom({ ...input, projectRoot: project2.projectRoot, projectPath });
+      if (before && result.success !== false && typeof result.outputPath === "string" && result.rom)
+        await rememberNativeRom(before, project2.projectPath, { path: result.outputPath, sha256: result.rom.sha256 }, configuredToolchain).catch(() => {
+        });
       const relative6 = path45.relative(project2.projectRoot, result.outputPath).split(path45.sep).join("/");
       if (relative6.startsWith("project/") || relative6.startsWith("assets/"))
         await access4.noteCommittedPaths([result.outputPath]);
