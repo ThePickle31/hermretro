@@ -8,8 +8,8 @@ import { AsyncButton } from '#shared/ui/page.js'
 import { Lede } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
 
-/** The ROM the player would load now: the web export's own (its ROM is a separate compilation, not the
- *  native build's bytes), else the last build for a backend that predates `web`. */
+/** The ROM the player would load now: the web export's (the last build's own bytes, unless the project has
+ *  batteryless saves on), else the last build for a backend that predates `web`. */
 export function playableSha(game) {
   return game?.web === undefined ? game?.rom?.sha256 ?? null : game.web?.sha256 ?? null
 }

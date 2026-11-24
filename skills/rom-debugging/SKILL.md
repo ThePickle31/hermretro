@@ -136,8 +136,9 @@ only.
   build is in a player. `chromatic_present_game` returns `BUILD_FIRST` until the copy is the engine's own copy of
   the current build; its `nextStep` says what to do.
 - Playtest the ROM the user will play: the emulator beside the chat loads the web copy
-  (`build/web/rom/*.gbc`), a separate compilation that is not byte-identical to the native build. Pass
-  its path to `chromatic_emulator_run` when you test right before presenting.
+  (`build/web/rom/*.gbc`), which holds the last build's own ROM byte for byte, unless the project has
+  batteryless saves on (GB Studio then compiles the web copy without them). Pass its path to
+  `chromatic_emulator_run` when you test right before presenting.
 - The player saves the user's screenshots and recordings under `<project>/captures/`. **Ask Hermes** and
   marked annotations put a message with `Screenshot: <path>` into this game's chat: open that file.
 - Each chat has its own engine worker for one project. After a long idle period it is shut down; the next
