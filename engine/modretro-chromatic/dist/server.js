@@ -58506,6 +58506,35 @@ async function withOutputLock(output, operation) {
       BUILD_LOCKS.delete(output);
   }
 }
+var NATIVE_ROMS = /* @__PURE__ */ new Map();
+async function nativeRomRevision(projectRoot, projectPath) {
+  const root = await realpath20(path37.resolve(projectRoot));
+  return { root, revision: await sourceFingerprint(root, await realpath20(projectPath)) };
+}
+async function rememberNativeRom(before, projectPath, romPath) {
+  NATIVE_ROMS.delete(before.root);
+  const after = await nativeRomRevision(before.root, projectPath);
+  if (after.revision === before.revision) {
+    NATIVE_ROMS.set(before.root, { sourceRevision: before.revision, romPath, sha256: await hashFile(romPath) });
+  }
+}
+async function nativeRomFor(root, sourceRevision) {
+  const native = NATIVE_ROMS.get(root);
+  if (!native || native.sourceRevision !== sourceRevision)
+    return null;
+  try {
+    const bytes2 = await readFile13(native.romPath);
+    return createHash33("sha256").update(bytes2).digest("hex") === native.sha256 ? { ...native, bytes: bytes2 } : null;
+  } catch {
+    return null;
+  }
+}
+async function adoptNativeRom(staging, native) {
+  const roms = (await collectArtifacts(staging)).filter((entry) => /\.(?:gb|gbc)$/iu.test(entry.path));
+  if (roms.length !== 1)
+    throw new Error("Official game web export must contain exactly one genuine Game Boy ROM.");
+  await writeFile2(path37.join(staging, roms[0].path), native.bytes);
+}
 async function buildWeb(options, platformOptions = {}) {
   const runtime = runtimeOptions(platformOptions);
   assertSafePlatformPath(options.projectRoot, runtime.platform);
@@ -58566,9 +58595,11 @@ async function buildWeb(options, platformOptions = {}) {
     try {
       if (options.signal?.aborted)
         throw Object.assign(new Error("The web build was cancelled before compilation."), { name: "AbortError" });
+      const native = options.revision === void 0 ? await nativeRomFor(root, sourceRevision) : null;
       if (!options.force && await exists4(outputPath)) {
         const cached2 = await readCachedManifest(outputPath, sourceRevision, attestationKey);
-        if (cached2) {
+        const replacedRom = native && !options.cacheOnly && cached2 && exportIdentity(cached2).rom.sha256 !== native.sha256;
+        if (cached2 && !replacedRom) {
           if (await sourceFingerprint(root, source, options.revision) !== sourceRevision) {
             throw new Error("Selected web-build source revision or plugin contents changed during cache validation.");
           }
@@ -58610,6 +58641,8 @@ async function buildWeb(options, platformOptions = {}) {
       if (await sourceFingerprint(root, source, options.revision) !== sourceRevision) {
         throw new Error("Selected web-build source revision or plugin contents changed during compilation.");
       }
+      if (native)
+        await adoptNativeRom(staging, native);
       const manifest = await validateArtifacts(staging, sourceRevision, attestationKey);
       await writeFile2(path37.join(staging, MANIFEST_FILENAME), JSON.stringify(manifest, null, 2) + "\n", {
         encoding: "utf8",
@@ -66725,7 +66758,10 @@ function createGbStudioServer(options = {}) {
     }
     return performProjectArtifact(async (project2, access4) => {
       const projectPath = input.projectPath ?? project2.projectPath;
+      const before = projectPath === project2.projectPath ? await nativeRomRevision(project2.projectRoot, projectPath).catch(() => null) : null;
       const result = await buildRom({ ...input, projectRoot: project2.projectRoot, projectPath });
+      if (before && result.success !== false && typeof result.outputPath === "string")
+        await rememberNativeRom(before, projectPath, result.outputPath).catch(() => NATIVE_ROMS.delete(before.root));
       const relative6 = path45.relative(project2.projectRoot, result.outputPath).split(path45.sep).join("/");
       if (relative6.startsWith("project/") || relative6.startsWith("assets/"))
         await access4.noteCommittedPaths([result.outputPath]);

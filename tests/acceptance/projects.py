@@ -9,6 +9,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+from backend import library
 from backend.broker.engine import EngineProcess
 from backend.system import paths
 from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
@@ -155,8 +156,18 @@ def build_roms(suite, client_a, client_b):
         same_url=player_1.get("url") == player_2.get("url"),
         http=served,
     )
+    played = library.web_rom(Path(rom_a).parents[1]) if rom_a else None
+    native_hash = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest() if rom_a else None
+    played_hash = hashlib.sha256(played.read_bytes()).hexdigest() if played else None
+    suite.check(
+        "V2",
+        "The playable copy plays the very ROM the build made, byte for byte",
+        native_hash is not None and played_hash == native_hash,
+        native=native_hash,
+        played=played_hash,
+    )
     client_a.call(OWNER_A, "web_preview_close", {})
-    hash_a = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest()  # A was rebuilt; later checks use this ROM
+    hash_a = native_hash  # A was rebuilt; later checks use this ROM
     return rom_a, rom_b, hash_a, hash_b
 
 
