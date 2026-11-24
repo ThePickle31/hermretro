@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from . import bindings, game_card, project, shelf
+from . import bindings, game_card, layout, project, shelf
 from .bindings import BindingError as BindingError
 from .bindings import session_aliases as session_aliases
 from .freshness import (  # noqa: F401 - existing library imports
@@ -310,6 +310,7 @@ class Registry:
                 # Every game gets its card file when it is made; the agent fills it in before presenting.
                 try:
                     game_card.scaffold(Path(root), project_title(Path(root)))
+                    layout.ensure(Path(root))  # and the rest of the game layout
                 except OSError:
                     pass
             if entry is not None and conversation_id and tool != "project_select":

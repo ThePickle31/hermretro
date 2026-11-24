@@ -7,8 +7,8 @@ import hashlib
 import os
 from pathlib import Path
 
-from . import game_card
 from .project import (
+    GAME_FILES,
     NOT_SOURCE,
     _game_rom,
     _legacy_rom,
@@ -196,14 +196,24 @@ def export_freshness(
 
 
 def sources_newer_than(root: Path, moment: float) -> bool:
-    """Whether any game source file under the project changed after ``moment`` (a ROM's mtime)."""
+    """Whether any game source file under the project changed after ``moment`` (a ROM's mtime). For a GB Studio
+    project that is what a build reads: its ``.gbsproj``, ``project/``, ``assets/`` and ``plugins/`` (a file the game
+    layout keeps local never counts); for any other project, every file but build output and the game files."""
+    descriptor = project_file(Path(root))
+    if descriptor is not None:
+        try:
+            if descriptor.stat().st_mtime > moment + 1.0:
+                return True
+        except OSError:
+            pass
     seen = 0
     top = os.fspath(root)
-    for directory, folders, files in os.walk(root):
+    walks = [os.walk(Path(root, folder)) for folder in EXPORT_SOURCES] if descriptor is not None else [os.walk(root)]
+    for directory, folders, files in (step for walk in walks for step in walk):
         folders[:] = [f for f in folders if not f.startswith(".") and f not in NOT_SOURCE]
         for name in files:
-            # The game card (game.json, cover.png) describes the game; it is not game source.
-            if name.startswith(".") or (directory == top and name in game_card.CARD_FILES):
+            # The game card, README, changelog and licence describe the game; they are not game source.
+            if name.startswith(".") or (directory == top and name in GAME_FILES):
                 continue
             seen += 1
             if seen > MAX_SOURCE_FILES:

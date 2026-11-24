@@ -4,7 +4,8 @@
 action and menu (`game-card.js`; the cartridge itself is `cartridge.js`, exported for Build's New Game shelf), the games folder, and the hardware chip. `model.js` is the library model.
 The cards read these fields of each game as the `games` RPC returns it (every field: [.agents/skills/hermretro-dev-architecture/references/contract.md, "The game object"](../../../.agents/skills/hermretro-dev-architecture/references/contract.md#the-game-object)):
 `id`, `title`, `displayTitle`, `state` (the status and the split action), `error`, `thumb` (the label art),
-`cover` (whether `thumb` is the cover art), `card` (`tagline`, `description`, `genres`, `complete`), `rom`,
+`cover` (whether `thumb` is the cover art), `card` (`tagline`, `description`, `genres`, `complete`), `layout`
+(a problem or warning shows the Layout tag, titled with the paths it names), `rom`,
 `webExport`, `chat` and `projectRoot`. A game whose `thumb` is the title screen (`cover` false) gets the
 "No cover" tag (`.nocover`, in `cartridge.js`, styled in `games.css.js`); the same `Cartridge` draws Build's New
 Game shelf, so a change to it shows on both pages.

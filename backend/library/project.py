@@ -14,6 +14,9 @@ from pathlib import Path
 
 # Folders under a project that hold build output, recordings or tooling, never game source.
 NOT_SOURCE = frozenset({"build", "captures", "save-states", "artifacts", "node_modules", "__pycache__", "docs"})
+# The files at the top of a game folder that describe the game rather than make it (backend/library/layout.py):
+# what every publish holds besides the ROM.
+GAME_FILES = ("game.json", "cover.png", "README.md", "CHANGELOG.md", "LICENSE", ".gitignore")
 # The game's one ROM, without its extension (``canonical_rom``).
 ROM_STEM = "build/game"
 

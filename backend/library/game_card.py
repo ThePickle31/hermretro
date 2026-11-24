@@ -11,11 +11,15 @@ Unknown keys in ``game.json`` are kept, so later versions can add fields without
 
 from __future__ import annotations
 
+import fcntl
+import functools
 import json
 import os
 import re
 import tempfile
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from .game_cover import COVER_FILE, COVER_HEIGHT, COVER_WIDTH, _copy_problem, _cover, check_cover
@@ -28,6 +32,10 @@ from .game_cover import cover_problem as cover_problem  # public: backend/librar
 
 CARD_FILE = "game.json"
 CARD_FILES = frozenset({CARD_FILE, COVER_FILE})
+# The game's own record folder (backend/library/layout.py), which also holds the lock every write to the folder's
+# card and layout files takes.
+RECORD_DIR = ".hermretro"
+LOCK_FILE = "folder.lock"
 VERSION = 1
 
 MAX_CARD_BYTES = 64 * 1024
@@ -66,6 +74,41 @@ REQUIRED = ("title", "tagline", "description", "genres", "cover")
 PLACEHOLDER = re.compile(r"\b(todo|tbd|tbc|lorem ipsum|placeholder|fill (this|me) in|coming soon)\b", re.I)
 
 
+_held = threading.local()
+
+
+@contextmanager
+def folder_lock(root: Path):
+    """Hold the game folder's lock: the gateway and the broker both write a game's card and layout files, and each
+    write reads, merges and replaces. Taken again by the same thread, it is already held."""
+    key = os.path.realpath(root)
+    held = _held.__dict__.setdefault("roots", set())
+    if key in held:
+        yield
+        return
+    folder = Path(root) / RECORD_DIR
+    folder.mkdir(exist_ok=True)
+    with open(folder / LOCK_FILE, "a+") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        held.add(key)
+        try:
+            yield
+        finally:
+            held.discard(key)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def locked(function):
+    """Run ``function(root, ...)`` holding ``folder_lock(root)``."""
+
+    @functools.wraps(function)
+    def run(root, *args, **kwargs):
+        with folder_lock(root):
+            return function(root, *args, **kwargs)
+
+    return run
+
+
 def card_path(root: Path) -> Path:
     return Path(root) / CARD_FILE
 
@@ -101,6 +144,16 @@ def _write(root: Path, data: dict) -> None:
         raise
 
 
+@locked
+def set_fields(root: Path, fields: dict) -> dict:
+    """Merge ``fields`` into the stored card and write it, unchecked: the game layout's own fields (``id``,
+    ``gameVersion``, ``rom``; ``backend/library/layout.py``), which ``update`` never takes."""
+    data = {**load(root), **fields}
+    _write(root, data)
+    return data
+
+
+@locked
 def scaffold(root: Path, title: str) -> dict:
     """Write a starter card (the title, everything else empty) unless the game has one."""
     root = Path(root)
@@ -216,6 +269,7 @@ def next_step(missing: list[str]) -> str:
 # -- updating ---------------------------------------------------------------------------
 
 
+@locked
 def update(
     root: Path,
     fields: dict,

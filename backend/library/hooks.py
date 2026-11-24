@@ -1,13 +1,51 @@
 """The library's Hermes hooks: a game's Build conversation is told which game it works on (``pre_llm_call``,
-ephemeral context every turn)."""
+ephemeral context every turn), and Hermes's file tools stay out of a game's ``.hermretro/`` (``pre_tool_call``)."""
 
 from __future__ import annotations
 
+import os
+import re
 import stat
 from pathlib import Path
 
 from ..hermes import host, workflow
 from ..hermes.declare import hook
+from . import layout
+
+# Hermes's own file-writing tools (a terminal command is not parsed), and a V4A patch's file headers.
+FILE_WRITE_TOOLS = frozenset({"write_file", "patch"})
+PATCH_TARGET = re.compile(r"^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$", re.M)
+
+
+def _targets(args: dict) -> list[str]:
+    """The files a ``write_file`` or ``patch`` call would write: its ``path``, and a V4A patch's file headers."""
+    found = [args["path"]] if isinstance(args.get("path"), str) else []
+    if isinstance(args.get("patch"), str):
+        found += [match.strip() for match in PATCH_TARGET.findall(args["patch"])]
+    return found
+
+
+def _in_game_record(target: str) -> bool:
+    """Whether ``target`` resolves into a ``.hermretro/`` folder (through any link; letter case aside)."""
+    try:
+        resolved = Path(os.path.realpath(os.path.expanduser(target)))
+    except (TypeError, ValueError):
+        return False
+    return any(part.lower() == layout.STATE_DIR for part in resolved.parts)
+
+
+@hook("pre_tool_call")
+def guard_game_record(tool_name=None, args=None, **_kwargs):
+    """``pre_tool_call``: refuse a file-tool write into a game's ``.hermretro/`` (its id and publish record)."""
+    if tool_name not in FILE_WRITE_TOOLS or not isinstance(args, dict):
+        return None
+    if any(_in_game_record(target) for target in _targets(args)):
+        return {
+            "action": "block",
+            "message": f"{layout.STATE_DIR}/ is hermretro's record of the game (its id and publish record); it "
+            "cannot be edited. Leave it as it is.",
+        }
+    return None
 
 
 @hook("pre_llm_call")

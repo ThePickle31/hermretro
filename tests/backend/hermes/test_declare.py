@@ -42,7 +42,7 @@ class Declarations(unittest.TestCase):
     def test_the_device_cli_approval_is_chained_after_the_hardware_approvals(self):
         found = declare.collect("backend", FEATURES)
         owners = [function.__module__ for name, function, _ctx in found.hooks if name == "pre_tool_call"]
-        self.assertEqual(owners, ["backend.hermes.host", "backend.setup.hooks"])
+        self.assertLess(owners.index("backend.hermes.host"), owners.index("backend.setup.hooks"))
 
 
 if __name__ == "__main__":

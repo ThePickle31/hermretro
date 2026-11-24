@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 778e6713677cb0acf4d3e1d570865aaf2c25f8bdd04e7e79125a8a37bba9019f
- * body: sha256 b2944554d14ace6109a30eea947234398ba170ac142caa3325177362d3bfb6ff
+ * sources: sha256 13546a73d401bde672447f78fb25b90c5e737d54418cb51a9439671248a7955a
+ * body: sha256 b72677aac36ffeca6499a66b146fd5a4e0e647101ce48ed2495c3b8529842c62
  */
 // page/sdk.js
 import {
@@ -8833,6 +8833,13 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
     ]
   });
 }
+function LayoutTag({ layout }) {
+  const findings = [...layout?.problems ?? [], ...layout?.warnings ?? []];
+  if (!findings.length) {
+    return null;
+  }
+  return jsxs("span", { className: `cs-gst ${layout.problems?.length ? "bad" : "warn"}`, title: findings.map((item) => item.path || item.code).join("\n"), children: [jsx("i", {}), "Layout"] });
+}
 function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   const title = game.displayTitle || game.title;
   const card = game.card ?? null;
@@ -8860,7 +8867,7 @@ function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
           jsxs("div", {
             className: "cs-gline",
             title: meta.join(" · "),
-            children: [jsxs("span", { className: `cs-gst ${tone}`, children: [jsx("i", {}), status] }), jsx("span", { children: built })]
+            children: [jsxs("span", { className: `cs-gst ${tone}`, children: [jsx("i", {}), status] }), jsx("span", { children: built }), jsx(LayoutTag, { layout: game.layout })]
           })
         ]
       }),
