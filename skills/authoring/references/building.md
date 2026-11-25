@@ -22,17 +22,14 @@ native `.gbsproj` compiles.
 
 ## Debugging artifacts
 
-Request authenticated same-build debugging artifacts only when required:
-
-```text
-chromatic_rom_build {"captureDebugArtifacts":true}
-```
-
-The successful native-build response includes compiler `symbols.noi` and
-`globals.i` artifacts with SHA-256 evidence tying both files to the exact ROM
-from the same build. Those artifacts are unavailable for standalone C builds.
-They can authorize explicit source-aware debugging of that exact cartridge;
-they do not authorize symbols from an unrelated build or guessed RAM layouts.
+Every native project build also captures authenticated same-build debugging
+artifacts: compiler `symbols.noi` and `globals.i` (about 30 KB) in
+`build/<rom>.debug/`, tied to the exact ROM from the same build. The result
+names their folder and says whether source debugging is available
+(`detail:"full"` adds the files and SHA-256 evidence). `chromatic_emulator_run`
+then starts that exact cartridge with source debugging by itself.
+`captureDebugArtifacts:false` skips them; standalone C builds have none. They do
+not authorize symbols from an unrelated build or guessed RAM layouts.
 
 ## Read the result
 

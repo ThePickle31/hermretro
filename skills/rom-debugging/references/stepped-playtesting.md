@@ -137,9 +137,9 @@ that session.
 ## Diagnose, edit, and retest
 
 Use `chromatic_emulator_inspect` for bounded OAM or allowlisted hardware-memory views.
-For named variables or the current scene, build with
-`captureDebugArtifacts:true`, start that exact ROM with `debugMode:"source"`,
-then call `chromatic_emulator_debug`. Source diagnostics require the matching successful
+For named variables or the current scene, call `chromatic_emulator_debug` on
+the ROM the last build returned: builds capture debug artifacts and
+`chromatic_emulator_run` starts their ROM in source mode by default. Source diagnostics require the matching successful
 build and unchanged authored source; addresses are not guessed.
 
 Preserve the original attempt when it helps explain a failure. Play recorded

@@ -111,15 +111,11 @@ chromatic_rom_build {"projectPath":"<path-to-project.gbsproj>"}
 chromatic_rom_inspect {"romPath":"<returned-rom-path>"}
 ```
 
-When the investigation requires authenticated same-build debug information,
-request it explicitly from an official project build:
-
-```text
-chromatic_rom_build {"projectPath":"<path-to-project.gbsproj>","captureDebugArtifacts":true}
-```
-
-The returned `debugArtifacts` identify the generated `symbols.noi`, `globals.i`,
-and SHA-256 digests for both files and their exact ROM. Missing, malformed, or
+An official project build captures authenticated same-build debug information
+by default (`captureDebugArtifacts:false` skips it). The returned
+`debugArtifacts` name the folder holding the generated `symbols.noi` and
+`globals.i`; with `detail:"full"` they also give the SHA-256 digests for both
+files and their exact ROM. Missing, malformed, or
 mismatched artifacts fail the request instead of silently reusing another
 build. A direct GBDK C-source probe cannot capture project-build artifacts.
 Use those authenticated artifacts with the explicit source-aware mode described

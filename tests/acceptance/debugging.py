@@ -1,5 +1,8 @@
 """Source-mode debugging on the real engine: live state read from the running game."""
 
+import json
+from pathlib import Path
+
 from tests.acceptance.fixture import OWNER_B, structured
 
 MENU = {
@@ -71,15 +74,11 @@ def until_dialogue(client_b, dialogue, **query):
 
 
 def check_live_state(suite, client_b):
-    """A debug build run in source mode reports live actors, the text box and menu that own input, and the player
-    walking once they close. On B, which no later check plays."""
+    """A build run as it comes (debug artifacts and source mode are the defaults) reports live actors, the text box
+    and menu that own input, and the player walking once they close. On B, which no later check plays."""
     authored = author_scene(client_b)
-    built = structured(client_b.call(OWNER_B, "rom_build", {"captureDebugArtifacts": True}))
-    client_b.call(
-        OWNER_B,
-        "emulator_run",
-        {"romPath": built.get("outputPath"), "restart": True, "initialFrames": 120, "debugMode": "source"},
-    )
+    built = structured(client_b.call(OWNER_B, "rom_build", {"detail": "full"}))
+    client_b.call(OWNER_B, "emulator_run", {"romPath": built.get("outputPath"), "restart": True, "initialFrames": 120})
     text = until_dialogue(client_b, "waiting", actors="all", variableNames=["oil", "LANTERN_OIL"])
     step(client_b, (["a"], 2), ([], 1))
     menu = until_dialogue(client_b, "menu", actors=["guide"])
@@ -126,4 +125,53 @@ def check_live_state(suite, client_b):
         chosen=chosen.get("live"),
         walking=walking.get("live"),
         error=text.get("error") or walking.get("error") or structured(unknown).get("error"),
+    )
+
+
+def run(client_b, build_arguments):
+    built = structured(client_b.call(OWNER_B, "rom_build", build_arguments))
+    started = structured(
+        client_b.call(
+            OWNER_B, "emulator_run", {"romPath": built.get("outputPath"), "restart": True, "initialFrames": 120}
+        )
+    )
+    return built, started
+
+
+def check_debug_defaults(suite, client_b):
+    """A build captures debug artifacts unless told not to, emulator_run picks source mode for it by itself, and the
+    build and debug results stay short unless asked for in full."""
+    built, started = run(client_b, {})
+    compact, full = debug(client_b), debug(client_b, detail="full")
+    plain, plain_started = run(client_b, {"captureDebugArtifacts": False})
+    refused = client_b.call(OWNER_B, "emulator_debug", {})
+    suite.check(
+        "M16",
+        "A default build reports only its debug folder and that source debugging is available, emulator_run starts it "
+        "in source mode, a debug read leaves out the build identity and standing limitations until detail:'full', and "
+        "captureDebugArtifacts:false gives a ROM-only run",
+        set(built.get("debugArtifacts") or {}) == {"directory"}
+        and Path(built["debugArtifacts"]["directory"], "symbols.noi").is_file()
+        and built.get("sourceDebug") == {"available": True}
+        and started.get("debugMode") == "source"
+        and "sourceDebug" not in started
+        and compact.get("mode") == "source"
+        and not {"identity", "limitations"} & set(compact)
+        and compact.get("references") == []
+        and (full.get("identity") or {}).get("romSha256") == started.get("romSha256")
+        and len(full.get("limitations") or []) >= 1
+        and len(json.dumps(compact)) < len(json.dumps(full))
+        and not {"debugArtifacts", "sourceDebug"} & set(plain)
+        and plain_started.get("debugMode") == "rom"
+        and refused["result"].get("isError") is True
+        and structured(refused).get("code") == "SOURCE_DEBUG_DISABLED",
+        built={key: built.get(key) for key in ("debugArtifacts", "sourceDebug", "error")},
+        started={key: started.get(key) for key in ("debugMode", "sourceDebug", "error")},
+        compact_keys=sorted(compact),
+        full_keys=sorted(full),
+        compact_bytes=len(json.dumps(compact)),
+        full_bytes=len(json.dumps(full)),
+        plain_keys=sorted(plain),
+        plain_mode=plain_started.get("debugMode"),
+        refused=structured(refused),
     )

@@ -183,8 +183,9 @@ ending), report what happened instead, as `hermretro:game-planning` step 6 says.
 
 For variable values, the current scene, live player and actor positions,
 whether dialogue or a menu is waiting for a button, or authored collision/event
-references, build with `captureDebugArtifacts:true`, start that exact ROM with
-`debugMode:"source"`, and call `chromatic_emulator_debug` while paused. Read
+references, call `chromatic_emulator_debug` while paused on the ROM the last
+build returned (builds capture debug artifacts and `chromatic_emulator_run`
+starts their ROM in source mode by default). Read
 state there instead of decoding WRAM or `symbols.noi` by hand. It requires
 authenticated same-build artifacts and unchanged source; unsupported or
 optimized-out data stays unavailable. For bounded OAM/VRAM/WRAM/HRAM inspection

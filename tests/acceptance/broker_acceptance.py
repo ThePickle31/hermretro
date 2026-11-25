@@ -130,6 +130,7 @@ def exercise(suite):
         art.check_art_import(suite, client_b)
         art_limits.check_art_limits(suite, client_b)
         debugging.check_live_state(suite, client_b)
+        debugging.check_debug_defaults(suite, client_b)
         authoring.check_symbols_and_events(suite, client_b)
         audio.check_audio(suite, client_b)
         events.check_events(suite, client_b)

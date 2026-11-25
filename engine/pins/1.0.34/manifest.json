@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36200160,
+ "total_bytes": 36202888,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "9406559c614444face3e0a2fc1f6e1423a6ba911b4d3d4c6eb9090998244b5e0",
+ "aggregate_sha256": "8d7ca09dead7f92709732e0dd705e82d628de6c35b974a9d70f705c5bd49cae7",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -1048,9 +1048,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3023665,
+   "size": 3026407,
    "mode": "0o644",
-   "sha256": "edce06662b2cdd6a65200f7b6f5a0d5b0afb6fe86541a297645e77ae82a0942b"
+   "sha256": "ea47515c983caaf3cfa69ec0b7f810ae68e0ee60c052e973ea2b0d1376778996"
   },
   {
    "path": "dist/server.js.map",
@@ -3008,9 +3008,9 @@
   {
    "path": "examples/starter/project/engine_field_values.gbsres",
    "type": "file",
-   "size": 557,
+   "size": 543,
    "mode": "0o644",
-   "sha256": "d1e4a1d9e4c46131ca7ad05526a12fecd50afc168304748253349584b73b6717"
+   "sha256": "f93040b971a9c2b6c42d5569e8eb438e534b111910b2d477948992301d5e96bc"
   },
   {
    "path": "examples/starter/project/palettes/default_bg_1.gbsres",

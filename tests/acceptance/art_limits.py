@@ -177,14 +177,18 @@ def check_palette_and_native_metadata(suite, client_b, root):
         },
     }
     revision = call(client_b, "project_inspect", {}).get("revision")
-    dry = call(client_b, "asset_import", {**native, "expectedRevision": revision, "dryRun": True})
+    dry = call(client_b, "asset_import", {**native, "expectedRevision": revision, "dryRun": True, "detail": "full"})
     real = call(client_b, "asset_import", {**native, "expectedRevision": revision})
     suite.check(
         "A9",
-        "A three-color update keeps the palette's entry 2, and native_metadata imports return the analysis",
+        "A three-color update keeps the palette's entry 2, and native_metadata imports return the analysis, with "
+        "the ID map only in full",
         updated.get("palette", {}).get("colors") == ["FFFFFF", "808080", "00F000", "000000"]
         and dry.get("analysis", {}).get("status") == "valid"
-        and real.get("analysis", {}).get("status") == "valid",
+        and real.get("analysis", {}).get("status") == "valid"
+        and len(dry.get("idMap") or []) == dry.get("counts", {}).get("ids", 0) > 0
+        and not {"idMap", "patternAccounting"} & set(real)
+        and real.get("counts", {}).get("ids") == dry.get("counts", {}).get("ids"),
         updated=updated,
         dry=dry,
         real=real,
