@@ -31,9 +31,9 @@ chromatic_asset_import {"assetPath":"assets/sprites/hero.png","kind":"sprite","s
 chromatic_sprite_inspect {"assetId":"<returned-asset-id>"}
 ```
 
-Supported standard profiles match 16 × 16 static, 48 × 16 directional, or
-96 × 16 directional-animated artwork; a template profile must match an
-existing registered compatible sprite. Preserve actual states, animation slots,
+Supported profiles match 16 × 16 static, 48 × 16 directional, 96 × 16
+directional-animated, or one row of larger `metasprite` frames; a template
+profile must match an existing registered compatible sprite. Preserve actual states, animation slots,
 metasprite IDs, checksum, and native `numTiles`. Source and destination paths
 must both remain within the same selected distributed project.
 
@@ -123,9 +123,9 @@ Rebuild rather than merely shrink:
 1. Decide the exact target asset and final dimensions before generating or editing.
 2. Extract a clean silhouette, terrain motifs, landmarks, and intentional values.
 3. Reconstruct on the real 8 × 8 tile grid or the requested native sprite frame
-   grid. A 32 × 32 design requires a compatible existing import template; the
-   simple static profile is 16 × 16. Preserve the requested design size and
-   report an unsupported import layout rather than silently shrinking it.
+   grid. A 32 × 32 design imports with the `metasprite` profile (a directional
+   one needs a compatible existing template). Preserve the requested design size
+   and report an unsupported import layout rather than silently shrinking it.
 4. Redraw clean pixel clusters, repeat reusable tiles, align seams, and stabilize
    every animation frame's anchor and silhouette.
 5. Apply the actual native source palette or construct legal per-tile automatic
@@ -133,11 +133,12 @@ Rebuild rather than merely shrink:
 6. Rebuild transparent pixels using the project's real sprite convention.
 7. Export a lossless PNG. Never leave JPEG artifacts, resampling blur, fractional
    pixels, unsupported antialiasing, accidental alpha, or invented colors.
-8. Run `chromatic_graphics_analyze` on the actual exported asset. Fix coordinate-specific
-   violations and budget pressure; do not mistake a visually plausible preview for
-   successful reconstruction.
-9. Register the PNG with `chromatic_asset_import`, inspect native sprite/background
-   metadata, resolve scene palette assignments, and run `chromatic_graphics_analyze_scene`.
+8. Register the PNG with `chromatic_asset_import`; its `analysis` is the graphics
+   analysis of the actual asset. Fix coordinate-specific violations and budget
+   pressure; do not mistake a visually plausible preview for successful
+   reconstruction.
+9. Inspect native sprite/background metadata, resolve scene palette assignments,
+   and run `chromatic_graphics_analyze_scene`.
 10. Build the genuine cartridge, navigate to the asset, capture emulator frames,
    and inspect the result in motion where the project supports that workflow.
 
@@ -152,7 +153,7 @@ alignment, or correct object count.
 - Its genuine native sidecar and, for sprites, animation/metasprite metadata are
   registered without overwriting existing authored files.
 - Exported frame order, dimensions, palette, transparency, and tile grid are exact.
-- `chromatic_graphics_analyze` and relevant `chromatic_graphics_analyze_scene` succeed for the real
+- The import's `analysis` and relevant `chromatic_graphics_analyze_scene` succeed for the real
   compatibility mode, asset type, displayed scene palette, and aggregate budget.
 - A real emulator capture demonstrates the asset in its actual scene when runnable.
 - `chromatic_sprite_preview`, `chromatic_sprite_contact_sheet`, and `chromatic_graphics_preview_scene` remain

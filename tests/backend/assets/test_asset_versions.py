@@ -3,6 +3,7 @@ it delivered, and the viewer's ``asset`` call answers that version for a reply's
 
 import base64
 import hashlib
+import json
 import os
 import re
 import sys
@@ -68,6 +69,46 @@ class AssetVersions(unittest.TestCase):
         )
         self.write(PNG_B, 2000)
         self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
+
+    def test_each_image_a_several_asset_import_wrote_is_kept(self):
+        """The import names its images relative to the project, as the agent wrote them: they resolve against the
+        chat's game."""
+        self.write(PNG_A, 1000)
+        result = json.dumps(
+            {"structuredContent": {"imported": [{"assetPath": "cover.png", "kind": "sprite"}, "x"], "count": 2}}
+        )
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.game)):
+            assets_versions.keep_inspected_images(
+                tool_name="chromatic_asset_import",
+                args={"assets": [{"assetPath": "cover.png", "kind": "sprite"}]},
+                result=result,
+                conversation_id="c",
+                session_id="s",
+            )
+        self.write(PNG_B, 2000)
+        self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
+
+    def test_a_single_import_with_a_relative_path_is_kept(self):
+        self.write(PNG_A, 1000)
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.game)):
+            assets_versions.keep_inspected_images(
+                tool_name="chromatic_asset_import",
+                args={"assetPath": "cover.png", "kind": "sprite"},
+                result=json.dumps({"structuredContent": {"assetPath": "cover.png", "kind": "sprite"}}),
+            )
+        self.write(PNG_B, 2000)
+        self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_A)
+
+    def test_a_failed_import_keeps_nothing(self):
+        self.write(PNG_A, 1000)
+        with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.game)):
+            assets_versions.keep_inspected_images(
+                tool_name="chromatic_asset_import",
+                args={"assetPath": "cover.png", "kind": "sprite"},
+                result=json.dumps({"error": "INVALID_SPRITE_DIMENSIONS", "isError": True}),
+            )
+        self.write(PNG_B, 2000)
+        self.assertEqual(self.shown(at=1500 * 1000)[0], PNG_B)
 
     def test_an_unkept_older_version_falls_back_to_the_file(self):
         self.write(PNG_B, 2000)

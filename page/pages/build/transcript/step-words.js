@@ -197,6 +197,11 @@ export function stepImages(tool, root) {
 
   add(tool.args?.image_url)
   add(tool.info?.assetPath ?? tool.args?.assetPath)
+
+  for (const path of tool.info?.assetPaths ?? []) {
+    add(path)
+  }
+
   add(tool.info?.outputPath ?? tool.args?.outputPath)
 
   return tool.state === 'failed' ? [] : found

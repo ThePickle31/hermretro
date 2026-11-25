@@ -17,7 +17,7 @@ art can be authored in the workspace before project selection.
 | Create/update a shared four-color palette or assign a scene slot | `chromatic_palette_create`, `chromatic_palette_update`, `chromatic_palette_assign`; background and sprite slots are separate. |
 | Change palette slots on an unbound background region | `chromatic_palette_paint`; coordinates are 8 × 8 tiles. It changes native attributes, never the PNG pixels. |
 | Replace room tiles in a bound native tilemap | `chromatic_tilemap_inspect`, then exclusive `chromatic_tilemap_edit` with `replace_cells`; it replaces whole 8 × 8 cells with registered atlas tiles, not arbitrary individual pixels. |
-| Register a finished sprite/background PNG | `chromatic_asset_import`; it copies or registers an already existing project-local PNG and creates native metadata. It does not draw or replace existing assets. |
+| Register finished sprite/background PNGs | `chromatic_asset_import` (one, or several with `assets`); it copies or registers already existing project-local PNGs, creates native metadata and returns the graphics analysis. It does not draw or replace existing assets. |
 
 Do not assume a general PNG drawing tool from a tool's name or an unreleased
 example. If the current tool list exposes no operation for individual sprite or
@@ -37,10 +37,10 @@ per-pixel painting.
    alpha convention, frame bounds, palette, and a before/after comparison. Create
    a new versioned project PNG unless replacement is explicitly in scope. If
    local editing is unavailable or outside scope, report the gap.
-3. Run `chromatic_graphics_analyze` on the resulting PNG, then `chromatic_asset_import` for the new
-   resource with its explicit sprite profile or background palette mode. Inspect
-   the returned asset and deliberately update only the intended scene/actor
-   references. A new resource is not automatically assigned.
+3. `chromatic_asset_import` the new resource with its explicit sprite profile
+   (and `paletteIndex`) or background palette mode; fix any violation in its
+   `analysis`. Inspect the returned asset and deliberately update only the
+   intended scene/actor references. A new resource is not automatically assigned.
 
 ## Existing bound background
 
@@ -66,15 +66,17 @@ per-pixel painting.
 - A new sprite/background starts with a real PNG. Author it in the workspace
   with a pixel editor or explicit native cell data, then place it in the selected
   project when integration is requested; `chromatic_asset_import`
-  handles registration. Standard sprite profiles use 16 × 16 static, 48 × 16
-  directional, or 96 × 16 directional-animated; an existing compatible template
-  can supply other supported layouts. See [source colors and import rules](hardware-and-imports.md).
+  handles registration. Sprite profiles use 16 × 16 static, 48 × 16
+  directional, 96 × 16 directional-animated, or `metasprite` for larger frames
+  such as 32 × 32; an existing compatible template can supply other layouts.
+  See [source colors and import rules](hardware-and-imports.md).
 - To create a new background through native tile tools from existing source art,
   register the project-owned atlas with `chromatic_tilemap_atlas_create`, then use
   `chromatic_tilemap_create` to fill a fixed-size background or exactly capture an existing
   scene, and `chromatic_tilemap_edit` to place/fill/stamp named primitives. These tools do
   not create or paint the initial atlas PNG. See [native tilemaps](../../authoring/references/tilemaps.md).
-- Use `chromatic_sprite_preview`/`chromatic_sprite_contact_sheet` or `chromatic_graphics_preview_scene` for
-  static review. For an in-game appearance claim, build the actual ROM and inspect
+- Use `chromatic_sprite_preview`/`chromatic_sprite_contact_sheet` (with `paletteId`) or
+  `chromatic_graphics_preview_scene` for static review; they are enlarged by default, so
+  write no zoom scripts. For an in-game appearance claim, build the actual ROM and inspect
   genuine `chromatic_emulator_observe`/`chromatic_emulator_step` frames. For deliberately authored
   movement, see [native animation](prompting-grid-animation.md).

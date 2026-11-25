@@ -60,10 +60,18 @@ export function paintSheet(image, colors) {
   return canvas
 }
 
+/** Where GB Studio puts a tile's x = 0 in a sprite canvas `width` pixels wide: the left of its middle 16 pixels
+ *  (a 32-pixel frame keeps its first column at x = -8). */
+export function spriteOriginX(width) {
+  return width < 16 ? 0 : width / 2 - 8
+}
+
 /** Draw one sprite frame (GB Studio metasprite tiles, 8×16 each) at (left, top), whole-canvas mirrored with `flip`. */
 export function drawSpriteFrame(context, sheet, tiles, { width, height, left, top, scale, flip = false }) {
+  const originX = spriteOriginX(width)
+
   for (const tile of tiles ?? []) {
-    const x = Number(tile.x) || 0
+    const x = originX + (Number(tile.x) || 0)
     const y = Number(tile.y) || 0
     const mirror = Boolean(tile.flipX) !== flip
     const tileLeft = flip ? width - x - 8 : x

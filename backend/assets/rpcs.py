@@ -16,6 +16,7 @@ from .project_files import project_images
 from .sprites import (
     _ASSET_INFO_SCENES,
     _actor_palette,
+    _palette_slot,
     _project_index,
     _read_json,
     _scene_view,
@@ -213,7 +214,7 @@ def rpc_asset_info(ctx):
                         )
                         if len(scenes) < _ASSET_INFO_SCENES:
                             scenes.append(view)
-                answer["palette"] = palette or _actor_palette(index, {}, None)
+                answer["palette"] = palette or _actor_palette(index, {}, None, _palette_slot(sprite))
             else:
                 for scene in index["scenes"]:
                     if scene.get("backgroundId") == meta["id"]:

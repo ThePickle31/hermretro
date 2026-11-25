@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 70b27a1c8215f12600c5497353dc6106c4e8ce84c93c3a7d8ff4742c21e73b89
- * body: sha256 c8516444f63eab51846c2427ea9b0abbaa6904fb8b7b072a2587566917418ae9
+ * sources: sha256 c20243a43462be209dc1e2d0377eecd4141dec701fdbd617f9914b038655b382
+ * body: sha256 a615c91e5bb7aa0bfb9d35643eaa8546f68f68ad0b5fb8ccfb1bfd921fc37bfc
  */
 // page/sdk.js
 import {
@@ -624,10 +624,12 @@ function stepInfo(name, result, exactCall = true) {
   const text2 = (value2) => typeof value2 === "string" && value2 ? value2 : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean);
   const report = String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null;
+  const imported = (Array.isArray(content2.imported) ? content2.imported : []).map((item) => text2(item?.assetPath)).filter(Boolean);
   return {
     error: (text2(parsed.error) ?? engineError(parsed, content2))?.slice(0, 400) ?? null,
     projectRoot: text2(content2.projectRoot),
     assetPath: text2(content2.assetPath),
+    ...imported.length ? { assetPaths: imported } : {},
     outputPath: text2(content2.outputPath) ?? (text2(content2.path) && /\.(png|gif)$/i.test(content2.path) ? content2.path : null),
     buildRef,
     images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
@@ -1640,9 +1642,13 @@ function paintSheet(image, colors) {
   byPalette.set(key, canvas2);
   return canvas2;
 }
+function spriteOriginX(width) {
+  return width < 16 ? 0 : width / 2 - 8;
+}
 function drawSpriteFrame(context, sheet, tiles, { width, height, left, top, scale, flip = false }) {
+  const originX = spriteOriginX(width);
   for (const tile of tiles ?? []) {
-    const x = Number(tile.x) || 0;
+    const x = originX + (Number(tile.x) || 0);
     const y = Number(tile.y) || 0;
     const mirror = Boolean(tile.flipX) !== flip;
     const tileLeft = flip ? width - x - 8 : x;
@@ -5518,6 +5524,9 @@ function stepImages(tool, root) {
   }
   add(tool.args?.image_url);
   add(tool.info?.assetPath ?? tool.args?.assetPath);
+  for (const path of tool.info?.assetPaths ?? []) {
+    add(path);
+  }
   add(tool.info?.outputPath ?? tool.args?.outputPath);
   return tool.state === "failed" ? [] : found;
 }
@@ -6353,7 +6362,7 @@ function SceneCanvas({ scene, scale, highlight, refresh }) {
       if (!sheet) {
         continue;
       }
-      const left = (Number(actor.x) || 0) * 8;
+      const left = (Number(actor.x) || 0) * 8 - spriteOriginX(actor.canvasWidth);
       const top = ((Number(actor.y) || 0) + 1) * 8 - actor.canvasHeight;
       drawSpriteFrame(context, paintSheet(sheet, actor.palette?.colors), actor.tiles, {
         flip: actor.flip,

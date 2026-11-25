@@ -56,9 +56,10 @@ establish good motion; user feedback remains the visual acceptance criterion.
   when playback or user acceptance is still missing.
 
 A sheet of 32 × 32 frames is not the plugin's simple **96 × 16**
-`directional_animated` profile. Native registration requires a compatible
-existing sprite template with the exact source-sheet dimensions and a 32 × 32
-metasprite layout; otherwise report the import gap. A native PNG or source
+`directional_animated` profile. One row of 32 × 32 frames that play in order
+imports with the `metasprite` profile (`frameWidth` and `frameHeight` 32); a
+directional 32 × 32 character requires a compatible existing sprite template
+with the exact source-sheet dimensions; otherwise report the import gap. A native PNG or source
 preview does not establish engine import, ROM behavior, or physical hardware
 appearance. See [sprite import](hardware-and-imports.md#sprites).
 
@@ -83,6 +84,7 @@ This independent native game profile is not applicable to the fox idle. The simp
 `directional_animated` importer expects six 16 × 16 frames on a 96 × 16 sheet:
 down A/B at x=0/16, up A/B at x=32/48, and right A/B at x=64/80. It uses A for
 idle, plays B then A for movement, and mirrors right for left. Separate left
-art requires a compatible existing native template. The current default
-collision bounds are `(0,0,16,8)` and `animSpeed:15`; that is not 15 fps. See
+art requires a compatible existing native template. The default collision bounds
+are `(0,0,16,8)`, or `(0,-8,16,16)` for a TOPDOWN sprite on a 16 px top-down grid, and `animSpeed:15`;
+that is not 15 fps. See
 the [native import rules](hardware-and-imports.md#sprites).

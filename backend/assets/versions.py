@@ -468,11 +468,30 @@ def keep_delivered_images(assistant_response=None, **_kwargs):
         logger.debug("hermretro keep_delivered_images failed", exc_info=True)
 
 
-def keep_inspected_images(tool_name=None, args=None, **_kwargs):
+def _imported_images(result, conversation_id, session_id) -> list[str]:
+    """The images a ``chromatic_asset_import`` wrote: it names each one relative to the project, so they are
+    resolved against the chat's game."""
+    structured = (host.tool_result_payload(result) or {}).get("structuredContent")
+    if not isinstance(structured, dict):
+        return []
+    root = host._chat_project(str(conversation_id or ""), str(session_id or ""))
+    imported = structured.get("imported")
+    if not root:
+        return []
+    return [
+        str(Path(root) / item["assetPath"])
+        for item in (imported if isinstance(imported, list) else [structured])
+        if isinstance(item, dict) and isinstance(item.get("assetPath"), str) and item["assetPath"]
+    ]
+
+
+def keep_inspected_images(tool_name=None, args=None, result=None, conversation_id=None, session_id=None, **_kwargs):
     """``post_tool_call``: keep the images a step looked at or wrote, as they are right after it."""
     try:
         if isinstance(args, dict):
             _keep_paths(args.get(key) for key in ("image_url", "image", "assetPath", "outputPath", "path"))
+        if tool_name == "chromatic_asset_import":
+            _keep_paths(_imported_images(result, conversation_id, session_id))
     except Exception:
         logger.debug("hermretro keep_inspected_images failed", exc_info=True)
 

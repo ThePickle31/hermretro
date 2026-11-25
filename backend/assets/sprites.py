@@ -65,7 +65,9 @@ def _tiles(frame) -> list[dict]:
     tiles = []
     for tile in (frame or {}).get("tiles") or []:
         if isinstance(tile, dict):
-            tiles.append({key: tile.get(key) for key in ("x", "y", "sliceX", "sliceY", "flipX", "flipY")})
+            tiles.append(
+                {key: tile.get(key) for key in ("x", "y", "sliceX", "sliceY", "flipX", "flipY", "paletteIndex")}
+            )
     return tiles
 
 
@@ -93,6 +95,16 @@ def _sprite_animations(meta: dict) -> dict:
         "numTiles": meta.get("numTiles"),
         "animations": animations,
     }
+
+
+def _palette_slot(sprite: dict) -> int:
+    """The scene sprite palette slot (0-7) a sprite's tiles draw through: its first tile's ``paletteIndex``."""
+    for animation in sprite.get("animations") or []:
+        for frame in animation.get("frames") or []:
+            for tile in frame:
+                slot = tile.get("paletteIndex")
+                return slot if isinstance(slot, int) and 0 <= slot < 8 else 0
+    return 0
 
 
 def _standing_frame(sprite: dict, direction: str) -> dict:
@@ -160,14 +172,19 @@ def _player_sprite_id(settings: dict, scene: dict):
     )
 
 
-def _actor_palette(index: dict, scene: dict, palette_id) -> dict | None:
+def _slot_palette_id(palette_ids, slot: int):
+    return palette_ids[slot] if isinstance(palette_ids, list) and slot < len(palette_ids) else None
+
+
+def _actor_palette(index: dict, scene: dict, palette_id, slot: int = 0) -> dict | None:
+    """The palette an actor's sprite is painted with: its own, else the scene's sprite palette in the sprite's
+    slot, else the project's default for that slot (an empty scene slot uses the default, as GB Studio does)."""
     settings = index["settings"]
-    scene_palettes = [item for item in scene.get("spritePaletteIds") or [] if item]
     return (
         _palette(index, palette_id)
-        or _palette(index, scene_palettes[0] if scene_palettes else None)
-        or _palette(index, settings.get("defaultSpritePaletteId"))
-        or _palette(index, (settings.get("defaultSpritePaletteIds") or [None])[0])
+        or _palette(index, _slot_palette_id(scene.get("spritePaletteIds"), slot))
+        or _palette(index, _slot_palette_id(settings.get("defaultSpritePaletteIds"), slot))
+        or _palette(index, settings.get("defaultSpritePaletteId") if slot == 0 else None)
     )
 
 
@@ -194,7 +211,7 @@ def _scene_view(index: dict, scene: dict, sprites_cache: dict) -> dict:
                 "canvasWidth": sprite["canvasWidth"],
                 "canvasHeight": sprite["canvasHeight"],
                 **_standing_frame(sprite, direction),
-                "palette": _actor_palette(index, scene, palette_id),
+                "palette": _actor_palette(index, scene, palette_id, _palette_slot(sprite)),
             }
         )
 
@@ -253,8 +270,8 @@ def _project_stamp(root: Path) -> tuple:
 
 
 def _sprite_uses(root: Path) -> dict:
-    """For each sprite of a project: how its first use in the game shows it (facing, palette), and the
-    palette a sprite nobody uses yet would get. Cached per project until one of its files changes."""
+    """For each sprite of a project, its first use in the game: the way it faces, and the scene and actor palette
+    its colours come from. Cached per project, with the project index, until one of its files changes."""
     stamp = _project_stamp(root)
     cached = _SPRITE_USES.get(str(root))
     if cached and cached[0] == stamp:
@@ -272,11 +289,8 @@ def _sprite_uses(root: Path) -> dict:
             candidates.append((actor.get("spriteSheetId"), actor.get("direction"), actor.get("paletteId")))
         for sprite_id, direction, palette_id in candidates:
             if sprite_id and sprite_id not in uses:
-                uses[sprite_id] = {
-                    "direction": direction or "down",
-                    "palette": _actor_palette(index, scene, palette_id),
-                }
-    result = {"uses": uses, "default": _actor_palette(index, {}, None)}
+                uses[sprite_id] = {"direction": direction or "down", "scene": scene, "paletteId": palette_id}
+    result = {"uses": uses, "index": index}
     if len(_SPRITE_USES) >= _SPRITE_USES_ROOTS:
         _SPRITE_USES.pop(next(iter(_SPRITE_USES)))
     _SPRITE_USES[str(root)] = (stamp, result)
@@ -290,7 +304,7 @@ def _sprite_look(root: Path, meta: dict) -> dict:
         sprite = _sprite_animations(meta)
         found = _sprite_uses(root)
         use = found["uses"].get(meta.get("id")) or {}
-        palette = use.get("palette") or found["default"]
+        palette = _actor_palette(found["index"], use.get("scene") or {}, use.get("paletteId"), _palette_slot(sprite))
         direction = use.get("direction") or "down"
         standing = _standing_frame(sprite, direction)
         animations = sprite.get("animations") or []

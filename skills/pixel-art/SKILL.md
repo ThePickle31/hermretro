@@ -63,6 +63,12 @@ for actual scene behavior. Distinguish source previews from verified gameplay.
   or building this project right now.
 - To show art in the running game, build with `chromatic_rom_build`, playtest it, make sure the game card
   is complete (`chromatic_game_info`), then call `chromatic_present_game` with a `note` on what to look at.
+- `chromatic_asset_import` imports several PNGs at once (`assets`), sets the sprite palette slot
+  (`sprite.paletteIndex`), imports larger sprites with the `metasprite` profile, and returns each
+  asset's graphics analysis. Sprites show palette entries 0, 1 and 3 only: give sprite palettes
+  three colors ([palette mapping](references/hardware-and-imports.md#sprite-palette-mapping)).
+- Previews are enlarged by default; `colorCorrection: "chromatic"` shows colors as the Chromatic,
+  the reference display, does ([display colors](references/hardware-and-imports.md#display-colors-the-chromatic-is-the-reference)).
 - To show the user existing art, deliver the real file on its own line (`MEDIA:<project>/assets/sprites/<name>.png`).
   The hermretro Build page draws it in the game's colours, animates a sprite, and opens it in its viewer;
   a preview or contact sheet you draw instead is just a flat image there.

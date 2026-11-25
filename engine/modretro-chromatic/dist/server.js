@@ -32897,6 +32897,20 @@ function magnifyPng(bytes2, magnification) {
   compositeFrame(canvas, source, void 0, 0, 0, magnification, false);
   return import_pngjs.PNG.sync.write(canvas, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
 }
+function contactSheetLayout(dimensions3, columns, magnification) {
+  const rows = Math.ceil(dimensions3.length / columns);
+  const fontScale = magnification >= 3 ? 2 : 1;
+  const lineHeight = (FONT_HEIGHT + 3) * fontScale;
+  const imageWidth = Math.max(GAME_BOY_FRAME_WIDTH, ...dimensions3.map((entry) => entry.width)) * magnification;
+  const imageHeight = Math.max(...dimensions3.map((entry) => entry.height)) * magnification;
+  const cardWidth = imageWidth + PADDING * 2;
+  const cardHeight = imageHeight + PADDING * 3 + lineHeight * 2;
+  const headerHeight = PADDING + lineHeight * 2;
+  const width = GUTTER + columns * (cardWidth + GUTTER);
+  const height = headerHeight + GUTTER + rows * (cardHeight + GUTTER);
+  const fits = width <= MAX_CANVAS_DIMENSION && height <= MAX_CANVAS_DIMENSION && width * height <= MAX_CANVAS_PIXELS;
+  return { rows, fontScale, lineHeight, imageWidth, imageHeight, cardWidth, cardHeight, headerHeight, width, height, fits };
+}
 function renderContactSheetPng(options) {
   options.signal?.throwIfAborted();
   if (!Array.isArray(options.images) || options.images.length < 1 || options.images.length > MAX_CONTACT_SHEET_FRAMES) {
@@ -32934,17 +32948,8 @@ function renderContactSheetPng(options) {
     }
     return { width: width2, height: height2 };
   });
-  const rows = Math.ceil(options.images.length / columns);
-  const fontScale = magnification >= 3 ? 2 : 1;
-  const lineHeight = (FONT_HEIGHT + 3) * fontScale;
-  const imageWidth = Math.max(GAME_BOY_FRAME_WIDTH, ...dimensions3.map((entry) => entry.width)) * magnification;
-  const imageHeight = Math.max(...dimensions3.map((entry) => entry.height)) * magnification;
-  const cardWidth = imageWidth + PADDING * 2;
-  const cardHeight = imageHeight + PADDING * 3 + lineHeight * 2;
-  const headerHeight = PADDING + lineHeight * 2;
-  const width = GUTTER + columns * (cardWidth + GUTTER);
-  const height = headerHeight + GUTTER + rows * (cardHeight + GUTTER);
-  if (width > MAX_CANVAS_DIMENSION || height > MAX_CANVAS_DIMENSION || width * height > MAX_CANVAS_PIXELS) {
+  const { rows, fontScale, lineHeight, imageWidth, imageHeight, cardWidth, cardHeight, headerHeight, width, height, fits } = contactSheetLayout(dimensions3, columns, magnification);
+  if (!fits) {
     throw new ContactSheetError("The contact-sheet dimensions exceed the maximum safe canvas size");
   }
   const images = options.images.map(({ png: png2 }) => {
@@ -36411,6 +36416,20 @@ function familyShadeIndices(family, sprite) {
   }
   return indices;
 }
+function spriteTileUse(orientedTiles, tileWidth, tileHeight, spriteMode = "8x16") {
+  const rows = spriteMode === "8x8" ? 1 : 2;
+  const objects = /* @__PURE__ */ new Set();
+  for (let tileX = 0; tileX < tileWidth; tileX += 1) {
+    for (let tileY = 0; tileY + rows <= tileHeight; tileY += rows) {
+      const parts = Array.from({ length: rows }, (_, row) => orientedTiles.get((tileY + row) * tileWidth + tileX));
+      if (parts.some((part) => part === void 0) || parts.every((part) => !/[^0]/.test(part[0])))
+        continue;
+      const joined = (orientation, upsideDown) => (upsideDown ? [...parts].reverse() : parts).map((part) => part[orientation]).join("|");
+      objects.add([joined(0, false), joined(1, false), joined(2, true), joined(3, true)].sort()[0]);
+    }
+  }
+  return objects.size * rows;
+}
 function encodedPattern(pixels, indices) {
   return pixels.map((pixel2) => (pixel2 === null ? 0 : indices.get(pixel2) ?? 0).toString()).join("");
 }
@@ -36496,6 +36515,7 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
   const tilePatterns = /* @__PURE__ */ new Set();
   const flippedTilePatterns = /* @__PURE__ */ new Set();
   const invariantTilePatterns = /* @__PURE__ */ new Set();
+  const orientedTiles = /* @__PURE__ */ new Map();
   const tilePalettes = [];
   const encodableTiles = [];
   const sourceColors = /* @__PURE__ */ new Set();
@@ -36590,7 +36610,7 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
         });
       }
       if (encodable) {
-        encodableTiles.push(tile2);
+        encodableTiles.push({ ...tile2, tileX, tileY });
         tilePalettes.push(tile2.colors);
       }
     }
@@ -36607,9 +36627,10 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
       encodedPattern(orientPixels(tile2.pixels, true, false), indices),
       encodedPattern(orientPixels(tile2.pixels, false, true), indices),
       encodedPattern(orientPixels(tile2.pixels, true, true), indices)
-    ].sort();
+    ];
+    orientedTiles.set(tile2.tileY * tileWidth + tile2.tileX, orientations);
     tilePatterns.add(pattern3);
-    flippedTilePatterns.add(orientations[0] ?? "");
+    flippedTilePatterns.add([...orientations].sort()[0] ?? "");
   }
   if (packing.exceedsHardwareLimit) {
     addViolation({
@@ -36619,7 +36640,7 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
     });
   }
   const allowFlipDeduplication = options.allowFlipDeduplication ?? colorMode === "color";
-  const usedTiles = allowFlipDeduplication ? flippedTilePatterns.size : tilePatterns.size;
+  const usedTiles = kind === "sprite" ? spriteTileUse(orientedTiles, tileWidth, tileHeight, options.spriteMode) : allowFlipDeduplication ? flippedTilePatterns.size : tilePatterns.size;
   const tileLimit = colorMode === "color" ? 384 : 192;
   const totalTiles = tileWidth * tileHeight;
   const invalidTiles = totalTiles - encodableTiles.length;
@@ -36627,7 +36648,7 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
   if (usedTiles > tileLimit) {
     addViolation({
       code: "TILE_BUDGET_EXCEEDED",
-      message: `Image uses ${usedTiles} unique tiles, exceeding the ${tileLimit}-tile native ${colorMode} mode budget.`,
+      message: kind === "sprite" ? `Sprite uses ${usedTiles} tiles as GB Studio compiles it (distinct ${options.spriteMode === "8x8" ? "8 \xD7 8 tiles" : "8 \xD7 16 pairs"} after flip deduplication), exceeding the ${tileLimit}-tile native ${colorMode} mode sprite budget.` : `Image uses ${usedTiles} unique tiles, exceeding the ${tileLimit}-tile native ${colorMode} mode budget.`,
       severity: "error"
     });
   }
@@ -52821,16 +52842,37 @@ async function paletteProject(projectPath, access4) {
     counts: inspection.counts
   };
 }
-function normalizeColors(colors) {
-  if (colors.length !== 4) {
-    throw new GameStudioProjectError("INVALID_PALETTE_COLORS", "A Game Boy Color palette must contain exactly four RGB colors.");
+function normalizeColors(colors, entryTwo) {
+  if (colors.length !== 3 && colors.length !== 4) {
+    throw new GameStudioProjectError("INVALID_PALETTE_COLORS", "A Game Boy Color palette takes four RGB colors, or three for a sprite palette (lightest, middle, darkest).");
   }
-  return colors.map((color, index) => {
+  const normalized = colors.map((color, index) => {
     if (typeof color !== "string" || !/^#?[\da-f]{6}$/i.test(color)) {
       throw new GameStudioProjectError("INVALID_PALETTE_COLOR", `Palette color ${index} must be a six-digit RGB hexadecimal value.`);
     }
     return color.replace(/^#/, "").toUpperCase();
   });
+  if (normalized.length === 4)
+    return normalized;
+  const [lightest, middle, darkest] = normalized;
+  return [lightest, middle, entryTwo ?? blendColors(middle, darkest), darkest];
+}
+function blendColors(first, second) {
+  return [0, 2, 4].map((offset) => Math.round((Number.parseInt(first.slice(offset, offset + 2), 16) + Number.parseInt(second.slice(offset, offset + 2), 16)) / 2).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+function chromaticDisplayColor(red, green, blue) {
+  const r = red >> 3, g = green >> 3, b = blue >> 3;
+  return [r * 13 + g * 2 + b >> 1, g * 3 + b << 1, r * 3 + g * 2 + b * 11 >> 1];
+}
+function spritePaletteView(palette) {
+  const colors = validColors(palette.colors);
+  if (colors === void 0)
+    return {};
+  const unused = colors[2] !== colors[1] && colors[2] !== colors[3] && colors[2] !== blendColors(colors[1], colors[3]);
+  return {
+    spriteColors: [colors[0], colors[1], colors[3]],
+    warnings: unused ? [`Sprites draw palette entries 0, 1 and 3 (lightest, middle, darkest source shades); entry 2 (#${colors[2]}) never shows on a sprite. Give sprite palettes three colors.`] : []
+  };
 }
 function requirePalette(inventory, id3, access4) {
   const palette = access4 === void 0 ? inventory.palettes.find((candidate) => candidate.id === id3) : access4.palette(id3);
@@ -53030,7 +53072,7 @@ async function updatePalette(projectPath, input, access4) {
   if (input.updateDefaultColors === true && input.colors === void 0) {
     throw new GameStudioProjectError("INVALID_PALETTE_COLORS", "Updating default colors requires replacement palette colors.");
   }
-  const colors = input.colors === void 0 ? void 0 : normalizeColors(input.colors);
+  const colors = input.colors === void 0 ? void 0 : normalizeColors(input.colors, validColors(existing.colors)?.[2]);
   const update = (palette2) => ({
     ...palette2,
     ...input.name === void 0 ? {} : { name: input.name.trim() },
@@ -53067,7 +53109,7 @@ async function updatePalette(projectPath, input, access4) {
 async function assignScenePalette(projectPath, input, access4) {
   const inventory = await paletteProject(projectPath, access4);
   const scene = requireScene(inventory, input.sceneId, access4);
-  requirePalette(inventory, input.paletteId, access4);
+  const palette = requirePalette(inventory, input.paletteId, access4);
   validateSlot(input.slot);
   const uiPalette = resolveUiPalette(inventory, access4);
   if (input.target === "background" && input.slot === uiPalette.slot && input.allowUiSlot !== true) {
@@ -53107,7 +53149,8 @@ async function assignScenePalette(projectPath, input, access4) {
     scene: updated,
     target: input.target,
     slot: input.slot,
-    paletteId: input.paletteId
+    paletteId: input.paletteId,
+    ...input.target === "sprite" ? spritePaletteView(palette) : {}
   };
 }
 function decodeBackgroundPaletteTiles(metadata2, totalTiles) {
@@ -53226,6 +53269,14 @@ var SPRITE_TILE_HEIGHT = 16;
 var CHROMA_RED = 101;
 var CHROMA_GREEN = 255;
 var CHROMA_BLUE = 0;
+var MAX_METASPRITE_FRAME_SIZE = 128;
+var MAX_METASPRITE_FRAMES = 32;
+var MAX_FRAME_OBJECTS = 40;
+var MAX_SCANLINE_SPRITE_OBJECTS = 10;
+var MAX_SPRITE_OBJECTS = 96;
+var MAX_COLOR_SPRITE_OBJECTS = 192;
+var PREVIEW_FRAME_SIDE = 128;
+var SHEET_FRAME_SIDE = 64;
 function spriteError(code, message2) {
   throw new GameStudioProjectError(code, message2);
 }
@@ -53252,62 +53303,115 @@ function integer2(value, name3, minimum, maximum) {
 function nestedId(rootId, ...parts) {
   return stableResourceId("sprite", rootId, ...parts.map(String));
 }
-function objectTile(rootId, animationIndex, frameIndex, tileIndex, sliceX) {
+function objectTile(rootId, animationIndex, frameIndex, tileIndex, placement, paletteIndex) {
   return {
     id: nestedId(rootId, "tile", animationIndex, frameIndex, tileIndex),
-    x: tileIndex * SPRITE_TILE_WIDTH,
-    y: 0,
-    sliceX: sliceX + tileIndex * SPRITE_TILE_WIDTH,
-    sliceY: 0,
+    x: placement.x,
+    y: placement.y,
+    sliceX: placement.sliceX,
+    sliceY: placement.sliceY,
     flipX: false,
     flipY: false,
     palette: 0,
-    paletteIndex: 0,
+    paletteIndex,
     objPalette: "OBP0",
     priority: false
   };
 }
-function animationFrame(rootId, animationIndex, frameIndex, sliceX) {
-  return {
-    id: nestedId(rootId, "frame", animationIndex, frameIndex),
-    tiles: sliceX === void 0 ? [] : [objectTile(rootId, animationIndex, frameIndex, 0, sliceX), objectTile(rootId, animationIndex, frameIndex, 1, sliceX)]
-  };
+function simpleFrame(sliceX) {
+  return sliceX === void 0 ? [] : [0, 1].map((tileIndex) => ({ x: tileIndex * SPRITE_TILE_WIDTH, y: 0, sliceX: sliceX + tileIndex * SPRITE_TILE_WIDTH, sliceY: 0 }));
 }
-function profileLayout(profile) {
+function simpleProfile(profile) {
   if (profile === "static" || profile === "static16x16") {
-    return {
-      width: 16,
-      animationType: "fixed",
-      flipLeft: false,
-      numTiles: 2,
-      boundsY: -8,
-      boundsHeight: 16,
-      slices: [[0], [void 0], [void 0], [void 0], [void 0], [void 0], [void 0], [void 0]]
-    };
+    return { width: 16, animationType: "fixed", flipLeft: false, boundsY: -8, boundsHeight: 16, slices: [[0], [void 0], [void 0], [void 0], [void 0], [void 0], [void 0], [void 0]] };
   }
   if (profile === "directional" || profile === "directional48x16") {
-    return {
-      width: 48,
-      animationType: "multi",
-      flipLeft: true,
-      numTiles: 5,
-      boundsY: -8,
-      boundsHeight: 16,
-      slices: [[32], [void 0], [16], [0], [void 0], [void 0], [void 0], [void 0]]
-    };
+    return { width: 48, animationType: "multi", flipLeft: true, boundsY: -8, boundsHeight: 16, slices: [[32], [void 0], [16], [0], [void 0], [void 0], [void 0], [void 0]] };
   }
   if (profile === "directional_animated" || profile === "directional_animated96x16") {
-    return {
-      width: 96,
-      animationType: "multi_movement",
-      flipLeft: true,
-      numTiles: 10,
-      boundsY: 0,
-      boundsHeight: 8,
-      slices: [[64], [void 0], [32], [0], [80, 64], [void 0], [48, 32], [16, 0]]
-    };
+    return { width: 96, animationType: "multi_movement", flipLeft: true, boundsY: 0, boundsHeight: 8, slices: [[64], [void 0], [32], [0], [80, 64], [void 0], [48, 32], [16, 0]] };
   }
   return spriteError("UNSUPPORTED_SPRITE_PROFILE", `Unsupported or unproven sprite profile ${String(profile)}.`);
+}
+function simpleLayout(input) {
+  const profile = simpleProfile(input.profile);
+  if (input.width !== profile.width || input.height !== 16) {
+    spriteError("INVALID_SPRITE_DIMENSIONS", `Sprite profile ${input.profile} requires exactly ${profile.width} \xD7 16 source pixels.`);
+  }
+  const cellBounds = input.gridSize === 16 && input.sceneType === "TOPDOWN";
+  return {
+    animationType: profile.animationType,
+    flipLeft: profile.flipLeft,
+    canvasWidth: 16,
+    canvasHeight: 16,
+    bounds: { x: 0, y: cellBounds ? -8 : profile.boundsY, width: 16, height: cellBounds ? 16 : profile.boundsHeight },
+    animations: profile.slices.map((frames) => frames.map(simpleFrame)),
+    diagnostics: []
+  };
+}
+function metaspriteLayout(input) {
+  const { frameWidth, frameHeight, image } = input;
+  if (frameWidth === void 0 || frameHeight === void 0) {
+    spriteError("INVALID_INPUT", "The metasprite profile requires sprite.frameWidth and sprite.frameHeight.");
+  }
+  integer2(frameWidth, "frameWidth", SPRITE_TILE_WIDTH, MAX_METASPRITE_FRAME_SIZE);
+  integer2(frameHeight, "frameHeight", SPRITE_TILE_HEIGHT, MAX_METASPRITE_FRAME_SIZE);
+  if (frameWidth % SPRITE_TILE_WIDTH !== 0 || frameHeight % SPRITE_TILE_HEIGHT !== 0) {
+    spriteError("INVALID_SPRITE_DIMENSIONS", "Metasprite frames are built from 8 \xD7 16 tiles: frameWidth must be a multiple of 8 and frameHeight a multiple of 16.");
+  }
+  if (input.height !== frameHeight || input.width % frameWidth !== 0 || input.width / frameWidth > MAX_METASPRITE_FRAMES) {
+    spriteError("INVALID_SPRITE_DIMENSIONS", `A metasprite sheet is one row of 1\u2013${MAX_METASPRITE_FRAMES} frames of ${frameWidth} \xD7 ${frameHeight}: its height must be ${frameHeight} and its width a multiple of ${frameWidth}.`);
+  }
+  const originX = Math.max(0, frameWidth / 2 - SPRITE_TILE_WIDTH);
+  const frames = [];
+  let widestRow = 0;
+  for (let frameIndex = 0; frameIndex < input.width / frameWidth; frameIndex += 1) {
+    const tiles = [];
+    for (let row = 0; row < frameHeight / SPRITE_TILE_HEIGHT; row += 1) {
+      let rowObjects = 0;
+      for (let column = 0; column < frameWidth / SPRITE_TILE_WIDTH; column += 1) {
+        const sliceX = frameIndex * frameWidth + column * SPRITE_TILE_WIDTH;
+        const sliceY = row * SPRITE_TILE_HEIGHT;
+        if (!/[^0]/.test(pattern(image, sliceX, sliceY)))
+          continue;
+        rowObjects += 1;
+        tiles.push({ x: column * SPRITE_TILE_WIDTH - originX, y: frameHeight - SPRITE_TILE_HEIGHT - sliceY, sliceX, sliceY });
+      }
+      widestRow = Math.max(widestRow, rowObjects);
+    }
+    if (tiles.length > MAX_FRAME_OBJECTS) {
+      spriteError("METASPRITE_OBJECT_LIMIT", `Frame ${frameIndex} needs ${tiles.length} hardware objects; one frame can use at most ${MAX_FRAME_OBJECTS}.`);
+    }
+    frames.push(tiles);
+  }
+  return {
+    animationType: "fixed",
+    flipLeft: false,
+    canvasWidth: frameWidth,
+    canvasHeight: frameHeight,
+    bounds: { x: -originX, y: SPRITE_TILE_WIDTH - frameHeight, width: frameWidth, height: frameHeight },
+    animations: [frames, ...Array.from({ length: 7 }, () => [[]])],
+    diagnostics: widestRow > MAX_SCANLINE_SPRITE_OBJECTS ? [{
+      code: "METASPRITE_SCANLINE_WIDTH",
+      severity: "warning",
+      message: `A frame puts ${widestRow} objects side by side in one row; the hardware draws at most ${MAX_SCANLINE_SPRITE_OBJECTS} per scanline, so parts of it will disappear.`
+    }] : []
+  };
+}
+function spriteObjectCount(image, animations) {
+  const objects = /* @__PURE__ */ new Set();
+  for (const frames of animations) {
+    for (const tiles of frames) {
+      for (const { sliceX, sliceY } of tiles) {
+        const rows = pattern(image, sliceX, sliceY).match(/.{8}/g);
+        if (!rows.some((row) => /[^0]/.test(row)))
+          continue;
+        const mirrored = rows.map((row) => [...row].reverse().join(""));
+        objects.add([rows, mirrored, [...rows].reverse(), [...mirrored].reverse()].map((orientation) => orientation.join("")).sort()[0]);
+      }
+    }
+  }
+  return objects.size;
 }
 function replaceNestedIds(value, assetId, trail = "root") {
   if (Array.isArray(value))
@@ -53319,7 +53423,22 @@ function replaceNestedIds(value, assetId, trail = "root") {
     key === "id" && trail !== "root" ? nestedId(assetId, trail) : replaceNestedIds(child, assetId, `${trail}.${key}`)
   ]));
 }
+function withPaletteIndex(metadata2, paletteIndex) {
+  for (const state3 of asArray(metadata2.states, "states")) {
+    for (const animation2 of asArray(asObject(state3, "state").animations, "animations")) {
+      for (const frame3 of asArray(asObject(animation2, "animation").frames, "frames")) {
+        for (const tile2 of asArray(asObject(frame3, "frame").tiles, "tiles"))
+          asObject(tile2, "tile").paletteIndex = paletteIndex;
+      }
+    }
+  }
+  return metadata2;
+}
 async function createSpriteResource(projectRoot, input, access4) {
+  const paletteIndex = input.paletteIndex === void 0 ? void 0 : integer2(input.paletteIndex, "paletteIndex", 0, 7);
+  if ((input.frameWidth !== void 0 || input.frameHeight !== void 0) && input.profile !== "metasprite") {
+    spriteError("INVALID_INPUT", "frameWidth and frameHeight apply to the metasprite profile only.");
+  }
   if (input.profile === "template") {
     if (!input.templateAssetId) {
       spriteError("SPRITE_TEMPLATE_REQUIRED", "The template profile requires an existing templateAssetId.");
@@ -53331,7 +53450,7 @@ async function createSpriteResource(projectRoot, input, access4) {
     if (template.metadata.width !== input.width || template.metadata.height !== input.height) {
       spriteError("SPRITE_TEMPLATE_DIMENSIONS", "Sprite source dimensions must match the selected native template.");
     }
-    return {
+    const metadata2 = {
       ...replaceNestedIds(template.metadata, input.id),
       id: input.id,
       name: input.name,
@@ -53341,12 +53460,18 @@ async function createSpriteResource(projectRoot, input, access4) {
       height: input.height,
       checksum: input.checksum
     };
+    return { metadata: paletteIndex === void 0 ? metadata2 : withPaletteIndex(metadata2, paletteIndex), diagnostics: [] };
   }
-  const layout = profileLayout(input.profile);
-  if (input.width !== layout.width || input.height !== 16) {
-    spriteError("INVALID_SPRITE_DIMENSIONS", `Sprite profile ${input.profile} requires exactly ${layout.width} \xD7 16 source pixels.`);
+  if (input.spriteMode === "8x8") {
+    spriteError("SPRITE_MODE_UNSUPPORTED", "Generated sprite profiles build 8 \xD7 16 objects, but this project's sprite mode is 8 \xD7 8, where GB Studio would compile only the top half of each. Set the project's sprite mode to 8 \xD7 16, or use the template profile with a sprite made for 8 \xD7 8.");
   }
-  return {
+  const layout = input.profile === "metasprite" ? metaspriteLayout(input) : simpleLayout(input);
+  const numTiles = spriteObjectCount(input.image, layout.animations);
+  const maxObjects = input.colorMode === "color" ? MAX_COLOR_SPRITE_OBJECTS : MAX_SPRITE_OBJECTS;
+  if (numTiles > maxObjects) {
+    spriteError("SPRITE_TILE_LIMIT", `The sprite needs ${numTiles} distinct 8 \xD7 16 tiles after GB Studio's flip deduplication; a ${input.colorMode === "color" ? "Color Only" : "Color + Monochrome or Monochrome"} scene holds at most ${maxObjects}, fewer beside a large background.`);
+  }
+  const metadata2 = {
     _resourceType: "sprite",
     id: input.id,
     name: input.name,
@@ -53357,27 +53482,31 @@ async function createSpriteResource(projectRoot, input, access4) {
         name: "",
         animationType: layout.animationType,
         flipLeft: layout.flipLeft,
-        animations: layout.slices.map((frames, animationIndex) => ({
+        animations: layout.animations.map((frames, animationIndex) => ({
           id: nestedId(input.id, "animation", animationIndex),
-          frames: frames.map((sliceX, frameIndex) => animationFrame(input.id, animationIndex, frameIndex, sliceX))
+          frames: frames.map((tiles, frameIndex) => ({
+            id: nestedId(input.id, "frame", animationIndex, frameIndex),
+            tiles: tiles.map((placement, tileIndex) => objectTile(input.id, animationIndex, frameIndex, tileIndex, placement, paletteIndex ?? 0))
+          }))
         }))
       }
     ],
-    numTiles: layout.numTiles,
+    numTiles,
     canvasOriginX: 0,
     canvasOriginY: 0,
-    canvasWidth: 16,
-    canvasHeight: 16,
-    boundsX: 0,
-    boundsY: layout.boundsY,
-    boundsWidth: 16,
-    boundsHeight: layout.boundsHeight,
+    canvasWidth: layout.canvasWidth,
+    canvasHeight: layout.canvasHeight,
+    boundsX: layout.bounds.x,
+    boundsY: layout.bounds.y,
+    boundsWidth: layout.bounds.width,
+    boundsHeight: layout.bounds.height,
     animSpeed: 15,
     filename: input.filename,
     width: input.width,
     height: input.height,
     checksum: input.checksum
   };
+  return { metadata: metadata2, diagnostics: layout.diagnostics };
 }
 async function loadSprite(projectRoot, input, access4) {
   const assetId = input.spriteId ?? input.assetId;
@@ -53584,12 +53713,47 @@ function selectedFrame(metadata2, stateIndex, animationIndex, frameIndex) {
   const animation2 = asObject(asArray(state3.animations, `state ${stateIndex} animations`)[animationIndex], `animation ${animationIndex}`);
   return asObject(asArray(animation2.frames, `animation ${animationIndex} frames`)[frameIndex], `frame ${frameIndex}`);
 }
+function enlargedScale(metadata2, side) {
+  const largest = Math.max(asNumber3(metadata2.canvasWidth, 16), asNumber3(metadata2.canvasHeight, 16));
+  return Math.min(8, Math.max(1, Math.floor(side / largest)));
+}
+async function spriteDisplay(projectRoot, input, access4) {
+  let shades;
+  if (input.paletteId !== void 0) {
+    const palette = requirePalette(await paletteProject(projectRoot, access4), input.paletteId, access4);
+    const colors = validColors(palette.colors);
+    if (colors === void 0)
+      spriteError("INVALID_PALETTE_COLORS", `Palette ${input.paletteId} does not hold four RGB colors.`);
+    shades = new Map([["e0f8cf", colors[0]], ["86c06c", colors[1]], ["071821", colors[3]]]);
+  }
+  const corrected = input.colorCorrection === "chromatic";
+  return {
+    paint(image) {
+      if (shades === void 0 && !corrected)
+        return image;
+      for (let offset = 0; offset < image.data.length; offset += 4) {
+        if (image.data[offset + 3] === 0)
+          continue;
+        let rgb = [image.data[offset], image.data[offset + 1], image.data[offset + 2]];
+        const mapped = shades?.get(rgb.map((channel) => channel.toString(16).padStart(2, "0")).join(""));
+        if (mapped !== void 0)
+          rgb = [0, 2, 4].map((at) => Number.parseInt(mapped.slice(at, at + 2), 16));
+        if (corrected)
+          rgb = chromaticDisplayColor(...rgb);
+        image.data.set(rgb, offset);
+      }
+      return image;
+    },
+    details: { ...input.paletteId === void 0 ? {} : { paletteId: input.paletteId }, colorCorrection: corrected ? "chromatic" : "none" }
+  };
+}
 async function previewSprite(projectRoot, input, access4) {
   const loaded = await loadSprite(projectRoot, input, access4);
   const stateIndex = integer2(input.stateIndex ?? 0, "stateIndex", 0, 31);
   const animationIndex = integer2(input.animationIndex ?? 0, "animationIndex", 0, 7);
   const frameIndex = integer2(input.frameIndex ?? 0, "frameIndex", 0, 31);
-  const scale = integer2(input.scale ?? 1, "scale", 1, 8);
+  const scale = integer2(input.scale ?? enlargedScale(loaded.metadata, PREVIEW_FRAME_SIDE), "scale", 1, 8);
+  const display = await spriteDisplay(loaded.projectRoot, input, access4);
   const frame3 = selectedFrame(loaded.metadata, stateIndex, animationIndex, frameIndex);
   const source = import_pngjs6.PNG.sync.read(await readFile10(await resolveProjectPath(loaded.projectRoot, loaded.assetPath, { mustExist: true })), {
     checkCRC: true
@@ -53597,7 +53761,9 @@ async function previewSprite(projectRoot, input, access4) {
   const outputPath = input.outputPath ?? `artifacts/sprite-previews/${resourceSlug(String(loaded.metadata.name), "sprite")}-s${stateIndex}-a${animationIndex}-f${frameIndex}-x${scale}-${randomUUID7()}.png`;
   return {
     id: String(loaded.metadata.id),
-    ...await writePreview(loaded.projectRoot, outputPath, scaledImage(compositeFrame2(source, loaded.metadata, frame3), scale))
+    scale,
+    ...display.details,
+    ...await writePreview(loaded.projectRoot, outputPath, scaledImage(display.paint(compositeFrame2(source, loaded.metadata, frame3)), scale))
   };
 }
 var FONT = {
@@ -53674,15 +53840,16 @@ async function spriteContactSheet(projectRoot, input, access4) {
   const loaded = await loadSprite(projectRoot, input, access4);
   const stateIndex = integer2(input.stateIndex ?? 0, "stateIndex", 0, 31);
   const columns = integer2(input.columns ?? 4, "columns", 1, 8);
-  const scale = integer2(input.scale ?? 2, "scale", 1, 8);
+  const scale = integer2(input.scale ?? enlargedScale(loaded.metadata, SHEET_FRAME_SIDE), "scale", 1, 8);
+  const display = await spriteDisplay(loaded.projectRoot, input, access4);
   const state3 = asObject(asArray(loaded.metadata.states, "states")[stateIndex], `state ${stateIndex}`);
   const frames = [];
   for (const [animationIndex, animationEntry] of asArray(state3.animations, "animations").entries()) {
     const animation2 = asObject(animationEntry, `animation ${animationIndex}`);
-    for (const [frameIndex, frameEntry] of asArray(animation2.frames, `animation ${animationIndex} frames`).entries()) {
-      const frame3 = asObject(frameEntry, `frame ${frameIndex}`);
-      if (asArray(frame3.tiles, `frame ${frameIndex} tiles`).length === 0)
-        continue;
+    const animationFrames = asArray(animation2.frames, `animation ${animationIndex} frames`).map((frameEntry, frameIndex) => asObject(frameEntry, `frame ${frameIndex}`));
+    if (animationFrames.every((frame3, frameIndex) => asArray(frame3.tiles, `frame ${frameIndex} tiles`).length === 0))
+      continue;
+    for (const [frameIndex, frame3] of animationFrames.entries()) {
       if (frames.length >= MAX_PREVIEW_FRAMES) {
         spriteError("SPRITE_PREVIEW_LIMIT", `Sprite contact sheets are limited to ${MAX_PREVIEW_FRAMES} authored frames.`);
       }
@@ -53705,11 +53872,13 @@ async function spriteContactSheet(projectRoot, input, access4) {
   frames.forEach(({ animationIndex, frameIndex, frame: frame3 }, index) => {
     const x = index % columns * cellWidth + 5;
     const y = Math.floor(index / columns) * cellHeight + 16;
-    blit(scaledImage(compositeFrame2(source, loaded.metadata, frame3), scale), image, x, y);
+    blit(scaledImage(display.paint(compositeFrame2(source, loaded.metadata, frame3)), scale), image, x, y);
     drawText2(image, `A${animationIndex} F${frameIndex}`, x, y + frameHeight + 3);
   });
   return {
     id: String(loaded.metadata.id),
+    scale,
+    ...display.details,
     ...await writePreview(loaded.projectRoot, input.outputPath, image),
     frameCount: frames.length,
     frames: frames.map(({ animationIndex, frameIndex }) => ({ animationIndex, frameIndex }))
@@ -53986,6 +54155,8 @@ var ADAM7_PASSES = [
 var BACKGROUND_COLORS = /* @__PURE__ */ new Set(["#071821", "#306850", "#86c06c", "#e0f8cf"]);
 var SPRITE_COLORS = /* @__PURE__ */ new Set(["#071821", "#86c06c", "#e0f8cf", "#65ff00"]);
 var RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+var MAX_BATCH_IMPORTS = 32;
+var IMPORT_ANALYSIS_VIOLATIONS = 8;
 function isSystemError3(error2, code) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
 }
@@ -54212,21 +54383,22 @@ function normalizedDestination(root, assetPath, kind) {
   }
   return destination;
 }
-async function exclusiveWrite(filename, content) {
+async function exclusiveWrite(filename, content, created) {
   let handle;
   try {
     handle = await open12(filename, "wx", 384);
-    await handle.writeFile(content);
-    await handle.sync();
   } catch (error2) {
     if (isSystemError3(error2, "EEXIST")) {
       assetError("ASSET_ALREADY_EXISTS", `Refusing to overwrite the existing asset resource ${filename}.`, filename);
     }
-    if (handle)
-      await rm4(filename, { force: true });
     throw error2;
+  }
+  created.push(filename);
+  try {
+    await handle.writeFile(content);
+    await handle.sync();
   } finally {
-    await handle?.close();
+    await handle.close();
   }
 }
 function ensureName(value) {
@@ -54266,12 +54438,74 @@ async function findAssetMetadata(projectRoot, input, access4) {
   };
 }
 async function importAsset(projectRoot, input, access4) {
+  if (input.assets !== void 0)
+    return importAssetBatch(projectRoot, input, access4);
   if (input.sprite?.profile === "native_metadata")
     return importNativeMetadata(projectRoot, input, access4);
+  const root = await assertDistributedProject(projectRoot, access4);
+  const prepared = await prepareImport(root, input, await importContext(root, access4), access4);
+  await writePreparedImports([prepared]);
+  return prepared.result;
+}
+async function importAssetBatch(projectRoot, input, access4) {
+  const { assets, ...single } = input;
+  if (Object.values(single).some((value) => value !== void 0)) {
+    assetError("INVALID_INPUT", "assets replaces the single-asset fields: give each asset its own entry.");
+  }
+  if (!Array.isArray(assets) || assets.length < 1 || assets.length > MAX_BATCH_IMPORTS) {
+    assetError("INVALID_INPUT", `assets takes 1–${MAX_BATCH_IMPORTS} entries.`);
+  }
+  const root = await assertDistributedProject(projectRoot, access4);
+  const context = await importContext(root, access4);
+  const prepared = [];
+  for (const [index, entry] of assets.entries()) {
+    try {
+      prepared.push(await prepareImport(root, entry, context, access4));
+    } catch (error2) {
+      if (!(error2 instanceof GameStudioProjectError))
+        throw error2;
+      throw new GameStudioProjectError(error2.code, `assets[${index}] (${entry.assetPath}): ${error2.message} Nothing was imported.`, error2.resourcePath);
+    }
+  }
+  await writePreparedImports(prepared);
+  return { imported: prepared.map((item) => item.result), count: prepared.length };
+}
+async function importContext(root, access4) {
+  const settings = (await paletteProject(root, access4)).settings;
+  return {
+    colorMode: projectColorMode(settings),
+    spriteMode: settings.spriteMode === "8x8" ? "8x8" : "8x16",
+    sceneType: typeof settings.defaultSceneTypeId === "string" && settings.defaultSceneTypeId ? settings.defaultSceneTypeId : "TOPDOWN",
+    gridSize: await topdownGridSize(root, access4),
+    claimedIds: /* @__PURE__ */ new Set(),
+    claimedPaths: /* @__PURE__ */ new Set()
+  };
+}
+async function topdownGridSize(root, access4) {
+  if (!await projectPathExists(root, path31.join(root, ENGINE_FIELD_RESOURCE_PATH)))
+    return 8;
+  const selected = await selectEngineFields(root, access4);
+  const field = fieldEntries(selected.resource, selected.legacy, selected.filename).find((entry) => entry.id === "topdown_grid");
+  return Number(field?.value) === 16 ? 16 : 8;
+}
+function importAnalysis(image, assetPath, kind, context) {
+  const analysis = analyzeGraphicsImage(image, assetPath, { kind, colorMode: context.colorMode, spriteMode: context.spriteMode });
+  return {
+    status: analysis.validationStatus,
+    paletteFamilies: analysis.paletteFamilies,
+    ...kind === "background" ? { uniqueTiles: analysis.uniqueTiles, uniqueTilesWithFlips: analysis.uniqueTilesWithFlips } : {},
+    tileBudget: analysis.tileBudget,
+    violationCount: analysis.violationCount,
+    violations: analysis.violations.slice(0, IMPORT_ANALYSIS_VIOLATIONS)
+  };
+}
+async function prepareImport(root, input, context, access4) {
+  if (input.sprite?.profile === "native_metadata") {
+    assetError("INVALID_INPUT", "A native_metadata sprite imports on its own with expectedRevision, not in assets.");
+  }
   if (input.expectedRevision !== void 0 || input.dryRun !== void 0 || input.sprite?.metadataPath !== void 0 || input.sprite?.sourceSha256 !== void 0 || input.sprite?.metadataSha256 !== void 0) {
     assetError("INVALID_INPUT", "Metadata paths, digests, expectedRevision and dryRun apply only to native_metadata sprite import.");
   }
-  const root = await assertDistributedProject(projectRoot, access4);
   if (input.kind !== "background" && input.kind !== "sprite") {
     assetError("INVALID_INPUT", "Asset kind must be background or sprite.");
   }
@@ -54283,6 +54517,9 @@ async function importAsset(projectRoot, input, access4) {
   }
   const destination = normalizedDestination(root, input.assetPath, input.kind);
   const relativeDestination = projectRelativePath(root, destination);
+  if (context.claimedPaths.has(destination)) {
+    assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} appears twice in this import.`, destination);
+  }
   const source = input.sourcePath ? await resolveProjectPath(root, input.sourcePath, { mustExist: true }) : await resolveProjectPath(root, destination, { mustExist: true });
   await resolveProjectPath(root, destination);
   const sidecar = `${destination}.gbsres`;
@@ -54302,11 +54539,12 @@ async function importAsset(projectRoot, input, access4) {
   const filename = path31.basename(destination);
   const name3 = ensureName(input.name ?? path31.basename(filename, ".png"));
   const id3 = input.id ?? stableResourceId("asset", input.kind, relativeDestination);
-  const duplicate = access4 ? access4.asset({ assetId: id3 }).status !== "missing" : (await inventoryProject(root)).assets.some((asset) => asset.id === id3);
+  const duplicate = context.claimedIds.has(id3) || (access4 ? access4.asset({ assetId: id3 }).status !== "missing" : (await inventoryProject(root)).assets.some((asset) => asset.id === id3));
   if (duplicate) {
     assetError("DUPLICATE_RESOURCE_ID", `The asset ID ${id3} is already used by this native game project.`);
   }
   let metadata2;
+  let diagnostics = [];
   if (input.kind === "background") {
     metadata2 = createBackgroundMetadata({
       id: id3,
@@ -54317,34 +54555,65 @@ async function importAsset(projectRoot, input, access4) {
       autoColor
     });
   } else {
-    metadata2 = await createSpriteResource(root, {
+    ({ metadata: metadata2, diagnostics } = await createSpriteResource(root, {
       id: id3,
       name: name3,
       filename,
       width: image.width,
       height: image.height,
+      image,
       checksum: createHash27("sha1").update(bytes2).digest("hex"),
       profile: input.sprite.profile,
-      templateAssetId: input.sprite.templateAssetId
-    }, access4);
+      templateAssetId: input.sprite.templateAssetId,
+      paletteIndex: input.sprite.paletteIndex,
+      frameWidth: input.sprite.frameWidth,
+      frameHeight: input.sprite.frameHeight,
+      gridSize: context.gridSize,
+      sceneType: input.sprite.sceneType ?? context.sceneType,
+      spriteMode: context.spriteMode,
+      colorMode: context.colorMode
+    }, access4));
   }
-  const parent = path31.dirname(destination);
-  await mkdir8(parent, { recursive: true });
-  await resolveProjectPath(root, parent, { mustExist: true });
-  let createdPng = false;
-  try {
-    if (input.sourcePath) {
-      await exclusiveWrite(destination, bytes2);
-      createdPng = true;
+  context.claimedIds.add(id3);
+  context.claimedPaths.add(destination);
+  const analysis = importAnalysis(image, relativeDestination, input.kind, context);
+  const sprite = input.kind === "sprite" ? {
+    numTiles: metadata2.numTiles,
+    canvas: { width: metadata2.canvasWidth, height: metadata2.canvasHeight },
+    bounds: { x: metadata2.boundsX, y: metadata2.boundsY, width: metadata2.boundsWidth, height: metadata2.boundsHeight },
+    ...input.sprite.paletteIndex === void 0 ? {} : { paletteIndex: input.sprite.paletteIndex }
+  } : {};
+  return {
+    root,
+    destination,
+    sidecar,
+    bytes: bytes2,
+    copiesPng: input.sourcePath !== void 0,
+    metadata: metadata2,
+    result: {
+      ...assetResult(metadata2, relativeDestination, input.sprite?.profile),
+      ...sprite,
+      analysis,
+      ...diagnostics.length > 0 ? { diagnostics } : {}
     }
-    await exclusiveWrite(sidecar, `${JSON.stringify(metadata2, null, 2)}
-`);
+  };
+}
+async function writePreparedImports(prepared) {
+  const created = [];
+  try {
+    for (const item of prepared) {
+      const parent = path31.dirname(item.destination);
+      await mkdir8(parent, { recursive: true });
+      await resolveProjectPath(item.root, parent, { mustExist: true });
+      if (item.copiesPng)
+        await exclusiveWrite(item.destination, item.bytes, created);
+      await exclusiveWrite(item.sidecar, `${JSON.stringify(item.metadata, null, 2)}
+`, created);
+    }
   } catch (error2) {
-    if (createdPng)
-      await rm4(destination, { force: true });
+    await Promise.allSettled(created.reverse().map((filename) => rm4(filename, { force: true })));
     throw error2;
   }
-  return assetResult(metadata2, relativeDestination, input.sprite?.profile);
 }
 async function importNativeMetadata(projectRoot, input, access4) {
   const options = input.sprite;
@@ -54405,6 +54674,7 @@ async function importNativeMetadata(projectRoot, input, access4) {
       value: {
         ...assetResult(created.metadata, input.assetPath, "native_metadata"),
         idMap: created.idMap,
+        analysis: importAnalysis(image, input.assetPath, "sprite", { colorMode: projectColorMode(snapshot.inventory.settings), spriteMode: snapshot.inventory.settings.spriteMode === "8x8" ? "8x8" : "8x16" }),
         diagnostics: created.diagnostics,
         counts: created.counts,
         patternAccounting: created.patternAccounting,
@@ -55809,7 +56079,7 @@ function monoColors(settings) {
     settings.customColorsBlack
   ]) ?? [...FALLBACK_PALETTE_COLORS];
 }
-async function renderSceneGraphics(context, sourcePath, displayMode) {
+async function renderSceneGraphics(context, sourcePath, displayMode, colorCorrection = "none") {
   let source;
   try {
     source = import_pngjs9.PNG.sync.read(await readFile12(sourcePath));
@@ -55825,7 +56095,7 @@ async function renderSceneGraphics(context, sourcePath, displayMode) {
   const output = new import_pngjs9.PNG({ width: source.width, height: source.height });
   const limitations = /* @__PURE__ */ new Set([
     "Static authored-source projection; not an emulator frame or gameplay capture.",
-    "Does not reconstruct actors, overlays, UI, camera motion, runtime palette changes, or hardware color correction."
+    colorCorrection === "chromatic" ? "Does not reconstruct actors, overlays, UI, camera motion, or runtime palette changes; colors approximate the Chromatic's display with the hermretro player's color correction." : "Does not reconstruct actors, overlays, UI, camera motion, runtime palette changes, or hardware color correction."
   ]);
   if (context.metadata.autoColor === true) {
     limitations.add("Automatic background colorization is not reconstructed from authored source.");
@@ -55850,9 +56120,11 @@ async function renderSceneGraphics(context, sourcePath, displayMode) {
         unresolvedPalettePixels += 1;
       if (slot2 >= HARDWARE_PALETTE_SLOTS)
         opaqueAttributePixels += 1;
-      output.data[pixelIndex] = Number.parseInt(displayColor.slice(0, 2), 16);
-      output.data[pixelIndex + 1] = Number.parseInt(displayColor.slice(2, 4), 16);
-      output.data[pixelIndex + 2] = Number.parseInt(displayColor.slice(4, 6), 16);
+      const rgb = [0, 2, 4].map((offset) => Number.parseInt(displayColor.slice(offset, offset + 2), 16));
+      const [red, green, blue] = colorCorrection === "chromatic" ? chromaticDisplayColor(...rgb) : rgb;
+      output.data[pixelIndex] = red;
+      output.data[pixelIndex + 1] = green;
+      output.data[pixelIndex + 2] = blue;
       output.data[pixelIndex + 3] = source.data[pixelIndex + 3];
     }
   }
@@ -55869,6 +56141,7 @@ async function renderSceneGraphics(context, sourcePath, displayMode) {
     width: source.width,
     height: source.height,
     displayMode,
+    colorCorrection,
     provenance: "authored-source-projection",
     emulatorFrame: false,
     confidence: unsupportedSourcePixels === 0 && unresolvedPalettePixels === 0 && opaqueAttributePixels === 0 && context.metadata.autoColor !== true ? "authored-palette-projection" : "limited",
@@ -55886,15 +56159,20 @@ async function previewSceneGraphics(projectPath, input, access4) {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene graphics previews must use the .png extension.");
   }
   const context = await loadSceneGraphicsContext(projectPath, input.sceneId, access4);
+  const pixels = context.width * context.height * 64;
+  const magnification = input.magnification ?? (pixels * 4 <= MAX_PREVIEW_PIXELS ? 2 : 1);
+  if (!Number.isSafeInteger(magnification) || magnification < 1 || magnification > 4 || pixels * magnification * magnification > MAX_PREVIEW_PIXELS * 4) {
+    throw new GameStudioProjectError("INVALID_PREVIEW_OPTIONS", "Scene previews take integer magnification 1\u20134 within the preview pixel budget.");
+  }
   const outputPath = await resolveProjectPath(context.inventory.projectRoot, input.outputPath, { allowRoot: false });
   const sourcePath = await resolveProjectPath(context.inventory.projectRoot, context.background.resourcePath, { mustExist: true });
   if (outputPath === sourcePath) {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene previews must not overwrite authored background source artwork.");
   }
-  const rendered = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color");
+  const rendered = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color", input.colorCorrection);
   await mkdir10(path34.dirname(outputPath), { recursive: true });
   const confirmedOutput = await resolveProjectPath(context.inventory.projectRoot, outputPath, { allowRoot: false });
-  const png = import_pngjs9.PNG.sync.write(rendered.image);
+  const png = import_pngjs9.PNG.sync.write(scaledImage(rendered.image, magnification));
   const file2 = await open14(confirmedOutput, "wx", 384).catch((error2) => {
     if (error2 instanceof Error && "code" in error2 && error2.code === "EEXIST") {
       throw new GameStudioProjectError("PREVIEW_OUTPUT_EXISTS", "The scene preview output already exists and was preserved. Choose a new project-local .png outputPath.");
@@ -55907,7 +56185,7 @@ async function previewSceneGraphics(projectPath, input, access4) {
   } finally {
     await file2.close();
   }
-  return { ...rendered.metadata, outputPath: confirmedOutput };
+  return { ...rendered.metadata, magnification, outputPath: confirmedOutput };
 }
 async function previewSceneContactSheet(projectPath, input, access4) {
   if (!Array.isArray(input.sceneIds) || input.sceneIds.length < 1 || input.sceneIds.length > 16 || new Set(input.sceneIds).size !== input.sceneIds.length || Array.from(input.sceneIds).some((id3) => typeof id3 !== "string" || id3.trim().length === 0 || id3.length > 256)) {
@@ -55920,7 +56198,7 @@ async function previewSceneContactSheet(projectPath, input, access4) {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene contact sheets require a new project-local .png output.");
   }
   const columns = input.columns ?? Math.min(3, input.sceneIds.length);
-  const magnification = input.magnification ?? 1;
+  let magnification = input.magnification ?? 1;
   if (!Number.isSafeInteger(columns) || columns < 1 || columns > 8 || !Number.isSafeInteger(magnification) || magnification < 1 || magnification > 4) {
     throw new GameStudioProjectError("INVALID_PREVIEW_OPTIONS", "Scene sheets require 1\u20138 columns and integer magnification 1\u20134.");
   }
@@ -55935,6 +56213,10 @@ async function previewSceneContactSheet(projectPath, input, access4) {
     const sourcePath = await resolveProjectPath(context.inventory.projectRoot, context.background.resourcePath, { mustExist: true });
     selected.push({ context, sourcePath });
   }
+  if (input.magnification === void 0) {
+    const dimensions3 = selected.map(({ context }) => ({ width: context.width * 8, height: context.height * 8 }));
+    magnification = contactSheetLayout(dimensions3, columns, 2).fits ? 2 : 1;
+  }
   const root = selected[0].context.inventory.projectRoot;
   const outputPath = await resolveProjectPath(root, input.outputPath, { allowRoot: false });
   if (selected.some(({ context, sourcePath }) => context.inventory.projectRoot !== root || sourcePath === outputPath)) {
@@ -55943,7 +56225,7 @@ async function previewSceneContactSheet(projectPath, input, access4) {
   const images = [];
   const scenes = [];
   for (const [index, { context, sourcePath }] of selected.entries()) {
-    const { image, metadata: metadata2 } = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color");
+    const { image, metadata: metadata2 } = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color", input.colorCorrection);
     const png2 = import_pngjs9.PNG.sync.write(image);
     const sha2564 = createHash30("sha256").update(png2).digest("hex");
     images.push({ png: png2, sha256: sha2564, label: `SCENE ${index + 1} / ${metadata2.displayMode.toUpperCase()}`, caption: "STATIC / NOT GAMEPLAY" });
@@ -55992,6 +56274,8 @@ var dimension = external_exports.number().int().min(1).max(4096);
 var customProperties = external_exports.record(external_exports.string(), external_exports.unknown());
 var revision = external_exports.string().trim().min(1).max(256);
 var paletteColor = external_exports.string().regex(/^#?[\da-fA-F]{6}$/u);
+var colorCorrectionOption = external_exports.enum(["none", "chromatic"]).describe("none (default) writes the palette's exact colors; chromatic applies the color correction the hermretro player uses, an approximation of the Chromatic's screen.");
+var paletteColors = external_exports.array(paletteColor).min(3).max(4).describe("Four colors, lightest to darkest; or three for a sprite palette (lightest, middle, darkest), stored as entries 0, 1 and 3 because sprites never show entry 2. Three colors in an update keep the palette's entry 2.");
 var emulatorButton = external_exports.enum(["a", "b", "up", "down", "left", "right", "start", "select"]);
 var frameCount = external_exports.number().int().min(1).max(MAX_EMULATOR_FRAMES);
 var imageLayoutSchema = external_exports.enum(["individual", "contact-sheet"]);
@@ -56002,6 +56286,19 @@ var emulatorImageOptions = {
   scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels (contact sheets default to 2\xD7); sample hashes stay those of the native frames."),
   detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default): frame, buttons, samples and recordingSpan. full returns every field the engine reports, such as the ROM, runtime, clock, recording state and retained sample paths.")
 };
+var spritePreviewColors = {
+  paletteId: identifier.optional().describe("Draw the frame in this palette's sprite colors (entries 0, 1 and 3) instead of the source shades."),
+  colorCorrection: colorCorrectionOption.optional()
+};
+var backgroundImportOptions = external_exports.object({ autoColor: external_exports.boolean().optional() }).strict();
+var simpleSpriteImport = external_exports.object({
+  profile: external_exports.enum(["static", "static16x16", "directional", "directional48x16", "directional_animated", "directional_animated96x16", "metasprite", "template"]),
+  templateAssetId: identifier.optional(),
+  paletteIndex: external_exports.number().int().min(0).max(7).optional().describe("Scene sprite palette slot (0-7) every tile uses in color mode; defaults to 0."),
+  frameWidth: external_exports.number().int().min(8).max(128).optional().describe("metasprite only: frame width, a multiple of 8."),
+  frameHeight: external_exports.number().int().min(16).max(128).optional().describe("metasprite only: frame height, a multiple of 16; the PNG is one row of frames this tall."),
+  sceneType: external_exports.string().trim().min(1).max(64).optional().describe("Scene type the sprite is for, e.g. TOPDOWN or PLATFORM; defaults to the project's default scene type. TOPDOWN on a 16 px top-down grid gives the 16-pixel profiles a 16x16 collision box.")
+}).strict();
 var scriptTarget = external_exports.object({
   sceneId: identifier,
   actorId: identifier.optional(),
@@ -56154,17 +56451,14 @@ var domainSchemas = {
     expectedRevision: revision.optional().describe("Whole-project revision from scene_inspect.revision or project_inspect.revision; resource revisions are not interchangeable.")
   }).strict(),
   assetImport: external_exports.object({
-    assetPath: boundedPath,
-    kind: external_exports.enum(["background", "sprite"]),
+    assetPath: boundedPath.optional().describe("Destination PNG under assets/backgrounds or assets/sprites. Required with kind unless assets is given."),
+    kind: external_exports.enum(["background", "sprite"]).optional(),
     sourcePath: boundedPath.optional(),
     name: boundedName.optional(),
     id: identifier.optional(),
-    background: external_exports.object({ autoColor: external_exports.boolean().optional() }).strict().optional(),
+    background: backgroundImportOptions.optional(),
     sprite: external_exports.discriminatedUnion("profile", [
-      external_exports.object({
-        profile: external_exports.enum(["static", "static16x16", "directional", "directional48x16", "directional_animated", "directional_animated96x16", "template"]),
-        templateAssetId: identifier.optional()
-      }).strict(),
+      simpleSpriteImport,
       external_exports.object({
         profile: external_exports.literal("native_metadata"),
         metadataPath: boundedPath,
@@ -56172,6 +56466,15 @@ var domainSchemas = {
         metadataSha256: external_exports.string().regex(/^[a-f0-9]{64}$/i)
       }).strict()
     ]).optional(),
+    assets: external_exports.array(external_exports.object({
+      assetPath: boundedPath,
+      kind: external_exports.enum(["background", "sprite"]),
+      sourcePath: boundedPath.optional(),
+      name: boundedName.optional(),
+      id: identifier.optional(),
+      background: backgroundImportOptions.optional(),
+      sprite: simpleSpriteImport.optional()
+    }).strict()).min(1).max(32).optional().describe("Import several assets in one call instead of the single-asset fields; all are checked before any is written. native_metadata is not allowed here."),
     expectedRevision: revision.optional().describe("Required whole-project revision for native_metadata only."),
     dryRun: external_exports.boolean().optional().describe("Validate the complete native_metadata import without publishing; defaults false.")
     // Keep a ZodObject: the MCP SDK cannot publish a top-level ZodEffects schema.
@@ -56206,20 +56509,22 @@ var domainSchemas = {
     animationIndex: external_exports.number().int().min(0).max(7).optional(),
     frameIndex: external_exports.number().int().min(0).max(31).optional(),
     outputPath: boundedPath.optional(),
-    scale: external_exports.number().int().min(1).max(8).optional()
+    scale: external_exports.number().int().min(1).max(8).optional().describe("Integer enlargement; defaults to the largest that keeps the frame within 128 pixels."),
+    ...spritePreviewColors
   }).strict(),
   spriteContactSheet: external_exports.object({
     ...spriteLookup,
     outputPath: boundedPath,
     columns: external_exports.number().int().min(1).max(8).optional(),
-    scale: external_exports.number().int().min(1).max(8).optional(),
-    stateIndex: external_exports.number().int().min(0).max(31).optional()
+    scale: external_exports.number().int().min(1).max(8).optional().describe("Integer enlargement; defaults to the largest that keeps each frame within 64 pixels."),
+    stateIndex: external_exports.number().int().min(0).max(31).optional(),
+    ...spritePreviewColors
   }).strict(),
-  paletteCreate: external_exports.object({ name: boundedName, colors: external_exports.array(paletteColor).length(4), id: identifier.optional() }).strict(),
+  paletteCreate: external_exports.object({ name: boundedName, colors: paletteColors, id: identifier.optional() }).strict(),
   paletteUpdate: external_exports.object({
     paletteId: identifier,
     name: boundedName.optional(),
-    colors: external_exports.array(paletteColor).length(4).optional(),
+    colors: paletteColors.optional(),
     updateDefaultColors: external_exports.boolean().optional()
   }).strict(),
   scenePaletteAssign: external_exports.object({
@@ -56252,8 +56557,9 @@ var domainSchemas = {
     sceneIds: external_exports.array(identifier).min(1).max(16).optional(),
     outputPath: boundedPath,
     displayMode: external_exports.enum(["color", "mono"]).optional(),
+    colorCorrection: colorCorrectionOption.optional(),
     columns: external_exports.number().int().min(1).max(8).optional(),
-    magnification: external_exports.number().int().min(1).max(4).optional()
+    magnification: external_exports.number().int().min(1).max(4).optional().describe("Integer enlargement; defaults to 2, or 1 when the enlarged image would be too large.")
   }).strict(),
   scriptInspect: external_exports.object({ target: scriptTarget, eventId: identifier.optional() }).strict(),
   scriptEdit: external_exports.object({
@@ -57471,10 +57777,10 @@ function registerProjectDomains(server, context) {
   }, async (input) => mutate((project2, access4) => deleteTrigger(project2.projectPath, input, access4)));
   server.registerTool("asset_import", {
     title: "Import a genuine image asset",
-    description: "Register a project-local PNG as a native asset. native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
+    description: "Register project-local PNGs as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
     inputSchema: domainSchemas.assetImport,
     annotations: createOnly
-  }, async (input) => input.sprite?.profile === "native_metadata" ? transact((project2, access4) => importAsset(project2.projectRoot, input, access4)) : mutate((project2, access4) => importAsset(project2.projectRoot, input, access4), (result) => [result.assetPath, result.metadataPath]));
+  }, async (input) => input.sprite?.profile === "native_metadata" ? transact((project2, access4) => importAsset(project2.projectRoot, input, access4)) : mutate((project2, access4) => importAsset(project2.projectRoot, input, access4), (result) => (result.imported ?? [result]).flatMap((asset) => [asset.assetPath, asset.metadataPath])));
   server.registerTool("asset_inspect", {
     title: "Inspect image asset",
     description: "Read a native background or sprite and its sidecar metadata. Provide assetId or assetPath; if both are supplied, they must identify the same asset.",
@@ -57513,13 +57819,13 @@ function registerProjectDomains(server, context) {
   }, async (input) => mutate((project2, access4) => updateSprite(project2.projectRoot, input, access4), (result) => [result.metadataPath]));
   server.registerTool("sprite_preview", {
     title: "Preview authored sprite",
-    description: "Write one labeled authored sprite frame; this is not an emulator framebuffer. Omit outputPath for a unique capture, or supply a new PNG path.",
+    description: "Write one labeled authored sprite frame, enlarged by default and optionally in a palette's sprite colors; this is not an emulator framebuffer. Omit outputPath for a unique capture, or supply a new PNG path.",
     inputSchema: domainSchemas.spritePreview,
     annotations: updateExisting
   }, async (input) => mutate((project2, access4) => previewSprite(project2.projectRoot, input, access4), authoredOutput));
   server.registerTool("sprite_contact_sheet", {
     title: "Preview sprite animation frames",
-    description: "Write a labeled bounded sprite-source animation sheet without claiming genuine gameplay-frame provenance.",
+    description: "Write a labeled bounded sprite-source animation sheet, enlarged by default and optionally in a palette's sprite colors, without claiming genuine gameplay-frame provenance.",
     inputSchema: domainSchemas.spriteContactSheet,
     annotations: updateExisting
   }, async (input) => mutate((project2, access4) => spriteContactSheet(project2.projectRoot, input, access4), authoredOutput));
@@ -57535,7 +57841,7 @@ function registerProjectDomains(server, context) {
   }, async (input) => inspect((project2, access4) => inspectPalettes(project2.projectPath, access4, input)));
   server.registerTool("palette_create", {
     title: "Create a color palette",
-    description: "Create one genuine project-global Game Boy Color palette with exactly four RGB colors.",
+    description: "Create one genuine project-global Game Boy Color palette: four RGB colors, or three for a sprite palette.",
     inputSchema: domainSchemas.paletteCreate,
     annotations: createOnly
   }, async (input) => mutate((project2, access4) => createPalette(project2.projectPath, input, access4), (result) => [result.resourcePath]));
@@ -57547,7 +57853,7 @@ function registerProjectDomains(server, context) {
   }, async (input) => mutate((project2, access4) => updatePalette(project2.projectPath, input, access4), (result) => [result.resourcePath]));
   server.registerTool("palette_assign", {
     title: "Assign scene palette",
-    description: "Assign one actual background or object palette slot while protecting the reserved UI slot by default.",
+    description: "Assign one actual background or object palette slot while protecting the reserved UI slot by default. A sprite slot returns the three colors sprites show and warns when entry 2 holds a color they never draw.",
     inputSchema: domainSchemas.scenePaletteAssign,
     annotations: updateExisting
   }, async (input) => mutate((project2, access4) => assignScenePalette(project2.projectPath, input, access4), (result) => [result.resourcePath]));
@@ -57565,17 +57871,17 @@ function registerProjectDomains(server, context) {
   }, async (input) => inspect((project2, access4) => analyzeSceneGraphics(project2.projectPath, input, access4)));
   server.registerTool("graphics_preview_scene", {
     title: "Preview authored scene colors",
-    description: "Write a static background color projection for sceneId, or an ordered contact sheet for 1\u201316 distinct sceneIds. Supply one form and a new PNG path; neither mode overwrites files. Columns and magnification apply only to sheets. Actors, UI, camera motion, and runtime gameplay are not shown.",
+    description: "Write a static background color projection for sceneId, or an ordered contact sheet for 1\u201316 distinct sceneIds. Supply one form and a new PNG path; neither mode overwrites files. Output is enlarged 2x by default (magnification 1\u20134); columns apply only to sheets. colorCorrection chromatic approximates the Chromatic's display. Actors, UI, camera motion, and runtime gameplay are not shown.",
     inputSchema: domainSchemas.sceneGraphicsPreview,
     annotations: updateExisting
   }, async (input) => mutate((project2, access4) => {
-    const { sceneId, sceneIds, columns, magnification, ...options } = input;
+    const { sceneId, sceneIds, columns, ...options } = input;
     if (sceneIds !== void 0) {
       if (sceneId !== void 0)
         throw new Error("Supply sceneId or sceneIds, not both.");
-      return previewSceneContactSheet(project2.projectPath, { ...options, sceneIds, columns, magnification }, access4);
+      return previewSceneContactSheet(project2.projectPath, { ...options, sceneIds, columns }, access4);
     }
-    if (sceneId === void 0 || columns !== void 0 || magnification !== void 0) {
+    if (sceneId === void 0 || columns !== void 0) {
       throw new Error("Supply sceneId for a single preview, or sceneIds for contact-sheet layout options.");
     }
     return previewSceneGraphics(project2.projectPath, { ...options, sceneId }, access4);
