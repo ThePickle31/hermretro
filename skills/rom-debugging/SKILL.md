@@ -111,6 +111,13 @@ returned ([after a stop](references/recorded-playtesting.md#retain-an-attempt)).
 Use short inputs near uncertain timings and consecutive samples for flicker; a
 sampled frame proves nothing about gaps.
 
+To see the live state after the inputs (player and actor positions, the text
+box or menu waiting for a button, variables), add `debug` to the same step
+instead of a separate `chromatic_emulator_debug` call:
+`{"inputs":[...],"debug":{"actors":["Guard"],"variableNames":["has_key"]}}`.
+`debug:{}` returns the player, `ui`, scripts and the scene; variables only when
+named. See [stepped playtesting](references/stepped-playtesting.md#see-the-live-state-in-the-same-call).
+
 If images fail, check `execution` separately from `imageDelivery`. The input may
 have advanced even if no image arrived or transport left execution unknown. Do
 not repeat it to recover evidence; use inert observation or `chromatic_emulator_review`
@@ -195,11 +202,12 @@ ending), report what happened instead, as `hermretro:game-planning` step 6 says.
 ## Diagnose and report
 
 For variable values, the current scene, live player and actor positions,
-whether dialogue or a menu is waiting for a button, or authored collision/event
-references, call `chromatic_emulator_debug` while paused on the ROM the last
+whether dialogue or a menu is waiting for a button, add `debug` to the step that
+gets there; for authored collision/event references or `detail:"full"`, call
+`chromatic_emulator_debug` while paused. Both read the ROM the last
 build returned (builds capture debug artifacts and `chromatic_emulator_run`
 starts their ROM in source mode by default). Read
-state there instead of decoding WRAM or `symbols.noi` by hand. It requires
+state there instead of decoding WRAM or `symbols.noi` by hand. They require
 authenticated same-build artifacts and unchanged source; unsupported or
 optimized-out data stays unavailable. For bounded OAM/VRAM/WRAM/HRAM inspection
 (up to 2,048 bytes), use `chromatic_emulator_inspect`. To check that music or a sound effect plays, step to just

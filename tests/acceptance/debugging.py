@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from tests.acceptance.checkpoints import SMALL
 from tests.acceptance.fixture import OWNER_B, structured
 
 MENU = {
@@ -174,6 +175,159 @@ def check_debug_defaults(suite, client_b):
         plain_keys=sorted(plain),
         plain_mode=plain_started.get("debugMode"),
         refused=structured(refused),
+    )
+
+
+def recorded_menu_step(client_b, rom):
+    """On a recorded run, a multi-input step whose last input closes the menu, read by the step and then paused; a
+    debug read that fails on a neutral step, then a checkpoint; and the single form with variableIds and no scene."""
+    client_b.call(OWNER_B, "emulator_run", {"romPath": rom, "restart": True, "initialFrames": 120, "recording": SMALL})
+    until_dialogue(client_b, "waiting")
+    step(client_b, (["a"], 2), ([], 1))
+    menu = until_dialogue(client_b, "menu")
+    closing = client_b.call(
+        OWNER_B,
+        "emulator_step",
+        {
+            "inputs": [{"buttons": [], "frames": 10}, {"buttons": ["a"], "frames": 1}],
+            "debug": {"variableNames": ["oil"]},
+        },
+    )
+    paused = debug(client_b, variableNames=["oil"])
+    observed = structured(client_b.call(OWNER_B, "emulator_observe", {"includeImages": False}))
+    failed = structured(
+        client_b.call(
+            OWNER_B,
+            "emulator_step",
+            {"buttons": [], "frames": 1, "includeImages": False, "debug": {"actors": ["nobody"]}},
+        )
+    )
+    checkpoint = structured(client_b.call(OWNER_B, "emulator_checkpoint", {"action": "save"}))
+    single = structured(
+        client_b.call(
+            OWNER_B,
+            "emulator_step",
+            {
+                "buttons": [],
+                "frames": 1,
+                "includeImages": False,
+                "debug": {"variableIds": ["0"], "includeScene": False},
+            },
+        )
+    )
+    return {
+        "menu": ui(menu).get("dialogue"),
+        "closing": structured(closing),
+        "images": [item for item in closing["result"].get("content") or [] if item.get("type") == "image"],
+        "paused": paused,
+        "observed": observed.get("samples") or [],
+        "failed": failed,
+        "checkpoint": checkpoint,
+        "single": single,
+    }
+
+
+def recorded_menu_step_ok(recorded):
+    closing, paused, single = recorded["closing"], recorded["paused"], recorded["single"]
+    state, span = closing.get("debug") or {}, closing.get("recordingSpan") or {}
+    last = (closing.get("samples") or [{}])[-1]
+    oil = [{key: variable.get(key) for key in ("id", "name", "value")} for variable in paused.get("variables") or []]
+    return (
+        recorded["menu"] == "menu"
+        and ui(state).get("dialogue") not in (None, "menu")
+        and state.get("live") == paused.get("live")
+        and state.get("variables") == oil
+        and closing.get("frame") == paused.get("frame") == last.get("frame")
+        and len(recorded["images"]) == 1
+        and [sample.get("sha256") for sample in recorded["observed"]] == [last.get("sha256")]
+        and span.get("toFrame") == closing.get("frame")
+        and span.get("fromFrame") == closing.get("frame") - 11
+        and span.get("toActionIndex", 0) > span.get("fromActionIndex", 0)
+        and "session" not in closing
+        and (recorded["failed"].get("debug") or {}).get("code") == "SOURCE_DEBUG_ACTOR_UNAVAILABLE"
+        and recorded["failed"].get("advancedFrames") == 1
+        and bool(recorded["checkpoint"].get("checkpointId"))
+        and set(single.get("debug") or {}) == {"live", "variables"}
+        and [variable.get("id") for variable in single["debug"]["variables"]] == ["0"]
+    )
+
+
+def largest_step(client_b):
+    """The largest step result a debug request can ask for: 64 inputs and 8 samples in full detail, every actor and up
+    to 32 named variables (those the build allocates), without images."""
+    variables = structured(client_b.call(OWNER_B, "emulator_debug", {"referenceLimit": 0})).get("variables") or []
+    inputs = [{"buttons": [], "frames": 1, **({"sample": True} if index % 8 == 7 else {})} for index in range(64)]
+    return structured(
+        client_b.call(
+            OWNER_B,
+            "emulator_step",
+            {
+                "inputs": inputs,
+                "detail": "full",
+                "includeImages": False,
+                "debug": {"actors": "all", "variableIds": [variable["id"] for variable in variables][:32]},
+            },
+        )
+    )
+
+
+def check_step_live_state(suite, client_b):
+    """A step's debug request returns, on its last frame, the live state emulator_debug reads there, in less than the
+    step and a separate debug read take together; a refusal is data in the step's result, which still ran. Starts on
+    the ROM-only run check_debug_defaults left."""
+    query = {"actors": "all", "variableNames": ["oil"]}
+    step_args = {"inputs": [{"buttons": [], "frames": 2}], "includeImages": False}
+    rom_only = client_b.call(OWNER_B, "emulator_step", {**step_args, "debug": {}})
+    built, _ = run(client_b, {})
+    plain = client_b.call(OWNER_B, "emulator_step", step_args)
+    stepped = client_b.call(OWNER_B, "emulator_step", {**step_args, "debug": query})
+    read = client_b.call(OWNER_B, "emulator_debug", {**query, "referenceLimit": 0})
+    default = structured(client_b.call(OWNER_B, "emulator_step", {**step_args, "debug": {}}))
+    unknown = client_b.call(OWNER_B, "emulator_step", {**step_args, "debug": {"actors": ["nobody"]}})
+    largest = largest_step(client_b)
+    recorded = recorded_menu_step(client_b, built.get("outputPath"))
+    with_debug, debugged = structured(stepped), structured(read)
+    live_state = with_debug.get("debug") or {}
+    bytes_of = {
+        name: len(json.dumps(structured(result))) for name, result in (("step", plain), ("step_debug", stepped))
+    }
+    bytes_of["debug"] = len(json.dumps(debugged))
+    bytes_of["largest"] = len(json.dumps(largest))
+    suite.observations["step_live_state_bytes"] = bytes_of
+    suite.check(
+        "M24",
+        "emulator_step with debug returns the live player, ui, scene, actors and named variables emulator_debug reads "
+        "on the same frame, compactly; debug:{} names no variables; an unknown actor or a ROM-only session is reported "
+        "in debug and the step still advanced; on a recording, a multi-input step whose last input closes the menu "
+        "reads what a paused read then reads, with its image and recordingSpan, a failed read leaves a checkpoint "
+        "possible, the single form takes variableIds without the scene, and the largest result stays under 32 KiB",
+        live_state.get("live") == debugged.get("live")
+        and (live_state.get("live") or {}).get("player") is not None
+        and live_state.get("scene") == {key: (debugged.get("scene") or {}).get(key) for key in ("id", "name", "type")}
+        and live_state.get("variables")
+        == [{key: variable.get(key) for key in ("id", "name", "value")} for variable in debugged.get("variables") or []]
+        and [variable.get("name") for variable in live_state.get("variables") or []] == ["Oil"]
+        and debugged.get("frame") == with_debug.get("frame") == (structured(plain).get("frame") or 0) + 2
+        and bytes_of["step_debug"] < bytes_of["step"] + bytes_of["debug"]
+        and "variables" not in (default.get("debug") or {})
+        and {"live", "scene"} <= set(default.get("debug") or {})
+        and unknown["result"].get("isError") is not True
+        and (structured(unknown).get("debug") or {}).get("code") == "SOURCE_DEBUG_ACTOR_UNAVAILABLE"
+        and structured(unknown).get("advancedFrames") == 2
+        and rom_only["result"].get("isError") is not True
+        and (structured(rom_only).get("debug") or {}).get("code") == "SOURCE_DEBUG_DISABLED"
+        and structured(rom_only).get("advancedFrames") == 2
+        and recorded_menu_step_ok(recorded)
+        and "error" not in (largest.get("debug") or {})
+        and bytes_of["largest"] < 32 * 1024,
+        step_debug=live_state,
+        debug={key: debugged.get(key) for key in ("frame", "scene", "live", "variables", "error")},
+        default=default.get("debug"),
+        unknown=structured(unknown).get("debug") or structured(unknown),
+        rom_only=structured(rom_only).get("debug") or structured(rom_only),
+        bytes=bytes_of,
+        recorded={key: value for key, value in recorded.items() if key != "images"},
+        largest_debug=largest.get("debug"),
     )
 
 

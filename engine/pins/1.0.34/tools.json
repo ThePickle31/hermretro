@@ -1665,7 +1665,7 @@
     {
       "name": "emulator_step",
       "title": "Play exact frames and observe the result",
-      "description": "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image. To look without advancing, use emulator_observe. After emulator_recording stop, steps are refused until emulator_run boots again or emulator_replay, given the recordingPath and branchId stop returned, continues from the recording. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does.",
+      "description": "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. To see the player, actors, dialogue or variables after the inputs, add debug (emulator_debug's selectors) instead of calling emulator_debug after the step. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image. To look without advancing, use emulator_observe. After emulator_recording stop, steps are refused until emulator_run boots again or emulator_replay, given the recordingPath and branchId stop returned, continues from the recording. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1727,6 +1727,50 @@
             },
             "maxItems": 64,
             "description": "Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."
+          },
+          "debug": {
+            "type": "object",
+            "properties": {
+              "variableIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "maxItems": 32
+              },
+              "variableNames": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/debug/properties/variableIds/items"
+                },
+                "maxItems": 32,
+                "description": "Authored variable names or symbols, matched as emulator_debug matches them. Only the variables named here or in variableIds are reported."
+              },
+              "actors": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "all"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/properties/debug/properties/variableIds/items"
+                    },
+                    "minItems": 1,
+                    "maxItems": 20
+                  }
+                ],
+                "description": "Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."
+              },
+              "includeScene": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Also return the live state on the last frame, as emulator_debug reads it: live (the player, ui with the dialogue or menu and the buttons input accepts, scripts), the scene unless includeScene:false, and the actors and variables named. {} asks for live and the scene. Needs source mode; a refusal comes back in debug, and the step still ran. If the emulator stopped during the read, session.status is lost."
           },
           "includeImages": {
             "type": "boolean"
@@ -2289,7 +2333,7 @@
     {
       "name": "emulator_debug",
       "title": "Inspect authenticated author state",
-      "description": "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. Works on a ROM rom_build built in this session (it captures debug artifacts by default) once emulator_run starts it. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
+      "description": "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. To read it after playing, pass debug to emulator_step instead. Works on a ROM rom_build built in this session (it captures debug artifacts by default) once emulator_run starts it. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
       "inputSchema": {
         "type": "object",
         "properties": {

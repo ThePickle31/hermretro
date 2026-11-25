@@ -12,13 +12,14 @@ binding. Do not rerun setup merely to start another session; an import probe
 still does not establish that the user's ROM has run.
 
 The run starts in source mode when the last `chromatic_rom_build` built this
-ROM (it captures debug artifacts by default), so `chromatic_emulator_debug`
-reads named variables and live state with no second build.
+ROM (it captures debug artifacts by default), so a step's `debug` and
+`chromatic_emulator_debug` read named variables and live state with no second
+build.
 
 ```text
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","initialFrames":120,"recording":{}}
 chromatic_emulator_observe {}
-chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":20,"sample":true},{"buttons":[],"frames":1}]}
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":20,"sample":true},{"buttons":[],"frames":1}],"debug":{}}
 chromatic_emulator_inspect {"view":"oam","visibleOnly":true,"limit":40}
 chromatic_emulator_audio {}
 chromatic_emulator_close {}
@@ -44,6 +45,9 @@ advance, deliver input, or change the recording journal. `includeImages:false`
 omits images; optional `imageLayout:"contact-sheet"` lays out the SAME current
 image in memory. Individual PNGs remain the default. The same layout option on
 `chromatic_emulator_step` composes only its already-requested samples, without extra steps.
+Add `debug` (`chromatic_emulator_debug`'s selectors) to a step to get the live
+player, dialogue or menu state, named actors and named variables on its last
+frame in the same result, instead of a separate debug call after each step.
 
 An unchanged `chromatic_emulator_run` reuses the current session without repeating
 `initialFrames`. Request `restart:true` for an intentional fresh boot; changed
@@ -55,7 +59,7 @@ also cancels outstanding emulator work and waits for cleanup.
 
 `chromatic_emulator_inspect` provides bounded OAM or allowlisted VRAM, WRAM, OAM, and
 HRAM views: at most 40 objects or 2,048 bytes. It does not infer named variables.
-Source-mode `chromatic_emulator_debug` reads variables by name and live player, actor,
+Source-mode `chromatic_emulator_debug`, and a step's `debug`, read variables by name and live player, actor,
 dialogue, menu and script state; it requires an exact authenticated official build
 and unchanged source. Neither tool permits memory writes, cartridge/boot ROM
 dumps, arbitrary host files, or a shell.
