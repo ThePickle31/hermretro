@@ -303,7 +303,7 @@ UI/font slot is protected by default.
 For a bound background, use `chromatic_tilemap_inspect` and then `chromatic_tilemap_edit` with
 `replace_cells`, exact preimages and the current revision. A palette-only edit
 retains the inspected pixel hash; direct `chromatic_palette_paint` would leave the recipe
-out of sync. See [native tilemaps](tilemaps.md#replace-explicitly-selected-pixels-and-palette-bytes).
+out of sync. See [native tilemaps](tilemaps.md#replace-selected-cells).
 
 When replacing background art, import the new PNG first, then preserve the old
 palette assignments with a separate revision-checked operation:

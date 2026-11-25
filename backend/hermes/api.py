@@ -18,6 +18,7 @@ USED = (
     ("plugins.plugin_storage", "plugin_data_dir"),
     ("tools.vision_tools", "_should_use_native_vision_fast_path"),  # private: no public helper yet
     ("hermes_constants", "get_default_hermes_root"),
+    ("hermes_constants", "get_scratch_dir"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
     ("hermes_cli.config", "read_user_config_raw"),
@@ -78,6 +79,17 @@ def default_hermes_root() -> Path | None:
         from hermes_constants import get_default_hermes_root
 
         return Path(get_default_hermes_root())
+    except Exception:  # noqa: BLE001 - no Hermes here: tests, CI, the broker's own process
+        return None
+
+
+def scratch_dir() -> Path | None:
+    """This profile's scratch folder, ``<Hermes home>/cache/scratch`` (also the ``TMPDIR`` Hermes gives the agent's
+    commands), or None when Hermes cannot be imported here."""
+    try:
+        from hermes_constants import get_scratch_dir
+
+        return Path(get_scratch_dir(prune=False))
     except Exception:  # noqa: BLE001 - no Hermes here: tests, CI, the broker's own process
         return None
 

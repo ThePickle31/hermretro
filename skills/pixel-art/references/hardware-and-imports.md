@@ -47,7 +47,7 @@ both source and destination must be confined to the selected distributed GB
 Studio project. Palette indices are stored in the background's native
 hexadecimal byte-run `tileColors` field. For an unbound background, use
 `chromatic_palette_paint` rather than guessing an encoding or replacing unrelated tile
-attributes. For a [bound native tilemap](../../authoring/references/tilemaps.md#replace-explicitly-selected-pixels-and-palette-bytes),
+attributes. For a [bound native tilemap](../../authoring/references/tilemaps.md#replace-selected-cells),
 use `chromatic_tilemap_inspect`, then `chromatic_tilemap_edit` with revisioned `replace_cells` and
 unchanged pixel hashes for a palette-only edit. Resolve the
 actual displayed colors with `chromatic_graphics_analyze_scene`; a monochrome-looking
@@ -136,8 +136,10 @@ type a sprite is for (default the project's default scene type), so pass e.g.
 Several assets import in one call with `assets` (up to 32, checked before any is
 written; native_metadata imports alone). Every import runs the graphics analysis
 for its kind and the project's color mode and returns it as `analysis` (status,
-palette families, violations): fix an `invalid` result before building instead
-of running `chromatic_graphics_analyze` separately. Preserve the generated
+palette families, violations). The asset is written even when that analysis is
+`invalid`, and the destination cannot be imported again (`ASSET_ALREADY_EXISTS`),
+so check a new PNG with `chromatic_graphics_analyze` first and import it once it
+passes. Preserve the generated
 states, eight animation slots, frame IDs, metasprite fields, SHA-1 checksum, and
 native source-transparency convention.
 

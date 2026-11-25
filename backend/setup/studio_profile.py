@@ -43,6 +43,9 @@ OLDER_SOULS = frozenset(
 )
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"
 TURN_LIMIT = 1000
+# Studio chats grow fast (builds, emulator steps, frames): they are compacted at this many tokens of context instead
+# of half the model's window. Set when the profile is made and when a repair finds none; a cap the user set is kept.
+COMPACT_AT_TOKENS = 200_000
 # The profile's own empty working folder: new chats in the profile start here (terminal.cwd).
 WORKSPACE = "workspace"
 
@@ -454,6 +457,9 @@ def _configure(
     # Pinned, not inherited: the approval prompt before anything touches the Chromatic only appears
     # while approvals are on.
     configure("config", "set", "approvals.mode", "smart")
+    compression = hermes_api.read_profile_config(target).get("compression")
+    if not isinstance(compression, dict) or compression.get("threshold_tokens") is None:
+        configure("config", "set", "compression.threshold_tokens", str(COMPACT_AT_TOKENS))
     # Every chat in the profile opens in its own workspace folder (an absolute, existing directory is
     # what Hermes accepts as terminal.cwd). Games themselves still go in the plugin's games folder.
     check()

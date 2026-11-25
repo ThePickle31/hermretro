@@ -2,9 +2,9 @@
 """Broker acceptance run against the real engine, compiler and emulator. Nothing is mocked.
 
 Covers election, identity, private workers, lossless results, art and audio import, source-mode live state,
-authoring (symbols, scene transactions, script events), the event catalog and build warnings, writer handoff,
-delegated children, hardware gating, worker and broker crash recovery. It does not cover anything that needs Hermes
-itself (host-injected identity, real compaction, pixels reaching a model).
+authoring (symbols, scene transactions and their operations files, script events), the event catalog and build
+warnings, writer handoff, delegated children, hardware gating, worker and broker crash recovery. It does not cover
+anything that needs Hermes itself (host-injected identity, real compaction, pixels reaching a model).
 
     python tests/acceptance/broker_acceptance.py
 """

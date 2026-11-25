@@ -197,6 +197,10 @@ def make_tool_handler(ctx, tool: dict):
                 "live_player": bool(ctx.get_config("live_player", True)),
             }
             args = args if isinstance(args, dict) else {}
+            if original == "scene_apply" and "operationsPath" in args:
+                # The broker reads an operations file only from the project or this profile's scratch folder.
+                scratch = hermes_api.scratch_dir()
+                policy["scratch_dir"] = str(scratch) if scratch else None
             # New games live in the Studio's games folder unless the user asked for another place.
             automatic = original in contracts.CREATORS and not args.get("destinationPath")
             with ensure_broker() as client:

@@ -59,7 +59,7 @@ per-pixel painting.
   extended atlas via `chromatic_tilemap_atlas_create` without changing the meaning of any
   existing tile or primitive. Do not write the bound output PNG directly: that
   leaves its recipe stale. Dry-run, apply with the inspected revision, and
-  reinspect if the project changed. See the [exact tilemap contract](../../authoring/references/tilemaps.md#replace-explicitly-selected-pixels-and-palette-bytes).
+  reinspect if the project changed. See the [exact tilemap contract](../../authoring/references/tilemaps.md#replace-selected-cells).
 
 ## New native artwork
 

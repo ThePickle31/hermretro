@@ -24,18 +24,17 @@ GAME_STEPS = (
     + AUTHOR_AND_DELIVER
 )
 EDIT_GAME = (
-    "For a game brought in for editing or a game already presented, make the requested changes. "
-    "Build and playtest the changes, update the game card as needed, then "
-    + PRESENT
-    + " and call chromatic_build_report."
+    "For a game brought in for editing or already presented, make the requested changes, build and playtest them, "
+    "update the game card as needed, then " + PRESENT + " and call chromatic_build_report."
 )
 # What keeps the game the user's real, buildable project.
 GAME_RULES = (
-    "Change the game only through the chromatic_* tools: draw art as PNG files and bring it and audio in with "
-    "chromatic_asset_import, but never write .gbsres or .gbsproj files or anything under build/ yourself, and never "
-    "build, export or playtest the game with other programs. When no tool can do what the game needs, tell the "
-    "user what is missing. hermretro owns README.md, .hermretro/ and game.json's id, gameVersion and rom. Do "
-    "not create or change skills unless the user asks."
+    "Read and change the game's .gbsres and .gbsproj files only through the chromatic_* tools, never yourself, and "
+    "never open another game's project. Draw art as PNG files and bring it and audio in with chromatic_asset_import; "
+    "never write anything under build/, and never build, export or playtest the game with other programs. Run helper "
+    "code from a script file, not python -c or a heredoc. When no tool can do what the game needs, tell the user what "
+    "is missing. hermretro owns README.md, .hermretro/ and game.json's id, gameVersion and rom. Do not create or "
+    "change skills unless the user asks."
 )
 
 # The build card's guidance, for the Build conversation's context and the prompt section.
@@ -101,9 +100,9 @@ BUILD_BOUND = (
 )
 
 SYSTEM_PROMPT_SECTION = (
-    "hermretro's chromatic_* tools make native GB Studio games for the ModRetro Chromatic. Call them directly. "
-    "Load the relevant skill with skill_view: hermretro:setup, hermretro:game-planning, hermretro:authoring, "
-    "hermretro:pixel-art, hermretro:rom-debugging or hermretro:deployment. "
+    "hermretro's chromatic_* tools make native GB Studio games for the ModRetro Chromatic. "
+    # Hermes lists the plugin's skills itself; after a compaction the summary no longer holds what they said.
+    "Load the task's hermretro skill with skill_view, and again after a context compaction. "
     "Use one project per chat. Omit destinationPath unless the user names another folder. "
     + GAME_STEPS
     + " "

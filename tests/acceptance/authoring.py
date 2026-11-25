@@ -1,4 +1,5 @@
-"""Authoring through the real engine: project-unique symbols, scene transactions and script events."""
+"""Authoring through the real engine: project-unique symbols, scene transactions (and their operations files) and
+script events."""
 
 import json
 from pathlib import Path
@@ -67,6 +68,30 @@ def check_symbols_and_events(suite, client):
     check_events(suite, client, start, cellar, doors, created)
     check_stale_duplicate(suite, client, root, cellar, doors, created)
     check_older_events(suite, client, root / made["resourcePath"], start, cellar, third)
+    check_operations_file(suite, client, root, cellar, sprite)
+
+
+def check_operations_file(suite, client, root, cellar, sprite):
+    operations = [{"type": "actor.create", "name": "Lamp", "x": 9, "y": 3, "spriteSheetId": sprite}]
+    (root / "lamp-ops.json").write_text(json.dumps({"operations": operations}))
+    outside = suite.work / "outside-ops.json"
+    outside.write_text(json.dumps(operations))
+    applied = call(client, "scene_apply", {"sceneId": cellar["id"], "operationsPath": "lamp-ops.json"})
+    lamp = call(
+        client, "actor_inspect", {"sceneId": cellar["id"], "actorId": applied["operationResults"][0]["resourceId"]}
+    ).get("actor", {})
+    refused = client.call(OWNER_S, "scene_apply", {"sceneId": cellar["id"], "operationsPath": str(outside)})
+    suite.check(
+        "S10",
+        "scene_apply reads its operations from a JSON file in the project and refuses one outside it",
+        not applied["failed"]
+        and lamp.get("name") == "Lamp"
+        and (refused.get("denied") or {}).get("code") == "OPERATIONS_FILE"
+        and refused.get("dispatched") is False,
+        applied=applied.get("error") or applied.get("changedPaths"),
+        lamp=lamp.get("name"),
+        refused=refused,
+    )
 
 
 def check_reserved_keys(suite, client, start, cellar, doors, third):

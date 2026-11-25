@@ -20,7 +20,7 @@ for platform details and manual checks.
 If the plugin itself needs preparation, use the [setup skill](../setup/SKILL.md).
 Device tools with an existing ROM need only the runtime component. The public
 `chromatic_setup` tool below handles hardware, not plugin dependencies.
-For a tool error, follow [recover the failed step](../authoring/references/agent-guide.md#recover-the-failed-step):
+For a tool error, follow [recover the failed step](../authoring/references/recovery.md):
 missing project context, denied access, and an uncertain device action need different responses.
 
 ## Browser previews
@@ -49,7 +49,7 @@ the reported connection/access issue without claiming a driver diagnosis.
 For live play or flash, use `chromatic_rom_inspect` on the intended file within the
 authorized project or workspace. Pass its exact path, `sizeBytes`, and SHA-256;
 never substitute a different ROM, digest, or device. If no project or workspace
-is authorized, follow [project selection](../authoring/references/agent-guide.md#start-and-select-the-intended-project).
+is authorized, follow [project selection](../authoring/references/project-selection.md).
 
 ## Prepare a first write on a new computer
 
@@ -124,7 +124,7 @@ provenance check is needed unless it is a known third-party commercial game.
 Refuse clearly third-party commercial games even if the user owns or modifies a
 copy. A game the user or their team made is eligible even if sold. For other
 supplied ROMs of unknown origin, try to boot the exact inspected file in the
-[local emulator](../authoring/references/agent-guide.md#playtest-real-roms) and use any credible
+[local emulator](../authoring/references/emulator-playtesting.md) and use any credible
 evidence already available that identifies that file. If eligibility remains
 unclear, do not flash; ask only for the missing evidence. See the [flash guide](references/chromatic-device-testing.md#flash-the-exact-inspected-rom)
 for evidence examples and refusal wording.

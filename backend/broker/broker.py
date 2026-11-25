@@ -28,6 +28,7 @@ from . import leases
 from .control import ControlMixin
 from .lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
 from .engine import EngineError
+from .operations_file import scene_apply_arguments
 
 HARDWARE = frozenset({"device", "setup", "flash", "play", "device_capture"})
 PREPARE = frozenset({"toolchain_prepare"})
@@ -263,6 +264,11 @@ class Broker(LaneMixin, ControlMixin):
             self.select_bound_game(lane, engine)
         if tool == "rom_build" and lane.selected_root:
             arguments = game_rom_arguments(lane.selected_root, arguments)
+        if tool == "scene_apply":
+            scratch = policy.get("scratch_dir")
+            arguments = scene_apply_arguments(
+                lane.selected_root, arguments, scratch if isinstance(scratch, str) else None
+            )
         writes = kind == "project-write"
         if writes:
             self.acquire_writer(lane)

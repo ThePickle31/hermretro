@@ -55,8 +55,19 @@ class OneWorkflow(unittest.TestCase):
         self.assertIn(workflow.GAME_RULES, section)
 
     def test_the_rules_keep_the_game_in_the_tools(self):
-        for rule in (".gbsres", "build/", "other programs", "skills unless the user asks"):
+        for rule in (
+            ".gbsres",
+            "build/",
+            "other programs",
+            "skills unless the user asks",
+            "Read and change the game's .gbsres and .gbsproj files only through the chromatic_* tools",
+            "never open another game's project",
+            "script file, not python -c or a heredoc",
+        ):
             self.assertIn(rule, workflow.GAME_RULES)
+
+    def test_the_prompt_section_says_to_load_skills_again_after_a_compaction(self):
+        self.assertIn("again after a context compaction", workflow.SYSTEM_PROMPT_SECTION)
 
     def context(self, kind, entry, first=True):
         registry = mock.Mock()
@@ -144,7 +155,7 @@ class OneWorkflow(unittest.TestCase):
 
     def test_drawing_art_and_importing_it_and_audio_stays_allowed(self):
         self.assertIn(
-            "draw art as PNG files and bring it and audio in with chromatic_asset_import", workflow.GAME_RULES
+            "Draw art as PNG files and bring it and audio in with chromatic_asset_import", workflow.GAME_RULES
         )
 
     def test_a_build_says_to_playtest_and_fill_the_card_before_presenting(self):
