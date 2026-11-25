@@ -158,7 +158,11 @@ variable selectors and 64 references are supported.
 - `sceneLoading`: a scene change is still loading. The player and actors are
   left out until it finishes; step a few frames and read again.
 - `player`, and each actor named in `actors` (authored name, ID or symbol in the
-  current scene, or `"all"`): tile `x`/`y` (the units `chromatic_actor_create`
+  current scene, or `"all"`; an exact name, ID or symbol in any scene is
+  matched before a name in another case; an actor of another scene comes back
+  with its names, `sceneId` and `unavailable: "not in the current scene (it is
+  in <scene>)"`, several of them as `matches` with their IDs and scenes, and a
+  name no scene has is refused): tile `x`/`y` (the units `chromatic_actor_create`
   uses), `pixelX`/`pixelY`, `direction`, `moving`, `moveSpeed`, `active` (on
   screen and updating) and `hidden`. `moving` means a walking animation plays
   (scripted moves, top-down and adventure walking) or the top-down player is
@@ -171,7 +175,9 @@ variable selectors and 64 references are supported.
   while a script holds the VM locked). Actors map to the game's own actor slots
   only when the build's actor table matches the authored actors in GB Studio's
   order; prefab actors, and actors that share an `_index`, start tile,
-  direction and sprite, cannot be mapped, and `limitations` says so.
+  direction and sprite, cannot be mapped, and `limitations` says so (an actor
+  of another scene is still listed). A current-scene actor past the first 20
+  with a sprite comes back with `unavailable: "not read live ..."`.
 - `ui`: `overlayOpen` (the window layer is on screen; a HUD counts), `dialogue`
   and the `buttons` the script that owns input accepts next. `dialogue` is
   `waiting` (a text box waits for a button), `drawing` (a text box or menu is

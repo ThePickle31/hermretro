@@ -13845,6 +13845,15 @@ function insertionIndex(events, input) {
   }
   return events.length;
 }
+function liftTargetEventId(input) {
+  const { eventId, ...target } = isObject6(input.target) ? input.target : {};
+  if (eventId === void 0)
+    return input;
+  if (input.eventId !== void 0 && input.eventId !== eventId) {
+    throw new GameStudioProjectError("INVALID_INPUT", "Give the event once, as eventId or target.eventId, not two different ones");
+  }
+  return { ...input, target, eventId };
+}
 function applyScriptEdit(resource, input, options = {}) {
   if (!input.target || !["insert", "update", "delete", "move"].includes(input.action)) {
     throw new GameStudioProjectError("INVALID_INPUT", "Script edits require a target and a supported action");
@@ -14939,12 +14948,25 @@ async function createOverlay(snapshot, sceneId) {
     staged: /* @__PURE__ */ new Map()
   };
 }
-function operationFields(operation) {
-  if (operation.input !== void 0 && !isObject8(operation.input)) {
-    projectError("INVALID_INPUT", "Operation input must be a JSON object");
+var OPERATION_SELECTORS = ["sceneId", "actorId", "triggerId", "scriptKey", "eventId", "branchPath"];
+function assertOneSelection(forms) {
+  for (const key of OPERATION_SELECTORS) {
+    const [first, ...others] = forms.filter((form) => form[key] !== void 0);
+    if (others.some((form) => !isDeepStrictEqual(form[key], first[key])))
+      projectError("INVALID_INPUT", `The operation names its ${key} more than once with different values (in input, target or beside them); give it once`);
   }
-  const { type: _type, clientId: _clientId, input, ...rest } = operation;
-  return { ...rest, ...isObject8(input) ? input : {} };
+}
+function operationFields(operation) {
+  const { type: _type, clientId: _clientId, input = {}, ...rest } = operation;
+  if (!isObject8(input))
+    projectError("INVALID_INPUT", "Operation input must be a JSON object");
+  for (const target2 of [rest.target, input.target]) {
+    if (target2 !== void 0 && !isObject8(target2))
+      projectError("INVALID_INPUT", "Operation target must be a JSON object");
+  }
+  assertOneSelection([rest, input, rest.target ?? {}, input.target ?? {}]);
+  const target = rest.target === void 0 && input.target === void 0 ? {} : { target: { ...rest.target, ...input.target } };
+  return { ...rest, ...input, ...target };
 }
 function normalizeOperationType(type) {
   const raw = requiredString(type, "Operation type");
@@ -15139,7 +15161,8 @@ function resolveScriptOwner(overlay, fields2) {
 function overlayScriptProject(overlay) {
   return { projectRoot: overlay.inventory.projectRoot, legacyDescriptor: overlay.format === "legacy" ? overlay.descriptor : void 0 };
 }
-async function applyEventOperation(overlay, fields2) {
+async function applyEventOperation(overlay, operation) {
+  const fields2 = liftTargetEventId(operation);
   const { owner: owner3, target } = resolveScriptOwner(overlay, fields2);
   const input = { ...fields2, ...target, target: { ...target, sceneId: overlay.scene.id } };
   const edited = applyScriptEdit(owner3.value, input, overlayScriptProject(overlay));
@@ -53203,6 +53226,29 @@ async function readWramRanges(readWram, ranges) {
     return span.bytes.subarray(address - span.start, address - span.start + length);
   };
 }
+function authoredActorsSelected(snapshot, selector) {
+  const placed = [...snapshot.scenesById.values()].flatMap((scene) => Array.isArray(scene.actors) ? scene.actors.map((actor) => ({ actor, scene })) : []);
+  const exact = placed.filter(({ actor }) => actor.id === selector || actor.symbol === selector || actor.name === selector);
+  return exact.length > 0 ? exact : placed.filter(({ actor }) => lowerCase(actor.name) === selector.toLowerCase());
+}
+function actorIdentity(actor) {
+  return { id: actor.id, name: typeof actor.name === "string" ? actor.name : "", symbol: typeof actor.symbol === "string" ? actor.symbol : null };
+}
+function sceneLabel(scene) {
+  return scene.name || scene.symbol || scene.id;
+}
+function actorElsewhere(selector, placed) {
+  if (placed.length === 1) {
+    const [{ actor, scene }] = placed;
+    return { ...actorIdentity(actor), sceneId: scene.id, unavailable: `not in the current scene (it is in ${sceneLabel(scene)})` };
+  }
+  return {
+    name: selector,
+    unavailable: `not in the current scene; ${placed.length} actors of other scenes match it, so select one by ID`,
+    matches: placed.slice(0, MAX_ACTOR_MATCHES).map(({ actor, scene }) => ({ ...actorIdentity(actor), sceneId: scene.id, scene: sceneLabel(scene) })),
+    ...placed.length > MAX_ACTOR_MATCHES ? { moreMatches: placed.length - MAX_ACTOR_MATCHES } : {}
+  };
+}
 function variableLabel(variable) {
   return `${variable.name || variable.symbol || variable.id} (ID ${variable.id})`;
 }
@@ -53220,6 +53266,7 @@ var WRAM_BANKED_BASE = WRAM_BASE + 4096;
 var LIVE_ACTOR_BYTES = 56;
 var LIVE_ACTOR_SLOTS = 21;
 var LIVE_SCENE_ACTORS = 20;
+var MAX_ACTOR_MATCHES = 8;
 var LIVE_CONTEXT_BYTES = 19;
 var LIVE_CONTEXT_SLOTS = 16;
 var LIVE_WINDOW_HIDDEN_Y = 144;
@@ -53633,24 +53680,38 @@ var SourceDebugContext = class _SourceDebugContext {
     if (query.actors === void 0 || this.#live.reason !== void 0)
       return void 0;
     const mapping = this.#live.actorsByScene.get(sceneId);
-    if (mapping === void 0 || mapping.reason !== void 0)
-      return { unavailable: mapping?.reason ?? "The current scene has no compiled actor mapping in this build." };
-    const ambiguous = mapping.actors.filter((actor) => actor.ambiguous);
+    const unmapped = mapping === void 0 || mapping.reason !== void 0 ? mapping?.reason ?? "The current scene has no compiled actor mapping in this build." : void 0;
+    if (unmapped !== void 0 && (sceneId === void 0 || query.actors === "all"))
+      return { unavailable: unmapped };
+    const ambiguous = mapping?.actors.filter((actor) => actor.ambiguous) ?? [];
     const ambiguity = ambiguous.length === 0 ? void 0 : `Actors ${boundedList(ambiguous.map(variableLabel))} share an _index, start position, direction and sprite, so their runtime slots cannot be told apart.`;
     if (query.actors === "all")
       return { sceneActors: mapping.actors.length, actors: mapping.actors.filter((actor) => !actor.ambiguous), ...ambiguity ? { limitation: ambiguity } : {} };
-    const known = boundedList(mapping.actors.map(variableLabel));
-    return { sceneActors: mapping.actors.length, actors: query.actors.map((selector) => {
-      const exact = mapping.actors.filter((actor) => actor.id === selector || actor.symbol === selector || actor.name === selector);
-      const matches2 = exact.length > 0 ? exact : mapping.actors.filter((actor) => actor.name.toLowerCase() === selector.toLowerCase());
-      if (matches2.length === 0)
-        fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", `The current scene has no actor ${JSON.stringify(selector)}. Its actors: ${known}; the player is always reported.`);
-      if (matches2.length > 1)
-        fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", `Actor name ${JSON.stringify(selector)} is ambiguous in the current scene; select one by ID: ${known}.`);
-      if (matches2[0].ambiguous)
-        fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", ambiguity);
-      return matches2[0];
-    }) };
+    const actors = query.actors.map((selector) => this.#selectedActor(selector, sceneId, unmapped === void 0 ? mapping : void 0, ambiguity));
+    return unmapped === void 0 ? { sceneActors: mapping.actors.length, actors } : { unavailable: unmapped, actors };
+  }
+  /** Finds the actor in the authored project first, so one in another scene is reported even when the current scene's live slots are not mapped (mapping is then undefined). */
+  #selectedActor(selector, sceneId, mapping, ambiguity) {
+    const placed = authoredActorsSelected(this.#snapshot, selector);
+    const here = placed.filter(({ scene }) => scene.id === sceneId);
+    if (placed.length === 0) {
+      const sceneActors = this.#snapshot.scenesById.get(sceneId)?.actors;
+      const known = boundedList((Array.isArray(sceneActors) ? sceneActors : []).map((actor) => variableLabel(actorIdentity(actor))));
+      fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", `No scene has an actor ${JSON.stringify(selector)}. The current scene's actors: ${known}; the player is always reported.`);
+    }
+    if (here.length === 0)
+      return actorElsewhere(selector, placed);
+    if (here.length > 1)
+      fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", `Actor name ${JSON.stringify(selector)} is ambiguous in the current scene; select one by ID: ${boundedList(here.map(({ actor }) => variableLabel(actorIdentity(actor))))}.`);
+    const authored = actorIdentity(here[0].actor);
+    if (mapping === void 0)
+      return authored;
+    const mapped = mapping.actors.find((actor) => actor.id === authored.id);
+    if (mapped === void 0)
+      return { ...authored, unavailable: `not read live (only the current scene's first ${LIVE_SCENE_ACTORS} actors with a sprite are)` };
+    if (mapped.ambiguous)
+      fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", ambiguity);
+    return mapped;
   }
   #readLive(read, selection, sceneType) {
     const { addresses, rom } = this.#live;
@@ -53664,7 +53725,8 @@ var SourceDebugContext = class _SourceDebugContext {
     if (selection !== void 0 && unavailable === void 0 && read(addresses.actorsLength, 1)[0] !== Math.min(selection.sceneActors + 1, LIVE_ACTOR_SLOTS)) {
       unavailable = "The loaded actors do not match the current scene yet; step a few frames and retry.";
     }
-    const actors = selection === void 0 || unavailable !== void 0 ? void 0 : selection.actors.map((actor) => ({ id: actor.id, name: actor.name, symbol: actor.symbol, ...liveActor(actorBytes, actor.slot) }));
+    const reported = unavailable === void 0 ? selection?.actors : selection.actors?.filter((actor) => actor.unavailable !== void 0);
+    const actors = reported === void 0 || unavailable !== void 0 && reported.length === 0 ? void 0 : reported.map((actor) => actor.unavailable !== void 0 ? actor : { id: actor.id, name: actor.name, symbol: actor.symbol, ...liveActor(actorBytes, actor.slot) });
     return {
       live: { sceneLoading: false, player, ...actors ? { actors } : {}, ...scripts },
       limitations: [...unavailable ? [unavailable] : [], ...selection?.limitation ? [selection.limitation] : []]
@@ -58192,7 +58254,7 @@ var emulatorImageOptions = {
 var liveStateSelectors = {
   variableIds: external_exports.array(identifier).max(32).optional(),
   variableNames: external_exports.array(identifier).max(32).optional().describe("Authored variable names or symbols: an exact match first, then the full name or symbol in any case, then the symbol without var_ (has_oil). Ambiguous names list their IDs. Omit both variable lists for every variable."),
-  actors: external_exports.union([external_exports.literal("all"), external_exports.array(identifier).min(1).max(20)]).optional().describe("Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."),
+  actors: external_exports.union([external_exports.literal("all"), external_exports.array(identifier).min(1).max(20)]).optional().describe("Current-scene actors to report live, by authored name, ID or symbol (an exact match in any scene first, then the name in any case), or 'all'. The player is always reported; an actor of another scene is listed as not in the current scene, with its scene, or with each match's ID and scene when several match."),
   includeScene: external_exports.boolean().optional()
 };
 var spritePreviewColors = {
@@ -58215,6 +58277,9 @@ var scriptTarget = external_exports.object({
   scriptKey: external_exports.string().trim().min(1).max(100).optional(),
   branchPath: external_exports.array(external_exports.object({ eventId: identifier, branch: identifier }).strict()).max(64).optional()
 }).strict();
+var scriptEventTarget = scriptTarget.extend({
+  eventId: identifier.optional().describe("The event to inspect or edit, the same as eventId beside target; give one of them.")
+});
 var collisionEdit = external_exports.object({
   shape: external_exports.enum(["tile", "rectangle"]),
   x: tileCoordinate,
@@ -58269,7 +58334,7 @@ var sceneBatchOperation = external_exports.object({
   spriteSheetId: identifier.optional(),
   properties: customProperties.optional(),
   action: external_exports.enum(["insert", "update", "delete", "move", "upsert"]).optional(),
-  target: scriptTarget.optional(),
+  target: scriptEventTarget.optional(),
   eventId: identifier.optional(),
   event: customProperties.optional(),
   patch: customProperties.optional(),
@@ -58499,12 +58564,12 @@ var domainSchemas = {
   }).strict(),
   scriptInspect: external_exports.object({
     ...scriptTarget.partial().shape,
-    target: scriptTarget.optional().describe("The same script as one object; give either target or sceneId with its optional actorId, triggerId, scriptKey and branchPath."),
+    target: scriptEventTarget.optional().describe("The same script as one object; give either target or sceneId with its optional actorId, triggerId, scriptKey and branchPath."),
     eventId: identifier.optional()
   }).strict(),
   scriptEdit: external_exports.object({
     action: external_exports.enum(["insert", "update", "delete", "move"]),
-    target: scriptTarget,
+    target: scriptEventTarget,
     eventId: identifier.optional(),
     event: customProperties.optional(),
     patch: customProperties.optional(),
@@ -60409,7 +60474,7 @@ function registerProjectDomains(server, context) {
     inputSchema: domainSchemas.scriptInspect,
     annotations: readOnly
   }, async (input) => context.safely(() => {
-    const request = { target: inspectedScriptTarget(input), ...input.eventId === void 0 ? {} : { eventId: input.eventId } };
+    const request = liftTargetEventId({ target: inspectedScriptTarget(input), ...input.eventId === void 0 ? {} : { eventId: input.eventId } });
     return context.runRead((project2, access4) => inspectScript(project2.projectPath, request, access4));
   }));
   server.registerTool("script_edit", {
@@ -60417,7 +60482,7 @@ function registerProjectDomains(server, context) {
     description: "Insert, update, delete, or reorder one native event. Guard with script_inspect.revision for the same target; the returned revision can guard the next edit.",
     inputSchema: domainSchemas.scriptEdit,
     annotations: updateExisting
-  }, async (input) => mutate((project2, access4) => editScript(project2.projectPath, input, access4)));
+  }, async (input) => mutate((project2, access4) => editScript(project2.projectPath, liftTargetEventId(input), access4)));
   server.registerTool("script_transition", {
     title: "Create a scene transition",
     description: "Insert a typed scene-switch event after checking its destination and coordinate bounds. Inspect destination collisions separately for passability. Guard with script_inspect.revision for the same source target.",
@@ -60645,7 +60710,7 @@ var recordingReviewShape = {
   fromFrame: external_exports.number().int().min(0).max(MAX_EMULATOR_RECORDING_FRAMES).optional().describe("Optional with toFrame; both must match the selected normalized action boundaries."),
   toFrame: external_exports.number().int().min(0).max(MAX_EMULATOR_RECORDING_FRAMES).optional().describe("Optional with fromFrame; both must match the selected normalized action boundaries."),
   prefixPin: recordingPrefixPinSchema.optional().describe("Optional exact prefixPin returned in recordingSpan; protects the reviewed journal prefix."),
-  maxImages: external_exports.number().int().min(1).max(MAX_EMULATOR_REVIEW_IMAGES).optional().describe("Maximum returned real samples; defaults to four.")
+  maxImages: external_exports.number().int().min(1).max(MAX_EMULATOR_REVIEW_IMAGES).optional().describe(`Maximum returned real samples, 1 to ${MAX_EMULATOR_REVIEW_IMAGES}; defaults to four. Review a longer interval in parts.`)
 };
 function validateRecordingReview(input, context) {
   if (input.toActionIndex < input.fromActionIndex || input.toActionIndex - input.fromActionIndex > MAX_EMULATOR_REVIEW_ACTIONS) {
@@ -60711,7 +60776,7 @@ function registerPlaytestTools(context) {
   const { server, safely } = context;
   server.registerTool("emulator_review", {
     title: "Review committed recorded inputs and sampled frames",
-    description: "Review a recorded input interval (fromActionIndex,toActionIndex] using the recordingSpan returned by emulator_step. Returns verified retained samples, known physical input-delivery records, pins, missing endpoints and sampling gaps; never captures or advances play. Empty intervals and post-close reads are supported. Maximum 3,600 native frames, 4,096 actions, and 2 MiB metadata. Integrity does not establish a gameplay outcome.",
+    description: `Review a recorded input interval (fromActionIndex,toActionIndex] using the recordingSpan returned by emulator_step. Returns verified retained samples, known physical input-delivery records, pins, missing endpoints and sampling gaps; never captures or advances play. Empty intervals and post-close reads are supported. Maximum 3,600 native frames, 4,096 actions, ${MAX_EMULATOR_REVIEW_IMAGES} images and 2 MiB metadata. Integrity does not establish a gameplay outcome.`,
     inputSchema: recordingReviewToolSchema,
     annotations: readOnly2
   }, async ({ includeImages = true, imageLayout = "individual", ...input }) => {

@@ -1763,7 +1763,7 @@
                     "maxItems": 20
                   }
                 ],
-                "description": "Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."
+                "description": "Current-scene actors to report live, by authored name, ID or symbol (an exact match in any scene first, then the name in any case), or 'all'. The player is always reported; an actor of another scene is listed as not in the current scene, with its scene, or with each match's ID and scene when several match."
               },
               "includeScene": {
                 "type": "boolean"
@@ -2009,7 +2009,7 @@
     {
       "name": "emulator_review",
       "title": "Review committed recorded inputs and sampled frames",
-      "description": "Review a recorded input interval (fromActionIndex,toActionIndex] using the recordingSpan returned by emulator_step. Returns verified retained samples, known physical input-delivery records, pins, missing endpoints and sampling gaps; never captures or advances play. Empty intervals and post-close reads are supported. Maximum 3,600 native frames, 4,096 actions, and 2 MiB metadata. Integrity does not establish a gameplay outcome.",
+      "description": "Review a recorded input interval (fromActionIndex,toActionIndex] using the recordingSpan returned by emulator_step. Returns verified retained samples, known physical input-delivery records, pins, missing endpoints and sampling gaps; never captures or advances play. Empty intervals and post-close reads are supported. Maximum 3,600 native frames, 4,096 actions, 8 images and 2 MiB metadata. Integrity does not establish a gameplay outcome.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2089,7 +2089,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 8,
-            "description": "Maximum returned real samples; defaults to four."
+            "description": "Maximum returned real samples, 1 to 8; defaults to four. Review a longer interval in parts."
           },
           "includeImages": {
             "type": "boolean",
@@ -2369,7 +2369,7 @@
                 "maxItems": 20
               }
             ],
-            "description": "Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."
+            "description": "Current-scene actors to report live, by authored name, ID or symbol (an exact match in any scene first, then the name in any case), or 'all'. The player is always reported; an actor of another scene is listed as not in the current scene, with its scene, or with each match's ID and scene when several match."
           },
           "includeScene": {
             "type": "boolean"
@@ -3452,6 +3452,10 @@
                         "additionalProperties": false
                       },
                       "maxItems": 64
+                    },
+                    "eventId": {
+                      "$ref": "#/properties/sceneId",
+                      "description": "The event to inspect or edit, the same as eventId beside target; give one of them."
                     }
                   },
                   "required": [
@@ -5354,6 +5358,10 @@
               },
               "branchPath": {
                 "$ref": "#/properties/branchPath"
+              },
+              "eventId": {
+                "$ref": "#/properties/sceneId",
+                "description": "The event to inspect or edit, the same as eventId beside target; give one of them."
               }
             },
             "required": [
@@ -5433,6 +5441,10 @@
                   "additionalProperties": false
                 },
                 "maxItems": 64
+              },
+              "eventId": {
+                "$ref": "#/properties/target/properties/sceneId",
+                "description": "The event to inspect or edit, the same as eventId beside target; give one of them."
               }
             },
             "required": [

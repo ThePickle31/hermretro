@@ -264,3 +264,16 @@ files, what changed and why.
   `keepSession`) fail alone on a timeout instead of ending the session, and when the worker stopped during the read
   the step's result says so (`session: {status: "lost", recording}`). In the benchmark about 300 of Bolt Bounce's 345 calls alternated `emulator_step` and
   `emulator_debug` to see the state after each step.
+- `dist/server.js` (`script_edit`, `script_inspect` and `scene_apply`'s `script.edit` operations, `operationFields`,
+  `emulator_debug`'s `#liveActorSelection`, `emulator_review`): a script target takes the event as `target.eventId`,
+  the same as `eventId` beside it (two different ones are refused), in all three tools; `script_transition`'s target
+  names no event. A `scene_apply` operation that names its scene, actor, trigger, script, event or branch path in
+  more than one place (beside `input`, in it, or in either `target`) must name the same one, or the batch is refused
+  with nothing applied; the two targets are merged key by key, where `input.target` used to replace the outer one.
+  An `emulator_debug` actor is found in the whole authored project (an exact name, ID or symbol in any scene first,
+  then a name in any case) before the current scene's live slots: one in another scene comes back as data, with its
+  names, `sceneId` and `unavailable: "not in the current scene (it is in <scene>)"`, several as `matches` with their
+  IDs and scenes, also when the current scene's actors cannot be mapped (prefabs); a current-scene actor without a
+  live slot is data too; a name no scene has is still refused. `emulator_review` states its 1–8 `maxImages` in the
+  field and the tool description. In the benchmark `scene_apply` refused `target.eventId`, a debug read of a later
+  level's actor failed twice, and a review asked for 9 images.
