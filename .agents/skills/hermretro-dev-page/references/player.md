@@ -10,7 +10,8 @@ when the agent is ready to present the game after making it, never for the whole
 - **Agent tool `chromatic_present_game`** (plugin-owned, toolset `chromatic`, registered next to
   `chromatic_studio_device_cli`; not an engine tool, not in the pinned manifest). Params
   `{note?: string ≤300, project?: absolute folder}`. The project is `project` when given (in a game's Build
-  conversation only that game: else `ONE_GAME_PER_CONVERSATION`), else the game whose Build conversation this
+  conversation only that game: else `ONE_GAME_PER_CONVERSATION`; a library game from any chat but its own
+  conversation: `GAME_CHAT_ONLY`), else the game whose Build conversation this
   is, else the chat's lane selection (broker `activity` op, memory only, never starts the broker), else the
   library game whose chat link is this conversation (`host._chat_project`). It requires a fresh web export
   (`library.export_freshness`: `build/web` exists, is the engine's own (its `.codex-web-build.json` lists the ROM

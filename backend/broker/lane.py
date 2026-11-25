@@ -398,11 +398,10 @@ class LaneMixin:
                 continue
         return None
 
-    def guard_selection(
-        self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict, continue_here: bool
-    ) -> None:
-        """A game's conversation works on that game only; another conversation that opens a game with
-        its own conversation is warned first (it may continue once the user confirms)."""
+    def guard_selection(self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict) -> None:
+        """A library game is opened and edited only from its own conversation: a game's conversation works on that game
+        only, a New Game conversation only makes its new project, and any other chat makes new projects (each becomes
+        that chat's game) but opens no library game."""
         profile, conversation = owner
         kind, bound = self.games.binding_for(profile, [conversation, *lane.sessions_seen])
         target = self._selection_target(lane, tool, arguments)
@@ -426,8 +425,8 @@ class LaneMixin:
                 "game, start one with New Game on the hermretro Build page; to work on another game, "
                 "open that game on the Build page. Nothing was changed.",
             )
-        if target and tool != "project_select":
-            holder = self._project_holding(target)
+        if tool != "project_select":
+            holder = self._project_holding(target) if target else None
             if holder is not None:
                 where = os.path.realpath(paths.games_dir())
                 inside = where == holder or where.startswith(holder.rstrip(os.sep) + os.sep)
@@ -442,32 +441,25 @@ class LaneMixin:
                     )
                     + " Nothing was changed.",
                 )
-        entry = self.games.game_for_root(target) if target and tool == "project_select" else None
-        if kind == "pending" and isinstance(entry, dict):
-            # A new game's conversation makes its own project: an existing game it opened would stay selected
-            # after the new project claims the conversation, and its edits and builds would go there.
+            return
+        if kind == "pending":
+            # A New Game conversation makes its own project: one it opened would stay selected after the new project
+            # claims the conversation, and its edits and builds would go there.
+            raise Denied(
+                "NEW_GAME_ONLY",
+                "This conversation is for a new game, so it opens no existing project. Create the new game's "
+                "project with chromatic_project_create or chromatic_project_create_blank. To work on an existing "
+                "game, tell the user to open it on the hermretro Build page. Nothing was changed.",
+            )
+        # The game itself, or the game whose folder holds it (a project inside a game's folder is that game's files).
+        entry = (self.games.game_for_root(target) or self.games.game_around(target)) if target else None
+        if isinstance(entry, dict):
             title = entry.get("title") or os.path.basename(target)
             raise Denied(
-                "GAME_HAS_CONVERSATION" if isinstance(entry.get("session"), dict) else "NEW_GAME_ONLY",
-                f"This conversation is for a new game, so it does not open \"{title}\". Create the new game's "
-                "project with chromatic_project_create or chromatic_project_create_blank. To work on "
-                f"\"{title}\", tell the user to open it on the hermretro Build page. Nothing was changed.",
+                "GAME_CHAT_ONLY",
+                f"\"{title}\" is a hermretro game, and a game is worked on only in its own conversation. Tell the "
+                f"user to open \"{title}\" on the hermretro Build page and continue there. Nothing was changed.",
             )
-        session = entry.get("session") if isinstance(entry, dict) else None
-        if not isinstance(session, dict):
-            return
-        title = entry.get("title") or os.path.basename(target)
-        if continue_here:
-            self.trace(event="continued_outside_game_conversation", owner_key=lane.key)
-            return
-        raise Denied(
-            "GAME_HAS_CONVERSATION",
-            f"\"{title}\" has its own conversation on the hermretro Build page. Changes made here will "
-            "not be in that game's conversation history. Tell the user this and ask whether to continue "
-            "here anyway or open the game on the Build page. Only if the user says to continue here, call "
-            "chromatic_project_select again with the same projectPath and continueInThisChat set to "
-            "true. Nothing was changed.",
-        )
 
     def select_bound_game(self, lane: Lane, engine: EngineProcess) -> None:
         """A game's conversation works on its game: selected for it when nothing is, and again when another project

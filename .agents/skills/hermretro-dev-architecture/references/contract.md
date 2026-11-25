@@ -331,10 +331,11 @@ open nothing. Setting `live_player` ("Keep the playable copy current", default o
 
 Every plugin tool's failure is `{ ok: false, error, code, nextStep? }` (`tool_error(message, code, next_step)`):
 `nextStep` says what the agent does about it, and `ADAPTER_ERROR` always has one. `chromatic_game_info`,
-`chromatic_present_game` and `chromatic_build_report` act on the chat's own game: in a game's Build conversation a
-`project` naming another folder is refused with `ONE_GAME_PER_CONVERSATION` (in a New Game conversation, one naming
-an existing game with `NEW_GAME_ONLY`), and a game with a Build conversation
-keeps it as its `chat` link whatever other chat touches it. An engine tool the broker cannot run answers
+`chromatic_present_game` and `chromatic_build_report` act on the chat's own game: a library game is acted on only
+from its own Build conversation. In a game's Build conversation a `project` naming another folder is refused with
+`ONE_GAME_PER_CONVERSATION`; in a New Game conversation, one naming an existing game with `NEW_GAME_ONLY`; from any
+other chat, a library game (named, or found through a chat link left after Stop editing) with `GAME_CHAT_ONLY`. A game
+with a Build conversation keeps it as its `chat` link whatever other chat touches it. An engine tool the broker cannot run answers
 `UNAVAILABLE` with a `nextStep`; when another copy of the plugin's broker still runs games, it says whether one is
 this chat's own (the plugin folder changed under it) or other chats'.
 

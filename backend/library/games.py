@@ -267,6 +267,11 @@ class Registry:
         """Bind a game to the pending conversation among ``ids``, if there is one and the game is free."""
         return bindings.claim_pending(self, identifier, profile, ids)
 
+    def claim_new(self, identifier: str, profile: str | None, conversation_id: str, sessions_seen=()) -> dict | None:
+        """Bind a game to the chat that just made it (or brought it into the library), when that chat belongs to no
+        game and the game has no conversation yet."""
+        return bindings.claim_new(self, identifier, profile, conversation_id, sessions_seen)
+
     def note_alias(self, profile: str | None, conversation_id: str, session_id: str) -> None:
         """Remember a bound conversation's live session id (compression rotates it), so a hook that only
         knows the session id still finds the game."""
@@ -305,6 +310,7 @@ class Registry:
             # A project created without selecting it still belongs to the library, but the chat only
             # owns the one it actually works on.
             owns = tool == "project_select" or arguments.get("select") is True
+            new = self.get(game_id(root)) is None
             entry = self.upsert(root, chat=chat if owns else None)
             if entry is not None and tool != "project_select":
                 # Every game gets its card file when it is made; the agent fills it in before presenting.
@@ -317,7 +323,12 @@ class Registry:
                 # A New Game conversation becomes its game's when it creates the project. Selecting an
                 # existing game (to look at it) does not make it this conversation's game.
                 claimed = self.claim_pending(entry["id"], profile, [conversation_id, *sessions_seen])
-                return claimed or entry
+                if claimed:
+                    return claimed
+            if entry is not None and conversation_id and (tool != "project_select" or new):
+                # Any other chat that makes a game (or brings a project into the library) becomes that game's
+                # conversation: a game is edited only from its own chat (the broker's guard_selection).
+                return self.claim_new(entry["id"], profile, conversation_id, sessions_seen) or entry
             return entry
         if tool == "rom_build":
             root = lane_root or structured.get("projectRoot")

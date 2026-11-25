@@ -277,11 +277,11 @@ class PresentLayout(unittest.TestCase):
         patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
         patch.start()
         self.addCleanup(patch.stop)
-        _id, self.root = make_library_game(home)
+        _id, self.root = make_library_game(home, chat="game-chat")
 
     def present(self):
         return json.loads(
-            library_tools.present_game_handler({"project": str(self.root)}, conversation_id="", session_id="")
+            library_tools.present_game_handler({"project": str(self.root)}, conversation_id="game-chat", session_id="")
         )
 
     def test_an_edited_id_is_put_back_before_the_game_is_shown(self):

@@ -20,7 +20,7 @@ from backend.library import report_tools  # noqa: E402 - the repository root goe
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.broker import Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.broker.bare import EngineStub, bare_broker  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import FakeBrokerClient, isolated_home, make_library_game  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import FakeBrokerClient, isolated_home, make_library_game, make_project  # noqa: E402 - the repository root goes on sys.path first
 
 PROFILE = "/profiles/hermretro"
 
@@ -84,7 +84,11 @@ class TwoGamesAtOnce(unittest.TestCase):
         own = self.present({}, "chat-b")
         self.assertIs(own["studio"]["buildConversation"], True)
         hermes_host._registry().unbind(self.a, "chat-a", PROFILE)
-        side = self.present({"project": str(self.root_a)}, "side-chat")
+        # A game is presented only from its own conversation, even once it has none: it is opened on the Build page.
+        self.assertEqual(self.present({"project": str(self.root_a)}, "side-chat")["code"], "GAME_CHAT_ONLY")
+        # A project the library does not have yet can be presented from any chat, and that chat is not its own.
+        outside = make_project(self.home.base / "elsewhere", "Loose")
+        side = self.present({"project": str(outside)}, "side-chat")
         self.assertIs(side["studio"]["buildConversation"], False)
         with mock.patch.object(hermes_host, "_profile_identity", lambda: PROFILE):
             listed = library_rpcs.rpc_presentations(mock.Mock())({})["presentations"]
@@ -181,7 +185,7 @@ class OneGameInItsOwnFolder(unittest.TestCase):
 
     def guard(self, conversation, tool, arguments):
         lane = Lane((PROFILE, conversation))
-        self.broker.guard_selection(lane.owner, lane, tool, arguments, False)
+        self.broker.guard_selection(lane.owner, lane, tool, arguments)
 
     def refused(self, conversation, tool, arguments):
         with self.assertRaises(Denied) as refused:

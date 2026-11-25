@@ -193,6 +193,31 @@ def claim_pending(registry, identifier: str, profile: str | None, ids) -> dict |
         return project.identified_game(identifier, entry)
 
 
+def claim_new(registry, identifier: str, profile: str | None, conversation_id: str, sessions_seen=()) -> dict | None:
+    """Make a chat that belongs to no game the conversation of the game it just made (or the project it just brought
+    into the library), so every library game is edited from one chat. Nothing changes when the chat already belongs to
+    a game or is a New Game conversation (``claim_pending`` is that one's), or the game already has its conversation."""
+    if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 256:
+        return None
+    wanted = {conversation_id, *(value for value in sessions_seen if isinstance(value, str) and value)}
+    with registry._locked():
+        data = registry.load()
+        entry = data["games"].get(identifier)
+        kind, _, _ = _binding_in(data, profile, wanted)
+        if kind is not None or not isinstance(entry, dict) or isinstance(entry.get("session"), dict):
+            return None
+        aliases = [value for value in sessions_seen if isinstance(value, str) and value and value != conversation_id]
+        entry["session"] = {
+            "storedId": conversation_id,
+            "profile": profile,
+            "createdAt": time.time(),
+            "aliases": aliases[-16:],
+        }
+        _chat_follows_session(entry)
+        registry._save(data)
+        return project.identified_game(identifier, entry)
+
+
 def note_alias(registry, profile: str | None, conversation_id: str, session_id: str) -> None:
     if not conversation_id or not session_id or conversation_id == session_id:
         return

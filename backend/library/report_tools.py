@@ -277,6 +277,14 @@ def build_report_handler(args: dict, **kwargs) -> str:
                 logger.debug("hermretro: no project for the build report", exc_info=True)
                 found = None
             root = Path(found) if found and Path(found).is_dir() else None
+            refused = root and other_game_refusal(
+                "chromatic_build_report",
+                root,
+                str(kwargs.get("conversation_id") or ""),
+                str(kwargs.get("session_id") or ""),
+            )
+            if refused:
+                return refused
         report: dict = {}
         for key in ("title", "summary"):
             if key not in args:

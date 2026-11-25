@@ -262,11 +262,7 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
             lane.sessions_seen.append(session_id)
             del lane.sessions_seen[:-16]
         if tool in SELECTORS:
-            # `continueInThisChat` is hermretro's own argument (the user confirmed working on a game outside
-            # its conversation); the engine never sees it.
-            arguments = dict(arguments)
-            continue_here = arguments.pop("continueInThisChat", None) is True
-            self.guard_selection(owner, lane, tool, arguments, continue_here)
+            self.guard_selection(owner, lane, tool, arguments)
 
         with self.table_lock:
             lane.last_used = time.monotonic()  # before the engine is fetched: see close_lane_if_idle

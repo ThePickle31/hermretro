@@ -95,14 +95,15 @@ def check_restarted_brokers(suite, broker_pid, rom_a):
     names = [v.get("name") for v in structured(client.call(OWNER_A, "variable_inspect")).get("variables", [])]
     suite.check(
         "R2",
-        "A new broker reports lost process-local state honestly; native source is intact and reselectable",
+        "A new broker reports lost process-local state honestly, selects the game for its own conversation again; "
+        "native source is intact and reselectable",
         client.hello["pid"] != broker_pid
-        and structured(fresh_status).get("selected") is False
+        and structured(fresh_status).get("projectRoot") == str(suite.project_a)
         and structured(fresh_status).get("emulatorActive") is False
         and reselect.get("ok")
         and not reselect["result"].get("isError")
         and diff(snap_before_restart, snapshot(suite.project_a)) == []
-        and {"S01 marker A", "S01 child leased", "S01 A second edit", "S01 C after handoff"} <= set(names),
+        and {"S01 marker A", "S01 child leased", "S01 A second edit"} <= set(names),
         new_broker_pid=client.hello["pid"],
         variables=names,
     )

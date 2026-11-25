@@ -1,9 +1,8 @@
-"""Delegated leases, shared-project writer handoff, hardware policy and the Desktop activity view."""
+"""Delegated leases, one game per conversation, hardware policy and the Desktop activity view."""
 
 import json
-import time
 
-from tests.acceptance.fixture import HANDOFF, OWNER_A, OWNER_C, diff, snapshot, structured
+from tests.acceptance.fixture import OWNER_A, OWNER_C, diff, snapshot, structured
 
 CHILD = {"session_id": "sess-child-1", "task_id": "task-child-1", "delegated": True}
 
@@ -65,10 +64,11 @@ def check_child_lease(suite, client_a, edited_source, last_frame):
     )
 
 
-def check_writer_handoff(suite, client_a, client_c):
+def check_one_game_per_chat(suite, client_a, client_c):
+    """A game is opened and edited only from its own conversation: A made project A, so it is A's game."""
+    snap_a3 = snapshot(suite.project_a)
     sel_c = client_c.call(OWNER_C, "project_select", {"projectPath": str(suite.project_a / "project.gbsproj")})
-    read_c = client_c.call(OWNER_C, "variable_inspect")
-    stale_revision = structured(read_c).get("revision")
+    status_c = client_c.call(OWNER_C, "session_status")
     inspect_a2 = client_a.call(OWNER_A, "variable_inspect")
     edit_a2 = client_a.call(
         OWNER_A,
@@ -79,47 +79,18 @@ def check_writer_handoff(suite, client_a, client_c):
             "expectedRevision": structured(inspect_a2).get("revision"),
         },
     )
-    snap_a3 = snapshot(suite.project_a)
-    write_c = client_c.call(OWNER_C, "variable_set", {"name": "C conflicting", "expectedRevision": stale_revision})
-    build_c = client_c.call(OWNER_C, "rom_build", {})
     suite.check(
         "W1",
-        "While one conversation is writing, a second one on the same root can read but not write or build",
-        sel_c.get("ok")
-        and not sel_c["result"].get("isError")
-        and sel_c["lane"]["writer"] is False
-        and read_c.get("ok")
+        "Another conversation cannot open a game that is a conversation's own; that conversation keeps editing it",
+        sel_c.get("dispatched") is False
+        and sel_c.get("denied", {}).get("code") == "GAME_CHAT_ONLY"
+        and structured(status_c).get("selected") is not True
         and edit_a2.get("ok")
         and not edit_a2["result"].get("isError")
-        and write_c.get("dispatched") is False
-        and write_c.get("denied", {}).get("code") == "PROJECT_WRITER_BUSY"
-        and build_c.get("denied", {}).get("code") == "PROJECT_WRITER_BUSY"
-        and diff(snap_a3, snapshot(suite.project_a)) == [],
-        c_lane=sel_c.get("lane"),
-        denial=write_c.get("denied"),
-    )
-    time.sleep(HANDOFF + 0.5)
-    stale_write = client_c.call(OWNER_C, "variable_set", {"name": "C stale", "expectedRevision": stale_revision})
-    snap_a4 = snapshot(suite.project_a)
-    fresh = client_c.call(OWNER_C, "variable_inspect")
-    fresh_write = client_c.call(
-        OWNER_C,
-        "variable_set",
-        {"name": "S01 C after handoff", "symbol": "var_s01_c", "expectedRevision": structured(fresh).get("revision")},
-    )
-    a_right_after = client_a.call(OWNER_A, "variable_set", {"name": "A too soon"})
-    suite.check(
-        "W2",
-        "A quiet writer yields after the handoff interval; the engine still rejects the stale revision",
-        stale_write.get("ok")
-        and stale_write["result"].get("isError") is True
-        and structured(stale_write).get("code") == "STALE_RESOURCE"
-        and fresh_write.get("ok")
-        and not fresh_write["result"].get("isError")
-        and fresh_write["lane"]["writer"] is True
-        and a_right_after.get("denied", {}).get("code") == "PROJECT_WRITER_BUSY",
-        stale_engine_error=structured(stale_write),
-        files_changed_by_fresh_write=diff(snap_a4, snapshot(suite.project_a)),
+        and edit_a2["lane"]["writer"] is True
+        and len(diff(snap_a3, snapshot(suite.project_a))) > 0,
+        denial=sel_c.get("denied"),
+        c_status=structured(status_c),
     )
 
 

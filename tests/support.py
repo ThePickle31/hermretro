@@ -250,7 +250,13 @@ def make_project(base: Path, name="Space Game", web=True, built=True, card=True)
 
 
 def make_library_game(
-    home: SimpleNamespace, name: str = "Game", *, built: bool = True, web: bool = True, card: bool = True
+    home: SimpleNamespace,
+    name: str = "Game",
+    *,
+    built: bool = True,
+    web: bool = True,
+    card: bool = True,
+    chat: str | None = None,
 ) -> tuple[str, Path]:
     """A game in the library, as the gateway records one: ``make_project(paths.games_dir(), name, ...)`` (a
     ``.gbsproj``, a scene, a built ROM and web export, a finished card) registered with ``host._registry().upsert``.
@@ -259,10 +265,13 @@ def make_library_game(
     ``card=False`` one without a card (``built=False`` leaves out the native ROM only). Returns ``(game id, project
     root)`` either way (the id is always there); ``host._game_root(id)`` answers the root. Registering never reaches
     the broker (and the isolated runtime folder has none), so nothing else needs patching. Pictures for the assets
-    RPC: ``add_images(root, count)``."""
+    RPC: ``add_images(root, count)``. ``chat`` binds the game to that conversation id (in this profile): a game's
+    tools act on it only from its own conversation."""
     for folder in (paths.library_dir(), paths.games_dir()):
         assert Path(folder).is_relative_to(home.base), f"call isolated_home(self) first, unpatched: {folder}"
     root = make_project(paths.games_dir(create=True), name, web=web, built=built, card=card)
     entry = hermes_host._registry().upsert(str(root))
     assert entry is not None and entry.get("id"), f"the library did not register {root}"
+    if chat is not None:
+        hermes_host._registry().bind(entry["id"], chat, hermes_host._profile_identity())
     return entry["id"], root
