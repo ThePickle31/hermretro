@@ -85,3 +85,18 @@ files, what changed and why.
   `colorCorrection: "chromatic"`, the hermretro player's color correction (the Gambatte curve), as an
   approximation of the Chromatic's screen. Agents hand-wrote native metadata and hashes for palettes and large
   sprites, wrote zoom scripts, and skipped the analysis.
+- `dist/server.js` (`dist/build.js`, `dist/source-debug.js`, the `emulator_debug` and `emulator_inspect` tools),
+  `scripts/emulator_worker.py`: `emulator_debug` reports live state: the player and the actors asked for (by name, ID
+  or symbol, or `"all"`) with tile and pixel position, direction, moving and move speed (a platformer player: its
+  platform state and velocities), withheld while a scene change is still loading; the overlay, a `dialogue` state
+  (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next, taking the
+  running menu or text box, the VM lock and presses already read but not yet handled into account; how many scripts
+  run and whether the VM is locked. A debug build reads live state only when the engine files it decodes are GB
+  Studio 4.3.0-e1's own, byte for byte (`liveStateLayout`), and maps a scene's actors to their runtime slots in GB
+  Studio's order (`_index`, then natural file order) only when the ROM's actor table matches their start tile,
+  direction and sprite; prefab actors and indistinguishable ties are refused. A query asking for actors without
+  live state still answers the scene and variables, with a limitation. Source reads on Game Boy Color take WRAM
+  addresses from 0xD000 in bank 1. Variable selectors match an exact name or symbol, then the full name or symbol
+  in any case, then the symbol without `var_`; an unknown name or ID lists the authored variables.
+  `emulator_inspect` reads up to 2,048 bytes instead of 256. Agents decoded `_actors` from raw WRAM by hand, hit the
+  256-byte limit, and guessed variable names that the tool only rejected.

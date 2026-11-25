@@ -166,12 +166,14 @@ ending), report what happened instead, as `hermretro:game-planning` step 6 says.
 
 ## Diagnose and report
 
-For named variables, the current scene, or authored collision/event references,
-build with `captureDebugArtifacts:true`, start that exact ROM with
-`debugMode:"source"`, and call `chromatic_emulator_debug` while paused. It requires
+For variable values, the current scene, live player and actor positions,
+whether dialogue or a menu is waiting for a button, or authored collision/event
+references, build with `captureDebugArtifacts:true`, start that exact ROM with
+`debugMode:"source"`, and call `chromatic_emulator_debug` while paused. Read
+state there instead of decoding WRAM or `symbols.noi` by hand. It requires
 authenticated same-build artifacts and unchanged source; unsupported or
-optimized-out data stays unavailable. For bounded OAM/VRAM/WRAM/HRAM inspection,
-use `chromatic_emulator_inspect`. See [hardware and source diagnostics](references/emulation-and-regression.md#bounded-hardware-and-source-diagnostics)
+optimized-out data stays unavailable. For bounded OAM/VRAM/WRAM/HRAM inspection
+(up to 2,048 bytes), use `chromatic_emulator_inspect`. See [hardware and source diagnostics](references/emulation-and-regression.md#bounded-hardware-and-source-diagnostics)
 or [cartridge headers, hardware limits, and common failures](references/hardware-and-cartridge.md).
 
 Distinguish authored source, typechecks or generated imagery, static dialogue or
