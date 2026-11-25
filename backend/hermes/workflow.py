@@ -31,7 +31,7 @@ EDIT_GAME = (
 )
 # What keeps the game the user's real, buildable project.
 GAME_RULES = (
-    "Change the game only through the chromatic_* tools: draw art as PNG files and bring it in with "
+    "Change the game only through the chromatic_* tools: draw art as PNG files and bring it and audio in with "
     "chromatic_asset_import, but never write .gbsres or .gbsproj files or anything under build/ yourself, and never "
     "build, export or playtest the game with other programs. When no tool can do what the game needs, tell the "
     "user what is missing. hermretro owns README.md, .hermretro/ and game.json's id, gameVersion and rom. Do "

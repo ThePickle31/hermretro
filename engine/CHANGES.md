@@ -132,3 +132,24 @@ files, what changed and why.
   `emulator_run` again, or `emulator_replay` with the `recordingPath` and `branchId` the recording returned. Hermes
   rejected the agents' `sampleCount:0` and flat `sceneId` against the schema before the engine saw them, the
   emulator frames showed uncorrected colors, and agents stopped recordings without knowing play ended with them.
+- `dist/server.js` (`dist/assets.js`, the new `dist/audio.js`, `dist/tool-domains/` modules, `dist/emulator.js`),
+  `scripts/emulator_worker.py` (`audio`, the sound registers emulated), `assets/music/` (new): music and sound.
+  `asset_import` takes `music` (a `.uge` up to version 6 or a four-channel `.mod`, under `assets/music`) and `sound`
+  (a `.wav` GB Studio's decoder reads, or a Game Boy `.vgm`/`.vgz`, under `assets/sounds`): it checks the file as GB
+  Studio loads and compiles it (UGE notes, instruments and effects that reach the exporter, the version 5 repeated
+  pattern IDs the loader repairs; WAV bit depth and samples after resampling and mixing; the VGM command stream and
+  end marker; every song and sound within its one 16 KiB bank), accepts only paths GB Studio's globs find and type
+  correctly, uses the disk's spelling, writes the sidecar with the path under the asset folder, an ID made from its
+  path and a `song_`/`sound_` symbol unique among every compiled asset (`.sav` effects and files without a sidecar
+  included), and returns a `playEvent`; `asset_inspect` reads songs and sounds. The new `music_compose` writes a
+  hUGETracker version 6 `.uge` from note lists (sections of rows in scientific pitch on pulse1, pulse2 and wave,
+  drums on noise, an order, preset instruments, `ticksPerRow`), or one of four bundled original tracks
+  (`assets/music/*.json`, under hermretro's MIT license); it refuses a song over its bank, keeps every last-row cut
+  (the loop break moves to the row after), writes the song and sidecar together and rolls the song back if the
+  sidecar fails; `overwrite` replaces a song and keeps its ID. The new `emulator_audio` reports which sound channels
+  the game drives on the current frame (NR50–NR52, each channel's envelope start or wave output level; a faded
+  envelope leaves its channel active): PyBoy now emulates the sound registers (`sound_emulated`, ticked without
+  sampling), recorded as `soundEmulated` in the runtime identity; a replay boots as its attempt ran, so an attempt
+  recorded before it replays without them. Without a sidecar GB Studio gives a song a new random ID on every load,
+  so no event could name it; agents had no way to import audio and four of the five audit games had beeps only (one
+  played its song through a raw GBVM line).

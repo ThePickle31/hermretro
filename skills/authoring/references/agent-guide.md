@@ -259,7 +259,9 @@ unknown fields, event branches, source assets, and neighboring authored files:
   run-length collision grids and untouched opaque cell values.
 - `chromatic_asset_import`, `chromatic_asset_inspect`, `chromatic_asset_update`, and `chromatic_asset_delete` manage
   genuine project-local PNG assets and associated native resource metadata. `chromatic_asset_import`
-  takes one asset or several (`assets`) and returns each one's graphics analysis.
+  takes one asset or several (`assets`) and returns each one's graphics analysis. It also imports
+  music (`.uge`, `.mod`) and sound effects (`.wav`, `.vgm`, `.vgz`), and `chromatic_music_compose` writes
+  a song from note lists or a bundled track; see [music and sound](music-and-sound.md).
   For replacement background art, `chromatic_asset_update.copyTileColorsFrom` copies an
   existing background's exact palette assignments, including UI cells, into
   empty metadata of the same dimensions. Supply `expectedRevision`; preview
@@ -610,6 +612,7 @@ chromatic_emulator_run {"romPath":"<returned ROM outputPath>","initialFrames":12
 chromatic_emulator_observe {}
 chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":20,"sample":true},{"buttons":[],"frames":1}]}
 chromatic_emulator_inspect {"view":"oam","visibleOnly":true,"limit":40}
+chromatic_emulator_audio {}
 chromatic_emulator_close {}
 ```
 
@@ -649,6 +652,9 @@ matching ROM and worker identity; they do not transfer to a rebuild.
 Inspect actual samples for movement, interactions, collision boundaries, art,
 and readability. They establish only the frames and inputs exercised, not
 unsampled behavior, audio, saves, physical hardware, or CPU-cycle performance.
+`chromatic_emulator_audio` says which sound channels the game drives on the
+current frame (each enabled, its DAC on, sent to a speaker); it does not judge
+how the music sounds.
 
 ## Evidence and safety
 

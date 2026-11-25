@@ -114,6 +114,15 @@ limited to 2,048 bytes from named VRAM, WRAM, OAM, or HRAM regions, with bank
 selection validated against actual hardware mode. Cartridge/boot ROM, arbitrary
 I/O, host files or memory, and target-memory writes are unavailable.
 
+`chromatic_emulator_audio {}` reads the sound registers (NR50–NR52 and each
+channel's envelope or output level) on the current frame without advancing.
+`active` is true when the sound hardware is on and a channel is enabled, its
+DAC on and sent to a speaker. It shows which channels the game drives, not
+what comes out: a faded envelope leaves its channel active. A short effect
+ends within frames, so check right after it. A replay of an attempt recorded
+before sound emulation runs as that attempt did, without it, and cannot be
+checked for audio; open the ROM with `chromatic_emulator_run` instead.
+
 ROM-only mode does not infer high-level game state or named variable addresses.
 For the selected source project, request a successful official build with
 `captureDebugArtifacts:true`, then explicitly start its exact ROM with

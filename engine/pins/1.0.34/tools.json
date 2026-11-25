@@ -1852,6 +1852,26 @@
       }
     },
     {
+      "name": "emulator_audio",
+      "title": "Check which sound channels the game drives",
+      "description": "Read the Game Boy sound hardware's registers on the current frame without advancing. active is true when the sound hardware is on and a channel (pulse1, pulse2, wave, noise) is enabled, its DAC on and sent to a speaker; each channel reports active, enabled, dac, panned, and startVolume (pulse and noise envelope start, 0\u201315) or outputLevel (wave). Registers show what the game drives, not what comes out: a pulse or noise note whose envelope has faded stays active until the next note or cut. This is one frame: check a short sound effect on the frames just after it starts. A song keeps its channels active between notes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
       "name": "emulator_status",
       "title": "Inspect active emulator state",
       "description": "With a ROM open, report its identity, native frame count, paused clock, execution time, recording limits, screen size, and held buttons without advancing. To check whether an emulator is active without starting a worker, use session_status and read emulatorActive.",
@@ -3814,8 +3834,8 @@
     },
     {
       "name": "asset_import",
-      "title": "Import a genuine image asset",
-      "description": "Register project-local PNGs as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
+      "title": "Import an image or audio asset",
+      "description": "Register project-local PNGs, music and sound effects as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Music is a hUGETracker .uge or a four-channel .mod; a sound is a .wav (up to about 3.6 s) or a Game Boy .vgm/.vgz. The tool checks an audio file, writes its sidecar with an ID that stays the same, and returns a playEvent (EVENT_MUSIC_PLAY or EVENT_SOUND_PLAY_EFFECT) to add to a script; to write music from notes, use music_compose. Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3823,13 +3843,15 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 4096,
-            "description": "Destination PNG under assets/backgrounds or assets/sprites. Required with kind unless assets is given."
+            "description": "Destination: a PNG under assets/backgrounds or assets/sprites, a .uge or .mod under assets/music, or a .wav, .vgm or .vgz under assets/sounds. Required with kind unless assets is given."
           },
           "kind": {
             "type": "string",
             "enum": [
               "background",
-              "sprite"
+              "sprite",
+              "music",
+              "sound"
             ]
           },
           "sourcePath": {
@@ -3946,7 +3968,9 @@
                   "type": "string",
                   "enum": [
                     "background",
-                    "sprite"
+                    "sprite",
+                    "music",
+                    "sound"
                   ]
                 },
                 "sourcePath": {
@@ -4001,8 +4025,8 @@
     },
     {
       "name": "asset_inspect",
-      "title": "Inspect image asset",
-      "description": "Read a native background or sprite and its sidecar metadata. Provide assetId or assetPath; if both are supplied, they must identify the same asset.",
+      "title": "Inspect an asset",
+      "description": "Read a native background, sprite, song or sound and its sidecar metadata. Provide assetId or assetPath; if both are supplied, they must identify the same asset.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4024,6 +4048,179 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "music_compose",
+      "title": "Write a song",
+      "description": "Write an original song from note lists as a hUGETracker .uge under assets/music and register it with an ID that stays the same; returns the ID, the loop length and a playEvent (EVENT_MUSIC_PLAY) to add to a script. Give sections and an order, or bundled for a ready track. Channels: pulse1 (melody), pulse2 (harmony), wave (bass) and noise (drums). Each channel is a list of rows; a note rings until the next note or rest. Example section: {name:'A', pulse1:'C5:2 E5:2 G5:4 . -:3', wave:'C3:4 G2:4', noise:'kick:2 hat:2 snare:2 hat:2'}. Songs loop.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "assetPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Destination .uge under assets/music. Defaults to assets/music/<bundled>.uge for a bundled track."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "bundled": {
+            "type": "string",
+            "enum": [
+              "bright-start",
+              "meadow-walk",
+              "cave-echo",
+              "victory-lap"
+            ],
+            "description": "Write a bundled original track instead of sections: bright-start (bouncy title), meadow-walk (easy overworld), cave-echo (slow minor dungeon), victory-lap (fanfare)."
+          },
+          "ticksPerRow": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 20,
+            "description": "Frames (1/60 s) each row lasts; with 4 rows to a beat 6 is 150 BPM, 7 about 128 (default), 8 about 112, 10 about 90."
+          },
+          "instruments": {
+            "type": "object",
+            "properties": {
+              "pulse1": {
+                "type": "string",
+                "enum": [
+                  "lead",
+                  "soft",
+                  "pluck",
+                  "square",
+                  "thin"
+                ]
+              },
+              "pulse2": {
+                "$ref": "#/properties/instruments/properties/pulse1"
+              },
+              "wave": {
+                "type": "string",
+                "enum": [
+                  "bass",
+                  "mellow",
+                  "saw",
+                  "hollow"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "The song's instrument per channel (default pulse1 lead, pulse2 soft, wave bass); a section's channel can override it."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                "pulse1": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 8000,
+                      "description": "Rows separated by spaces: a note in scientific pitch (C4, F#3, Bb5), . to rest, - to hold; :N makes a row last N rows (C4:4)."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "notes": {
+                          "$ref": "#/properties/sections/items/properties/pulse1/anyOf/0"
+                        },
+                        "instrument": {
+                          "$ref": "#/properties/instruments/properties/pulse1"
+                        }
+                      },
+                      "required": [
+                        "notes"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "A pulse channel's rows, C2\u2013B7, or {notes, instrument} with lead, soft, pluck, square or thin."
+                },
+                "pulse2": {
+                  "$ref": "#/properties/sections/items/properties/pulse1",
+                  "description": "A pulse channel's rows, C2\u2013B7, or {notes, instrument} with lead, soft, pluck, square or thin."
+                },
+                "wave": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/sections/items/properties/pulse1/anyOf/0"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "notes": {
+                          "$ref": "#/properties/sections/items/properties/pulse1/anyOf/0"
+                        },
+                        "instrument": {
+                          "$ref": "#/properties/instruments/properties/wave"
+                        }
+                      },
+                      "required": [
+                        "notes"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "The wave channel's rows, C1\u2013B6, or {notes, instrument} with bass, mellow, saw or hollow."
+                },
+                "noise": {
+                  "$ref": "#/properties/sections/items/properties/pulse1/anyOf/0",
+                  "description": "Drums: kick, snare, hat, . (rest) and - (hold), each with an optional :N."
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 16,
+            "description": "Named passages. A channel left out is silent; a shorter channel holds to the section's longest."
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "minItems": 1,
+            "maxItems": 64,
+            "description": "Section names in playing order, repeats allowed; defaults to each section once. The song loops back to the start."
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "Replace the song already at assetPath, keeping its ID and every event that plays it."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
         "openWorldHint": false
       },
       "execution": {

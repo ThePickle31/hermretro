@@ -49,6 +49,7 @@ For example, to make a door go to another room: find both scene IDs, inspect the
 
 - [Native resource layout and tool examples](references/project-authoring.md): scenes, actors, events, variables, collision, palettes, settings, and focused edits.
 - [Native tilemaps](references/tilemaps.md): fixed-size rooms built from named 8 × 8 tiles. Capture exact existing patterns or deliberately fill; mutations need the current revision. Ordinary edits preserve protected cells; exclusive replacement operations require inspected preimages. Decoration must not infer or clear collisions.
+- [Music and sound](references/music-and-sound.md): write songs from note lists or a bundled track (`chromatic_music_compose`), import `.uge`, `.mod`, `.wav` and `.vgm` files with `chromatic_asset_import`, play them from events, and check the sound hardware with `chromatic_emulator_audio`.
 - [Extensions and builds](references/extensions-and-build.md): custom events, scene modes, project-local plugins, official CLI and GBDK. Use existing visual events and scene modes when they express the mechanic; engine ejection needs authorization.
 - [Packaged setup](../setup/references/setup.md): dependency details. `chromatic_toolchain_doctor` metadata readiness is not executable health; the setup skill preserves the user's authorized scope.
 - [Pixel art](../pixel-art/SKILL.md) for image/palette work; [ROM debugging](../rom-debugging/SKILL.md) and [stepped playtesting](../rom-debugging/references/stepped-playtesting.md) for compilation, input-driven bugs, and real framebuffer evidence.

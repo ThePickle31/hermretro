@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 c20243a43462be209dc1e2d0377eecd4141dec701fdbd617f9914b038655b382
- * body: sha256 a615c91e5bb7aa0bfb9d35643eaa8546f68f68ad0b5fb8ccfb1bfd921fc37bfc
+ * sources: sha256 ad45278ed85f37be1e8204e0611e07e7c640cac26552686df452044bcd37c5a9
+ * body: sha256 a61c6c867d0f85ff36fac3a9382ab686a6d76375a6802bbdd3dc87e170eba4a8
  */
 // page/sdk.js
 import {
@@ -5362,6 +5362,13 @@ var fileWords = (running, done, fallback = "a file") => (args) => {
   const name = baseName(args?.path ?? args?.file_path) || fallback;
   return [`${running} ${name}`, `${done} ${name}`];
 };
+var AUDIO_WORDS = { music: "music", sound: "sound", "music sound": "music and sound" };
+var importWords = (args) => {
+  const kinds = [...new Set((Array.isArray(args?.assets) ? args.assets : [args]).map((asset) => asset?.kind))].sort();
+  const audio = kinds.filter((kind) => kind === "music" || kind === "sound");
+  const what = audio.length === 0 ? "art" : audio.length === kinds.length ? AUDIO_WORDS[audio.join(" ")] : "assets";
+  return [`Adding ${what} to the game`, `Added ${what} to the game`];
+};
 var STEP_WORDS = {
   project_create: ["Creating the project", "Created the project"],
   project_create_blank: ["Creating the project", "Created the project"],
@@ -5389,8 +5396,9 @@ var STEP_WORDS = {
   dialogue_update: ["Writing dialogue", "Wrote dialogue"],
   dialogue_analyze: ["Checking the dialogue fits", "Checked the dialogue fits"],
   dialogue_preview: ["Previewing dialogue", "Previewed dialogue"],
-  asset_import: ["Adding art to the game", "Added art to the game"],
-  asset_inspect: ["Looking at the art", "Looked at the art"],
+  asset_import: importWords,
+  asset_inspect: ["Inspecting the asset", "Inspected the asset"],
+  music_compose: ["Writing music", "Wrote music"],
   asset_update: ["Updating the art", "Updated the art"],
   asset_delete: ["Removing art", "Removed art"],
   sprite_edit: ["Tuning a sprite", "Tuned a sprite"],
@@ -5431,6 +5439,7 @@ var STEP_WORDS = {
   emulator_step: ["Playing the game", "Played the game"],
   emulator_observe: ["Looking at the screen", "Looked at the screen"],
   emulator_inspect: ["Reading the game’s memory", "Read the game’s memory"],
+  emulator_audio: ["Checking game audio", "Checked game audio"],
   emulator_debug: ["Checking the game state", "Checked the game state"],
   emulator_checkpoint: ["Saving a checkpoint", "Saved a checkpoint"],
   emulator_clip: ["Recording a clip", "Recorded a clip"],

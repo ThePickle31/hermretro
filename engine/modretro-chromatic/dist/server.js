@@ -35980,6 +35980,10 @@ var EmulatorService = class {
     }
     return this.#request("inspect", { ...options });
   }
+  /** The APU's registers on the current frame, without ticking. */
+  async audio() {
+    return this.#request("audio", {});
+  }
   async status() {
     return this.#request("state", {});
   }
@@ -55167,8 +55171,10 @@ async function prepareImport(root, input, context, access4) {
   if (input.expectedRevision !== void 0 || input.dryRun !== void 0 || input.sprite?.metadataPath !== void 0 || input.sprite?.sourceSha256 !== void 0 || input.sprite?.metadataSha256 !== void 0) {
     assetError("INVALID_INPUT", "Metadata paths, digests, expectedRevision and dryRun apply only to native_metadata sprite import.");
   }
+  if (isAudioKind(input.kind))
+    return prepareAudioImport(root, input, context, access4);
   if (input.kind !== "background" && input.kind !== "sprite") {
-    assetError("INVALID_INPUT", "Asset kind must be background or sprite.");
+    assetError("INVALID_INPUT", "Asset kind must be background, sprite, music or sound.");
   }
   if (input.kind === "sprite" && !input.sprite?.profile) {
     assetError("SPRITE_PROFILE_REQUIRED", "Importing a sprite requires an explicit, proven sprite profile.");
@@ -55249,7 +55255,7 @@ async function prepareImport(root, input, context, access4) {
     destination,
     sidecar,
     bytes: bytes2,
-    copiesPng: input.sourcePath !== void 0,
+    copiesSource: input.sourcePath !== void 0,
     metadata: metadata2,
     result: {
       ...assetResult(metadata2, relativeDestination, input.sprite?.profile),
@@ -55266,7 +55272,7 @@ async function writePreparedImports(prepared) {
       const parent = path31.dirname(item.destination);
       await mkdir8(parent, { recursive: true });
       await resolveProjectPath(item.root, parent, { mustExist: true });
-      if (item.copiesPng)
+      if (item.copiesSource)
         await exclusiveWrite(item.destination, item.bytes, created);
       await exclusiveWrite(item.sidecar, `${JSON.stringify(item.metadata, null, 2)}
 `, created);
@@ -55350,6 +55356,8 @@ async function importNativeMetadata(projectRoot, input, access4) {
 }
 async function inspectAsset(projectRoot, input, access4) {
   const loaded = await findAssetMetadata(projectRoot, input, access4);
+  if (isAudioKind(loaded.metadata._resourceType))
+    return inspectAudioAsset(loaded);
   if (loaded.metadata._resourceType !== "background" && loaded.metadata._resourceType !== "sprite") {
     assetError("UNSUPPORTED_ASSET_KIND", `Asset ${loaded.assetPath} is not a registered background or sprite.`);
   }
@@ -55513,6 +55521,810 @@ async function deleteAsset(projectRoot, input, access4) {
   }
   await Promise.all([rm4(temporaryPng), rm4(temporarySidecar)]);
   return { ...assetResult(loaded.metadata, loaded.assetPath), deleted: true };
+}
+
+// dist/audio.js
+import { gunzipSync } from "node:zlib";
+var AUDIO_FORMATS = {
+  // The spellings GB Studio's loaders find (loadMusicData, loadSoundData): their globs match an all-lowercase or
+  // all-uppercase extension and skip dot names; a .UGE is typed as a module, so it is not importable.
+  music: { folder: "music", prefix: "song", extensions: [".uge", ".mod", ".MOD"], discovered: [".uge", ".UGE", ".mod", ".MOD"] },
+  sound: {
+    folder: "sounds",
+    prefix: "sound",
+    extensions: [".wav", ".WAV", ".vgm", ".VGM", ".vgz", ".VGZ"],
+    discovered: [".wav", ".WAV", ".vgm", ".VGM", ".vgz", ".VGZ", ".sav", ".SAV"]
+  }
+};
+var AUDIO_TYPES = /* @__PURE__ */ new Map([[".uge", "uge"], [".mod", "mod"], [".wav", "wav"], [".vgm", "vgm"], [".vgz", "vgm"]]);
+var MAX_AUDIO_BYTES = 4 * 1024 * 1024;
+var MAX_BANK_BYTES = 16384;
+var GB_FRAMES_PER_SECOND = 4194304 / 70224;
+var BUNDLED_TRACKS = ["bright-start", "meadow-walk", "cave-echo", "victory-lap"];
+var BUNDLED_MUSIC = fileURLToPath3(new URL("../assets/music/", import.meta.url));
+function isAudioKind(kind) {
+  return kind === "music" || kind === "sound";
+}
+function audioDestination(root, assetPath, kind) {
+  const format = AUDIO_FORMATS[kind];
+  if (!assetPath || !format.extensions.includes(path31.extname(assetPath))) {
+    assetError("INVALID_ASSET_PATH", `A ${kind} destination must name a ${format.extensions.join(", ")} file; GB Studio skips or misreads other spellings.`);
+  }
+  const folder = path31.join(root, "assets", format.folder);
+  const destination = path31.resolve(root, assetPath);
+  const relative6 = path31.relative(folder, destination);
+  if (!relative6 || relative6 === ".." || relative6.startsWith(`..${path31.sep}`) || path31.isAbsolute(relative6)) {
+    assetError("INVALID_ASSET_PATH", `A ${kind} destination must remain inside assets/${format.folder}.`, destination);
+  }
+  if (relative6.split(path31.sep).some((part) => part.startsWith("."))) {
+    assetError("INVALID_ASSET_PATH", `GB Studio does not load a file or folder whose name starts with a dot (${relative6}).`, destination);
+  }
+  return { folder, destination, type: AUDIO_TYPES.get(path31.extname(assetPath).toLowerCase()) };
+}
+// The destination as the disk spells it. On a case-insensitive disk an existing file or folder answers to any
+// spelling, and the sidecar must name the one GB Studio finds on a case-sensitive one.
+async function onDiskSpelling(root, folder, destination) {
+  const parts = path31.relative(folder, destination).split(path31.sep);
+  let current = folder;
+  for (const [index, part] of parts.entries()) {
+    const entries = await readdir2(current).catch((error2) => {
+      if (isSystemError3(error2, "ENOENT"))
+        return void 0;
+      throw error2;
+    });
+    if (entries === void 0 || !entries.includes(part) && !await projectPathExists(root, path31.join(current, part))) {
+      return path31.join(current, ...parts.slice(index));
+    }
+    const folded = part.normalize("NFC").toLowerCase();
+    current = path31.join(current, entries.includes(part) ? part : entries.find((entry) => entry.normalize("NFC").toLowerCase() === folded) ?? part);
+  }
+  return current;
+}
+async function readBoundedAudio(root, filename) {
+  const safePath = await resolveProjectPath(root, filename, { mustExist: true });
+  const handle = await open12(safePath, "r");
+  try {
+    const info = await handle.stat();
+    if (!info.isFile())
+      assetError("INVALID_ASSET", "An audio asset must be a regular file.", safePath);
+    if (info.size > MAX_AUDIO_BYTES)
+      assetError("ASSET_TOO_LARGE", `Audio files are limited to ${MAX_AUDIO_BYTES} bytes.`, safePath);
+    return await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+}
+function audioFormatError(type, message2) {
+  assetError("INVALID_AUDIO", `Not a usable ${type} file: ${message2}`);
+}
+var UGE_NOTES = 72;
+var UGE_NO_NOTE = 90;
+// Compiled sizes from GB Studio's exportToC and hUGEDriver.h: a pattern row is DN(note, instrument, effect), three
+// bytes; an instrument is six; a subpattern is 32 rows; the waves are 16 of 16 bytes; the song header is 21 bytes.
+var UGE_PATTERN_BYTES = 64 * 3;
+var UGE_SUBPATTERN_BYTES = 32 * 3;
+var UGE_INSTRUMENT_BYTES = 6;
+var UGE_FIXED_BYTES = 16 * 16 + 21 + 1;
+// Walks a .uge as GB Studio's loadUGESong reads it and counts the bytes exportToC compiles into the song's one bank.
+function inspectUge(bytes2) {
+  let offset = 0;
+  const need = (count) => {
+    if (offset + count > bytes2.length)
+      throw new Error("the file ends early.");
+  };
+  const u8 = () => (need(1), bytes2[offset++]);
+  const u32 = () => (need(4), offset += 4, bytes2.readUInt32LE(offset - 4));
+  const i32 = () => (need(4), offset += 4, bytes2.readInt32LE(offset - 4));
+  const skip = (count) => (need(count), offset += count);
+  const text = () => {
+    need(256);
+    const value = bytes2.subarray(offset + 1, offset + 1 + Math.min(bytes2[offset], 255)).toString("utf8");
+    offset += 256;
+    return value;
+  };
+  const version = u32();
+  if (version > 6)
+    throw new Error(`UGE version ${version} is newer than GB Studio reads (6).`);
+  const name3 = text();
+  text();
+  text();
+  const instruments = [];
+  for (let index = 0; index < (version < 3 ? 15 : 45); index++) {
+    const type = u32();
+    if (type > 2)
+      throw new Error(`instrument ${index} has an unknown type ${type}.`);
+    skip(256 + 4 + 1 + 1 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 4);
+    let subpattern = null;
+    if (version >= 6) {
+      skip(4);
+      const enabled = u8();
+      const rows = Array.from({ length: 64 }, () => {
+        const note = u32();
+        skip(4);
+        return [note, u32(), u32(), u8()].join(",");
+      });
+      subpattern = enabled ? rows.join(";") : null;
+    } else {
+      skip(12);
+      if (version >= 4) {
+        need(6);
+        subpattern = type === 2 ? `macro:${bytes2.subarray(offset, offset + 6).toString("hex")}` : null;
+        offset += 6;
+      }
+    }
+    instruments.push({ type, subpattern });
+  }
+  skip(16 * (version < 3 ? 33 : 32));
+  const ticksPerRow = u32();
+  if (version >= 6)
+    skip(5);
+  const patternCount = u32();
+  if (offset + patternCount * 13 * 64 > bytes2.length)
+    throw new Error(`it claims ${patternCount} patterns, more than the file holds.`);
+  const patterns = /* @__PURE__ */ new Map();
+  for (let index = 0; index < patternCount; index++) {
+    const id3 = version >= 5 ? u32() : index;
+    const rows = [];
+    for (let row = 0; row < 64; row++) {
+      const note = i32(), instrument = i32();
+      if (version >= 6)
+        skip(4);
+      const effectCode = i32(), effectParam = u8();
+      if (note !== UGE_NO_NOTE && (note < 0 || note >= UGE_NOTES))
+        throw new Error(`pattern ${id3} row ${row} plays note ${note}; GB Studio compiles notes 0–71 (C3–B8) only.`);
+      if (instrument < 0 || instrument > 15 || effectCode < 0 || effectCode > 15)
+        throw new Error(`pattern ${id3} row ${row} names instrument ${instrument} or effect ${effectCode}; both run 0–15.`);
+      rows.push({ note, instrument, cell: `${note},${instrument},${effectCode},${effectParam}` });
+    }
+    // GB Studio 3.0.2 and earlier saved version 5 songs without unique pattern IDs; the loader keeps a repeat in its own slot.
+    patterns.set(version === 5 && patterns.has(id3) ? index : id3, rows);
+  }
+  const orders = [];
+  for (let track = 0; track < 4; track++) {
+    const count = u32();
+    if (count < 2)
+      throw new Error("a channel has no pattern order.");
+    need(4 * count);
+    orders.push(Array.from({ length: count - 1 }, (_, index) => bytes2.readUInt32LE(offset + 4 * index)));
+    offset += 4 * count;
+  }
+  const length = orders[0].length;
+  if (orders.some((order) => order.length < length))
+    throw new Error("a channel's order is shorter than the first channel's.");
+  const slots = patterns.size === 0 ? 0 : Math.max(...patterns.keys()) + 1;
+  const sequence = orders.map((order) => order.slice(0, length));
+  const missing = sequence.flat().find((pattern) => pattern >= slots);
+  if (missing !== void 0)
+    throw new Error(`the order names pattern ${missing}, which the file does not hold.`);
+  const emptyPattern = Array(64).fill(`${UGE_NO_NOTE},0,0,0`).join(";");
+  const compiled = /* @__PURE__ */ new Set();
+  for (const block of new Set(sequence.flat().map((pattern) => Math.floor(pattern / 4)))) {
+    for (let id3 = block * 4; id3 < Math.min(block * 4 + 4, slots); id3++) {
+      compiled.add(patterns.get(id3)?.map((row) => row.cell).join(";") ?? emptyPattern);
+    }
+  }
+  const types = instruments.map((instrument) => instrument.type);
+  const byType = (type, index) => instruments.filter((instrument) => instrument.type === type)[index];
+  const subpatterns = /* @__PURE__ */ new Set();
+  sequence.forEach((order, track) => order.forEach((id3) => {
+    for (const row of patterns.get(id3) ?? []) {
+      const used = row.note !== UGE_NO_NOTE && row.instrument !== 0 ? byType([0, 0, 1, 2][track], row.instrument - 1) : void 0;
+      if (used?.subpattern)
+        subpatterns.add(used.subpattern);
+    }
+  }));
+  const romBytes = compiled.size * UGE_PATTERN_BYTES + subpatterns.size * UGE_SUBPATTERN_BYTES + types.length * UGE_INSTRUMENT_BYTES + 4 * length * 2 + UGE_FIXED_BYTES;
+  return { title: name3, ticksPerRow, patterns: patternCount, orderLength: length, compiledPatterns: compiled.size, romBytes };
+}
+function songTooLarge(details) {
+  return `compiles to ${details.romBytes} bytes (${details.compiledPatterns} distinct patterns); a song plays from one 16 KiB ROM bank (${MAX_BANK_BYTES} bytes). Repeat sections in the order instead of writing new ones.`;
+}
+function inspectMod(bytes2) {
+  if (bytes2.length < 1084)
+    throw new Error("the file ends before its pattern table.");
+  const signature = bytes2.subarray(1080, 1084).toString("latin1");
+  if (!["M.K.", "M!K!", "4CHN", "FLT4"].includes(signature))
+    throw new Error("GB Studio converts four-channel ProTracker modules only (M.K.).");
+  const songLength = bytes2[950];
+  if (songLength < 1 || songLength > 128)
+    throw new Error("the song length is outside 1–128.");
+  const patterns = Math.max(...bytes2.subarray(952, 1080)) + 1;
+  if (bytes2.length < 1084 + patterns * 1024)
+    throw new Error("the file ends inside its patterns.");
+  return { title: bytes2.subarray(0, 20).toString("latin1").replace(/\0.*$/s, "").trim(), patterns, orderLength: songLength };
+}
+// GB Studio's compileWav (wavefile 11): it decodes PCM of 8 to 53 bits or 32- and 64-bit float with any number of
+// channels, resamples a rate outside 8000-8192 Hz to 8000 Hz, mixes to mono and packs whole blocks of 32 samples,
+// 18 bytes each, then a 2-byte end marker.
+function inspectWav(bytes2) {
+  if (bytes2.length < 12 || bytes2.toString("latin1", 0, 4) !== "RIFF" || bytes2.toString("latin1", 8, 12) !== "WAVE")
+    throw new Error("it has no RIFF WAVE header.");
+  let format;
+  let dataBytes;
+  for (let offset = 12; offset + 8 <= bytes2.length; ) {
+    const id3 = bytes2.toString("latin1", offset, offset + 4), size = bytes2.readUInt32LE(offset + 4);
+    if (id3 === "fmt " && size >= 16 && offset + 24 <= bytes2.length) {
+      format = { code: bytes2.readUInt16LE(offset + 8), channels: bytes2.readUInt16LE(offset + 10), sampleRate: bytes2.readUInt32LE(offset + 12), bits: bytes2.readUInt16LE(offset + 22) };
+    } else if (id3 === "data") {
+      dataBytes = Math.min(size, bytes2.length - offset - 8);
+    }
+    offset += 8 + size + size % 2;
+  }
+  if (!format || dataBytes === void 0)
+    throw new Error("it needs a fmt and a data chunk.");
+  const { code, channels, sampleRate, bits } = format;
+  if (!(code === 1 && bits >= 8 && bits <= 53) && !(code === 3 && (bits === 32 || bits === 64))) {
+    throw new Error(`GB Studio reads PCM of 8 bits or more, or 32- or 64-bit float; this is format ${code} with ${bits} bits.`);
+  }
+  if (channels < 1 || channels * bits / 8 > 65535 || sampleRate < 1)
+    throw new Error("its channel count or sample rate is out of range.");
+  const frames = Math.floor(Math.floor(dataBytes * 8 / ((bits - 1 | 7) + 1)) / channels);
+  const rate = sampleRate >= 8e3 && sampleRate <= 8192 ? sampleRate : 8e3;
+  const samples = rate === sampleRate ? frames : Math.trunc(frames * ((rate - sampleRate) / sampleRate + 1));
+  const blocks = Math.floor(samples / 32);
+  if (blocks === 0)
+    throw new Error(`it holds ${samples} samples at ${rate} Hz; GB Studio plays whole blocks of 32, so it would play nothing.`);
+  const romBytes = blocks * 18 + 2;
+  const seconds = samples / rate;
+  if (romBytes > MAX_BANK_BYTES) {
+    throw new Error(`it lasts ${seconds.toFixed(2)} s; a sound plays from one 16 KiB ROM bank, about ${(MAX_BANK_BYTES / 18 * 32 / 8e3).toFixed(1)} s at most.`);
+  }
+  return { seconds: Math.round(seconds * 100) / 100, sampleRate, channels, bits, romBytes };
+}
+// Where GB Studio's compileVGM keeps a Game Boy register write: [group, slot] by its address.
+function vgmRegisterSlot(address) {
+  if (address >= 16 && address < 22)
+    return [0, address - 16];
+  if (address >= 22 && address < 32)
+    return [1, address - 21];
+  if (address >= 32 && address < 36)
+    return [3, address - 31];
+  if (address >= 36 && address < 39)
+    return [4, address - 36];
+  if (address >= 48 && address < 64)
+    return [5, address - 48];
+  return void 0;
+}
+// The bytes compileVGM writes for one wait: a count byte, the NR50/NR51 writes, the wave table, and each channel's
+// writes when the row triggers it (NRx4).
+function vgmRowBytes(row) {
+  const has = (group, slot) => row.get(group)?.has(slot) === true;
+  let bytes2 = 1;
+  const master = [0, 1].filter((slot) => has(4, slot)).length;
+  if (master > 0)
+    bytes2 += 1 + master;
+  if (row.has(5))
+    bytes2 += 17;
+  for (const group of [0, 1, 2, 3]) {
+    if (has(group, 4))
+      bytes2 += 1 + [0, 1, 2, 3, 4].filter((slot) => has(group, slot)).length;
+  }
+  return bytes2;
+}
+function inspectVgm(bytes2, compressed) {
+  let data = bytes2;
+  if (compressed) {
+    try {
+      data = gunzipSync(bytes2, { maxOutputLength: MAX_AUDIO_BYTES });
+    } catch {
+      throw new Error("the .vgz file does not unpack.");
+    }
+  }
+  if (data.length < 132 || data.toString("latin1", 0, 4) !== "Vgm ")
+    throw new Error("it has no Vgm header.");
+  const version = data.readUInt32LE(8);
+  if (version < 353)
+    throw new Error(`VGM ${version.toString(16)} predates Game Boy support (1.61).`);
+  if (data.readUInt32LE(128) === 0)
+    throw new Error("it holds no Game Boy (DMG) sound data.");
+  let offset = 52 + data.readUInt32LE(52);
+  if (data.readUInt32LE(52) === 0 || offset >= data.length)
+    throw new Error("its data offset lies outside the file.");
+  let romBytes = 0;
+  let row = /* @__PURE__ */ new Map();
+  for (; ; ) {
+    const command = data[offset++];
+    if (command === void 0 || command === 0)
+      throw new Error("its commands stop without the end marker (0x66).");
+    if (command === 102) {
+      romBytes += 2;
+      break;
+    }
+    if (command === 179) {
+      if (offset + 2 > data.length)
+        throw new Error("a register write is cut off.");
+      const slot = vgmRegisterSlot(data[offset] + 16);
+      if (!slot)
+        throw new Error(`it writes register 0x${(data[offset] + 65296).toString(16)}, which is not a Game Boy sound register.`);
+      offset += 2;
+      row.set(slot[0], (row.get(slot[0]) ?? /* @__PURE__ */ new Set()).add(slot[1]));
+    } else if (command === 97 || command === 98 || command >= 112 && command <= 127) {
+      offset += command === 97 ? 2 : 0;
+      romBytes += vgmRowBytes(row);
+      row = /* @__PURE__ */ new Map();
+    } else {
+      throw new Error(`it uses command 0x${command.toString(16)}; GB Studio converts Game Boy register writes, waits and the end marker only.`);
+    }
+  }
+  if (romBytes > MAX_BANK_BYTES)
+    throw new Error(`it compiles to ${romBytes} bytes; a sound plays from one 16 KiB ROM bank (${MAX_BANK_BYTES} bytes).`);
+  return { version: `${(version >> 8).toString(16)}.${(version & 255).toString(16).padStart(2, "0")}`, romBytes };
+}
+function inspectAudio(type, extension, bytes2) {
+  try {
+    switch (type) {
+      case "uge": {
+        const details = inspectUge(bytes2);
+        if (details.romBytes > MAX_BANK_BYTES)
+          throw new Error(`it ${songTooLarge(details)}`);
+        return details;
+      }
+      case "mod":
+        return inspectMod(bytes2);
+      case "wav":
+        return inspectWav(bytes2);
+      default:
+        return inspectVgm(bytes2, extension === ".vgz");
+    }
+  } catch (error2) {
+    if (error2 instanceof GameStudioProjectError)
+      throw error2;
+    audioFormatError(type, error2 instanceof Error ? error2.message : String(error2));
+  }
+}
+// GB Studio's toValidSymbol: the symbol its loader gives a file without a sidecar.
+function gbStudioSymbol(value) {
+  const symbol = String(value || "symbol").toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").substring(0, 27);
+  return /^\d/.test(symbol) ? `_${symbol}` : symbol;
+}
+// Every audio file the compiler sees, as GB Studio's loaders find them, with the sidecar's ID and symbol, or the
+// symbol the loader derives for a file without one (which gets a new random ID on every load).
+async function discoveredAudio(root) {
+  const found = [];
+  for (const format of Object.values(AUDIO_FORMATS)) {
+    const folder = path31.join(root, "assets", format.folder);
+    const walk = async (directory) => {
+      const entries = await readdir2(directory, { withFileTypes: true }).catch((error2) => {
+        if (isSystemError3(error2, "ENOENT") || isSystemError3(error2, "ENOTDIR"))
+          return [];
+        throw error2;
+      });
+      for (const entry of entries) {
+        const file2 = path31.join(directory, entry.name);
+        if (entry.name.startsWith("."))
+          continue;
+        if (entry.isDirectory()) {
+          await walk(file2);
+        } else if (entry.isFile() && format.discovered.includes(path31.extname(entry.name))) {
+          const name3 = path31.relative(folder, file2).split(path31.sep).join("/");
+          const metadata2 = await projectPathExists(root, `${file2}.gbsres`) ? await readProjectJson(root, `${file2}.gbsres`).catch(() => void 0) : void 0;
+          found.push({
+            path: file2,
+            id: typeof metadata2?.id === "string" ? metadata2.id : void 0,
+            symbol: typeof metadata2?.symbol === "string" ? metadata2.symbol : gbStudioSymbol(`${format.prefix}_${format.folder === "music" ? name3.replace(/(.mod|.uge)$/i, "") : name3}`),
+            registered: metadata2 !== void 0
+          });
+        }
+      }
+    };
+    await walk(folder);
+  }
+  return found;
+}
+async function audioRegistry(root, access4) {
+  const inventory = access4 ? await access4.legacyInventory() : await inventoryProject(root);
+  const registry = {
+    ids: new Set(inventory.assets.map((asset) => asset.id).filter((id3) => typeof id3 === "string" && id3)),
+    symbols: new Set(inventory.assets.map((asset) => asset.symbol).filter((symbol) => typeof symbol === "string")),
+    unregistered: /* @__PURE__ */ new Map()
+  };
+  for (const file2 of await discoveredAudio(root)) {
+    if (file2.id)
+      registry.ids.add(file2.id);
+    if (file2.registered)
+      registry.symbols.add(file2.symbol);
+    else
+      registry.unregistered.set(file2.path, file2.symbol);
+  }
+  return registry;
+}
+// Claims an ID and a unique song_/sound_ symbol for an audio file against every asset the compiler sees.
+async function claimAudio(root, access4, context, { kind, destination, id: id3, name: name3 }) {
+  context.audio ??= await audioRegistry(root, access4);
+  const { ids, symbols, unregistered } = context.audio;
+  if (context.claimedIds.has(id3) || ids.has(id3)) {
+    assetError("DUPLICATE_RESOURCE_ID", `The asset ID ${id3} is already used by this native game project.`);
+  }
+  unregistered.delete(destination);
+  const taken = /* @__PURE__ */ new Set([...symbols, ...unregistered.values()]);
+  const base = `${AUDIO_FORMATS[kind].prefix}_${resourceSlug(name3, "track")}`.slice(0, 27).replace(/_+$/, "");
+  let symbol = base;
+  for (let count = 0; taken.has(symbol); count++)
+    symbol = `${base}_${count}`;
+  symbols.add(symbol);
+  ids.add(id3);
+  context.claimedIds.add(id3);
+  context.claimedPaths.add(destination);
+  return symbol;
+}
+function audioMetadata(kind, fields) {
+  const { id: id3, name: name3, symbol, filename, type } = fields;
+  return kind === "music" ? { _resourceType: "music", id: id3, name: name3, symbol, settings: {}, filename, type } : { _resourceType: "sound", id: id3, name: name3, symbol, filename, type };
+}
+function audioResult(metadata2, assetPath, details) {
+  const kind = metadata2._resourceType;
+  return {
+    id: metadata2.id,
+    kind,
+    name: metadata2.name,
+    assetPath,
+    metadataPath: `${assetPath}.gbsres`,
+    symbol: metadata2.symbol,
+    type: metadata2.type,
+    ...details,
+    playEvent: kind === "music" ? { command: "EVENT_MUSIC_PLAY", args: { musicId: metadata2.id } } : { command: "EVENT_SOUND_PLAY_EFFECT", args: { type: metadata2.id, priority: "medium" } }
+  };
+}
+async function prepareAudioImport(root, input, context, access4) {
+  if (input.background !== void 0 || input.sprite !== void 0) {
+    assetError("INVALID_INPUT", "background and sprite options apply only to image assets.");
+  }
+  if (input.id !== void 0 && !RESOURCE_ID.test(input.id)) {
+    assetError("INVALID_RESOURCE_ID", "An imported native game asset ID must be a valid UUID.");
+  }
+  const target = audioDestination(root, input.assetPath, input.kind);
+  const destination = await onDiskSpelling(root, target.folder, target.destination);
+  const relativeDestination = projectRelativePath(root, destination);
+  if (context.claimedPaths.has(destination)) {
+    assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} appears twice in this import.`, destination);
+  }
+  const source = await resolveProjectPath(root, input.sourcePath ?? destination, { mustExist: true });
+  if (path31.extname(source).toLowerCase() !== path31.extname(destination).toLowerCase()) {
+    assetError("INVALID_ASSET_PATH", "The source and destination must have the same file extension.", source);
+  }
+  await resolveProjectPath(root, destination);
+  const sidecar = `${destination}.gbsres`;
+  await resolveProjectPath(root, sidecar);
+  if (input.sourcePath && await projectPathExists(root, destination)) {
+    assetError("ASSET_ALREADY_EXISTS", `Refusing to overwrite existing ${relativeDestination}.`, destination);
+  }
+  if (await projectPathExists(root, sidecar)) {
+    assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} is already registered (${relativeDestination}.gbsres).`, sidecar);
+  }
+  const bytes2 = await readBoundedAudio(root, source);
+  const details = inspectAudio(target.type, path31.extname(destination).toLowerCase(), bytes2);
+  // GB Studio matches a sidecar to its file by the path under assets/music or assets/sounds.
+  const filename = path31.relative(target.folder, destination).split(path31.sep).join("/");
+  const name3 = ensureName(input.name ?? path31.basename(filename, path31.extname(filename)));
+  const id3 = input.id ?? stableResourceId("asset", input.kind, relativeDestination);
+  const symbol = await claimAudio(root, access4, context, { kind: input.kind, destination, id: id3, name: name3 });
+  const metadata2 = audioMetadata(input.kind, { id: id3, name: name3, symbol, filename, type: target.type });
+  return {
+    root,
+    destination,
+    sidecar,
+    bytes: bytes2,
+    copiesSource: input.sourcePath !== void 0,
+    metadata: metadata2,
+    result: audioResult(metadata2, relativeDestination, details)
+  };
+}
+var TRACKER_ROWS = 64;
+var NOTE_STEPS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+var DUTY_INSTRUMENTS = {
+  lead: { dutyCycle: 2, initialVolume: 12, volumeSweepChange: -1 },
+  soft: { dutyCycle: 1, initialVolume: 8, volumeSweepChange: -1 },
+  pluck: { dutyCycle: 1, initialVolume: 13, volumeSweepChange: -5 },
+  square: { dutyCycle: 2, initialVolume: 10, volumeSweepChange: 0 },
+  thin: { dutyCycle: 0, initialVolume: 10, volumeSweepChange: -2 }
+};
+var WAVE_SHAPES = {
+  triangle: Array.from({ length: 32 }, (_, index) => index < 16 ? index : 31 - index),
+  saw: Array.from({ length: 32 }, (_, index) => index >> 1),
+  square: Array.from({ length: 32 }, (_, index) => index < 16 ? 15 : 0)
+};
+var WAVE_INSTRUMENTS = {
+  bass: { shape: "triangle", volume: 1 },
+  mellow: { shape: "triangle", volume: 2 },
+  saw: { shape: "saw", volume: 2 },
+  hollow: { shape: "square", volume: 3 }
+};
+var DRUMS = {
+  kick: { note: 12, initialVolume: 15, volumeSweepChange: -6, length: 24 },
+  snare: { note: 36, initialVolume: 12, volumeSweepChange: -4, length: 32 },
+  hat: { note: 56, initialVolume: 8, volumeSweepChange: -7, length: 8 }
+};
+var CHANNELS = ["pulse1", "pulse2", "wave", "noise"];
+var DEFAULT_INSTRUMENTS = { pulse1: "lead", pulse2: "soft", wave: "bass" };
+function composeError(message2) {
+  assetError("INVALID_SONG", message2);
+}
+function noteIndex(token, channel, where) {
+  const match = /^([A-G])(#|b)?([0-9])$/.exec(token);
+  if (!match)
+    composeError(`${where}: "${token}" is not a note (C4, F#3, Bb5), a rest (.) or a hold (-).`);
+  const pitch = Number(match[3]) * 12 + NOTE_STEPS[match[1]] + (match[2] === "#" ? 1 : match[2] === "b" ? -1 : 0);
+  const index = pitch - (channel === "wave" ? 12 : 24);
+  if (index < 0 || index > 71) {
+    composeError(`${where}: ${token} is outside the ${channel === "wave" ? "wave channel's C1–B6" : "pulse channels' C2–B7"} range.`);
+  }
+  return index;
+}
+function channelRows(text, channel, instrument, where) {
+  const rows = [];
+  for (const word of text.split(/\s+/).filter((item) => item && item !== "|")) {
+    const [token, count = "1"] = word.split(":");
+    const length = Number(count);
+    if (!/^[0-9]+$/.test(count) || length < 1 || length > TRACKER_ROWS * 4) {
+      composeError(`${where}: "${word}" needs a length of 1–${TRACKER_ROWS * 4} rows after the colon.`);
+    }
+    let first;
+    if (token === "-")
+      first = {};
+    else if (token === ".")
+      first = { cut: true };
+    else if (channel === "noise") {
+      if (!Object.hasOwn(DRUMS, token))
+        composeError(`${where}: "${token}" is not a drum (kick, snare, hat), a rest (.) or a hold (-).`);
+      first = { note: DRUMS[token].note, instrument: Object.keys(DRUMS).indexOf(token) };
+    } else {
+      first = { note: noteIndex(token, channel, where), instrument };
+    }
+    rows.push(first, ...Array.from({ length: length - 1 }, () => ({})));
+  }
+  return rows;
+}
+function composeSections(spec) {
+  const used = { duty: [], wave: [] };
+  const instrumentIndex = (channel, preset) => {
+    const kind = channel === "wave" ? "wave" : "duty";
+    const table = kind === "wave" ? WAVE_INSTRUMENTS : DUTY_INSTRUMENTS;
+    if (!Object.hasOwn(table, preset))
+      composeError(`${channel} has no instrument "${preset}" (${Object.keys(table).join(", ")}).`);
+    if (!used[kind].includes(preset))
+      used[kind].push(preset);
+    return used[kind].indexOf(preset);
+  };
+  const sections = /* @__PURE__ */ new Map();
+  for (const section of spec.sections) {
+    if (sections.has(section.name))
+      composeError(`Two sections are named "${section.name}".`);
+    const channels = {};
+    for (const channel of CHANNELS) {
+      const value = section[channel];
+      const where = `section "${section.name}" ${channel}`;
+      if (value === void 0) {
+        channels[channel] = [{ cut: true }];
+        continue;
+      }
+      const notes = typeof value === "string" ? value : value.notes;
+      const preset = (typeof value === "string" ? void 0 : value.instrument) ?? spec.instruments?.[channel] ?? DEFAULT_INSTRUMENTS[channel];
+      channels[channel] = channelRows(notes, channel, channel === "noise" ? void 0 : instrumentIndex(channel, preset), where);
+    }
+    const length = Math.max(...Object.values(channels).map((rows) => rows.length));
+    if (length > TRACKER_ROWS * 4)
+      composeError(`Section "${section.name}" runs ${length} rows; a section holds at most ${TRACKER_ROWS * 4}.`);
+    sections.set(section.name, { length, channels });
+  }
+  const order = spec.order ?? spec.sections.map((section) => section.name);
+  const streams = Object.fromEntries(CHANNELS.map((channel) => [channel, []]));
+  for (const name3 of order) {
+    const section = sections.get(name3);
+    if (!section)
+      composeError(`order names "${name3}", which is not a section.`);
+    for (const channel of CHANNELS) {
+      const rows = section.channels[channel];
+      streams[channel].push(...rows, ...Array.from({ length: section.length - rows.length }, () => ({})));
+    }
+  }
+  const rows = streams.pulse1.length;
+  if (rows > TRACKER_ROWS * 64)
+    composeError(`The song runs ${rows} rows; at most ${TRACKER_ROWS * 64} (64 patterns) fit.`);
+  return { streams, rows, used };
+}
+function emptySubpattern() {
+  return Array.from({ length: 64 }, () => ({ note: null, jump: 0, effectCode: 0, effectParam: 0 }));
+}
+function buildSong(spec) {
+  const { streams, rows, used } = composeSections(spec);
+  const blocks = Math.ceil(rows / TRACKER_ROWS);
+  const cell = (row) => row.cut ? { note: null, instrument: null, effectCode: 14, effectParam: 0 } : { note: row.note ?? null, instrument: row.instrument ?? null, effectCode: null, effectParam: null };
+  const patterns = [];
+  for (let block = 0; block < blocks; block++) {
+    for (const channel of CHANNELS) {
+      const slice = streams[channel].slice(block * TRACKER_ROWS, (block + 1) * TRACKER_ROWS);
+      patterns.push([...slice, ...Array.from({ length: TRACKER_ROWS - slice.length }, () => ({}))].map(cell));
+    }
+  }
+  // A song that ends mid-pattern breaks to the next order (D01) on its last row. When every channel cuts there, the
+  // break goes on the silent row after it, unless that row ends the pattern anyway.
+  let played = rows;
+  if (rows % TRACKER_ROWS !== 0) {
+    const lastBlock = patterns.slice(-4);
+    let last = (rows - 1) % TRACKER_ROWS;
+    if (lastBlock.every((pattern) => pattern[last].effectCode !== null)) {
+      last += 1;
+      played += 1;
+    }
+    if (last < TRACKER_ROWS - 1) {
+      const target = [...lastBlock].reverse().find((pattern) => pattern[last].effectCode === null);
+      target[last] = { ...target[last], effectCode: 13, effectParam: 1 };
+    }
+  }
+  const blank = { name: "", length: null, dutyCycle: 0, initialVolume: 0, volumeSweepChange: 0, volume: 0, waveIndex: 0, bitCount: 15, subpatternEnabled: false, subpattern: emptySubpattern() };
+  const fill = (items) => Array.from({ length: 15 }, (_, index) => ({ ...blank, ...items[index] }));
+  const shapes = [...new Set(used.wave.map((preset) => WAVE_INSTRUMENTS[preset].shape))];
+  return {
+    name: spec.title ?? "",
+    ticksPerRow: spec.ticksPerRow ?? 7,
+    rows: played,
+    duty: fill(used.duty.map((preset) => ({ name: preset, ...DUTY_INSTRUMENTS[preset] }))),
+    wave: fill(used.wave.map((preset) => ({ name: preset, volume: WAVE_INSTRUMENTS[preset].volume, waveIndex: shapes.indexOf(WAVE_INSTRUMENTS[preset].shape) }))),
+    noise: fill(Object.entries(DRUMS).map(([name3, drum]) => ({ name: name3, ...drum }))),
+    waves: Array.from({ length: 16 }, (_, index) => WAVE_SHAPES[shapes[index]] ?? Array(32).fill(0)),
+    patterns,
+    blocks
+  };
+}
+function encodeUge(song) {
+  const chunks = [];
+  const u8 = (value) => chunks.push(Buffer.from([value & 255]));
+  const u32 = (value) => {
+    const bytes2 = Buffer.alloc(4);
+    bytes2.writeUInt32LE(value >>> 0);
+    chunks.push(bytes2);
+  };
+  const text = (value) => {
+    const bytes2 = Buffer.alloc(256);
+    const encoded = Buffer.from(value, "utf8").subarray(0, 255);
+    bytes2[0] = encoded.length;
+    encoded.copy(bytes2, 1);
+    chunks.push(bytes2);
+  };
+  const envelope = (instrument) => {
+    u8(instrument.initialVolume);
+    u32(instrument.volumeSweepChange < 0 ? 1 : 0);
+    u8(instrument.volumeSweepChange ? 8 - Math.abs(instrument.volumeSweepChange) : 0);
+  };
+  const instrument = (type, item) => {
+    u32(type);
+    text(item.name);
+    u32(item.length === null ? 0 : (type === 1 ? 256 : 64) - item.length);
+    u8(item.length === null ? 0 : 1);
+    if (type === 1) {
+      u8(0);
+      u32(0);
+      u8(0);
+    } else {
+      envelope(item);
+    }
+    u32(0);
+    u32(0);
+    u32(0);
+    u8(type === 0 ? item.dutyCycle : 0);
+    u32(type === 1 ? item.volume : 0);
+    u32(type === 1 ? item.waveIndex : 0);
+    u32(type === 2 && item.bitCount === 7 ? 1 : 0);
+    u8(item.subpatternEnabled ? 1 : 0);
+    for (const row of item.subpattern) {
+      u32(row.note ?? 90);
+      u32(0);
+      u32(row.jump);
+      u32(row.effectCode);
+      u8(row.effectParam);
+    }
+  };
+  u32(6);
+  text(song.name);
+  text("");
+  text("");
+  song.duty.forEach((item) => instrument(0, item));
+  song.wave.forEach((item) => instrument(1, item));
+  song.noise.forEach((item) => instrument(2, item));
+  song.waves.forEach((wave) => chunks.push(Buffer.from(wave)));
+  u32(song.ticksPerRow);
+  u8(0);
+  u32(0);
+  u32(song.patterns.length);
+  song.patterns.forEach((pattern, index) => {
+    u32(index);
+    for (const row of pattern) {
+      u32(row.note ?? 90);
+      u32(row.instrument === null ? 0 : row.instrument + 1);
+      u32(0);
+      u32(row.effectCode ?? 0);
+      u8(row.effectParam ?? 0);
+    }
+  });
+  for (let track = 0; track < 4; track++) {
+    u32(song.blocks + 1);
+    for (let block = 0; block < song.blocks; block++)
+      u32(block * 4 + track);
+    u32(0);
+  }
+  for (let routine = 0; routine < 16; routine++)
+    u32(0);
+  return Buffer.concat(chunks);
+}
+async function bundledTrack(name3) {
+  if (!BUNDLED_TRACKS.includes(name3))
+    composeError(`There is no bundled track "${name3}" (${BUNDLED_TRACKS.join(", ")}).`);
+  return JSON.parse(await readFile3(path31.join(BUNDLED_MUSIC, `${name3}.json`), "utf8"));
+}
+async function composeMusic(projectRoot, input, access4) {
+  const root = await assertDistributedProject(projectRoot, access4);
+  if (input.bundled !== void 0 && (input.sections !== void 0 || input.order !== void 0 || input.instruments !== void 0 || input.ticksPerRow !== void 0)) {
+    composeError("bundled writes a finished track; leave out sections, order, instruments and ticksPerRow.");
+  }
+  if (input.bundled === void 0 && input.sections === void 0)
+    composeError("Give sections (with an optional order), or a bundled track.");
+  const spec = input.bundled === void 0 ? input : await bundledTrack(input.bundled);
+  const assetPath = input.assetPath ?? (input.bundled ? `assets/music/${input.bundled}.uge` : void 0);
+  const target = audioDestination(root, assetPath, "music");
+  if (target.type !== "uge")
+    assetError("INVALID_ASSET_PATH", "A composed song is written as a .uge file.");
+  if (input.id !== void 0 && !RESOURCE_ID.test(input.id)) {
+    assetError("INVALID_RESOURCE_ID", "A song ID must be a valid UUID.");
+  }
+  const destination = await onDiskSpelling(root, target.folder, target.destination);
+  const relativeDestination = projectRelativePath(root, destination);
+  const sidecar = `${destination}.gbsres`;
+  await resolveProjectPath(root, sidecar);
+  const existing = await projectPathExists(root, destination) || await projectPathExists(root, sidecar);
+  if (existing && !input.overwrite) {
+    assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} already exists; pass overwrite to replace the song and keep its ID.`, destination);
+  }
+  const previous = existing && await projectPathExists(root, sidecar) ? await readProjectJson(root, sidecar) : void 0;
+  if (previous !== void 0 && previous._resourceType !== "music") {
+    assetError("UNSUPPORTED_ASSET_KIND", `${relativeDestination}.gbsres is not music metadata.`, sidecar);
+  }
+  if (previous !== void 0 && input.id !== void 0 && input.id !== previous.id) {
+    assetError("INVALID_INPUT", "overwrite keeps the song's ID; leave id out or give the existing one.");
+  }
+  const song = buildSong({ ...spec, title: input.name ?? spec.title });
+  const bytes2 = encodeUge(song);
+  const compiled = inspectUge(bytes2);
+  if (compiled.romBytes > MAX_BANK_BYTES)
+    composeError(`The song ${songTooLarge(compiled)}`);
+  const filename = path31.relative(target.folder, destination).split(path31.sep).join("/");
+  const name3 = ensureName(input.name ?? previous?.name ?? spec.title ?? path31.basename(filename, ".uge"));
+  let metadata2;
+  if (previous !== void 0) {
+    metadata2 = { ...previous, name: name3, filename, type: "uge" };
+  } else {
+    const id3 = input.id ?? stableResourceId("asset", "music", relativeDestination);
+    const symbol = await claimAudio(root, access4, { claimedIds: /* @__PURE__ */ new Set(), claimedPaths: /* @__PURE__ */ new Set() }, { kind: "music", destination, id: id3, name: name3 });
+    metadata2 = audioMetadata("music", { id: id3, name: name3, symbol, filename, type: "uge" });
+  }
+  // The song and its sidecar publish together: a song left without its sidecar would refuse the next attempt.
+  const before = await projectPathExists(root, destination) ? await readBoundedAudio(root, destination) : void 0;
+  await writeProjectBytesAtomic(root, destination, bytes2);
+  try {
+    await writeProjectJsonAtomic(root, sidecar, metadata2);
+  } catch (error2) {
+    if (before === void 0)
+      await rm4(destination, { force: true });
+    else
+      await writeProjectBytesAtomic(root, destination, before);
+    throw error2;
+  }
+  return audioResult(metadata2, relativeDestination, {
+    ...input.bundled === void 0 ? {} : { bundled: input.bundled },
+    ...previous === void 0 ? {} : { replaced: true },
+    ticksPerRow: song.ticksPerRow,
+    rows: song.rows,
+    patterns: song.blocks * 4,
+    romBytes: compiled.romBytes,
+    loopSeconds: Math.round(song.rows * song.ticksPerRow / GB_FRAMES_PER_SECOND * 10) / 10
+  });
+}
+async function inspectAudioAsset(loaded) {
+  const extension = path31.extname(loaded.assetPath).toLowerCase();
+  const type = AUDIO_TYPES.get(extension);
+  if (type === void 0)
+    assetError("UNSUPPORTED_ASSET_KIND", `${loaded.assetPath} is not a .uge, .mod, .wav, .vgm or .vgz file.`);
+  const bytes2 = await readBoundedAudio(loaded.projectRoot, loaded.assetPath);
+  return audioResult(loaded.metadata, loaded.assetPath, inspectAudio(type, extension, bytes2));
 }
 
 // dist/dialogue-preview.js
@@ -57061,6 +57873,11 @@ var dialogueBase = {
   maxWidthPx: external_exports.number().int().min(1).max(160).optional(),
   maxVisibleLines: external_exports.number().int().min(1).max(16).optional()
 };
+var songRows = external_exports.string().max(8e3).describe("Rows separated by spaces: a note in scientific pitch (C4, F#3, Bb5), . to rest, - to hold; :N makes a row last N rows (C4:4).");
+var songPulseInstrument = external_exports.enum(Object.keys(DUTY_INSTRUMENTS));
+var songWaveInstrument = external_exports.enum(Object.keys(WAVE_INSTRUMENTS));
+var songPulseChannel = external_exports.union([songRows, external_exports.object({ notes: songRows, instrument: songPulseInstrument.optional() }).strict()]).describe("A pulse channel's rows, C2\u2013B7, or {notes, instrument} with lead, soft, pluck, square or thin.");
+var songWaveChannel = external_exports.union([songRows, external_exports.object({ notes: songRows, instrument: songWaveInstrument.optional() }).strict()]).describe("The wave channel's rows, C1\u2013B6, or {notes, instrument} with bass, mellow, saw or hollow.");
 var domainSchemas = {
   nativeTitleAtlas: nativeTitleAtlasSchema,
   actorInspect: external_exports.object({ sceneId: identifier, actorId: identifier }).strict(),
@@ -57115,8 +57932,8 @@ var domainSchemas = {
     expectedRevision: revision.optional().describe("Whole-project revision from scene_inspect.revision or project_inspect.revision; resource revisions are not interchangeable.")
   }).strict(),
   assetImport: external_exports.object({
-    assetPath: boundedPath.optional().describe("Destination PNG under assets/backgrounds or assets/sprites. Required with kind unless assets is given."),
-    kind: external_exports.enum(["background", "sprite"]).optional(),
+    assetPath: boundedPath.optional().describe("Destination: a PNG under assets/backgrounds or assets/sprites, a .uge or .mod under assets/music, or a .wav, .vgm or .vgz under assets/sounds. Required with kind unless assets is given."),
+    kind: external_exports.enum(["background", "sprite", "music", "sound"]).optional(),
     sourcePath: boundedPath.optional(),
     name: boundedName.optional(),
     id: identifier.optional(),
@@ -57132,7 +57949,7 @@ var domainSchemas = {
     ]).optional(),
     assets: external_exports.array(external_exports.object({
       assetPath: boundedPath,
-      kind: external_exports.enum(["background", "sprite"]),
+      kind: external_exports.enum(["background", "sprite", "music", "sound"]),
       sourcePath: boundedPath.optional(),
       name: boundedName.optional(),
       id: identifier.optional(),
@@ -57145,6 +57962,27 @@ var domainSchemas = {
     // importAsset enforces the cross-field requirements before preparing any writes.
   }).strict(),
   assetInspect: external_exports.object(assetLookup).strict(),
+  musicCompose: external_exports.object({
+    assetPath: boundedPath.optional().describe("Destination .uge under assets/music. Defaults to assets/music/<bundled>.uge for a bundled track."),
+    name: boundedName.optional(),
+    id: identifier.optional(),
+    bundled: external_exports.enum(BUNDLED_TRACKS).optional().describe("Write a bundled original track instead of sections: bright-start (bouncy title), meadow-walk (easy overworld), cave-echo (slow minor dungeon), victory-lap (fanfare)."),
+    ticksPerRow: external_exports.number().int().min(2).max(20).optional().describe("Frames (1/60 s) each row lasts; with 4 rows to a beat 6 is 150 BPM, 7 about 128 (default), 8 about 112, 10 about 90."),
+    instruments: external_exports.object({
+      pulse1: songPulseInstrument.optional(),
+      pulse2: songPulseInstrument.optional(),
+      wave: songWaveInstrument.optional()
+    }).strict().optional().describe("The song's instrument per channel (default pulse1 lead, pulse2 soft, wave bass); a section's channel can override it."),
+    sections: external_exports.array(external_exports.object({
+      name: external_exports.string().trim().min(1).max(32),
+      pulse1: songPulseChannel.optional(),
+      pulse2: songPulseChannel.optional(),
+      wave: songWaveChannel.optional(),
+      noise: songRows.optional().describe("Drums: kick, snare, hat, . (rest) and - (hold), each with an optional :N.")
+    }).strict()).min(1).max(16).optional().describe("Named passages. A channel left out is silent; a shorter channel holds to the section's longest."),
+    order: external_exports.array(external_exports.string().trim().min(1).max(32)).min(1).max(64).optional().describe("Section names in playing order, repeats allowed; defaults to each section once. The song loops back to the start."),
+    overwrite: external_exports.boolean().optional().describe("Replace the song already at assetPath, keeping its ID and every event that plays it.")
+  }).strict(),
   assetUpdate: external_exports.object({
     ...assetLookup,
     name: boundedName.optional(),
@@ -58453,17 +59291,23 @@ function registerProjectDomains(server, context) {
     annotations: updateExisting
   }, async (input) => mutate((project2, access4) => deleteTrigger(project2.projectPath, input, access4)));
   server.registerTool("asset_import", {
-    title: "Import a genuine image asset",
-    description: "Register project-local PNGs as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
+    title: "Import an image or audio asset",
+    description: "Register project-local PNGs, music and sound effects as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Music is a hUGETracker .uge or a four-channel .mod; a sound is a .wav (up to about 3.6 s) or a Game Boy .vgm/.vgz. The tool checks an audio file, writes its sidecar with an ID that stays the same, and returns a playEvent (EVENT_MUSIC_PLAY or EVENT_SOUND_PLAY_EFFECT) to add to a script; to write music from notes, use music_compose. Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
     inputSchema: domainSchemas.assetImport,
     annotations: createOnly
   }, async (input) => input.sprite?.profile === "native_metadata" ? transact((project2, access4) => importAsset(project2.projectRoot, input, access4)) : mutate((project2, access4) => importAsset(project2.projectRoot, input, access4), (result) => (result.imported ?? [result]).flatMap((asset) => [asset.assetPath, asset.metadataPath])));
   server.registerTool("asset_inspect", {
-    title: "Inspect image asset",
-    description: "Read a native background or sprite and its sidecar metadata. Provide assetId or assetPath; if both are supplied, they must identify the same asset.",
+    title: "Inspect an asset",
+    description: "Read a native background, sprite, song or sound and its sidecar metadata. Provide assetId or assetPath; if both are supplied, they must identify the same asset.",
     inputSchema: domainSchemas.assetInspect,
     annotations: readOnly
   }, async (input) => inspect((project2, access4) => inspectAsset(project2.projectRoot, input, access4)));
+  server.registerTool("music_compose", {
+    title: "Write a song",
+    description: "Write an original song from note lists as a hUGETracker .uge under assets/music and register it with an ID that stays the same; returns the ID, the loop length and a playEvent (EVENT_MUSIC_PLAY) to add to a script. Give sections and an order, or bundled for a ready track. Channels: pulse1 (melody), pulse2 (harmony), wave (bass) and noise (drums). Each channel is a list of rows; a note rings until the next note or rest. Example section: {name:'A', pulse1:'C5:2 E5:2 G5:4 . -:3', wave:'C3:4 G2:4', noise:'kick:2 hat:2 snare:2 hat:2'}. Songs loop.",
+    inputSchema: domainSchemas.musicCompose,
+    annotations: updateExisting
+  }, async (input) => mutate((project2, access4) => composeMusic(project2.projectRoot, input, access4), (result) => [result.assetPath, result.metadataPath]));
   server.registerTool("asset_update", {
     title: "Update image asset",
     description: "Update native sidecar properties, or initialize replacement background palette assignments with copyTileColorsFrom and expectedRevision. Palette transfer preserves existing UI cells, requires equal dimensions, and supports dryRun.",
@@ -68821,6 +69665,12 @@ function createGbStudioServer(options = {}) {
     }
     return emulator.inspect(inspection);
   })));
+  server.registerTool("emulator_audio", {
+    title: "Check which sound channels the game drives",
+    description: "Read the Game Boy sound hardware's registers on the current frame without advancing. active is true when the sound hardware is on and a channel (pulse1, pulse2, wave, noise) is enabled, its DAC on and sent to a speaker; each channel reports active, enabled, dac, panned, and startVolume (pulse and noise envelope start, 0\u201315) or outputLevel (wave). Registers show what the game drives, not what comes out: a pulse or noise note whose envelope has faded stays active until the next note or cut. This is one frame: check a short sound effect on the frames just after it starts. A song keeps its channels active between notes.",
+    inputSchema: emptyInput,
+    annotations: readOnly3
+  }, async () => safely(() => performEmulatorOperation(() => emulator.audio())));
   server.registerTool("emulator_status", {
     title: "Inspect active emulator state",
     description: "With a ROM open, report its identity, native frame count, paused clock, execution time, recording limits, screen size, and held buttons without advancing. To check whether an emulator is active without starting a worker, use session_status and read emulatorActive.",

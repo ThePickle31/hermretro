@@ -38,6 +38,8 @@ MAX_STEP_SAMPLES = 8
 MAX_STEP_INPUTS = 64
 MAX_INSPECTION_BYTES = 2048
 MAX_OAM_OBJECTS = 40
+# The four APU channels: name, NR52 status bit, envelope or output-level register (offset from NR10 at 0xFF10).
+APU_CHANNELS = (("pulse1", 0, 0x02), ("pulse2", 1, 0x07), ("wave", 2, 0x0C), ("noise", 3, 0x11))
 PROTOCOL_VERSION = 1
 GB_HZ = 4_194_304
 FRAME_DOTS = 70_224
@@ -1252,10 +1254,12 @@ def cartridge_cgb(rom: bytes) -> bool:
     return rom[0x143:0x144] in {b"\x80", b"\xc0"}
 
 
-def create_pyboy(rom: bytes, cgb: bool | None) -> Any:
+def create_pyboy(rom: bytes, cgb: bool | None, sound_emulated: bool) -> Any:
     from pyboy import PyBoy
 
-    options: dict[str, Any] = {"window": "null", "sound_emulated": False}
+    # With the APU's registers emulated a game's sound can be checked; no audio is sampled (tick(..., False)).
+    # Sessions before audio checks ran without them, and a game that reads them plays differently.
+    options: dict[str, Any] = {"window": "null", "sound_emulated": sound_emulated}
     if cgb is not None:
         options["cgb"] = cgb
     if cgb is False:
@@ -1387,7 +1391,7 @@ class EmulatorWorker:
                     before = getattr(emulator, "frame_count", None)
                     if isinstance(before, bool) or not isinstance(before, int):
                         raise RuntimeError("The native starting frame counter is unavailable")
-                    alive = emulator.tick(1, True)
+                    alive = emulator.tick(1, True, False)
                     after = getattr(emulator, "frame_count", None)
                 except Exception as error:
                     raise NativeFrameAccountingError(
@@ -1471,7 +1475,7 @@ class EmulatorWorker:
                 raise ValueError("A recording output directory must be new; existing attempts are never overwritten")
             check_recording_quota(recording_path.parent, limits["maxBytes"])
         return {"romPath": rom_path, "rom": rom_path.read_bytes(), "initialFrames": initial_frames, "cgb": cgb,
-                "limits": limits, "recordingPath": recording_path}
+                "soundEmulated": True, "limits": limits, "recordingPath": recording_path}
 
     def load(self, plan: dict[str, Any]) -> int:
         """End the current session and start a clean one from a session plan, recorded when asked, before its
@@ -1484,13 +1488,14 @@ class EmulatorWorker:
 
         # Every session is an isolated clean boot. A file-like cartridge never
         # discovers adjacent battery RAM or RTC files, even without recording.
-        self.emulator = create_pyboy(raw, cgb)
+        self.emulator = create_pyboy(raw, cgb, plan["soundEmulated"])
         self.emulator.set_emulation_speed(0)
         self.rom_path = plan["romPath"]
         self.rom_bytes = raw
         self.rom_sha256 = rom_sha256
         self.runtime = {"name": "PyBoy", "version": importlib.metadata.version("pyboy"),
-                        "protocolVersion": PROTOCOL_VERSION, "workerSha256": WORKER_SHA256}
+                        "protocolVersion": PROTOCOL_VERSION, "workerSha256": WORKER_SHA256,
+                        "soundEmulated": plan["soundEmulated"]}
         self.cgb = cgb if cgb is not None else cartridge_cgb(raw)
         self.frame = 0
         self.total_frames = 0
@@ -1556,6 +1561,8 @@ class EmulatorWorker:
                 # The cartridge default unless the attempt chose other hardware, as its own boot did.
                 **({} if condition["cgb"] == cartridge_cgb(rom) else {"cgb": condition["cgb"]}),
             }, frames=sum(action["frames"] for action in actions if action["type"] == "step"))
+            # The APU as the attempt ran it: recordings without soundEmulated predate it and ran with it off.
+            plan["soundEmulated"] = source["runtime"].get("soundEmulated") is True
         except (OSError, ValueError, RuntimeError) as error:
             raise RequestValidationError(str(error)) from error
         self.load(plan)
@@ -2084,7 +2091,8 @@ class EmulatorWorker:
                 or not isinstance(rom, dict) or not isinstance(rom.get("cgb"), bool)):
             raise ValueError("The recorded source identity is unsupported")
         source_runtime = {"name": "PyBoy", "version": runtime["version"], "protocolVersion": PROTOCOL_VERSION,
-                          "workerSha256": sha256_string(runtime.get("workerSha256"), "recorded worker SHA-256")}
+                          "workerSha256": sha256_string(runtime.get("workerSha256"), "recorded worker SHA-256"),
+                          "soundEmulated": runtime.get("soundEmulated") is True}
         elapsed_frames = end_frame - start_frame
         result = {
             "schemaVersion": 1, "kind": "gb-studio-recording-review",
@@ -2306,7 +2314,7 @@ class EmulatorWorker:
         from PIL import Image
         entry_image = Image.open(io.BytesIO(Path(prefix_evidence[-1]["path"]).read_bytes())).convert("RGBA")
         # A fresh instance discards queued inputs that PyBoy's opaque state omits.
-        candidate = create_pyboy(self.rom_bytes, self.cgb)
+        candidate = create_pyboy(self.rom_bytes, self.cgb, self.runtime["soundEmulated"])
         candidate.set_emulation_speed(0)
         try:
             candidate.load_state(io.BytesIO(state_bytes))
@@ -2785,6 +2793,42 @@ class EmulatorWorker:
             return self.inspect_memory(params)
         raise ValueError(f"Unsupported emulator inspection view: {view!r}")
 
+    def audio(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Which sound channels the game is driving on the current frame, from the APU's registers, without advancing.
+
+        The registers hold a channel's settings, not its output: a pulse or noise channel stays enabled after its
+        envelope fades to zero, so an active channel may be silent. A channel goes inactive when the game cuts it,
+        its length runs out or its DAC is turned off."""
+        if not isinstance(params, dict) or params:
+            raise RequestValidationError("Audio inspection accepts an empty object")
+        emulator = self.require_emulator()
+        if not self.runtime["soundEmulated"]:
+            raise RuntimeError("This session replays an attempt recorded without sound emulation, so its sound "
+                             "registers are not emulated; open the ROM with emulator_run to check its audio")
+        registers = [int(emulator.memory[0xFF10 + offset]) for offset in range(0x17)]
+        nr50, nr51, nr52 = registers[0x14:0x17]
+        power = bool(nr52 & 0x80)
+        channels = []
+        for name, bit, envelope_register in APU_CHANNELS:
+            value = registers[envelope_register]
+            enabled, panned = bool(nr52 & (1 << bit)), bool(nr51 & (0x11 << bit))
+            if name == "wave":
+                level = ("mute", "full", "half", "quarter")[(value >> 5) & 0x03]
+                dac, sound = bool(registers[0x0A] & 0x80), {"outputLevel": level}
+                active = power and enabled and dac and panned and level != "mute"
+            else:
+                dac, sound = bool(value & 0xF8), {"startVolume": value >> 4}
+                active = power and enabled and dac and panned
+            channels.append({"channel": name, "active": active, "enabled": enabled, "dac": dac, "panned": panned, **sound})
+        return {
+            "frame": self.frame,
+            "active": any(channel["active"] for channel in channels),
+            "power": power,
+            "masterVolume": {"left": (nr50 >> 4) & 0x07, "right": nr50 & 0x07},
+            "channels": channels,
+            "registers": bytes(registers).hex(),
+        }
+
     def screenshot(self, params: dict[str, Any]) -> dict[str, Any]:
         self.require_emulator()
         image = self.current_image()
@@ -2867,6 +2911,8 @@ class EmulatorWorker:
             return self.screenshot(params)
         if method == "inspect":
             return self.inspect(params)
+        if method == "audio":
+            return self.audio(params)
         if method == "control":
             return self.control(params)
         if method == "recent_frames":
