@@ -260,7 +260,11 @@ and a position `{"type":"number","value":3}` in `EVENT_ACTOR_SET_DIRECTION`,
 `up`, `down`, `left` or `right`, or an actor direction event without its
 `direction` is refused with `INVALID_EVENT` instead of failing the build later;
 a variable or expression value is accepted, and a commented-out event is not
-checked. `EVENT_SWITCH_SCENE`'s own `direction` stays a plain string.
+checked. `EVENT_SWITCH_SCENE`'s own `direction` stays a plain string. A command
+that is not a GB Studio event is refused the same way, naming the nearest real
+events; GB Studio would build the game without it. A project with plugin events
+(`plugins/*/**/events/event*.js`) keeps any command, and its build fails with
+`UNKNOWN_EVENT_COMMAND` when GB Studio has no compiler for one.
 
 `chromatic_event_describe` answers what an event takes, from GB Studio's own event definitions: with no arguments
 its categories, with `query`, `category` or `includeDeprecated` matching events (40 at a time; `nextCursor` gives
@@ -271,7 +275,9 @@ used, child branches, warnings, deprecation with the replacement and how to conv
 held buttons and sound effects; [GB Studio behaviours](gb-studio-behaviours.md) lists what builds but misbehaves in
 play. `chromatic_rom_build` adds warnings for text in a `LOGO` scene (`TEXT_IN_LOGO_SCENE`), a `$0$` text token
 (`TEXT_VARIABLE_TOKEN`), actors or the player under a right-hand menu (`ACTORS_OVER_MENU`) and deprecated events
-(`DEPRECATED_EVENT`), following custom scripts and prefabs; the ROM still builds.
+(`DEPRECATED_EVENT`), following custom scripts and prefabs, and sprite palette slots no sprite tile uses
+(`UNUSED_SPRITE_PALETTE_SLOTS`); the ROM still builds. A build GB Studio compiled without an event it does not know
+fails with `UNKNOWN_EVENT_COMMAND`.
 
 `chromatic_script_edit` also supports `update`, `delete`, and `move`, including
 `branchPath` segments identified by stable event ID and branch name. Preserve

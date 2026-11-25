@@ -206,3 +206,57 @@ def check_art_import(suite, client_b):
         placed=placed.get("operationResults"),
         diagnostics=built.get("diagnostics"),
     )
+    check_sprite_palette_slots(suite, client_b, scene_id, hero_id, placed, built)
+
+
+def check_sprite_palette_slots(suite, client_b, scene_id, hero_id, placed, built):
+    """An actor has no palette of its own: writing one is refused (also as a scene update's actor, and resubmitting one
+    a project already holds), one already stored survives an unrelated edit, and a sprite slot no sprite tile uses is
+    reported by the scene analysis and the build (A3 assigned slots 3 and 4; only the coin's tiles use 3)."""
+    coin_id = placed["operationResults"][1]["resourceId"]
+    tinted = {"paletteId": hero_id}
+    refused = [
+        call(client_b, "actor_create", {"sceneId": scene_id, "name": "Tinted", "x": 2, "y": 2, "properties": tinted}),
+        call(client_b, "actor_update", {"sceneId": scene_id, "actorId": coin_id, "properties": tinted}),
+        call(
+            client_b,
+            "scene_apply",
+            {"sceneId": scene_id, "operations": [{"type": "actor.update", "actorId": coin_id, "properties": tinted}]},
+        ),
+        call(
+            client_b,
+            "scene_update",
+            {"sceneId": scene_id, "properties": {"actors": [{"id": "a11-nested", "name": "Nested", **tinted}]}},
+        ),
+    ]
+    # A project written before the check: the coin's paletteId straight in its file.
+    coin_file = suite.project_b / placed["operationResults"][1]["resourcePath"]
+    original = coin_file.read_text()
+    coin_file.write_text(json.dumps({**json.loads(original), **tinted}, indent=2))
+    kept = call(client_b, "actor_update", {"sceneId": scene_id, "actorId": coin_id, "name": "Coin"})
+    resubmitted = call(client_b, "actor_update", {"sceneId": scene_id, "actorId": coin_id, "properties": tinted})
+    cleared = call(client_b, "actor_update", {"sceneId": scene_id, "actorId": coin_id, "properties": {"paletteId": ""}})
+    analysis = call(client_b, "graphics_analyze_scene", {"sceneId": scene_id})
+    analyzed = [item for item in analysis.get("diagnostics", []) if item.get("code") == "UNUSED_SPRITE_PALETTE_SLOTS"]
+    warned = [item for item in built.get("diagnostics", []) if item.get("code") == "UNUSED_SPRITE_PALETTE_SLOTS"]
+    refusals = [*refused, resubmitted]
+    suite.check(
+        "A11",
+        "Writing an actor paletteId is refused with the way to color a sprite, one already stored survives an unrelated "
+        "edit, and a sprite palette slot no sprite tile uses is reported by the scene analysis and the build",
+        all(refusal.get("code") == "ACTOR_PALETTE_UNSUPPORTED" for refusal in refusals)
+        and all("paletteIndex" in str(refusal.get("error")) for refusal in refusals)
+        and kept.get("actor", {}).get("paletteId") == hero_id
+        and "actor" in cleared
+        and analysis.get("palettes", {}).get("objects", {}).get("referencedSlots") == [0, 3]
+        and len(analyzed) == 1
+        and "slot 4," in analyzed[0]["message"]
+        and len(warned) == 1
+        and warned[0]["message"] == analyzed[0]["message"]
+        and "paletteIndex" in warned[0].get("suggestedAction", ""),
+        refusals=refusals,
+        kept=kept,
+        cleared=cleared,
+        analyzed=analyzed,
+        warned=warned,
+    )

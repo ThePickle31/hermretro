@@ -137,10 +137,14 @@ of both, and so does a build whose log could not be written (`logError` says why
 still compiles but that GB Studio will remove, for example `EVENT_IF_VALUE`, with
 its replacement (`EVENT_IF`), how often the project uses it and where first; the
 ROM is fine. The build also warns about scripts that build but misbehave in play:
-`TEXT_IN_LOGO_SCENE`, `TEXT_VARIABLE_TOKEN` and `ACTORS_OVER_MENU` (see
-[GB Studio behaviours](gb-studio-behaviours.md)). Node's `[DEP0190]` notice from the
-official CLI is left out. A nonzero compiler exit, missing output ROM, invalid
-cartridge header, or bad Nintendo logo remains a failure.
+`TEXT_IN_LOGO_SCENE`, `TEXT_VARIABLE_TOKEN`, `ACTORS_OVER_MENU` and
+`UNUSED_SPRITE_PALETTE_SLOTS` (see [GB Studio behaviours](gb-studio-behaviours.md)).
+Node's `[DEP0190]` notice from the official CLI is left out. A nonzero compiler
+exit, missing output ROM, invalid cartridge header, or bad Nintendo logo remains a
+failure, and so does a script event GB Studio has no compiler for
+(`UNKNOWN_EVENT_COMMAND`, with the nearest real events): GB Studio leaves it out
+and still writes a ROM. A failed build leaves the previous ROM in place and
+returns `rom: null`.
 
 Build commands must write generated cartridges only to authorized output
 locations and leave authored resources plus existing tracked ROMs unchanged.
