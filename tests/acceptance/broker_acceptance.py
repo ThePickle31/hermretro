@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Broker acceptance run against the real engine, compiler and emulator. Nothing is mocked.
 
-Covers election, identity, private workers, lossless results, art import, source-mode live state,
+Covers election, identity, private workers, lossless results, art and audio import, source-mode live state,
 authoring (symbols, scene transactions, script events), writer handoff, delegated children, hardware gating,
 worker and broker crash recovery. It does not cover anything that needs Hermes itself (host-injected identity,
 real compaction, pixels reaching a model).
@@ -28,6 +28,7 @@ from backend.broker.client import BrokerClient, ensure_broker  # noqa: E402 - di
 from tests.acceptance import (  # noqa: E402 - direct script entry point
     art,
     art_limits,
+    audio,
     authoring,
     debugging,
     ownership,
@@ -129,6 +130,7 @@ def exercise(suite):
         art_limits.check_art_limits(suite, client_b)
         debugging.check_live_state(suite, client_b)
         authoring.check_symbols_and_events(suite, client_b)
+        audio.check_audio(suite, client_b)
         ownership.check_child_lease(suite, client_a, edited_source, last_frame)
         client_c = connections.enter_context(BrokerClient(suite.state))
         ownership.check_writer_handoff(suite, client_a, client_c)

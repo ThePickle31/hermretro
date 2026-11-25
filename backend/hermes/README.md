@@ -7,7 +7,7 @@ Edit Build instructions in `workflow.py`. The system prompt, per-game hook and e
 ## What it adds
 
 - RPCs: none.
-- Tools (`tools.py`): the 82 engine tools from `engine/pins/<version>/tools.json`, each as `chromatic_<name>`.
+- Tools (`tools.py`): the 84 engine tools from `engine/pins/<version>/tools.json`, each as `chromatic_<name>`.
 - Hooks (`hooks.py`): `pre_tool_call` (hardware approvals), `subagent_start`, `subagent_stop`.
 - Skills and the prompt section (`prompt.py`): every `skills/<name>/SKILL.md`, the `hermretro.guide` section.
 - Events: none.

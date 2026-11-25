@@ -69,6 +69,7 @@ provides_tools:
   - chromatic_emulator_step
   - chromatic_emulator_observe
   - chromatic_emulator_inspect
+  - chromatic_emulator_audio
   - chromatic_emulator_status
   - chromatic_emulator_close
   - chromatic_emulator_review
@@ -93,6 +94,7 @@ provides_tools:
   - chromatic_trigger_delete
   - chromatic_asset_import
   - chromatic_asset_inspect
+  - chromatic_music_compose
   - chromatic_asset_update
   - chromatic_asset_delete
   - chromatic_native_graphics_update

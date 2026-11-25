@@ -3,17 +3,17 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 511,
+ "file_count": 516,
  "symlink_count": 0,
- "total_bytes": 35957593,
+ "total_bytes": 36009297,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
-  ".md": 93,
+  ".md": 94,
   ".gbsres": 42,
+  ".json": 22,
   ".mjs": 20,
   ".png": 19,
-  ".json": 18,
   ".txt": 8,
   "(none)": 7,
   ".yaml": 4,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "6d4fa1e1603977788815fd5bace7f99fe83d055333ebf84a06e6187fe6b98d79",
+ "aggregate_sha256": "221040e7471af846c0ecf7bd804f5b81ead816a34ed3f5273fe727eb4bd8fda0",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -106,6 +106,41 @@
    "size": 4013,
    "mode": "0o644",
    "sha256": "827644f3e073b1a6b7c5d920a430aa2e14060946cbabb9339ef5bb2979f6017b"
+  },
+  {
+   "path": "assets/music/README.md",
+   "type": "file",
+   "size": 607,
+   "mode": "0o644",
+   "sha256": "9baa095f2eddd95e2c7335b93b5e31b5a91141e027644eb4ac16ebbe2834109c"
+  },
+  {
+   "path": "assets/music/bright-start.json",
+   "type": "file",
+   "size": 1574,
+   "mode": "0o644",
+   "sha256": "fdcc375cbc862cc33cab10de433c57fe02371c98eddab1726e5b1ed17f1357ec"
+  },
+  {
+   "path": "assets/music/cave-echo.json",
+   "type": "file",
+   "size": 960,
+   "mode": "0o644",
+   "sha256": "847aa4591e019d902c5ec21b99979e2e84a3a15bd78c706e1f7dd525e3a6887d"
+  },
+  {
+   "path": "assets/music/meadow-walk.json",
+   "type": "file",
+   "size": 1060,
+   "mode": "0o644",
+   "sha256": "47dbe42f6d743492a8af014f77077c7d1c6258cfda22d22cd69e4ec5f1849307"
+  },
+  {
+   "path": "assets/music/victory-lap.json",
+   "type": "file",
+   "size": 796,
+   "mode": "0o644",
+   "sha256": "996ef19d7d0ade3a4a4d83f3935d510a8f3056dd54928fc747a754506c27050a"
   },
   {
    "path": "dist/actors.js",
@@ -1006,9 +1041,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2953545,
+   "size": 2997137,
    "mode": "0o644",
-   "sha256": "0b95f150f986e279193b4f390d0b964faece4f29585f347839c6fd8e010cc805"
+   "sha256": "aef8aee1e97d759fec70e8066a0b48ac4c012bbe6149a3a154213f03970ae471"
   },
   {
    "path": "dist/server.js.map",
@@ -3288,9 +3323,9 @@
   {
    "path": "scripts/emulator_worker.py",
    "type": "file",
-   "size": 168331,
+   "size": 171446,
    "mode": "0o755",
-   "sha256": "3b0f9deffa899362d03f2d97e4c432f6372918764c4e8084f0564b7f20c6ef3a"
+   "sha256": "c7e87756ae200f8e851d3e7aa237d159df88c6b147c06174366c59c6e5637826"
   },
   {
    "path": "scripts/node-releases.tsv",

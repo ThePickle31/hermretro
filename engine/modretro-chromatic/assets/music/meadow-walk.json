@@ -1,0 +1,31 @@
+{
+  "title": "Meadow Walk",
+  "ticksPerRow": 8,
+  "instruments": {
+    "pulse1": "pluck",
+    "pulse2": "soft",
+    "wave": "mellow"
+  },
+  "sections": [
+    {
+      "name": "A",
+      "pulse1": "B4:4 D5:4 G5:6 F#5:2 | E5:4 G5:4 B5:6 A5:2 | G5:4 E5:4 C5:4 E5:4 | D5:8 .:4 A4:4",
+      "pulse2": "G4:8 B4:8 | G4:8 B4:8 | E4:8 G4:8 | F#4:8 A4:8",
+      "wave": "G2:6 G2:2 D3:8 | E2:6 E2:2 B2:8 | C3:6 C3:2 G2:8 | D3:6 D3:2 A2:8",
+      "noise": "kick:4 hat:2 hat:2 snare:4 hat:4 | kick:4 hat:2 hat:2 snare:4 hat:4 | kick:4 hat:2 hat:2 snare:4 hat:4 | kick:4 hat:2 hat:2 snare:4 hat:4"
+    },
+    {
+      "name": "B",
+      "pulse1": "E5:4 G5:4 C6:8 | B5:4 A5:4 G5:8 | A5:4 C6:4 E5:4 G5:4 | F#5:4 E5:4 D5:4 A4:4",
+      "pulse2": "E4:8 G4:8 | D4:8 G4:8 | C4:8 E4:8 | D4:8 F#4:8",
+      "wave": "C3:8 G2:8 | G2:8 D3:8 | A2:8 E2:8 | D3:8 A2:8",
+      "noise": "kick:4 hat:2 hat:2 snare:4 hat:4 | kick:4 hat:2 hat:2 snare:4 hat:4 | kick:4 hat:2 hat:2 snare:4 hat:4 | kick:4 hat:2 hat:2 snare:4 hat:4"
+    }
+  ],
+  "order": [
+    "A",
+    "A",
+    "B",
+    "A"
+  ]
+}

@@ -142,8 +142,10 @@ class OneWorkflow(unittest.TestCase):
             os.utime(brief, (bound_at - 2, bound_at - 2))
             self.assertIn(workflow.EDIT_GAME, self.context("game", game, first=False))
 
-    def test_drawing_art_and_importing_it_stays_allowed(self):
-        self.assertIn("draw art as PNG files and bring it in with chromatic_asset_import", workflow.GAME_RULES)
+    def test_drawing_art_and_importing_it_and_audio_stays_allowed(self):
+        self.assertIn(
+            "draw art as PNG files and bring it and audio in with chromatic_asset_import", workflow.GAME_RULES
+        )
 
     def test_a_build_says_to_playtest_and_fill_the_card_before_presenting(self):
         built = {

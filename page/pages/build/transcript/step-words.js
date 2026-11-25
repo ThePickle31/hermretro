@@ -8,6 +8,16 @@ const fileWords = (running, done, fallback = 'a file') => args => {
   return [`${running} ${name}`, `${done} ${name}`]
 }
 
+// asset_import: art, music or sound effects, by the kinds in the call; assets when it mixes art and audio.
+const AUDIO_WORDS = { music: 'music', sound: 'sound', 'music sound': 'music and sound' }
+const importWords = args => {
+  const kinds = [...new Set((Array.isArray(args?.assets) ? args.assets : [args]).map(asset => asset?.kind))].sort()
+  const audio = kinds.filter(kind => kind === 'music' || kind === 'sound')
+  const what = audio.length === 0 ? 'art' : audio.length === kinds.length ? AUDIO_WORDS[audio.join(' ')] : 'assets'
+
+  return [`Adding ${what} to the game`, `Added ${what} to the game`]
+}
+
 // Tool → [while it runs, once it is done]. Chromatic tools go without their `chromatic_` prefix.
 const STEP_WORDS = {
   project_create: ['Creating the project', 'Created the project'],
@@ -36,8 +46,9 @@ const STEP_WORDS = {
   dialogue_update: ['Writing dialogue', 'Wrote dialogue'],
   dialogue_analyze: ['Checking the dialogue fits', 'Checked the dialogue fits'],
   dialogue_preview: ['Previewing dialogue', 'Previewed dialogue'],
-  asset_import: ['Adding art to the game', 'Added art to the game'],
-  asset_inspect: ['Looking at the art', 'Looked at the art'],
+  asset_import: importWords,
+  asset_inspect: ['Inspecting the asset', 'Inspected the asset'],
+  music_compose: ['Writing music', 'Wrote music'],
   asset_update: ['Updating the art', 'Updated the art'],
   asset_delete: ['Removing art', 'Removed art'],
   sprite_edit: ['Tuning a sprite', 'Tuned a sprite'],
@@ -78,6 +89,7 @@ const STEP_WORDS = {
   emulator_step: ['Playing the game', 'Played the game'],
   emulator_observe: ['Looking at the screen', 'Looked at the screen'],
   emulator_inspect: ['Reading the game\u2019s memory', 'Read the game\u2019s memory'],
+  emulator_audio: ['Checking game audio', 'Checked game audio'],
   emulator_debug: ['Checking the game state', 'Checked the game state'],
   emulator_checkpoint: ['Saving a checkpoint', 'Saved a checkpoint'],
   emulator_clip: ['Recording a clip', 'Recorded a clip'],

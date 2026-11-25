@@ -56,6 +56,19 @@ test('a several-asset import keeps every imported image, and a step shows each o
   assert.deepEqual(stepImages({ state: 'done', name: 'chromatic_asset_import', info }, '/home/u/games/Frog'), ['/home/u/games/Frog/assets/sprites/coin.png', '/home/u/games/Frog/assets/sprites/boss.png'])
 })
 
+test('an import step names art, music, sound or assets by the kinds it imports, and shows no audio file as an image', async () => {
+  const { stepImages, stepWords } = await import('#pages/build/transcript/step-words.js')
+  const step = args => stepWords({ name: 'chromatic_asset_import', state: 'done', args })
+  assert.deepEqual(step({ kind: 'music', assetPath: 'assets/music/theme.uge' }), ['Adding music to the game', 'Added music to the game'])
+  assert.deepEqual(step({ assets: [{ kind: 'sound' }, { kind: 'sound' }] }), ['Adding sound to the game', 'Added sound to the game'])
+  assert.deepEqual(step({ assets: [{ kind: 'sound' }, { kind: 'music' }] })[1], 'Added music and sound to the game')
+  assert.deepEqual(step({ assets: [{ kind: 'music' }, { kind: 'sprite' }] })[1], 'Added assets to the game')
+  assert.deepEqual(step({ assets: [{ kind: 'background' }, { kind: 'sprite' }] })[1], 'Added art to the game')
+  assert.deepEqual(step({})[1], 'Added art to the game')
+  const info = stepInfo('chromatic_asset_import', { structuredContent: { imported: [{ assetPath: 'assets/music/theme.uge' }, { assetPath: 'assets/sounds/blip.wav' }], count: 2 } })
+  assert.deepEqual(stepImages({ state: 'done', name: 'chromatic_asset_import', info }, '/home/u/games/Frog'), [])
+})
+
 const { turnBuilt } = await import('#pages/build/transcript/turns.js')
 const turnOf = (...tools) => ({ key: 't', user: null, items: [{ kind: 'tools', tools: tools.map(([name, state], index) => ({ id: `s${index}`, name, state })) }] })
 

@@ -179,12 +179,14 @@ references, build with `captureDebugArtifacts:true`, start that exact ROM with
 state there instead of decoding WRAM or `symbols.noi` by hand. It requires
 authenticated same-build artifacts and unchanged source; unsupported or
 optimized-out data stays unavailable. For bounded OAM/VRAM/WRAM/HRAM inspection
-(up to 2,048 bytes), use `chromatic_emulator_inspect`. See [hardware and source diagnostics](references/emulation-and-regression.md#bounded-hardware-and-source-diagnostics)
+(up to 2,048 bytes), use `chromatic_emulator_inspect`. To check that music or a sound effect plays, step to just
+after it starts and call `chromatic_emulator_audio`: it reads the sound hardware's registers on that frame
+(`active`, and per channel `active`, `enabled`, `dac`, `panned`, `startVolume` or `outputLevel`). See [hardware and source diagnostics](references/emulation-and-regression.md#bounded-hardware-and-source-diagnostics)
 or [cartridge headers, hardware limits, and common failures](references/hardware-and-cartridge.md).
 
 Distinguish authored source, typechecks or generated imagery, static dialogue or
 art previews, a compiled native cartridge, and actual observed runtime frames.
-Neither sampled images nor host-side throughput prove audio, saves, physical
+Neither sampled images nor host-side throughput prove how audio sounds, saves, physical
 hardware behavior, or cartridge CPU-cycle performance. Report what ran, what
 the frames showed, and what remains unverified. hermretro runs on Linux and macOS
 only.
