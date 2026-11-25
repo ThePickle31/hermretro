@@ -4,14 +4,18 @@
   ownership, session aliases, pending New Game records and the game's linked chat.
 - `thumbnails.py` reads title-screen thumbnails and decodes PNG uploads.
 - `project.py` handles game IDs, reads project titles, settings, the game's ROM and build files. `freshness.py` says
-  whether the playable copy is the current game (`export_freshness`, `source_digest`, `sources_newer_than`).
+  whether the playable copy is the current game (`export_freshness`; the sources, `source_files`, `source_digest`,
+  `sources_newer_than`).
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
 - `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png` (a byte-identical copy of a PNG
   under `assets/` is refused).
 - `layout.py` keeps every game folder in the game layout (below); `release.py` says what a publish holds and records.
 - `playtest.py` keeps the test plan's checks bound to recorded attempts and the last run's results
-  (`.hermretro/playtest.json`), each result tied to its ROM, binding and check words; `playtest_run.py` replays them
-  on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine.
+  (`.hermretro/playtest.json`), each result tied to its ROM, binding and check words, and the checks a build report
+  took on their own evidence (`verified`, tied to the ROM and the check's words); `playtest_run.py` replays them
+  on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine. `pipeline.py` is
+  the gate `chromatic_present_game` and `chromatic_build_report` hold a game to (its ROM the last build of its
+  sources, its bound checks and F1 passed on it) and what a build left to replay (`after_build`).
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
@@ -33,7 +37,7 @@
 
 ## Front door
 
-`backend.library`: `Registry`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
+`backend.library`: `Registry`, `after_build`, `built_rom_sha256`, `source_digest`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
 
 ## Tests
 
@@ -52,9 +56,9 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
   - `addedAt`: when the library first recorded the game. Never changes.
   - `updatedAt`: the last time the library recorded something about the game: the broker saw it created or selected (`project_create`, `project_create_blank`, `project_select`), built (`rom_build`) or exported (`web_preview` open), or `chromatic_present_game` showed it (`Registry.upsert` and `Registry.present`; each `games` RPC also adds projects the running broker has selected that the library lacks, setting it only for those). Binding a conversation, editing the game card or a thumbnail does not change it. The Games page lists games newest `updatedAt` first: this is what "recent" means. Nothing records when the user opened a game.
   - `chat`: `{conversationId, sessionId, profile}` of the chat that last selected, created (with `select`), built, exported or presented it (the seeded entries carry only `sessionId`).
-  - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null)}`.
-  - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `freshness.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
-  - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
+  - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null), sources?}` (`sources`: after a successful build, `freshness.source_digest` of the sources the broker took before it started, kept only when they are the same when it ends; `pipeline.rom_state` compares it with the current one and never passes a build without it).
+  - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `freshness.source_digest` of the game's sources (`freshness.source_files`) at that moment, which `export_freshness` compares with the current one.
+  - `presented`: `{t, note, unfinished?}` of the last `chromatic_present_game` (`note` may be null; `unfinished`: `{request, notVerified[], notCurrent?}` when it was shown before it passed its checks).
   - `initialPlan`: the mode recorded when New Game first bound the project. True for Plan first, false for Build it.
     Kept across conversation changes. An older entry can still carry the mode in its session. For an older
     conversation without a saved mode, Studio looks for planning files written after it was bound and checks
@@ -62,7 +66,7 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
   - `session`: the game's Build conversation, `{storedId, profile, createdAt, aliases, plan?, edit?}` (`aliases`:
     up to 16 later session ids of it, since compression rotates them, `plan`: true when it began with Plan first,
     `edit`: true when Edit opened a game with no recorded New Game mode). Absent when the game has none.
-- `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile}`.
+- `presentations`: the last 100 presentations, oldest first: `{gameId, t, note, title, sessionId, conversationId, profile, unfinished?}`.
 - `pending`: pending builds, the Build page's New Game conversations whose project does not exist yet, stored id → `{storedId, profile, createdAt, name, plan}` (the newest `games.MAX_PENDING` are kept). Written by the `build` RPC's `start` (`Registry.build_start`) and removed by its `cancel` (`Registry.build_cancel`) or when the conversation's first project claims it (`claim_pending`).
 
 `Registry.load()["games"]` holds raw entries, including games whose folders are gone. The registry key determines
@@ -112,7 +116,7 @@ on every machine, unlike the library's path id) kept in `.hermretro/identity.jso
 own `version` is its schema), writes `README.md` from the card, `CHANGELOG.md` and `.gitignore`, and restores an
 edited id. It rewrites only files whose first line says hermretro made them (and a template project's own README),
 adds `/scratch/` to a `.gitignore` of the user's own that has no line for it, and never moves or deletes anything; for a game installed without its source it only keeps the author's id. None of
-these files is game source (`freshness.sources_newer_than` skips them). `layout.new_identity` makes a copy (a remix) a
+these files is game source (`freshness.source_files` leaves them out). `layout.new_identity` makes a copy (a remix) a
 game of its own: a new id, the first version, a fresh changelog, no publish or install record, and `remixOf: {id,
 version}` in `game.json`.
 

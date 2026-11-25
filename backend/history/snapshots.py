@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from itertools import islice
 from pathlib import Path
 
+from ..system.host import ignores_case
 from .build_refs import build_history, public_snapshot, record_build
 from .restore_files import (
     PROJECT_SUFFIX,
@@ -58,18 +59,6 @@ class SnapshotError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
-
-
-def ignores_case(root: Path) -> bool:
-    """Whether the volume holding the project finds a name in another case (as macOS's usually does), judged by the
-    project folder's own name; False for a name without letter case."""
-    other = root.parent / root.name.swapcase()
-    if other == root:
-        return False
-    try:
-        return os.path.samestat(root.lstat(), other.lstat())
-    except OSError:
-        return False
 
 
 def _excluded(name: str, folds: bool) -> bool:

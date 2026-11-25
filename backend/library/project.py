@@ -81,6 +81,19 @@ def project_file(root: Path) -> Path | None:
         return None
 
 
+def game_build(root: Path, arguments: dict) -> bool:
+    """Whether a ``rom_build`` with ``arguments`` builds the game at ``root``, not a standalone C experiment
+    (``sourcePath``) inside a GB Studio project."""
+    return not ("sourcePath" in arguments and project_file(Path(root)))
+
+
+def built_rom_sha256(structured: dict) -> str | None:
+    """The SHA-256 of the ROM a ``rom_build`` made, from its structured result."""
+    built = structured.get("rom") if isinstance(structured.get("rom"), dict) else {}
+    sha = structured.get("romSha256") or structured.get("sha256") or built.get("sha256")
+    return sha if isinstance(sha, str) else None
+
+
 def project_kind(root: Path) -> str:
     return "gbstudio" if project_file(root) else "gbdk"
 

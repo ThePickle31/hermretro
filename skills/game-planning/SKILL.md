@@ -90,7 +90,8 @@ approved by the user, that the build and test work follows.
    record results against the exact ROM SHA-256; bind each check to the
    recording that passed it (`chromatic_playtest` with action `bind`) and run
    `chromatic_playtest {}` after every rebuild to replay them all; use `hermretro:pixel-art` for
-   art and palettes. Present the game only when all of it is in.
+   art and palettes. Present the game only when all of it is in: presenting and
+   reporting wait until the bound checks and F1 pass on the latest build.
 6. **Report against the plan.** Every `chromatic_build_report` for a game with
    a test plan gives each open check its result on that build's ROM (`checks`;
    a bound check's result agrees with the last `chromatic_playtest` run on it)

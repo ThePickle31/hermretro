@@ -96,3 +96,17 @@ test('a conversation works in the project its project step made, not in a folder
   assert.equal(rootOf(null, tools(['chromatic_toolchain_doctor', '/home/u/.hermes/hermretro/.cache/runtime'])), null)
   assert.equal(rootOf({ projectRoot: '/home/u/games/Frog' }, tools(['chromatic_project_create', '/home/u/games/Pond'])), '/home/u/games/Frog')
 })
+
+test('a presentation keeps whether it was unfinished, and why', () => {
+  const shown = {
+    ok: true,
+    studio: { note: 'Try the lamp' },
+    unfinished: { request: 'Show me now', notVerified: ['T1 has no result on this ROM.'], notCurrent: 'Game files changed after the playable copy was made.' }
+  }
+
+  assert.deepEqual(stepInfo('chromatic_present_game', shown).unfinished, {
+    reason: 'Show me now', notVerified: ['T1 has no result on this ROM.'], notCurrent: 'Game files changed after the playable copy was made.'
+  })
+  assert.equal(stepInfo('chromatic_present_game', { ok: true, studio: {} }).unfinished, null)
+  assert.equal(stepInfo('chromatic_present_game', { ...shown, ok: false }).unfinished, null, 'a refused presentation showed nothing')
+})

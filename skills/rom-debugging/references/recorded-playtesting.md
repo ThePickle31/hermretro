@@ -234,6 +234,25 @@ reported `passed`, and one replayed cannot be reported `not run`. A check that
 answered `error` is reported `passed` only with that check's `evidence`: the
 recording of this ROM that shows it passing, which you played yourself.
 
+`chromatic_present_game` and `chromatic_build_report` wait for this: each is
+refused (`BUILD_FIRST` while the ROM is not the last build of the current
+sources, `PLAYTEST_FIRST` while a bound check or F1 has not passed on it) with
+the checks and what to do. Every bound check counts, so bind F1 too; `sampled`
+counts as passed, and so does an `error` check the report verifies with
+evidence, and an unbound F1 the report shows with a `finishRun` that ended
+passed. `chromatic_present_game` counts what an accepted report verified that
+way on the same ROM: for such a check, report first, then present. A build
+counts only when hermretro recorded what it was built from: rebuild after a
+file changed while it ran. After each `chromatic_rom_build` that left results
+on an earlier ROM, its `testPlan` names them (`staleResults`, and `notRun` for
+bound checks never replayed): run `chromatic_playtest {}` next. Only when the
+user asked for the game as it is now, or a failure you could not fix (or a turn
+that built nothing) ends the turn, call the tool again with `unfinished`: the
+request or the reason in a few words. The Build card then marks the build
+unfinished and lists what is not verified. Unbinding a check that failed on
+this ROM does not make it pass: its result goes with the binding, and the
+report still gives its true result.
+
 Bound recordings stay in `artifacts/playtests/`: never archive or delete one,
 and record check runs with a smaller budget
 (`recording:{"maxBytes":16777216}`, 16 MiB) so the folder's 1 GiB of reserved budgets

@@ -185,7 +185,9 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
                 lane.pending_notice = self.notices.get(lane.key)
             return lane
 
-    def record_game(self, lane: Lane, tool: str, arguments: dict, structured: dict, failed: bool) -> None:
+    def record_game(
+        self, lane: Lane, tool: str, arguments: dict, structured: dict, failed: bool, sources_before=None
+    ) -> None:
         """Keep the user's game library current: selections, creations, builds and previews."""
         if tool not in library.SELECTORS and tool not in ("rom_build", "web_preview"):
             return
@@ -199,6 +201,7 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
                 conversation_id=lane.owner[1],
                 sessions_seen=lane.sessions_seen,
                 profile=lane.owner[0],
+                sources_before=sources_before,
             )
         except Exception as error:
             self.trace(event="library_record_failed", tool=tool, error=f"{type(error).__name__}: {error}"[:200])
@@ -313,6 +316,11 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
                 lane.last_write = time.monotonic()
         self.trace(event="dispatch", **base)
         lane.current_tool = tool
+        # What a build reads, before it starts: the library pairs the ROM with these sources only if they still
+        # are when it ends.
+        sources_before = (
+            library.source_digest(Path(lane.selected_root)) if tool == "rom_build" and lane.selected_root else None
+        )
         try:
             try:
                 result = engine.call_tool(
@@ -366,7 +374,7 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
                 if lane.inflight == 0:
                     lane.current_tool = None
         try:
-            lane.remember(tool, kind, result, time.time() - started, arguments)
+            lane.remember(tool, kind, result, time.time() - started, arguments, sources_before)
         except Exception as error:  # display bookkeeping must never fail a call
             self.trace(event="activity_record_failed", error=str(error)[:200])
         if kind == "select" and not result.get("isError"):

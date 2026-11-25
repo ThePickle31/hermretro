@@ -131,11 +131,17 @@ Verify the change at the level the request needs: reread the native resources, b
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
   For a game with `docs/game/TEST-PLAN.md`, bind each check to its recording as it passes and run
   `chromatic_playtest {}` after every rebuild ([the test plan, replayed](../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed)).
+  `chromatic_present_game` and the report are refused (`PLAYTEST_FIRST`) until the bound checks and F1 pass on
+  the latest build; `unfinished` overrides it only when the user asked for the game as it is, or for a report
+  that ends the turn with a failure you could not fix or a turn that built nothing. The Build card then shows
+  the build as unfinished, with what is not verified.
   The report needs each open check's result on this ROM (`checks`, agreeing with the last playtest run) and a
   `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused;
   name that run's recording as `finishRun` (F1 `passed` or `failed` needs it).
   When the ending was unreachable, the run was skipped or the game has no ending, report that (F1 `failed` or
-  `not run`, and why in `difficulty`), as `hermretro:game-planning` step 6 says.
+  `not run`, and why in `difficulty` and `unfinished`), as `hermretro:game-planning` step 6 says.
+- When nobody will answer (the user asked you to work on your own, or you have no `clarify` tool), decide
+  with sensible defaults, record the choice in `docs/game/DECISIONS.md` and end with what you did, never a question.
 - The references say MCP for the engine behind the `chromatic_*` tools.
 - Links into `../<skill>/` are sibling hermretro skills: open them with
   `skill_view("hermretro:<skill>", file_path="references/<file>")`.

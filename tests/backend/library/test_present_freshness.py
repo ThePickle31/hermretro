@@ -113,6 +113,7 @@ class PresentFreshness(unittest.TestCase):
         self.assertNotIn("Run chromatic_rom_build", next_step)
 
     def test_a_newer_rom_nobody_recorded_asks_for_a_real_build(self):
+        _id, self.root = make_library_game(self.home, "Unrecorded", recorded=False)
         rom = self.root / "build" / "game.gbc"
         later = time.time()
         os.utime(rom, (later, later))

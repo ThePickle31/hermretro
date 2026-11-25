@@ -1,6 +1,6 @@
 // A tool call as a step of the conversation.
 import { PRESENT_TOOL, REPORT_TOOL, ROM_BUILD_TOOL } from '#app/tools.js'
-import { normalizeReport } from './report.js'
+import { normalizeReport, normalizeUnfinished } from './report.js'
 import { toolBuildRef, toolResultObject } from './tool-results.js'
 
 export function toolFailed(payload) {
@@ -54,7 +54,8 @@ export function stepArgs(args) {
   return Object.keys(kept).length ? kept : null
 }
 
-/** What the page keeps of a finished step's result: its error, the paths it made, a presentation. */
+/** What the page keeps of a finished step's result: its error, the paths it made, a presentation (its note and
+ *  whether it was unfinished). */
 export function stepInfo(name, result, exactCall = true) {
   const value = toolResultObject(result)
   const buildRef = exactCall && name === ROM_BUILD_TOOL ? toolBuildRef(result, value) : null
@@ -71,6 +72,7 @@ export function stepInfo(name, result, exactCall = true) {
     .map(image => (typeof image?.file === 'string' ? image.file.replace(/^MEDIA:/, '') : null))
     .filter(Boolean)
   const report = String(name ?? '') === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
+  const presented = String(name ?? '') === PRESENT_TOOL && parsed.ok === true
   const imported = (Array.isArray(content.imported) ? content.imported : []).map(item => text(item?.assetPath)).filter(Boolean)
 
   return {
@@ -81,7 +83,8 @@ export function stepInfo(name, result, exactCall = true) {
     outputPath: text(content.outputPath) ?? (text(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
     buildRef,
     images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
-    note: String(name ?? '') === PRESENT_TOOL && parsed.ok === true ? text(parsed.studio?.note) : null,
+    note: presented ? text(parsed.studio?.note) : null,
+    unfinished: presented ? normalizeUnfinished(parsed.unfinished?.request, parsed.unfinished?.notVerified, parsed.unfinished?.notCurrent) : null,
     report,
     reportedAt: report && Number.isFinite(parsed.reportedAt) && parsed.reportedAt > 0 ? parsed.reportedAt : null
   }

@@ -78,17 +78,17 @@ def on_subagent_stop(child_session_id=None, **_kwargs):
             _child_sessions.pop(str(child_session_id), None)
 
 
-def _deliver(response: dict, name: str, context: str | None = None):
-    """Shape a broker response for the model, with ``context`` (``chat_state``'s note after a compaction). By now the
-    tool has already run, so a failure here (for example the frames folder cannot be written) must not read as "the
-    tool did not run"."""
+def _deliver(response: dict, name: str, context: str | None = None, extra: dict | None = None):
+    """Shape a broker response for the model, with ``context`` (``chat_state``'s note after a compaction) and
+    ``extra`` (``results.encode``). By now the tool has already run, so a failure here (for example the frames folder
+    cannot be written) must not read as "the tool did not run"."""
     try:
-        return results.encode(response, name, _data_dir() / "frames", _attach_images(), context)
+        return results.encode(response, name, _data_dir() / "frames", _attach_images(), context, extra)
     except Exception as error:
         logger.exception("Chromatic tool %s ran but its result could not be fully delivered", name)
         problem = f"{type(error).__name__}: {error}"
     try:
-        plain = results.encode(response, name, None, False, context)  # the same result, without saving images
+        plain = results.encode(response, name, None, False, context, extra)  # the same, without saving images
         payload = json.loads(plain) if isinstance(plain, str) else None
         if isinstance(payload, dict):
             payload["deliveryProblem"] = (
@@ -272,7 +272,8 @@ def make_tool_handler(ctx, tool: dict):
                 scratch = hermes_api.scratch_dir()
                 policy["scratch_dir"] = str(scratch) if scratch else None
             response, context = engine_call(original, args, kwargs, policy)
-            return _deliver(response, name, context)
+            extra = _build_extra(response, args, conversation_id, session_id) if original == "rom_build" else None
+            return _deliver(response, name, context, extra)
         except OtherCopyBusy as error:
             return json.dumps(other_copy_busy(error, conversation_id, session_id))
         except BrokerRestarting as error:
@@ -290,6 +291,24 @@ def make_tool_handler(ctx, tool: dict):
             )
 
     return handler
+
+
+def _build_extra(response: dict, args: dict, conversation_id: str, session_id: str) -> dict | None:
+    """After a successful build of the game's ROM, the checks of its test plan whose results it left on an earlier
+    ROM (``library.after_build``, given the build's arguments and the ROM it made), as the result's ``testPlan``.
+    Never raises: the build has already run."""
+    try:
+        result = response.get("result") if response.get("ok") else None
+        structured = (result or {}).get("structuredContent")
+        if not isinstance(structured, dict) or result.get("isError") or structured.get("success") is not True:
+            return None
+        root = structured.get("projectRoot") or _chat_project(conversation_id, session_id)
+        built = library.built_rom_sha256(structured)
+        left = library.after_build(Path(root), args, built) if isinstance(root, str) and root else None
+        return {"testPlan": left} if left else None
+    except Exception:
+        logger.debug("hermretro: could not read the test plan after a build", exc_info=True)
+        return None
 
 
 def broker_restarting(error: BrokerRestarting) -> dict:

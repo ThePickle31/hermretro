@@ -139,10 +139,11 @@ export function BuildCard({ art, primary, replay, play, build, parts, report, to
   const { tested, failed: failedChecks, untested } = reportLines(report)
   const notes = report?.notes ?? []
   const difficulty = report?.difficulty
+  const unfinished = parts.unfinished
   const title = report?.title ?? (failed ? 'The build didn\u2019t finish' : build?.title ?? (primary ? baseName(primary) : 'Done'))
   const summary = (failed && parts.buildFailed) || report?.summary
   const extraArt = edited.filter(path => path !== primary)
-  const hasFoot = changes.length || extraArt.length || tested.length || failedChecks.length || untested.length || notes.length || difficulty || failed
+  const hasFoot = changes.length || extraArt.length || tested.length || failedChecks.length || untested.length || notes.length || difficulty || unfinished || failed
   const compareArt = path => jsx(BeforeAfter, {
     actions: isLast && !chatBusy,
     from: parts.startedAt,
@@ -164,6 +165,7 @@ export function BuildCard({ art, primary, replay, play, build, parts, report, to
           jsx('span', { className: 'cs-faint cs-b-bc-meta', children: [took, at ? timeOfDay(at) : null].filter(Boolean).join(' · ') }),
           jsx('span', { className: 'cs-grow' }),
           build?.state === 'unknown' ? jsx('span', { className: 'cs-faint cs-small', children: 'Outcome unknown' }) : null,
+          unfinished ? jsx('span', { className: 'cs-b-bc-unfinished', children: 'Unfinished' }) : null,
           playLabel
         ]
       }),
@@ -194,6 +196,15 @@ export function BuildCard({ art, primary, replay, play, build, parts, report, to
         ? jsxs('div', {
             className: 'cs-b-bc-details',
             children: [
+              unfinished
+                ? jsxs('div', {
+                    className: 'cs-b-bc-unfinished-why',
+                    children: [
+                      jsx('span', { className: 'cs-eyebrow', children: 'Unfinished' }),
+                      ...[unfinished.reason, unfinished.notCurrent, ...unfinished.notVerified].filter(Boolean).map((line, index) => jsx('p', { children: line }, index))
+                    ]
+                  })
+                : null,
               changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
               ...extraArt.map(compareArt),
               tested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Play-tested' }), ...tested.map((line, index) => jsxs('p', { children: [jsx('span', { className: 'cs-b-ok', children: '\u2713 ' }), line] }, index))] }) : null,

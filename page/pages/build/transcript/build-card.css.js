@@ -11,6 +11,8 @@ export const BUILD_CARD_CSS = `
 .cs-b-bn.bad { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-red) 55%, transparent); color: var(--ui-red); }
 .cs-b-bn.live { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-accent); }
 .cs-b-bc.bad .cs-b-bc-title { color: var(--ui-red); }
+.cs-b-bc-unfinished { border-radius: 5px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 45%, transparent); color: var(--ui-yellow); flex: none; font-size: 11px; font-weight: 600; padding: 2px 6px; }
+.cs-b-bc-unfinished-why .cs-eyebrow { color: var(--ui-yellow); }
 .cs-b-bc-sum { color: var(--ui-text-secondary); line-height: 1.55; margin: 0; }
 .cs-b-bc-changes { display: flex; flex-direction: column; font-size: 12.5px; gap: 5px; list-style: none; margin: 0; padding: 0 0 0 2px; }
 .cs-b-bc-changes li { align-items: center; color: var(--ui-text-tertiary); display: flex; gap: 8px; min-width: 0; }

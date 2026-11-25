@@ -210,11 +210,14 @@ class FinishRun(PlaytestCase):
 
 class Report(PlaytestCase):
     def report(self, **results):
+        """A report with these check results. F1 is never played here, so the report says why the turn ends with the
+        game unfinished: the pipeline gate (test_pipeline.py) would hold it otherwise."""
         checks = [{"id": key, "text": f"Check {key}", "result": value} for key, value in results.items()]
         for check in checks:
             if isinstance(check["result"], tuple):
                 check["result"], check["evidence"] = check["result"]
         args = {"title": "Lantern", "summary": "A lamp in the dark.", "checks": checks, "difficulty": "Easy."}
+        args["unfinished"] = "F1 is not played yet."
         return json.loads(report_tools.build_report_handler(args, session_id="s1"))
 
     def test_a_build_report_is_held_to_the_results_on_this_rom(self):
@@ -223,7 +226,9 @@ class Report(PlaytestCase):
         self.bind("T2")
         warned = self.report(T1="passed", T2="not run", F1="not run")
         self.assertTrue(warned["ok"], warned)
-        self.assertIn("T1 is bound to a recording, but chromatic_playtest has not replayed", warned["warnings"][-1])
+        self.assertIn(
+            "T1 is bound to a recording, but chromatic_playtest has not replayed", " ".join(warned["warnings"])
+        )
         self.play(FakeEngine(emulator_replay=[replayed(), replayed("failed")]))
         refused = self.report(T1="not run", T2="passed", F1="not run")
         self.assertEqual(refused["code"], "INVALID_REPORT")

@@ -5,7 +5,7 @@ import test from 'node:test'
 
 registerAliases()
 
-const { normalizeReport, reportLines } = await import('#pages/build/chat/report.js')
+const { mergeUnfinished, normalizeReport, normalizeUnfinished, reportLines } = await import('#pages/build/chat/report.js')
 
 test('test-plan checks stay structured; the card lists passed, failed and untested ones apart', () => {
   const report = normalizeReport({
@@ -47,4 +47,21 @@ test('a report without checks or difficulty keeps its own lines', () => {
 
   assert.deepEqual([report.tested, report.untested, report.checks, report.difficulty], [['Flap'], [], [], null])
   assert.deepEqual(reportLines(report), { tested: ['Flap'], failed: [], untested: [] })
+})
+
+test('an unfinished report keeps its reason and what was not verified, and a presentation adds its own', () => {
+  const report = normalizeReport({
+    title: 'Lantern', summary: 'A lamp.', unfinished: '  The user asked to see it. ', notVerified: ['T1 has no result on this ROM.', '', 7]
+  })
+  const shown = normalizeUnfinished('The user asked to see it.', ['T1 has no result on this ROM.', 'F1 failed on this ROM.'], 'Game files changed after the playable copy was made.')
+
+  assert.deepEqual(report.unfinished, { reason: 'The user asked to see it.', notVerified: ['T1 has no result on this ROM.'], notCurrent: null })
+  assert.equal(normalizeReport({ title: 'Robin', summary: 'It flies.' }).unfinished, null)
+  assert.equal(normalizeUnfinished('  ', ['x']), null, 'no reason: not unfinished')
+  assert.deepEqual(mergeUnfinished(report.unfinished, shown), {
+    reason: 'The user asked to see it.',
+    notVerified: ['T1 has no result on this ROM.', 'F1 failed on this ROM.'],
+    notCurrent: 'Game files changed after the playable copy was made.'
+  })
+  assert.equal(mergeUnfinished(null, null), null)
 })

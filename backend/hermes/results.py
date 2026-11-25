@@ -53,9 +53,17 @@ def save_images(result: dict, directory: Path) -> list[dict]:
     return records
 
 
-def encode(response: dict, tool: str, image_dir: Path | None, attach_images: bool, context: str | None = None):
+def encode(
+    response: dict,
+    tool: str,
+    image_dir: Path | None,
+    attach_images: bool,
+    context: str | None = None,
+    extra: dict | None = None,
+):
     """Return a JSON string, or the Hermes multimodal envelope when images are attached. ``context`` (where the chat
-    stands, after a compaction) leads a result that reached the engine as ``hermretroContext``."""
+    stands, after a compaction) leads a result that reached the engine as ``hermretroContext``; ``extra`` holds
+    hermretro's own fields about the result (a build's ``testPlan``), after the build reference."""
     if response.get("denied"):
         denied = response["denied"]
         return json.dumps(
@@ -108,6 +116,7 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
     ):
         # Keep the reference ahead of verbose diagnostics in any leading preview.
         payload["buildRef"] = uuid4().hex
+    payload.update(extra or {})
     if text and not (result.get("isError") and structured):
         payload["result"] = text
     if structured is not None:

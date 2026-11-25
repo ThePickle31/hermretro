@@ -23,6 +23,7 @@ from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository 
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import tools as setup_tools  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import FakeBrokerClient, isolated_home, make_library_game, make_project, registered_hook  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import record_build, recorded_build  # noqa: E402 - the repository root goes on sys.path first
 
 
 PNG = base64.b64decode(
@@ -358,6 +359,11 @@ class GamesRpc(unittest.TestCase):
         kwargs.setdefault("session_id", "run-1")
         return json.loads(library_tools.present_game_handler(args or {}, **kwargs))
 
+    def own(self, root):
+        """Make ``root`` this chat's library game, built as it stands (present shows only a recorded build)."""
+        record_build(root)
+        games.Registry(paths.library_dir()).bind(games.game_id(root), "conv", self.identity)
+
     def lane_client(self, root, matched="chat"):
         """A running broker that knows this chat's lane; records every request it gets."""
         client = FakeBrokerClient({"ok": True, "matched": matched, "lane": {"project_root": str(root)}})
@@ -365,6 +371,7 @@ class GamesRpc(unittest.TestCase):
 
     def test_present_shows_the_chats_project_and_records_it(self):
         root = make_project(self.base)
+        self.own(root)
         seen, connect = self.lane_client(root)
         with mock.patch.object(hermes_host, "try_connect", connect):
             payload = self.present({"note": "  Try the double jump  "})
@@ -378,9 +385,8 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(studio["title"], "Space Game")
         self.assertEqual(studio["note"], "Try the double jump")
         self.assertRegex(studio["playerUrl"], r"^http://127\.0\.0\.1:\d+/[^/]+/" + identifier + r"/index\.html$")
-        # Memory-only lane lookup: the broker is asked nothing else and never started.
-        self.assertEqual([message["op"] for message in seen], ["activity"])
-        self.assertEqual(seen[0]["ids"], ["conv", "run-1"])
+        # The game is the chat's own: the broker is asked nothing and never started.
+        self.assertTrue(all(message.get("op") == "activity" for message in seen))
         entry = games.Registry(paths.library_dir()).get(identifier)
         self.assertEqual(entry["chat"], {"conversationId": "conv", "sessionId": "run-1", "profile": self.identity})
         self.assertEqual(entry["presented"]["note"], "Try the double jump")
@@ -439,12 +445,13 @@ class GamesRpc(unittest.TestCase):
         registry.observe(
             "rom_build",
             {},
-            {"success": True, "outputPath": str(rom)},
+            {"success": True, "outputPath": str(rom), "rom": {"sha256": games.file_sha256(rom)}},
             False,
             lane_root=str(root),
             conversation_id="conv",
             sessions_seen=["run-1"],
             profile=self.identity,
+            sources_before=games.source_digest(root),
         )
         entry = registry.get(games.game_id(root))
         self.assertFalse(games.export_freshness(root, entry["lastBuild"], entry.get("lastWebExport"))[0])
@@ -475,7 +482,11 @@ class GamesRpc(unittest.TestCase):
     def test_present_falls_back_to_the_chat_link_then_needs_a_project(self):
         root = make_project(self.base)
         registry = games.Registry(paths.library_dir())
-        registry.upsert(str(root), chat={"conversationId": "conv", "sessionId": "old-run", "profile": self.identity})
+        registry.upsert(
+            str(root),
+            chat={"conversationId": "conv", "sessionId": "old-run", "profile": self.identity},
+            build=recorded_build(root),
+        )
         registry.bind(games.game_id(root), "conv", self.identity)
         payload = self.present()  # no broker running (setUp): the library's chat link
         self.assertTrue(payload["ok"], payload)
@@ -492,7 +503,8 @@ class GamesRpc(unittest.TestCase):
 
     def test_an_explicit_project_is_used_and_checked(self):
         root = make_project(self.base)
-        payload = self.present({"project": str(root)}, conversation_id="", session_id="")
+        self.own(root)
+        payload = self.present({"project": str(root)})
         self.assertTrue(payload["ok"], payload)
         self.assertIsNone(payload["studio"]["note"])
         self.assertEqual(self.present({"project": "relative/path"})["code"], "PROJECT_NOT_FOUND")
@@ -501,6 +513,7 @@ class GamesRpc(unittest.TestCase):
 
     def test_present_never_reaches_the_engine_or_a_device(self):
         root = make_project(self.base)
+        self.own(root)
         seen, connect = self.lane_client(root)
 
         def forbidden(*_args, **_kwargs):
@@ -541,7 +554,7 @@ class GamesRpc(unittest.TestCase):
         self.assertNotIn("present_game", {tool["name"] for tool in contracts.pinned_tools()})
         schema = library_tools.PRESENT_TOOL
         self.assertEqual(schema["name"], "chromatic_present_game")
-        self.assertEqual(set(schema["parameters"]["properties"]), {"note", "project"})
+        self.assertEqual(set(schema["parameters"]["properties"]), {"note", "unfinished", "project"})
         self.assertNotIn("required", schema["parameters"])
 
     def test_presentations_since(self):

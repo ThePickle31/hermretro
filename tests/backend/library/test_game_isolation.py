@@ -96,13 +96,15 @@ class TwoGamesAtOnce(unittest.TestCase):
         hermes_host._registry().unbind(self.a, "chat-a", PROFILE)
         # A game is presented only from its own conversation, even once it has none: it is opened on the Build page.
         self.assertEqual(self.present({"project": str(self.root_a)}, "side-chat")["code"], "GAME_CHAT_ONLY")
-        # A project the library does not have yet can be presented from any chat, and that chat is not its own.
+        # A project the library has no build of is never presented: its ROM may not be its sources.
         outside = make_project(self.home.base / "elsewhere", "Loose")
-        side = self.present({"project": str(outside)}, "side-chat")
-        self.assertIs(side["studio"]["buildConversation"], False)
+        self.assertEqual(self.present({"project": str(outside)}, "side-chat")["code"], "BUILD_FIRST")
         with mock.patch.object(hermes_host, "_profile_identity", lambda: PROFILE):
             listed = library_rpcs.rpc_presentations(mock.Mock())({})["presentations"]
-        self.assertEqual([item["buildConversation"] for item in listed], [True, False])
+            self.assertEqual([item["buildConversation"] for item in listed], [True])
+            hermes_host._registry().unbind(self.b, "chat-b", PROFILE)
+            listed = library_rpcs.rpc_presentations(mock.Mock())({})["presentations"]
+        self.assertEqual([item["buildConversation"] for item in listed], [False], "no longer its game's conversation")
 
     def test_the_lane_of_another_game_never_outranks_the_binding(self):
         client = FakeBrokerClient({"ok": True, "matched": "chat", "lane": {"project_root": str(self.root_a)}})

@@ -10,7 +10,7 @@ from .. import player as player_server
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
-from . import game_card, layout, playtest_tools, report_tools
+from . import freshness, game_card, layout, pipeline, playtest_tools, report_tools
 from . import games as library
 from .tool_args import tool_error, tool_project
 
@@ -28,8 +28,11 @@ PRESENT_TOOL = {
         "Show the game to the user in the hermretro emulator beside the chat (ModRetro's player, served "
         "by the plugin). Call it once everything agreed with the user is built and you have tested it, and again after later "
         "changes the user should test; each call loads the newest build there. Nothing opens by itself after a "
-        "build. Needs a fresh playable copy (run chromatic_rom_build first) and a complete game card (cover art, "
-        "title, tagline, description, genres; set them with chromatic_game_info). Never touches a device. Do not open "
+        "build. Needs a fresh playable copy (run chromatic_rom_build first), for a game with a test plan its bound "
+        "checks and F1 passed on this build (chromatic_playtest after every rebuild, or a chromatic_build_report "
+        "that showed one no replay can judge with its own evidence; unfinished only when the user asked to see it "
+        "before that), and a complete game card (cover art, title, tagline, description, genres; "
+        "set them with chromatic_game_info). Never touches a device. Do not open "
         "the game with desktop_preview instead or reload it with drive_preview; only if the user says they cannot "
         "see the emulator, open the returned studio.playerUrl with desktop_preview (action \"open\"), and without "
         "desktop tools give the user that url."
@@ -41,6 +44,14 @@ PRESENT_TOOL = {
                 "type": "string",
                 "maxLength": library.MAX_NOTE_CHARS,
                 "description": "Optional short line shown to the user above the player, e.g. what to try.",
+            },
+            pipeline.OVERRIDE: {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": pipeline.MAX_OVERRIDE,
+                "description": "Only when the user asked to see the game before its bound test-plan checks and F1 "
+                "pass on this build: their request in a few words. The game is shown as it is (the last intact "
+                "playable copy when this build has none), marked unfinished for the user with what is not verified.",
             },
             "project": {
                 "type": "string",
@@ -68,13 +79,28 @@ def present_game_handler(args: dict, **kwargs) -> str:
         root, error = tool_project("chromatic_present_game", args, kwargs)
         if error or root is None:  # narrows root to str for pyright: tool_project gives one or the other
             return error or tool_error("chromatic_present_game: no project folder.", "NO_PROJECT")
+        unfinished, why = pipeline.override(args.get(pipeline.OVERRIDE))
+        if why:
+            return tool_error(why, "INVALID_ARGUMENTS")
         registry = host._registry()
-        entry = registry.get(library.game_id(root))
-        fresh, why, next_step = library.export_freshness(
-            Path(root), entry.get("lastBuild") if entry else None, entry.get("lastWebExport") if entry else None
+        entry = registry.get(library.game_id(root)) or {}
+        sources = freshness.source_digest(Path(root))  # one walk of the sources for the whole call
+        fresh, stale, next_step = library.export_freshness(
+            Path(root), entry.get("lastBuild"), entry.get("lastWebExport"), sources
         )
-        if not fresh:
-            return tool_error(why or "The playable copy is not this build.", "BUILD_FIRST", next_step)
+        # Asked for as it is, an intact copy of an earlier build is shown, marked as not the sources as they stand.
+        if not fresh and not (unfinished and freshness.intact_export(Path(root))):
+            return tool_error(stale or "The playable copy is not this build.", "BUILD_FIRST", next_step)
+        held = pipeline.gate("chromatic_present_game", Path(root), entry.get("lastBuild"), sources=sources)
+        if held and not unfinished:
+            return json.dumps(held)
+        shown_unfinished = None
+        if unfinished and (held or not fresh):
+            shown_unfinished = {
+                "request": unfinished,
+                "notVerified": held["reasons"] if held else [],
+                **({"notCurrent": stale} if not fresh else {}),
+            }
         # Every game reaches the user in the game layout, with its card: cover art, title, tagline, description,
         # genres.
         try:
@@ -110,7 +136,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
                 "sessionId": session_id or conversation_id,
                 "profile": host._profile_identity(),
             }
-        presented = registry.present(root, chat=chat, note=note)
+        presented = registry.present(root, chat=chat, note=note, unfinished=shown_unfinished)
         if presented is None:
             return tool_error(f"{root} is not an existing project folder.", "PROJECT_NOT_FOUND")
         record = presented["presentation"]
@@ -129,7 +155,9 @@ def present_game_handler(args: dict, **kwargs) -> str:
                     "buildConversation": (host._bound_game(conversation_id, session_id) or {}).get("id")
                     == record["gameId"],
                 },
-                "message": "Shown to the user beside the chat.",
+                "message": "Shown to the user beside the chat"
+                + (", marked unfinished (the Build card says what is not verified)." if shown_unfinished else "."),
+                **({"unfinished": shown_unfinished} if shown_unfinished else {}),
             }
         )
     except Exception as error:  # a handler must never raise

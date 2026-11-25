@@ -14,11 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import plan_checks, report_plan, report_tools  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, record_build  # noqa: E402 - the repository root goes on sys.path first
 
 REPORT = {"title": "Burrow Run", "summary": "Three mazes to the den."}
 SESSION = "0123456789abcdef0123456789abcdef"
 ROM = b"\x00" * 0x150 + b"burrow"
+UNFINISHED = "F1 still fails at the den; no fix found this turn."
 
 
 class FinishRun(unittest.TestCase):
@@ -30,6 +31,9 @@ class FinishRun(unittest.TestCase):
         self.root = self.base / "burrow"
         (self.root / "build").mkdir(parents=True)
         (self.root / "build" / "game.gbc").write_bytes(ROM)
+        # The chat's game, built as it stands (the report's gate holds an unrecorded build).
+        entry = record_build(self.root)
+        hermes_host._registry().bind(entry["id"], "s1", hermes_host._profile_identity())
         for patch in (
             mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)),
             mock.patch.object(host_assets, "_keep_paths"),
@@ -103,7 +107,9 @@ class FinishRun(unittest.TestCase):
             self.assertEqual(answer["code"], "INVALID_REPORT")
             self.assertIn("checks gives F1 a result but finishRun names no recording", answer["error"])
             self.assertIn("restart:true and recording:{}", answer["error"])
-        answer = self.planned("not run")
+        # F1 not played on this ROM holds the report (pipeline.gate) until the turn says why it ends unfinished.
+        self.assertEqual(self.planned("not run")["code"], "PLAYTEST_FIRST")
+        answer = self.planned("not run", unfinished=UNFINISHED)
         self.assertTrue(answer["ok"], answer)
         self.assertIsNone(answer["report"]["finishRun"])
         self.assertIn("finishRun names no recording", answer["warnings"][0])
@@ -112,7 +118,7 @@ class FinishRun(unittest.TestCase):
         self.recording(status="failed", outcome="failed")
         answer = self.planned("passed", finishRun=SESSION)
         self.assertIn("checks gives F1 passed but its recording ended failed with outcome failed", answer["error"])
-        answer = self.planned("failed", finishRun=SESSION)
+        answer = self.planned("failed", finishRun=SESSION, unfinished=UNFINISHED)
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(answer["report"]["finishRun"]["outcome"], "failed")
         # Closing the emulator, or stopping without a pass, ends a recording "stopped" too.
@@ -125,7 +131,7 @@ class FinishRun(unittest.TestCase):
             self.assertEqual(answer["code"], "INVALID_REPORT", name)
             self.assertIn(f"checks gives F1 passed but its recording ended {ended}", answer["error"])
             self.assertIn('"outcome":"passed"', answer["error"])
-            self.assertTrue(self.planned("failed", finishRun=str(folder))["ok"], name)
+            self.assertTrue(self.planned("failed", finishRun=str(folder), unfinished=UNFINISHED)["ok"], name)
 
     def test_the_journal_must_be_there_and_tell_the_same_run(self):
         header = {"sequence": 1, "kind": "header", "sessionId": SESSION}

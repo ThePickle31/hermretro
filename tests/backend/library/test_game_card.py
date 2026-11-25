@@ -17,7 +17,7 @@ from backend.library import game_card  # noqa: E402 - the repository root goes o
 from backend.library import game_cover  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, record_build, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import COVER, encode_png, make_project  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 
@@ -285,6 +285,9 @@ class ToolsAndPresent(unittest.TestCase):
         for patch in self.patches:
             patch.start()
         self.root = make_project(self.base, card=False)
+        # This chat's game, built as it stands: present then waits only for the card.
+        entry = record_build(self.root)
+        hermes_host._registry().bind(entry["id"], "conv", hermes_host._profile_identity())
 
     def tearDown(self):
         for patch in reversed(self.patches):
@@ -325,6 +328,7 @@ class ToolsAndPresent(unittest.TestCase):
         (self.root / "assets" / "backgrounds" / "field.png").write_bytes(COVER)
         old = time.time() - 900  # part of the game before its build, so the build stays current
         os.utime(self.root / "assets" / "backgrounds" / "field.png", (old, old))
+        record_build(self.root)
         answer = self.info({**GOOD, "cover": str(self.root / "assets" / "backgrounds" / "field.png")})
         self.assertEqual(answer["code"], "INVALID_GAME_INFO")
         self.assertIn("unchanged copy of assets/backgrounds/field.png", answer["error"])
