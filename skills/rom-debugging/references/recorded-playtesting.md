@@ -39,7 +39,15 @@ chromatic_emulator_close {}
 ```
 
 The example outcome is the caller's observation, not an automatic grade.
-`stop` finalizes evidence; further state changes require a fresh run or restart.
+`stop` finalizes evidence and ends the session's play: steps, input and
+checkpoints are refused until `chromatic_emulator_run` boots again
+(`restart:true`, or `recording:{}` to record a new attempt). A recording that
+fails at a recording limit is finalized the same way. To carry on from where
+the stopped attempt ended, replay it with `chromatic_emulator_replay`, passing
+the `recordingPath` and `branchId` that `stop` returned: without them a replay
+prefers the source of an earlier replay that ended early. Then check that
+`replay.replayedActions` equals `replay.source.actionCount`; a difference stops
+the replay before the end ([replay after a rebuild](#replay-after-a-rebuild)).
 Optional outcomes are `passed`, `failed`, `needs-review`, and `cancelled`,
 with a reason of at most 1,000 characters. Failed and cancelled attempts retain
 those statuses; other completed recordings use `stopped` with a separate
@@ -132,8 +140,9 @@ frame it plays, besides the images it retains. The result's `replay` reports:
 
 Images, in order: `expected` (the attempt's retained image of that frame, when
 it kept one) and `actual` (the replay's frame there) when they differ, then
-`end`, the frame the session is at now. `scale` enlarges them and
-`includeImages:false` omits them.
+`end`, the frame the session is at now. `scale` enlarges them,
+`colorCorrection:"chromatic"` shows them in the Chromatic's colors (hashes stay
+the native frames'), and `includeImages:false` omits them.
 
 By default a difference stops the replay at that frame, even inside a step. A
 change you made on purpose (new art, text, a moved actor) also differs: look at

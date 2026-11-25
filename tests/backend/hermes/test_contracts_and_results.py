@@ -67,6 +67,25 @@ class ContractTests(unittest.TestCase):
         speed = schemas["chromatic_settings_update"]["properties"]["settings"]["properties"]["startMoveSpeed"]
         self.assertEqual((speed["type"], speed["minimum"], speed["maximum"]), ("number", 1 / 32, 255 / 32))
 
+    def test_script_inspect_takes_exactly_one_complete_target(self):
+        schema = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_script_inspect")["parameters"]
+
+        def holds(rule: dict, args: dict) -> bool:  # the keywords the oneOf uses: required, not, anyOf, oneOf
+            return (
+                all(key in args for key in rule.get("required", []))
+                and ("not" not in rule or not holds(rule["not"], args))
+                and ("anyOf" not in rule or any(holds(branch, args) for branch in rule["anyOf"]))
+                and ("oneOf" not in rule or sum(holds(branch, args) for branch in rule["oneOf"]) == 1)
+            )
+
+        target = {"sceneId": "scene", "actorId": "actor"}
+        for args in ({"sceneId": "scene"}, {**target, "scriptKey": "script"}, {"target": target, "eventId": "e"}):
+            self.assertTrue(holds(schema, args), args)
+        for args in ({}, {"actorId": "actor"}, {"eventId": "e"}, {"target": target, "sceneId": "scene"}):
+            self.assertFalse(holds(schema, args), args)
+        self.assertFalse(holds(schema, {"target": target, "branchPath": []}))
+        self.assertEqual(schema["properties"]["target"]["required"], ["sceneId"])
+
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()
         self.assertTrue(

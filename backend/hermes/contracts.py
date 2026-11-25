@@ -100,6 +100,14 @@ def hermes_schema(tool: dict) -> dict:
                 "build/game.gbc (build/game.gb for a monochrome project), and refuses any other path. Only for "
                 "standalone C (sourcePath)."
             )
+    if tool["name"] == "script_inspect":
+        # The engine lists a plain object (its MCP SDK drops a refinement from the listed schema) and refuses an
+        # incomplete script only once it runs; Hermes's argument check refuses it before the call.
+        flat = [key for key in parameters["properties"] if key not in ("target", "eventId")]
+        parameters["oneOf"] = [
+            {"required": ["sceneId"], "not": {"required": ["target"]}},
+            {"required": ["target"], "not": {"anyOf": [{"required": [key]} for key in flat]}},
+        ]
     if tool["name"] == "project_select":
         # hermretro's own argument, removed by the broker before the engine sees it.
         parameters.setdefault("properties", {})["continueInThisChat"] = {

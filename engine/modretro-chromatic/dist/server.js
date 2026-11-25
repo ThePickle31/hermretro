@@ -33162,11 +33162,25 @@ function compositeFrame(canvas, source, previous, left, top, magnification, high
   }
   return changedPixels;
 }
-function magnifyPng(bytes2, magnification) {
+/** Recolors decoded RGBA pixels in place with the hermretro player's color correction. */
+function chromaticCorrectImage(image) {
+  for (let offset = 0; offset < image.data.length; offset += 4) {
+    image.data.set(chromaticDisplayColor(image.data[offset], image.data[offset + 1], image.data[offset + 2]), offset);
+  }
+  return image;
+}
+/** A frame as returned: color-corrected first when asked, then enlarged, decoding the PNG once. */
+function displayPng(bytes2, { colorCorrection = "none", magnification = 1 }) {
   if (!Number.isSafeInteger(magnification) || magnification < 1 || magnification > MAX_CONTACT_SHEET_MAGNIFICATION) {
     throw new ContactSheetError(`Image magnification must be an integer between 1 and ${MAX_CONTACT_SHEET_MAGNIFICATION}`);
   }
+  if (colorCorrection !== "chromatic" && magnification === 1)
+    return bytes2;
   const source = import_pngjs.PNG.sync.read(bytes2, { checkCRC: true });
+  if (colorCorrection === "chromatic")
+    chromaticCorrectImage(source);
+  if (magnification === 1)
+    return import_pngjs.PNG.sync.write(source, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
   const canvas = new import_pngjs.PNG({ width: source.width * magnification, height: source.height * magnification });
   compositeFrame(canvas, source, void 0, 0, 0, magnification, false);
   return import_pngjs.PNG.sync.write(canvas, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
@@ -33228,11 +33242,13 @@ function renderContactSheetPng(options) {
   }
   const images = options.images.map(({ png: png2 }) => {
     options.signal?.throwIfAborted();
+    let image;
     try {
-      return import_pngjs.PNG.sync.read(png2, { checkCRC: true });
+      image = import_pngjs.PNG.sync.read(png2, { checkCRC: true });
     } catch (error2) {
       throw new ContactSheetError("The contact-sheet image is not a valid PNG", { cause: error2 });
     }
+    return options.colorCorrection === "chromatic" ? chromaticCorrectImage(image) : image;
   });
   const canvas = new import_pngjs.PNG({ width, height });
   fillRectangle(canvas, 0, 0, width, height, CANVAS_COLOR);
@@ -35170,6 +35186,10 @@ var EmulatorTimelineError = class extends EmulatorError {
     this.appliedButtons = details.appliedButtons;
   }
 };
+var LOOK_ONLY_STEP = "A step advances at least one frame and samples its last; to look at the current frame without advancing, use emulator_observe, and to advance without images, set includeImages:false";
+/** The worker's refusal once its recording is finalized (stopped, or failed at a limit), and how to go on. */
+var FINALIZED_RECORDING = "This recording is finalized; restart the ROM before advancing or changing inputs";
+var FINALIZED_RECORDING_RECOVERY = "A finalized recording (stopped, or failed at a recording limit) ends its session's play: boot again with emulator_run (restart:true, or recording:{} to record a new attempt), or continue from where it ended with emulator_replay, passing the recordingPath and branchId that emulator_recording returned for it";
 var EmulatorService = class {
   projectRoot;
   #pythonPath;
@@ -35728,8 +35748,11 @@ var EmulatorService = class {
       if (Object.keys(options).length !== 1) {
         throw new EmulatorError("A stepped action takes an inputs list alone, without buttons, frames or sampleCount");
       }
-      if (!Array.isArray(options.inputs) || options.inputs.length < 1 || options.inputs.length > MAX_EMULATOR_STEP_INPUTS) {
+      if (!Array.isArray(options.inputs) || options.inputs.length > MAX_EMULATOR_STEP_INPUTS) {
         throw new EmulatorError(`A stepped action requires 1\u2013${MAX_EMULATOR_STEP_INPUTS} inputs`);
+      }
+      if (options.inputs.every((input) => input?.frames === 0)) {
+        throw new EmulatorError(LOOK_ONLY_STEP);
       }
       inputs = options.inputs.map((input, index) => {
         if (input === null || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some((key) => !["buttons", "frames", "sample"].includes(key))) {
@@ -35745,6 +35768,9 @@ var EmulatorService = class {
     } else {
       if (Object.keys(options).some((key) => !["buttons", "frames", "sampleCount"].includes(key))) {
         throw new EmulatorError("A stepped action requires buttons, frames, and optional sampleCount, or an inputs list");
+      }
+      if (options.frames === void 0 && options.buttons === void 0 || options.frames === 0 || options.sampleCount === 0) {
+        throw new EmulatorError(LOOK_ONLY_STEP);
       }
       this.#validateButtonSet(options.buttons);
       this.#validateFrames(options.frames);
@@ -36348,7 +36374,8 @@ var EmulatorService = class {
     clearTimeout(request.timeout);
     this.#pending.delete(response.id);
     if (response.error !== void 0) {
-      const message2 = typeof response.error.message === "string" ? response.error.message : "The PyBoy emulator reported an unknown error";
+      const reported = typeof response.error.message === "string" ? response.error.message : "The PyBoy emulator reported an unknown error";
+      const message2 = reported === FINALIZED_RECORDING ? `${reported}. ${FINALIZED_RECORDING_RECOVERY}` : reported;
       const details = response.error;
       if (typeof details.failedActionIndex === "number" && typeof details.advancedFrames === "number" && typeof details.startFrame === "number" && typeof details.frame === "number" && Array.isArray(details.activeButtons) && details.activeButtons.every((button) => EMULATOR_BUTTONS.includes(button))) {
         request.reject(new EmulatorTimelineError(message2, {
@@ -56911,13 +56938,16 @@ var paletteColor = external_exports.string().regex(/^#?[\da-fA-F]{6}$/u);
 var colorCorrectionOption = external_exports.enum(["none", "chromatic"]).describe("none (default) writes the palette's exact colors; chromatic applies the color correction the hermretro player uses, an approximation of the Chromatic's screen.");
 var paletteColors = external_exports.array(paletteColor).min(3).max(4).describe("Four colors, lightest to darkest; or three for a sprite palette (lightest, middle, darkest), stored as entries 0, 1 and 3 because sprites never show entry 2. Three colors in an update keep the palette's entry 2.");
 var emulatorButton = external_exports.enum(["a", "b", "up", "down", "left", "right", "start", "select"]);
-var frameCount = external_exports.number().int().min(1).max(MAX_EMULATOR_FRAMES);
+/** A step's frame count; the engine refuses 0 with a pointer to emulator_observe instead of a bare range error. */
+var frameCount = external_exports.number().int().min(0).max(MAX_EMULATOR_FRAMES);
 var imageLayoutSchema = external_exports.enum(["individual", "contact-sheet"]);
 var emulatorButtonSet = external_exports.array(emulatorButton).max(8).refine((buttons) => new Set(buttons).size === buttons.length, "Buttons must be unique.");
+var emulatorColorCorrection = colorCorrectionOption.describe("none (default) returns the emulator's colors; chromatic shows color-hardware frames with the hermretro player's color correction, an approximation of the Chromatic's screen. A monochrome session, including a dual-mode cartridge run as DMG, keeps the emulator's colors. Sample hashes stay those of the native frames.");
 var emulatorImageOptions = {
   includeImages: external_exports.boolean().optional(),
   imageLayout: imageLayoutSchema.optional(),
   scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels (contact sheets default to 2\xD7); sample hashes stay those of the native frames."),
+  colorCorrection: emulatorColorCorrection.optional(),
   detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default): frame, buttons, samples and recordingSpan. full returns every field the engine reports, such as the ROM, runtime, clock, recording state and retained sample paths.")
 };
 var spritePreviewColors = {
@@ -57195,7 +57225,11 @@ var domainSchemas = {
     columns: external_exports.number().int().min(1).max(8).optional(),
     magnification: external_exports.number().int().min(1).max(4).optional().describe("Integer enlargement; defaults to 2, or 1 when the enlarged image would be too large.")
   }).strict(),
-  scriptInspect: external_exports.object({ target: scriptTarget, eventId: identifier.optional() }).strict(),
+  scriptInspect: external_exports.object({
+    ...scriptTarget.partial().shape,
+    target: scriptTarget.optional().describe("The same script as one object; give either target or sceneId with its optional actorId, triggerId, scriptKey and branchPath."),
+    eventId: identifier.optional()
+  }).strict(),
   scriptEdit: external_exports.object({
     action: external_exports.enum(["insert", "update", "delete", "move"]),
     target: scriptTarget,
@@ -57271,13 +57305,13 @@ var domainSchemas = {
   }).strict(),
   emulatorStep: external_exports.object({
     buttons: emulatorButtonSet.optional().describe("With frames, for one held set: the complete set of held buttons; [] is neutral."),
-    frames: frameCount.optional().describe("With buttons: native frames to advance."),
-    sampleCount: external_exports.number().int().min(1).max(MAX_EMULATOR_STEP_SAMPLES).optional().describe("With buttons and frames: evenly spaced samples ending on the last frame; defaults to 1."),
+    frames: frameCount.optional().describe("With buttons: native frames to advance, at least 1. To look without advancing, use emulator_observe."),
+    sampleCount: external_exports.number().int().min(0).max(MAX_EMULATOR_STEP_SAMPLES).optional().describe("With buttons and frames: evenly spaced samples ending on the last frame, at least 1; defaults to 1. For no images, set includeImages:false."),
     inputs: external_exports.array(external_exports.object({
       buttons: emulatorButtonSet.describe("The complete set of held buttons for this input; [] is neutral."),
-      frames: frameCount.describe("Native frames to hold this set."),
+      frames: frameCount.describe("Native frames to hold this set, at least 1."),
       sample: external_exports.boolean().optional().describe("Also sample this input's last frame; the last input is always sampled.")
-    }).strict()).min(1).max(MAX_EMULATOR_STEP_INPUTS).optional().describe("Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."),
+    }).strict()).max(MAX_EMULATOR_STEP_INPUTS).optional().describe("Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."),
     ...emulatorImageOptions
   }).strict(),
   emulatorObserve: external_exports.object(emulatorImageOptions).strict(),
@@ -58326,6 +58360,15 @@ var updateExisting = {
   idempotentHint: false,
   openWorldHint: false
 };
+function inspectedScriptTarget({ target, eventId: _eventId, ...flat }) {
+  if (target !== void 0 && Object.keys(flat).length > 0) {
+    throw new GameStudioProjectError("INVALID_INPUT", "Give the script as target or as sceneId with its actorId, triggerId, scriptKey and branchPath, not both");
+  }
+  if (target === void 0 && flat.sceneId === void 0) {
+    throw new GameStudioProjectError("INVALID_INPUT", "script_inspect requires sceneId, with optional actorId, triggerId, scriptKey and branchPath");
+  }
+  return target ?? flat;
+}
 function registerProjectDomains(server, context) {
   registerTilemapTools(server, context);
   function inspect(operation) {
@@ -58522,10 +58565,13 @@ function registerProjectDomains(server, context) {
   }, (result, project2) => typeof result.outputPath === "string" ? authoredOutput({ outputPath: result.outputPath }, project2) : []));
   server.registerTool("script_inspect", {
     title: "Inspect gameplay script",
-    description: "Read one scene, actor, trigger, or nested event-branch script. Returns its owner-resource revision for script_edit or script_transition; this differs from the project revision.",
+    description: "Read one scene, actor, trigger, or nested event-branch script, named by sceneId with optional actorId, triggerId, scriptKey and branchPath (or the same fields as target). Returns its owner-resource revision for script_edit or script_transition; this differs from the project revision.",
     inputSchema: domainSchemas.scriptInspect,
     annotations: readOnly
-  }, async (input) => inspect((project2, access4) => inspectScript(project2.projectPath, input, access4)));
+  }, async (input) => context.safely(() => {
+    const request = { target: inspectedScriptTarget(input), ...input.eventId === void 0 ? {} : { eventId: input.eventId } };
+    return context.runRead((project2, access4) => inspectScript(project2.projectPath, request, access4));
+  }));
   server.registerTool("script_edit", {
     title: "Edit gameplay script event",
     description: "Insert, update, delete, or reorder one native event. Guard with script_inspect.revision for the same target; the returned revision can guard the next edit.",
@@ -58901,7 +58947,7 @@ function registerPlaytestTools(context) {
   })));
   server.registerTool("emulator_recording", {
     title: "Inspect, finish, archive or retrieve a recorded attempt",
-    description: "Inspect/export history, stop the active recording, or archive/retrieve/restore it. access_diagnostic takes only action; without a worker, lease, recording read or process probe, it cannot prove liveness or authorize recovery. Maintenance requires closed transports and exclusive client access. Archive moves unchanged bytes in the project, preserves original-path mapping and releases admission reservation, not disk space. Retrieval verifies provenance without an emulator; restore reinstates quota.",
+    description: "Inspect/export history, stop the active recording, or archive/retrieve/restore it. stop finalizes the recording and ends its session: steps, input and checkpoints are refused until emulator_run boots again (restart:true, or recording:{} to record), and emulator_replay with the recordingPath and branchId stop returns continues from where it ended (it reached the end when replay.replayedActions equals replay.source.actionCount). access_diagnostic takes only action; without a worker, lease, recording read or process probe, it cannot prove liveness or authorize recovery. Maintenance requires closed transports and exclusive client access. Archive moves unchanged bytes in the project, preserves original-path mapping and releases admission reservation, not disk space. Retrieval verifies provenance without an emulator; restore reinstates quota.",
     inputSchema: external_exports.object({
       action: external_exports.enum(["status", "export", "stop", "archive", "retrieve", "restore", "access_diagnostic"]),
       recordingPath: boundedPath.optional().describe("Required and the only other input for archive/retrieve/restore; optional for status/export; do not pass for stop or access_diagnostic."),
@@ -68603,13 +68649,15 @@ function createGbStudioServer(options = {}) {
       recording: external_exports.union([external_exports.literal(false), recordingOptionsSchema]).optional().describe("The replay is recorded with the source attempt's limits; an options object overrides them; false records nothing."),
       debugMode: external_exports.enum(["rom", "source"]).optional().describe("Defaults to rom; source requires rom_build with captureDebugArtifacts:true for this exact cartridge."),
       includeImages: external_exports.boolean().optional().describe("Set false to receive the report without images."),
-      scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels; image hashes stay those of the native frames.")
+      scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels; image hashes stay those of the native frames."),
+      colorCorrection: emulatorColorCorrection.optional()
     }).strict(),
     annotations: { ...changeSession2, destructiveHint: true }
-  }, async ({ romPath, debugMode, includeImages = true, scale, ...options2 }, extra) => {
+  }, async ({ romPath, debugMode, includeImages = true, scale, colorCorrection, ...options2 }, extra) => {
     try {
       return await performEmulatorOperation(async (signal) => {
         const replayed = await replayEmulator(romPath, options2, debugMode, signal);
+        const colors = frameColors(replayed, colorCorrection);
         const result = toolResult({
           romSha256: replayed.romSha256,
           frame: replayed.frame,
@@ -68620,13 +68668,15 @@ function createGbStudioServer(options = {}) {
             recording: { recordingPath: replayed.recording.recordingPath, sessionId: replayed.recording.sessionId, branchId: replayed.recording.branchId }
           },
           images: replayed.samples.map(({ role, frame: frame3, sha256 }) => ({ role, frame: frame3, sha256 })),
-          imageDelivery: { status: includeImages ? "available" : "omitted", ...includeImages && scale !== void 0 ? { scale } : {} }
+          imageDelivery: {
+            status: includeImages ? "available" : "omitted",
+            ...includeImages && scale !== void 0 ? { scale } : {},
+            ...includeImages && colorCorrection !== void 0 ? { colorCorrection: colors } : {}
+          }
         });
         if (includeImages) {
-          for (const sample of replayed.samples) {
-            const png = Buffer.from(sample.pngBase64, "base64");
-            result.content.push({ type: "image", data: (scale === void 0 || scale === 1 ? png : magnifyPng(png, scale)).toString("base64"), mimeType: "image/png" });
-          }
+          for (const sample of replayed.samples)
+            result.content.push({ type: "image", data: framePng(sample, colors, scale).toString("base64"), mimeType: "image/png" });
         }
         return result;
       }, extra.signal);
@@ -68646,17 +68696,22 @@ function createGbStudioServer(options = {}) {
       ...observation.recordingSpan === void 0 ? {} : { recordingSpan }
     };
   }
-  function observationImages(observation, imageLayout, scale, signal) {
+  /** The color correction returned frames get: the Chromatic's when asked and the session runs on color hardware. */
+  function frameColors(observation, colorCorrection) {
+    return colorCorrection === "chromatic" && observation.cgb === true ? "chromatic" : "none";
+  }
+  function framePng(sample, colors, scale) {
+    return displayPng(Buffer.from(sample.pngBase64, "base64"), { colorCorrection: colors, magnification: scale ?? 1 });
+  }
+  function observationImages(observation, imageLayout, scale, colors, signal) {
     try {
       if (imageLayout !== "contact-sheet") {
-        return { pngs: observation.samples.map((sample) => {
-          const png = Buffer.from(sample.pngBase64, "base64");
-          return scale === void 0 || scale === 1 ? png : magnifyPng(png, scale);
-        }) };
+        return { pngs: observation.samples.map((sample) => framePng(sample, colors, scale)) };
       }
       const { png, ...sheet } = renderContactSheetPng({
         signal,
         ...scale === void 0 ? {} : { magnification: scale },
+        colorCorrection: colors,
         title: "RUNTIME SAMPLES / GAPS NOT SHOWN",
         subtitle: `FRAMES ${observation.startFrame}-${observation.frame} / ${observation.samples.length} SAMPLES / NO EXTRA STEPS`,
         images: observation.samples.map((sample) => ({
@@ -68681,8 +68736,9 @@ function createGbStudioServer(options = {}) {
       throw error2;
     }
   }
-  function observationResult(observation, { includeImages = true, imageLayout = "individual", scale, detail = "compact" }, signal) {
-    const images = includeImages ? observationImages(observation, imageLayout, scale, signal) : { pngs: [] };
+  function observationResult(observation, { includeImages = true, imageLayout = "individual", scale, colorCorrection, detail = "compact" }, signal) {
+    const colors = frameColors(observation, colorCorrection);
+    const images = includeImages ? observationImages(observation, imageLayout, scale, colors, signal) : { pngs: [] };
     const result = toolResult({
       ...detail === "full" ? {
         ...observation,
@@ -68692,7 +68748,8 @@ function createGbStudioServer(options = {}) {
       imageDelivery: {
         status: includeImages ? "available" : "omitted",
         sampleCount: observation.samples.length,
-        ...includeImages && imageLayout === "individual" && scale !== void 0 ? { scale } : {}
+        ...includeImages && imageLayout === "individual" && scale !== void 0 ? { scale } : {},
+        ...includeImages && colorCorrection !== void 0 ? { colorCorrection: colors } : {}
       },
       ...imageLayout === "contact-sheet" ? {
         contactSheet: images.sheet === void 0 ? { status: "omitted", reason: "includeImages:false" } : {
@@ -68710,19 +68767,19 @@ function createGbStudioServer(options = {}) {
   }
   server.registerTool("emulator_step", {
     title: "Play exact frames and observe the result",
-    description: "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image.",
+    description: "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image. To look without advancing, use emulator_observe. After emulator_recording stop, steps are refused until emulator_run boots again or emulator_replay, given the recordingPath and branchId stop returned, continues from the recording. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does.",
     inputSchema: domainSchemas.emulatorStep,
     annotations: changeSession2
-  }, async ({ includeImages, imageLayout, scale, detail, ...options2 }, extra) => {
+  }, async ({ includeImages, imageLayout, scale, colorCorrection, detail, ...options2 }, extra) => {
     try {
-      return await performEmulatorOperation(async (signal) => observationResult(await emulator.playStep(options2, signal), { includeImages, imageLayout, scale, detail }, signal), extra.signal);
+      return await performEmulatorOperation(async (signal) => observationResult(await emulator.playStep(options2, signal), { includeImages, imageLayout, scale, colorCorrection, detail }, signal), extra.signal);
     } catch (error2) {
       return errorResult(error2);
     }
   });
   server.registerTool("emulator_observe", {
     title: "Observe the current genuine framebuffer",
-    description: "Return the current real 160\xD7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. Use emulator_step to play.",
+    description: "Return the current real 160\xD7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does. Use emulator_step to play.",
     inputSchema: domainSchemas.emulatorObserve,
     annotations: readOnly3
   }, async (options2, extra) => {
