@@ -8,7 +8,7 @@ it came from with ``record_install``; a remix is ``layout.new_identity`` on the 
 
 Records, in ``.hermretro/`` (never published):
     publish.json  {repo, commit, version, source, payload, t}  the last publish; ``payload`` is ``payload_digest``
-    install.json  {repo, commit, source, t}                    where an installed game came from
+    install.json  {source, commit, mode, fingerprint, installedAt}  where an installed game came from (installs.py)
 """
 
 from __future__ import annotations
@@ -162,13 +162,44 @@ def unpublished_changes(root: Path) -> bool | None:
 
 
 @game_card.locked
-def record_install(root: Path, *, repo: str, commit: str, source: bool) -> dict:
-    """Record where an installed game came from; ``installed`` reads it (an update compares ``commit``)."""
-    record = {"repo": repo, "commit": commit, "source": bool(source), "t": time.time()}
+def record_install(root: Path, *, source: dict, commit: str, mode: str) -> dict:
+    """Record where an installed game came from (``installs.py``): ``source`` is ``{canonical, url, ref, subdir}`` (no
+    credentials), ``commit`` the commit installed, ``mode`` ``game`` or ``game+source``, and ``fingerprint`` the
+    ``installed_digest`` of the files as installed, which tells an untouched install from one edited since."""
+    if mode not in ("game", "game+source"):
+        raise ValueError(f"Not an install mode: {mode!r}.")
+    record = {
+        "source": dict(source),
+        "commit": commit,
+        "mode": mode,
+        "fingerprint": installed_digest(root, mode=mode),
+        "installedAt": time.time(),
+    }
     layout.write_state(root, INSTALL_FILE, record)
     return record
 
 
 def installed(root: Path) -> dict | None:
     """Where an installed game came from (``record_install``), or None for a game made here."""
-    return layout.state(root, INSTALL_FILE) or None
+    record = layout.state(root, INSTALL_FILE)
+    return record if isinstance(record.get("source"), dict) and record.get("mode") in ("game", "game+source") else None
+
+
+def installed_digest(root: Path, *, mode: str) -> str:
+    """``payload_digest`` of an installed game's files, leaving out the ones hermretro writes itself (a README or
+    ``.gitignore`` whose first line says so): a newer hermretro may rewrite those, which is not the user's edit."""
+    root = Path(root)
+    digest = hashlib.sha256(b"hermretro\0installed\0v1\0")
+    for relative in files(root, source=mode == "game+source"):
+        if relative in ("README.md", ".gitignore") and layout.replaceable(root / relative):
+            continue
+        digest.update(relative.encode() + b"\0" + file_sha256(root / relative).encode() + b"\0")
+    return digest.hexdigest()
+
+
+def local_edits(root: Path) -> bool | None:
+    """Whether an installed game's files changed since it was installed; None for a game that was not installed."""
+    record = installed(root)
+    if record is None:
+        return None
+    return installed_digest(root, mode=record["mode"]) != record.get("fingerprint")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import freshness, game_card, layout, project
+from . import freshness, game_card, layout, project, release
 
 # A failed build's error, as recorded in lastBuild and answered by the games RPC.
 ERROR_CHARS = 240
@@ -85,7 +85,24 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
         "cover": bool(cover),
         "card": card,
         "layout": layout.check(root),
+        "install": installed_from(root),
         "displayTitle": (card or {}).get("title") or game["title"],
         "error": (str(last.get("error") or "The build failed."))[:ERROR_CHARS] if state == "failed" else None,
         "updatedAt": project.timestamp(entry.get("updatedAt"), None),
+    }
+
+
+def installed_from(root: Path) -> dict | None:
+    """Where a game installed from a link came from (``release.installed``), for the page: ``{source, url, commit,
+    mode, installedAt, edited}``; None for a game made here."""
+    record = release.installed(root)
+    if record is None:
+        return None
+    return {
+        "source": record["source"].get("canonical"),
+        "url": record["source"].get("url"),
+        "commit": record.get("commit"),
+        "mode": record["mode"],
+        "installedAt": project.timestamp(record.get("installedAt"), None),
+        "edited": release.local_edits(root) is True,
     }

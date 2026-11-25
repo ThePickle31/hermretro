@@ -16,6 +16,8 @@
   on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine. `pipeline.py` is
   the gate `chromatic_present_game` and `chromatic_build_report` hold a game to (its ROM the last build of its
   sources, its bound checks and F1 passed on it) and what a build left to replay (`after_build`).
+- `installs.py` installs and updates a game from a link (below): `install_source.py` (links, git), `install_check.py`
+  (what a fetched game must be) and `cartridge.py` (a ROM a Chromatic cartridge can hold).
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
@@ -131,7 +133,45 @@ before the commit (`gameVersion`, one changelog entry, the README), `files(root,
 no hidden files, links or linked folders), and after the push `record_publish` (`.hermretro/publish.json`: `{repo,
 commit, version, source, payload, t}`, `payload` being `payload_digest`); `published`, `unpublished_changes` and
 `next_version` read it. `record_install`/`installed` keep where an installed game came from
-(`.hermretro/install.json`: `{repo, commit, source, t}`).
+(`.hermretro/install.json`: `{source: {canonical, url, ref, subdir}, commit, mode, fingerprint, installedAt}`), and
+`local_edits` compares the game's files with `fingerprint` (`installed_digest`: the installed files, leaving out the
+README and `.gitignore` hermretro writes itself).
+
+## Installing a game from a link
+
+`installs.py` installs a published game from a link, the way Hermes installs a plugin from git (written again here:
+Hermes's helpers are not plugin API). Nothing here is on the page yet; the page and the agent reach it later.
+
+- **Links** (`install_source.resolve`): `owner/repo`, `owner/repo/sub/dir`, `owner/repo#sub/dir`, a GitHub page or
+  clone URL (`…/tree/<branch>/<path>`), and any other git URL (`https`, `ssh`, `git@`, `file://`) with `#sub/dir`. A
+  subfolder may not leave the repository (`..`, an absolute path, a link). `Source.canonical` is the one spelling of a
+  source, without credentials, query or fragment; records keep only that and the scrubbed URL.
+- **git** (`install_source.run_git`) never prompts and never reads the user's git configuration, hooks or credential
+  helpers (`GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM`, `core.hooksPath`, ssh `BatchMode`); every step has a
+  timeout. A GitHub URL refused anonymously is tried once more with the user's token (`GITHUB_TOKEN`, `GH_TOKEN`, else
+  `gh auth token`) as a one-shot header in git's environment, never in the URL or a file.
+- **`inspect(link)`** clones the branch's tip into a temporary folder outside the games and answers what it holds
+  (title, id, version, format, mode, ROM, cover, README, problems, whether its `plugins/` need consent, and the games
+  that already have its id) with the exact `commit`. **`install(link, commit)`** clones that commit into a hidden
+  `.install-*` folder in the games folder (refused with `SOURCE_MOVED` when the branch moved), checks it, removes
+  `.git`, gives it its layout and install record and renames it into place (`<Title>`, `<Title> 2`, …), then registers
+  it. `testBuildDue` says a game with its source is to be built once here.
+- **The check** (`install_check.check`, `cartridge.inspect`): a `game.json` of at most 64 KB with a game id and a title,
+  a `format` this hermretro reads (`layout.FORMAT_VERSION`; newer is `NEWER_FORMAT`), a ROM at `build/game.gb[c]` that
+  a Chromatic cartridge can hold (32 KiB times a power of two up to 8 MiB, matching its header; the Nintendo logo and
+  both checksums; a cartridge type GB Studio or GBDK writes, `cartridge.CARTRIDGE_TYPES`; `.gbc` only for a colour
+  game) and equal to `romSha256` when the card has one, a usable cover, the project's folder for a game with its
+  source, no links or special files, no file over 20 MB and at most 50 MB in all. `plugins/` with files in a game
+  with its source needs `allow_plugins` (their code runs when the game is built).
+- **One id per machine**: installing a game the library has from the same source is an update; from another source it
+  is refused (`ALREADY_HAVE`).
+- **`check_update(root)`** reads the branch with `git ls-remote`. **`update(root, choice=...)`** installs the newest
+  commit over the game under the game's folder lock, keeping its local files (`docs/`, `captures/`, `save-states/`,
+  `build/`'s other files but the ROM and `web/`, `.hermretro/`). A game edited since it was installed answers
+  `needsChoice` until the user picks `keep_mine` (nothing changes), `take_theirs` (the update replaces the edits) or
+  `keep_both` (the edited copy becomes `<Title> (edited)`, a remix with its own id, `layout.new_identity`). A source
+  that now holds another game is refused (`ANOTHER_GAME`). Tests: `test_installs.py`, `test_install_source.py`,
+  `test_cartridge.py` (real git repositories through `file://`).
 
 ## Captures
 

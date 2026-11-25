@@ -40,6 +40,8 @@ IDENTITY_FILE = "identity.json"
 PUBLISH_FILE = "publish.json"  # release.record_publish
 INSTALL_FILE = "install.json"  # release.record_install
 FIRST_VERSION = "0.1.0"
+# The game folder's format (``game.json``'s ``format``): a game of a newer format is not installed by this hermretro.
+FORMAT_VERSION = 1
 VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 # The first line of every file ensure writes and may rewrite; a file without it is left as it is.
