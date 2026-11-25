@@ -395,9 +395,14 @@ def code_fingerprint() -> str:
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
     folder = BACKEND_ROOT
-    sources = [*backend_sources(folder), ("../plugin.yaml", folder.parent / "plugin.yaml")]  # holds the version
+    sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
     stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in sources)
     return _fingerprint_for(stamp)
+
+
+# The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
+# the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
+LOADED_FILES = ("__init__.py", "plugin.yaml", f"engine/pins/{ENGINE_VERSION}/tools.json")
 
 
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:

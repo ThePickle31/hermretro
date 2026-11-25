@@ -105,6 +105,9 @@ def rpc_status(ctx):
                     "version": paths.PLUGIN_VERSION,
                     # The profile Hermes installed this copy into: updates run there.
                     "installed_in": studio_profile.installed_in(),
+                    # The folder this process loaded the plugin from: with restart_needed, whether it runs what a
+                    # profile loads now.
+                    "root": str(paths.PLUGIN_ROOT),
                 },
                 # Linux and macOS on arm64 or x64 are supported alike; Rosetta works but is slow.
                 "platform": _platform_report(),
@@ -122,8 +125,10 @@ def rpc_status(ctx):
                 "profile": studio_profile.describe(host._data_dir().parents[1]),
                 "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT,
             }
-            # Each look at Setup brings the studio profile up to date with the installing profile's providers.
-            studio_providers.sync_soon(host._data_dir().parents[1])
+            # Each look at Setup brings the studio profile up to date with the installing profile's providers; a
+            # caller that only reads (`sync: false`, the benchmark's check) writes nothing.
+            if (params or {}).get("sync", True) is not False:
+                studio_providers.sync_soon(host._data_dir().parents[1])
             client, error = host.try_connect(paths.runtime_dir())  # never starts the broker
             if client is None:
                 if error is not None and not isinstance(error, BrokerNotRunning):

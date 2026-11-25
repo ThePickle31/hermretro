@@ -19,6 +19,7 @@ from backend.system import host as host_os  # noqa: E402 - the repository root g
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import studio_profile  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import studio_providers  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import throwaway_deps, throwaway_profile  # noqa: E402 - the repository root goes on sys.path first
@@ -38,8 +39,13 @@ class Home(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.base = Path(tmp.name).resolve()
         clean = {k: v for k, v in os.environ.items() if not k.startswith("HERMRETRO_")}
+        # A Hermes home of its own too: status's provider sync finds the profiles through Hermes, which would read
+        # (and write) an inherited HERMES_HOME's studio profile.
+        hermes_home = str(self.base / "hermes")
         for patch in (
-            mock.patch.dict(os.environ, {**clean, "HERMRETRO_HOME": str(self.base / "hr")}, clear=True),
+            mock.patch.dict(
+                os.environ, {**clean, "HERMRETRO_HOME": str(self.base / "hr"), "HERMES_HOME": hermes_home}, clear=True
+            ),
             throwaway_profile(self.base),
             throwaway_deps(self.base / "hr"),
             mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
@@ -47,6 +53,7 @@ class Home(unittest.TestCase):
             mock.patch.object(studio_profile, "describe", return_value={}),
         ):
             self.enterContext(patch)
+        self.sync = self.enterContext(mock.patch.object(studio_providers, "sync_soon"))
 
 
 class NodeIsAskedOnce(unittest.TestCase):
@@ -171,8 +178,17 @@ class UpdatedOnDisk(Home):
     def test_status_says_when_hermes_must_restart(self):
         status = setup_rpcs.rpc_status(CTX)
         self.assertFalse(status({})["restart_needed"])
+        self.assertEqual(status({})["plugin"]["root"], str(paths.PLUGIN_ROOT))  # with it, where the code came from
         with mock.patch.object(paths, "code_fingerprint", return_value="changed-on-disk"):
             self.assertTrue(status({})["restart_needed"])
+
+    def test_a_status_that_only_reads_syncs_no_providers(self):
+        status = setup_rpcs.rpc_status(CTX)
+        looked = status({"sync": False})
+        self.assertEqual((looked["plugin"]["root"], looked["restart_needed"]), (str(paths.PLUGIN_ROOT), False))
+        self.sync.assert_not_called()
+        status({})
+        self.sync.assert_called_once_with(self.base / "profile")  # the page's look brings the providers up to date
 
 
 class ReadOnlyStatus(Home):

@@ -44,6 +44,7 @@ class OneVersion(unittest.TestCase):
             base = Path(folder)
             (base / "backend").mkdir()
             (base / "backend" / "one.py").write_bytes(b"x = 1\n")
+            self.loaded_files(base)
             manifest = base / "plugin.yaml"
             manifest.write_text("name: hermretro\nversion: 0.0.5\n", encoding="utf-8")
             # Explicit, distinct stamps: the fingerprint is cached per file stamp, so a rewrite with the same
@@ -62,6 +63,36 @@ class OneVersion(unittest.TestCase):
                 finally:
                     paths._fingerprint_for.cache_clear()
         self.assertNotEqual(old, new)
+
+    @staticmethod
+    def loaded_files(base: Path) -> None:
+        for rel in paths.LOADED_FILES:
+            (base / rel).parent.mkdir(parents=True, exist_ok=True)
+            (base / rel).write_text("1\n", encoding="utf-8")
+
+    def test_every_file_the_plugin_loads_changes_the_fingerprint(self):
+        # The entry point and the pinned tool contract are read as the plugin loads, like backend/: a change to
+        # either must say restart_needed, or the gateway keeps running the old registration unnoticed.
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / "backend").mkdir()
+            (base / "backend" / "one.py").write_bytes(b"x = 1\n")
+            self.loaded_files(base)
+            with mock.patch.object(paths, "BACKEND_ROOT", base / "backend"):
+                paths._fingerprint_for.cache_clear()
+                try:
+                    seen = [paths.code_fingerprint()]
+                    for number, rel in enumerate(paths.LOADED_FILES, 1):
+                        (base / rel).write_text("2\n", encoding="utf-8")
+                        stamp = 1_600_000_000_000_000_000 + number * 100_000_000_000
+                        os.utime(base / rel, ns=(stamp, stamp))
+                        seen.append(paths.code_fingerprint())
+                finally:
+                    paths._fingerprint_for.cache_clear()
+        self.assertEqual(len(set(seen)), len(seen), "each file's change gives a new fingerprint")
+        self.assertIn("__init__.py", paths.LOADED_FILES)
+        for rel in paths.LOADED_FILES:
+            self.assertTrue((ROOT / rel).is_file(), rel)
 
     def test_no_other_file_repeats_the_version(self):
         try:
