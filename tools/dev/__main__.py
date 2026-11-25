@@ -12,6 +12,8 @@
   ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
   mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
                     FOLDER/gallery.html
+  bench run|report  the benchmark: every game in tools/dev/bench_games/ made at once by a one-shot chat in the
+                    studio profile (run, which waits for them all), and what each cost (report)
 
 Standard library only; Linux and macOS.
 """
@@ -30,7 +32,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import local_hermes as hermes  # noqa: E402 - this folder, put on the path just above
+import bench  # noqa: E402 - this folder, put on the path just above
+import local_hermes as hermes  # noqa: E402
 import mockup  # noqa: E402
 import studio  # noqa: E402
 import studio_states  # noqa: E402
@@ -297,6 +300,19 @@ def cmd_mockup(args) -> int:
     return 0
 
 
+def cmd_bench(args) -> int:
+    root = hermes.hermes_root()
+    if args.verb == "run":
+        if shutil.which("hermes") is None:
+            print("needs hermes on PATH", file=sys.stderr)
+            return 1
+        folder = bench.run(bench.games(args.games), hermes.STUDIO, bench.RUNS, hermes.live_checkout(root))
+    else:
+        folder = None if args.sessions else Path(args.folder).resolve() if args.folder else bench.latest_run(bench.RUNS)
+    print(bench.table(bench.reports(root / "profiles" / hermes.STUDIO, folder, args.sessions)))
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(
         prog="python tools/dev", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -350,6 +366,13 @@ def parser() -> argparse.ArgumentParser:
     round_.add_argument("--only", help="these mockups only (ids, comma-separated); today's page is always shot")
     round_.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
     round_.set_defaults(run=cmd_mockup)
+    benchmark = commands.add_parser("bench")
+    benchmark.add_argument("verb", choices=["run", "report"])
+    benchmark.add_argument("games", nargs="*", help="run: only the games whose name contains one of these")
+    which = benchmark.add_mutually_exclusive_group()
+    which.add_argument("--run", dest="folder", help="report: this run folder (default: the newest in notes/bench/)")
+    which.add_argument("--sessions", nargs="+", help="report: these session ids instead of a run")
+    benchmark.set_defaults(run=cmd_bench)
     return top
 
 
@@ -360,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         return args.run(args)
-    except studio.StudioError as error:
+    except (studio.StudioError, bench.BenchError) as error:
         print(error, file=sys.stderr)
         return 1
 
