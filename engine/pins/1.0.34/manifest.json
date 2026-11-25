@@ -3,9 +3,9 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 519,
+ "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36680072,
+ "total_bytes": 36224022,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -23,13 +23,12 @@
   ".gbsproj": 2,
   ".ps1": 2,
   ".py": 2,
-  ".pyc": 2,
   ".RUNTIME": 1,
   ".c": 1,
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "0d8467d39d095fe0d5753fa48193f54a4957d0a3cd01efa05b1da54ee3634cd9",
+ "aggregate_sha256": "9114dc0b03a02cd73d620f4b3f05a444ee09cad5d080147392eb9d35b49b8f55",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -3250,20 +3249,6 @@
    "size": 4680,
    "mode": "0o644",
    "sha256": "d31761fd0e9a6a81c77c46c9dbe49387d6702e86f646d5c740ff7a98f03edfe6"
-  },
-  {
-   "path": "scripts/__pycache__/emulator_worker.cpython-313.pyc",
-   "type": "file",
-   "size": 212921,
-   "mode": "0o644",
-   "sha256": "7fd74a31c81708b7406c97aa039b283d73e0a9d7f0770b6df592fe48d534a2d6"
-  },
-  {
-   "path": "scripts/__pycache__/emulator_worker.cpython-314.pyc",
-   "type": "file",
-   "size": 243129,
-   "mode": "0o644",
-   "sha256": "1595a2331de3487f46d7d41296be290d7cc32dbf14cfb2e22fd4c00fdc2dcfa3"
   },
   {
    "path": "scripts/bundle-mcp.mjs",
