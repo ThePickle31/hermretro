@@ -100,9 +100,9 @@ Host-side frames per second, PyBoy stepping speed, and video-encoding frame rate
 - Wrong boot target: compare project `colorMode`, cartridge CGB flag, and actual emulator-reported CGB mode.
 - New dialogue disappears: check event ordering, actor interaction script, event conditions, and whether the actually built ROM contains the new resource.
 - Build passes but gameplay remains old: verify artifact path, modification time/content hash, project source path, and emulator restart with the newly built ROM.
-- Successful official build emits `[DEP0190]`: inspect structured `warnings`,
-  original stderr, exit status, and the actual generated cartridge; this
-  specifically classified official-CLI deprecation does not hide failures.
+- Successful build reports `DEPRECATED_EVENT`: the named GB Studio event still
+  compiles; replace it with a current event when convenient. It does not hide
+  failures: check the exit status, `diagnostics` and the actual generated cartridge.
 - A dialogue or sprite preview looks correct but gameplay differs: distinguish a
   static `chromatic_dialogue_preview`, `chromatic_graphics_preview_scene`, or `chromatic_sprite_preview` from
   a genuine `chromatic_emulator_observe` framebuffer or `chromatic_emulator_step` sample.

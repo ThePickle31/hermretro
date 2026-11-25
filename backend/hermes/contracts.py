@@ -19,25 +19,6 @@ from ..system import paths
 PREFIX = "chromatic_"
 TOOLSET = "chromatic"
 
-# Host wording only. The contract (arguments, behaviour) is untouched. Applied in order, so the
-# web_preview sentence is rewritten before the generic one (which device_capture still uses): in Hermes
-# the user plays the game in the hermretro emulator, shown with chromatic_present_game.
-_DESCRIPTION_REWRITES = (
-    (
-        "Open the selected project's official player only in Codex's built-in browser.",
-        "Open or refresh the selected project's official player (the engine's own preview). To show the game to "
-        "the user in Hermes, call chromatic_present_game instead (it shows the game in the hermretro "
-        "emulator); open this URL with desktop_preview only if the user says they cannot see that emulator.",
-    ),
-    (
-        "only in Codex's built-in browser",
-        "for the user to play. In Hermes Desktop, open the returned URL beside the "
-        "chat with the desktop_preview tool (action \"open\"); without that tool, "
-        "give the user the URL",
-    ),
-    ("Codex", "Hermes"),
-)
-
 
 def _resolve(node, root, depth=0):
     if depth > 32:
@@ -95,8 +76,6 @@ def default_destination(name: object) -> str:
 
 def hermes_schema(tool: dict) -> dict:
     description = tool.get("description", "")
-    for before, after in _DESCRIPTION_REWRITES:
-        description = description.replace(before, after)
     parameters = _resolve(tool["inputSchema"], tool["inputSchema"])
     if tool["name"] in CREATORS:
         games = str(paths.games_dir())

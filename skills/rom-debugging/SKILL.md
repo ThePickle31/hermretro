@@ -57,9 +57,9 @@ reload. An explicit access refusal must not be bypassed through another caller.
 ## Build and choose the right evidence
 
 - Build the selected project with `chromatic_rom_build` and inspect its returned cartridge
-  with `chromatic_rom_inspect`. Preserve compiler stderr and exit status on failures. A
-  classified official-CLI `DEP0190` is a known deprecation; a failed process,
-  missing/invalid ROM, or mismatched artifact is not a successful build. A GBDK
+  with `chromatic_rom_inspect`. Preserve compiler stderr and exit status on failures; the
+  whole compiler output is in the build's `logPath`. A `DEPRECATED_EVENT` diagnostic is a
+  warning; a failed process, missing/invalid ROM, or mismatched artifact is not a successful build. A GBDK
   `sourcePath` probe proves only its C source compiled.
 - For direct model playtesting, use the optional PyBoy `chromatic_emulator_*` tools. The
   model making the change should choose each bounded input, inspect the actual

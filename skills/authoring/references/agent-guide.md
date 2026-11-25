@@ -361,10 +361,11 @@ from the same build. Those artifacts are unavailable for standalone C builds.
 They can authorize explicit source-aware debugging of that exact cartridge;
 they do not authorize symbols from an unrelated build or guessed RAM layouts.
 
-Keep original compiler stderr and process outcomes visible. A specifically
-recognized official-CLI `DEP0190` deprecation may be classified as a known
-warning; unrelated warnings, nonzero exits, missing cartridges, invalid headers,
-or mismatched debugging artifacts are never successful verification.
+Keep original compiler stderr and process outcomes visible; a successful build
+returns the end of stdout and keeps the whole output in `logPath`. A
+`DEPRECATED_EVENT` diagnostic is a warning about a GB Studio event that still
+compiles; nonzero exits, missing cartridges, invalid headers, or mismatched
+debugging artifacts are never successful verification.
 Use additive `diagnostics`, including any source path, line, and suggested
 action, to choose the next focused resource inspection. Preserve the actual
 compiler error when no specific diagnosis is supported. The official desktop

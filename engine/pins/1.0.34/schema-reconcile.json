@@ -1,8 +1,8 @@
 {
   "pinned_file": "engine/pins/1.0.34/tools.json",
-  "pinned_file_sha256": "466e9dfcee22aec6feaf067a25f6c2a3b2ef9d2b326b63b5945f26af335b3b96",
-  "pinned_tools_canonical_sha256": "4f771f4150f6565c6fb6910889a47dca97cac0ee56bfe993d6a69347be7183e3",
-  "live_tools_canonical_sha256": "4f771f4150f6565c6fb6910889a47dca97cac0ee56bfe993d6a69347be7183e3",
+  "pinned_file_sha256": "42b5faf020a3101cba447f236f724e362646ad644f35e1b01c439c6aaf60272f",
+  "pinned_tools_canonical_sha256": "d771f381c4c47d6d8d9efd482dadc263277b0378652f98908fedb1db8a42c3ca",
+  "live_tools_canonical_sha256": "d771f381c4c47d6d8d9efd482dadc263277b0378652f98908fedb1db8a42c3ca",
   "live_server_info": {
     "name": "modretro-chromatic",
     "title": "ModRetro Chromatic",

@@ -275,7 +275,14 @@ Patch, rather than replace, settings:
 ```text
 chromatic_settings_update {"settings":{"colorMode":"mixed"}}
 chromatic_settings_update {"settings":{"defaultFontId":"<existing-font-asset-id>"}}
+chromatic_settings_update {"settings":{"startMoveSpeed":2}}
 ```
+
+`startMoveSpeed` is the player's move speed in pixels per frame in `TOPDOWN`, `SHMUP` and `POINTNCLICK`
+scenes (GB Studio's choices are 0.25, 0.5, 1, 2, 3 and 4; 1 is the default). Other scene types ignore it:
+`PLATFORM` movement is the platformer engine fields (`plat_walk_vel`, `plat_run_vel` and the rest) and
+`ADVENTURE` movement is `adv_walk_vel` and `adv_run_vel`, all read and changed with
+`chromatic_engine_field_inspect` and `chromatic_engine_field_update`.
 
 The requested `defaultFontId` must resolve to an actual project font. An invalid
 ID returns `FONT_NOT_FOUND` before writing project settings.
@@ -328,7 +335,9 @@ Existing templates use these identifiers:
 
 - `TOPDOWN`: grid-based overworlds, towns, and RPG exploration.
 - `ADVENTURE`: smoother free-movement adventures and related combat layouts.
-- `PLATFORM`: side-view jumping, ladders, and platforming behaviors.
+- `PLATFORM`: side-view jumping, ladders, and platforming behaviors. New projects start with GB Studio's
+  defaults: coyote time (`FEAT_PLATFORM_COYOTE_TIME`) and dropping through one-way platforms
+  (`FEAT_PLATFORM_DROP_THROUGH`) on.
 - `SHMUP`: horizontal or vertical scrolling shooters, depending on settings.
 - `POINTNCLICK`: cursor-driven scenes and object interactions.
 - `LOGO`: title, splash, or transition-style scenes.

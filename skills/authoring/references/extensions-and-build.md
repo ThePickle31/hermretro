@@ -130,13 +130,17 @@ return `sourceProvenance` and `sourceDebugAbi`; otherwise inspect
 
 The build tool may also support a direct GBDK C source path. A successful C compilation proves the local compiler works, but it does not prove that a `.gbsproj` or the user's actual scenes compiled. Report which path ran.
 
-Official CLI builds retain exact stderr and return additive classified
-`warnings` and bounded actionable `diagnostics`; `diagnosticsTruncated` reports
-when more diagnostic records exist. The exact official-CLI `[DEP0190] DeprecationWarning` record is a
-known dependency subprocess warning, not by itself proof of a failed build or
-plugin shell injection. Unrelated warning text remains visible; GBDK does not
-inherit the official CLI's classification. A nonzero compiler exit, missing
-output ROM, invalid cartridge header, or bad Nintendo logo remains a failure.
+Builds return bounded actionable `diagnostics`, errors first; `diagnosticsTruncated`
+reports when more diagnostic records exist. Every build writes its whole output to
+`logPath` (`build/logs/<ROM file name>.log`, for example `build/logs/game.gbc.log`,
+replaced by the next build of that ROM): read it only when the returned lines are
+not enough. A successful build returns the last 20 lines of compiler stdout
+(`stdoutOmittedLines` counts the rest) and its stderr; a failed build returns all
+of both, and so does a build whose log could not be written (`logError` says why). A `DEPRECATED_EVENT` warning names a GB Studio event (`event`) that
+still compiles but uses an API GB Studio will remove, for example `EVENT_IF_VALUE`
+(replace it with `EVENT_IF`); the ROM is fine. Node's `[DEP0190]` notice from the
+official CLI is left out. A nonzero compiler exit, missing output ROM, invalid
+cartridge header, or bad Nintendo logo remains a failure.
 
 Build commands must write generated cartridges only to authorized output
 locations and leave authored resources plus existing tracked ROMs unchanged.
