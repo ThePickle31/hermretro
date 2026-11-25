@@ -24,7 +24,8 @@ def author_scene(client_b):
         return structured(client_b.call(OWNER_B, tool, args or {}))
 
     inventory = call("project_inventory")
-    scene = inventory["scenes"][0]["id"]
+    # The scene the game starts in: earlier stages add scenes of their own to B.
+    scene = call("project_inspect")["settings"]["startSceneId"]
     sprite = next(asset["id"] for asset in inventory["assets"] if asset.get("type") == "sprite")
     revision = call("variable_inspect")["revision"]
     for variable_id, name, symbol in (("0", "Oil", "var_lantern_oil"), ("1", "Fuel", "var_oil")):
@@ -89,10 +90,15 @@ def check_live_state(suite, client_b):
     step(client_b, ([], 30), (["right"], 20))
     walking = debug(client_b, actors="all")
     unknown = client_b.call(OWNER_B, "emulator_debug", {"variableNames": ["no such variable"]})
-    actors = {actor.get("name"): actor for actor in (text.get("live") or {}).get("actors") or []}
+    # Earlier stages may have placed their own actors in B's start scene; this check is about its two.
+    actors = {
+        actor.get("name"): actor
+        for actor in (text.get("live") or {}).get("actors") or []
+        if actor.get("name") in ("Guide", "Twin")
+    }
     player = (walking.get("live") or {}).get("player") or {}
     suite.check(
-        "M5",
+        "M9",
         "A source-mode debug read maps both actors on one tile to their own slots, reports the text box and then the "
         "menu as owning input (Down with A keeps the menu open), and the player walking once they close",
         authored
