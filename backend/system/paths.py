@@ -289,6 +289,12 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_python_cache(rel: str) -> bool:
+    """Whether a posix path relative to the engine is Python's own bytecode, which running the engine's scripts
+    writes: never part of the engine, so neither recorded in its manifest nor compared with it."""
+    return "__pycache__" in rel.split("/") or rel.endswith(".pyc")
+
+
 def _compare_tree(root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset()) -> list[str]:
     """Every regular file under root against rel -> SHA-256. No extras, no symlinks."""
     problems: list[str] = []
@@ -296,7 +302,7 @@ def _compare_tree(root: Path, expected: dict[str, str], optional: frozenset[str]
     for path in sorted(root.rglob("*")):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
-        if "__pycache__" in rel:
+        if is_python_cache(rel):
             continue
         if stat.S_ISLNK(info.st_mode):
             problems.append(f"unexpected symlink {rel}")

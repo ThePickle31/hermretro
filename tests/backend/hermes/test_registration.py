@@ -168,6 +168,25 @@ class Registration(unittest.TestCase):
         with mock.patch.object(studio.hermes_api, "read_profile_config", side_effect=ImportError("no Hermes")):
             self.assertEqual(len(self.register("hermretro")["tool"]), len(DECLARED_TOOLS))
 
+    def test_the_studio_profile_gets_this_releases_disabled_toolsets_in_place_of_an_older_one(self):
+        studio = self.plugin.studio_profile
+        older = ["tts", "connections", "computer_use", "cronjob"]
+        config = {"agent": {"disabled_toolsets": json.dumps(older)}}
+
+        def write(home, changed):
+            self.assertEqual(home, self.profile_home)
+            config.update(changed)
+
+        with (
+            mock.patch.object(studio.hermes_api, "read_profile_config", lambda _home: json.loads(json.dumps(config))),
+            mock.patch.object(studio.hermes_api, "write_profile_config", side_effect=write) as written,
+        ):
+            self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+            self.assertEqual(written.call_count, 0, "only the hermretro profile's own config, even when opted in")
+            self.register("hermretro")
+            self.assertEqual(written.call_count, 2, "the compaction cap, then the toolsets")
+            self.assertEqual(config["agent"]["disabled_toolsets"], list(studio.DISABLED_TOOLSETS))
+
     def test_registration_goes_on_when_hermes_storage_cannot_be_asked(self):
         def no_storage():
             raise ImportError("no plugins.plugin_storage")

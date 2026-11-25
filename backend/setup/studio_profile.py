@@ -27,8 +27,13 @@ from . import claude_login, profile_publication, provider_sync
 
 STUDIO_PROFILE = "hermretro"
 DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"
-# Toolsets the studio profile does without. Everything else keeps Hermes's defaults.
-DISABLED_TOOLSETS = ("tts", "connections", "computer_use", "cronjob")
+# Toolsets the studio profile does without. Everything else keeps Hermes's defaults. code_execution: one-shot chats
+# refuse execute_code (nobody is there to approve it) and the chromatic_* tools refuse calls from inside it, so helper
+# code runs from a script file in the game's scratch/ folder.
+DISABLED_TOOLSETS = ("tts", "connections", "computer_use", "cronjob", "code_execution")
+# Every disabled_toolsets an earlier release set. A profile that still has exactly one of them gets this release's
+# when the plugin registers in it (refresh_disabled_toolsets); any other list, or none, is the user's.
+OLDER_DISABLED_TOOLSETS = frozenset({frozenset({"tts", "connections", "computer_use", "cronjob"})})
 SOUL_FILE = paths.PLUGIN_ROOT / "profile" / "SOUL.md"
 # SHA-256 of every SOUL.md this plugin shipped before the current one. A profile whose SOUL is still
 # exactly one of these was never edited by the user, so it is updated (refresh_soul).
@@ -87,6 +92,30 @@ def refresh_compaction_cap(profile_home: Path) -> bool:
         config["compression"] = {"threshold_tokens": COMPACT_AT_TOKENS}
     else:
         compression["threshold_tokens"] = COMPACT_AT_TOKENS
+    hermes_api.write_profile_config(profile_home, config)
+    return True
+
+
+def _toolset_names(value) -> frozenset[str] | None:
+    """A raw ``agent.disabled_toolsets`` as a set of names: Hermes keeps a list or, from ``config set``, its JSON."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None
+    if not isinstance(value, list) or not all(isinstance(name, str) for name in value):
+        return None
+    return frozenset(value)
+
+
+def refresh_disabled_toolsets(profile_home: Path) -> bool:
+    """Put ``DISABLED_TOOLSETS`` in place of a list an earlier release set (``OLDER_DISABLED_TOOLSETS``), as
+    ``refresh_compaction_cap`` does the cap. Answers whether it was written."""
+    config = hermes_api.read_profile_config(profile_home)
+    agent = config.get("agent")
+    if not isinstance(agent, dict) or _toolset_names(agent.get("disabled_toolsets")) not in OLDER_DISABLED_TOOLSETS:
+        return False
+    agent["disabled_toolsets"] = list(DISABLED_TOOLSETS)
     hermes_api.write_profile_config(profile_home, config)
     return True
 

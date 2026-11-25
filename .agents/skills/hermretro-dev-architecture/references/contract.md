@@ -15,7 +15,11 @@
   release set (`OLDER_COMPACT_AT`): by creation and repair, and by registering in the `hermretro` profile
   (`studio_profile.refresh_compaction_cap`, through `api.write_profile_config`), so a Studio-only or
   `hermes plugins update` gets it too. Any other value is the user's and is kept, an explicit `null` (the ratio alone
-  decides) included. Checked by `tests/backend/setup/test_studio_profile.py` and
+  decides) included. `agent.disabled_toolsets` is `DISABLED_TOOLSETS` (`code_execution` among them: one-shot chats
+  refuse `execute_code` and the `chromatic_*` tools refuse calls from inside it), set by creation and repair, and by
+  registering where the profile still has exactly a list an earlier release set (`OLDER_DISABLED_TOOLSETS`,
+  `studio_profile.refresh_disabled_toolsets`); any other list, or none, is the user's. Checked by
+  `tests/backend/setup/test_studio_profile.py`, `test_disabled_toolsets.py` and
   `tests/backend/hermes/test_registration.py`.
 - After a context compaction (any kind but `prune_tool_results`), the chat's next engine tool result that reached the
   engine leads with `hermretroContext`, images or not: the project, the last build and its SHA-256, the live
