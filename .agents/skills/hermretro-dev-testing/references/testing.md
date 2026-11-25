@@ -11,20 +11,29 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 | lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
-| acceptance | `python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
+| acceptance | `[HERMRETRO_DEPS_ROOT=<folder>] python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
 | clean install | `python tools/ci/clean_install_check.py` | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
 
 Run the fast checks before opening a pull request; CI runs the slow ones its changes select
 (`tools/ci/changes.py`) on the exact head. Commit before `python tools/ci/clean_install_check.py`: the install checks
 install the committed tree. `python tools/check.py acceptance` (part of `full`) needs the toolchain, by default the one
-the hermretro page installed (`<hermretro home>/.cache/toolchain`), which it only reads; without one the check is
-skipped and said as not proven here (PR CI runs it on Linux and macOS when the change touches what it covers). To make
-one, or use one somewhere else: `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py`, then
-`HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full`. Outside GitHub Actions `prepare_toolchain.py` refuses to run
-without `HERMRETRO_DEPS_ROOT`, so it never writes the installed plugin's cache. It installs through a broker of its own,
-started in a new folder under `/tmp` and stopped at the end (a failed run keeps that folder and names it), so a broker
-already running is never reused, replaced or stopped.
+the hermretro page installed (`<hermretro home>/.cache/toolchain`); without one the check is skipped and said as not
+proven here (PR CI runs it on Linux and macOS when the change touches what it covers). It installs nothing, but it is not
+read-only there: its brokers and games live in a temporary folder, yet an engine worker that finds no prepared engine for
+the bundled version makes one in that `.cache` from an earlier copy's device CLI and removes the older copies
+(`refresh_prepared_engine` in `backend/setup/provision.py`), and the run writes `notes/evidence/broker-acceptance.json`.
+To make a toolchain, or use one somewhere else, name the same folder for both:
+`HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py`, then
+`HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full` (a relative `<folder>` is resolved from where each command
+runs, and handed on absolute). Outside GitHub Actions `prepare_toolchain.py` refuses to run without
+`HERMRETRO_DEPS_ROOT`, and with `GB_STUDIO_SETUP_ROOT` set anywhere, so it never writes the installed plugin's cache. It
+installs through a broker of its own, started in a new folder under `/tmp`; it keeps that broker's process and, at the
+end, on a failure or on Ctrl-C, SIGTERM or SIGHUP, sends it SIGTERM (it closes its workers, an unfinished installer
+included) and SIGKILL if it has not exited 30 s later. Only a run that succeeded and saw the broker exit removes that
+folder; any other names it. So a broker already running is never reused, replaced or stopped. What it still reads from
+the real Hermes home: Node discovery looks in the Hermes tools folder (`<Hermes home>/tools/node-*`, `paths.find_node`),
+and its broker is handed `HERMRETRO_HOME` (`spawn_broker`), which the install only reads (where games live).
 
 One-time setup: `python tools/dev setup` (the Python lint and the npm tools for the page checks; Node 22 or newer). The checks never install anything themselves.
 

@@ -8,17 +8,22 @@ For CI and fresh checkouts that need the toolchain for `python tools/check.py ac
 installed. Touches no hardware. Exits non-zero, with the reason, when the install fails.
 
 The install runs in a broker of its own, started in a new private folder and stopped at the end: a broker that is
-already running (the one an installed hermretro's chats use) is never reused, replaced or stopped. Everything the
-install writes (the toolchain, its journal, the prepared engine) lands in the destination. Outside GitHub Actions
-that has to be named with HERMRETRO_DEPS_ROOT, then given to the acceptance run the same way: the default,
-`<hermretro home>/.cache`, belongs to the installed plugin, whose page installs it.
+already running (the one an installed hermretro's chats use) is never reused, replaced or stopped. This process keeps
+the broker's own process and stops it on every way out (the end, a failure, Ctrl-C, SIGTERM or SIGHUP), confirming it
+exited before removing its folder. Everything the install writes (the toolchain, its journal, the prepared engine)
+lands in the destination. Outside GitHub Actions that has to be named with HERMRETRO_DEPS_ROOT, then given to the
+acceptance run the same way: the default, `<hermretro home>/.cache`, belongs to the installed plugin, whose page
+installs it. GB_STUDIO_SETUP_ROOT, which would move the toolchain out of the destination, is refused.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
+import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -32,8 +37,56 @@ from backend.system import paths  # noqa: E402 - the repository root goes on sys
 
 LIMIT_SECONDS = 1200
 STALL_SECONDS = 420  # no new bytes downloaded and no growth on disk (npm unpacking counts as progress)
+START_SECONDS = 60
+# The broker closes its workers (the installer's included) on SIGTERM; one that takes longer than this is killed.
+STOP_SECONDS = 30
+KILL_SECONDS = 10
 # Where the private broker's folder is made: /tmp, since a macOS TMPDIR is too long for the broker's Unix socket.
 STATE_PARENT = Path("/tmp")
+
+
+class Interrupted(BaseException):
+    """Ctrl-C, SIGTERM or SIGHUP: unwinds like KeyboardInterrupt, so the run's broker is still stopped."""
+
+    def __init__(self, signum: int):
+        super().__init__(signal.Signals(signum).name)
+        self.signum = signum
+
+
+class Signals:
+    """While entered, SIGINT, SIGTERM and SIGHUP are recorded (``received``, the first one) and raise Interrupted only
+    inside ``released()``: everywhere else (starting the broker and keeping its process, stopping it) they wait, so
+    neither is cut short."""
+
+    CAUGHT = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+    def __init__(self):
+        self.received: int | None = None
+        self._released = False
+        self._previous = {}
+
+    def __enter__(self) -> Signals:
+        self._previous = {signum: signal.signal(signum, self._receive) for signum in self.CAUGHT}
+        return self
+
+    def __exit__(self, *exc) -> None:
+        for signum, handler in self._previous.items():
+            signal.signal(signum, handler)
+
+    def _receive(self, signum, _frame) -> None:
+        self.received = self.received or signum
+        if self._released:
+            raise Interrupted(signum)
+
+    @contextlib.contextmanager
+    def released(self):
+        if self.received:
+            raise Interrupted(self.received)
+        self._released = True
+        try:
+            yield
+        finally:
+            self._released = False
 
 
 def folder_bytes(folder: Path) -> int:
@@ -47,20 +100,52 @@ def folder_bytes(folder: Path) -> int:
     return total
 
 
-def refusal(environ) -> str | None:
+def destination(environ) -> Path:
+    """The folder the install writes: HERMRETRO_DEPS_ROOT, resolved from this process's folder, or the default."""
+    named = environ.get("HERMRETRO_DEPS_ROOT")
+    return Path(named).resolve() if named else paths.DEPS_ROOT
+
+
+def refusal(environ, deps: Path) -> str | None:
     """Why this run must not start, or None. GitHub Actions runs on a throwaway machine, so its default home is
-    the run's own; anywhere else the destination must be named."""
-    if environ.get("GITHUB_ACTIONS") == "true" or environ.get("HERMRETRO_DEPS_ROOT"):
-        return None
-    return (
-        f"refusing to install into {paths.DEPS_ROOT}: outside CI the toolchain goes in a folder you name, "
-        "never the installed hermretro's own (its page installs that one)\n"
-        "FIX: HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py, "
-        "then HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance"
-    )
+    the run's own; anywhere else the destination must be named, and nothing may move the toolchain out of it."""
+    if environ.get("GITHUB_ACTIONS") != "true" and not environ.get("HERMRETRO_DEPS_ROOT"):
+        return (
+            f"refusing to install into {deps}: outside CI the toolchain goes in a folder you name, "
+            "never the installed hermretro's own (its page installs that one)\n"
+            "FIX: HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py, "
+            "then HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance"
+        )
+    if environ.get("GB_STUDIO_SETUP_ROOT"):
+        return (
+            f"refusing to install into {environ['GB_STUDIO_SETUP_ROOT']}: GB_STUDIO_SETUP_ROOT would move the "
+            f"toolchain out of {deps}\nFIX: unset GB_STUDIO_SETUP_ROOT (the toolchain goes in {deps / 'toolchain'})"
+        )
+    return None
 
 
-def wait_for_install(broker) -> int:
+def find_node() -> str:
+    node = paths.find_node()
+    if not node.get("ok"):
+        raise client.BrokerUnavailable(f"Node.js {paths.NODE_REQUIRED_MAJOR} or newer is required but was not found")
+    return node["path"]
+
+
+def connect(state: Path, process: subprocess.Popen) -> client.BrokerClient:
+    """This run's broker, once it answers; nothing else can be in its new folder."""
+    deadline = time.monotonic() + START_SECONDS
+    while True:
+        broker, error = client.try_connect(state, deadline=deadline)
+        if broker is not None:
+            return broker
+        if process.poll() is not None:
+            raise client.BrokerUnavailable(f"the broker exited with {process.returncode}: {error}")
+        if time.monotonic() >= deadline:
+            raise client.BrokerUnavailable(f"the broker did not answer in {START_SECONDS} s: {error}")
+        time.sleep(0.1)
+
+
+def wait_for_install(broker, toolchain: Path) -> int:
     started = broker.request({"op": "install_start"})
     if not started.get("ok"):
         print("install did not start: " + json.dumps(started)[:600], file=sys.stderr)
@@ -82,7 +167,7 @@ def wait_for_install(broker) -> int:
             install.get("fraction"),
             install.get("downloaded_bytes"),
             install.get("current"),
-            folder_bytes(paths.setup_root()) // 1_000_000,
+            folder_bytes(toolchain) // 1_000_000,
         )
         if now != progress:
             progress, moved = now, time.monotonic()
@@ -99,37 +184,67 @@ def wait_for_install(broker) -> int:
     return 0
 
 
-def stop(broker) -> bool:
-    """Ask this run's own broker to stop; whether it agreed. Never forced: one still installing (a run that gave
-    up on it) refuses, finishes and exits by itself once idle."""
+def stop(process: subprocess.Popen | None) -> str | None:
+    """Stop this run's broker and confirm it exited: None, or what went wrong. SIGTERM, which it answers the way
+    it answers any polite signal (it closes its workers, an unfinished installer included, then exits), whether or
+    not it is busy; SIGKILL after STOP_SECONDS."""
+    if process is None or process.poll() is not None:
+        return None
+    process.terminate()
     try:
-        return client.request_shutdown(broker)
-    except Exception:  # noqa: BLE001 - the broker already went away; keep the real result
-        return False
+        process.wait(STOP_SECONDS)
+        return None
+    except subprocess.TimeoutExpired:
+        process.kill()
+    try:
+        process.wait(KILL_SECONDS)
+    except subprocess.TimeoutExpired:
+        return f"the broker (pid {process.pid}) is still running after SIGKILL"
+    return f"the broker did not stop in {STOP_SECONDS} s and was killed; its workers may still be running"
+
+
+def prepare(toolchain: Path, signals: Signals) -> int:
+    state = Path(tempfile.mkdtemp(prefix="hermretro-prepare-", dir=STATE_PARENT))
+    process = broker = None
+    code = 1
+    try:
+        with signals.released():
+            node = find_node()
+        process = client.spawn_broker(state, node, deadline=time.monotonic() + START_SECONDS)
+        with signals.released():
+            broker = connect(state, process)
+            code = wait_for_install(broker, toolchain)
+    except Interrupted as stopped:
+        print(f"stopped by {stopped}", file=sys.stderr)
+    except (client.BrokerUnavailable, OSError, ValueError) as error:
+        print(f"the install could not be followed: {type(error).__name__}: {error}", file=sys.stderr)
     finally:
-        broker.close()
+        if broker is not None:
+            broker.close()
+        problem = stop(process)
+        if problem:
+            print(problem, file=sys.stderr)
+            code = 1
+        if code == 0 and not signals.received:
+            shutil.rmtree(state, ignore_errors=True)
+        else:
+            print(f"the broker's trace and logs: {state}", file=sys.stderr)
+    return code
 
 
 def main() -> int:
-    reason = refusal(os.environ)
+    deps = destination(os.environ)
+    reason = refusal(os.environ, deps)
     if reason:
         print(reason, file=sys.stderr)
         return 2
     if os.environ.get("HERMRETRO_DEPS_ROOT"):
         # Absolute, as this process resolved it: the broker runs from the plugin folder and reads it again.
-        os.environ["HERMRETRO_DEPS_ROOT"] = str(paths.DEPS_ROOT)
-    print(f"toolchain: {paths.setup_root()}", flush=True)
-    state = Path(tempfile.mkdtemp(prefix="hermretro-prepare-", dir=STATE_PARENT))
-    broker, code = None, 1
-    try:
-        broker = client.ensure_broker(state, wait=60)
-        code = wait_for_install(broker)
-    finally:
-        if broker is not None and stop(broker) and code == 0:
-            shutil.rmtree(state, ignore_errors=True)
-        else:
-            print(f"the broker's trace and logs: {state}", file=sys.stderr)
-    return code
+        os.environ["HERMRETRO_DEPS_ROOT"] = str(deps)
+    print(f"toolchain: {deps / 'toolchain'}", flush=True)
+    with Signals() as signals:
+        code = prepare(deps / "toolchain", signals)
+    return 128 + signals.received if signals.received else code
 
 
 if __name__ == "__main__":
