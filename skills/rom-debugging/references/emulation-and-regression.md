@@ -139,7 +139,10 @@ chromatic_emulator_debug {"variableNames":["has_key"],"actors":["Guard"],"includ
 
 A debug read is compact: frame, scene, live state, variables and what you ask
 for (`collisions`, or references with `referenceLimit`). `detail:"full"` adds
-the build identity, the standing limitations and 16 references.
+the build identity, the standing limitations and 16 references. While playing,
+pass the same selectors as a step's `debug` instead: it returns `live`, the
+scene and only the named variables on the step's last frame
+([stepped playtesting](stepped-playtesting.md#see-the-live-state-in-the-same-call)).
 
 A variable selector matches an exact authored name or symbol first, then the
 full name or symbol in any case (`oil` finds a variable named `Oil`), then the

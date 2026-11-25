@@ -36070,7 +36070,8 @@ var EmulatorService = class {
       checkpoints: validatedCheckpoints
     });
   }
-  async inspect(options) {
+  /** keepSession: a timeout fails this read only, leaving the session running (a diagnostic read after a step). */
+  async inspect(options, { keepSession = false } = {}) {
     if (options === null || typeof options !== "object") {
       throw new EmulatorError("Emulator inspection requires a bounded inspection view");
     }
@@ -36124,14 +36125,14 @@ var EmulatorService = class {
       default:
         throw new EmulatorError("Unsupported emulator inspection view");
     }
-    return this.#request("inspect", { ...options });
+    return this.#request("inspect", { ...options }, this.#requestTimeoutMs, { keepSession });
   }
   /** The APU's registers on the current frame, without ticking. */
   async audio() {
     return this.#request("audio", {});
   }
-  async status() {
-    return this.#request("state", {});
+  async status({ keepSession = false } = {}) {
+    return this.#request("state", {}, this.#requestTimeoutMs, { keepSession });
   }
   async close() {
     const worker = this.#worker;
@@ -36555,7 +36556,7 @@ var EmulatorService = class {
       request.resolve(response.result);
     }
   }
-  async #request(method, params, timeoutMs = this.#requestTimeoutMs) {
+  async #request(method, params, timeoutMs = this.#requestTimeoutMs, { keepSession = false } = {}) {
     const artifactOnly = ["recording_status", "recording_export", "recording_review", "clip"].includes(method) && typeof params.recordingPath === "string";
     if (method !== "open" && method !== "replay" && !artifactOnly && this.#worker === void 0) {
       throw new EmulatorError("No emulator session is running; run a ROM first");
@@ -36564,6 +36565,12 @@ var EmulatorService = class {
     const id3 = this.#nextRequestId++;
     const result = await new Promise((resolveRequest, rejectRequest) => {
       const timeout = setTimeout(() => {
+        if (keepSession) {
+          // A late answer to this request is ignored; a worker that never answers fails the next request instead.
+          this.#pending.delete(id3);
+          rejectRequest(new EmulatorError(`The emulator ${method} request timed out; the session is still running`));
+          return;
+        }
         const error2 = new EmulatorError(`The emulator ${method} request timed out`);
         this.#failWorker(worker, error2);
         void this.#terminateWorker(worker);
@@ -58181,6 +58188,13 @@ var emulatorImageOptions = {
   colorCorrection: emulatorColorCorrection.optional(),
   detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default): frame, buttons, samples and recordingSpan. full returns every field the engine reports, such as the ROM, runtime, clock, recording state and retained sample paths.")
 };
+/** The live-state selectors emulator_debug takes, shared by emulator_step's debug request. */
+var liveStateSelectors = {
+  variableIds: external_exports.array(identifier).max(32).optional(),
+  variableNames: external_exports.array(identifier).max(32).optional().describe("Authored variable names or symbols: an exact match first, then the full name or symbol in any case, then the symbol without var_ (has_oil). Ambiguous names list their IDs. Omit both variable lists for every variable."),
+  actors: external_exports.union([external_exports.literal("all"), external_exports.array(identifier).min(1).max(20)]).optional().describe("Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."),
+  includeScene: external_exports.boolean().optional()
+};
 var spritePreviewColors = {
   paletteId: identifier.optional().describe("Draw the frame in this palette's sprite colors (entries 0, 1 and 3) instead of the source shades."),
   colorCorrection: colorCorrectionOption.optional()
@@ -58578,6 +58592,10 @@ var domainSchemas = {
       frames: frameCount.describe("Native frames to hold this set, at least 1."),
       sample: external_exports.boolean().optional().describe("Also sample this input's last frame; the last input is always sampled.")
     }).strict()).max(MAX_EMULATOR_STEP_INPUTS).optional().describe("Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."),
+    debug: external_exports.object({
+      ...liveStateSelectors,
+      variableNames: liveStateSelectors.variableNames.describe("Authored variable names or symbols, matched as emulator_debug matches them. Only the variables named here or in variableIds are reported.")
+    }).strict().optional().describe("Also return the live state on the last frame, as emulator_debug reads it: live (the player, ui with the dialogue or menu and the buttons input accepts, scripts), the scene unless includeScene:false, and the actors and variables named. {} asks for live and the scene. Needs source mode; a refusal comes back in debug, and the step still ran. If the emulator stopped during the read, session.status is lost."),
     ...emulatorImageOptions
   }).strict(),
   emulatorObserve: external_exports.object(emulatorImageOptions).strict(),
@@ -60679,10 +60697,7 @@ async function reviewedImage(frame3, authorizedRoot) {
   }
 }
 var sourceDebugQuerySchema = external_exports.object({
-  variableIds: external_exports.array(identifier).max(32).optional(),
-  variableNames: external_exports.array(identifier).max(32).optional().describe("Authored variable names or symbols: an exact match first, then the full name or symbol in any case, then the symbol without var_ (has_oil). Ambiguous names list their IDs. Omit both variable lists for every variable."),
-  actors: external_exports.union([external_exports.literal("all"), external_exports.array(identifier).min(1).max(20)]).optional().describe("Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."),
-  includeScene: external_exports.boolean().optional(),
+  ...liveStateSelectors,
   collisions: external_exports.object({
     x: external_exports.number().int().min(0).max(255),
     y: external_exports.number().int().min(0).max(255),
@@ -60852,7 +60867,7 @@ function registerPlaytestTools(context) {
   }, async (input) => safely(() => context.runOperation(() => context.emulator().clip(input))));
   server.registerTool("emulator_debug", {
     title: "Inspect authenticated author state",
-    description: "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. Works on a ROM rom_build built in this session (it captures debug artifacts by default) once emulator_run starts it. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
+    description: "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. To read it after playing, pass debug to emulator_step instead. Works on a ROM rom_build built in this session (it captures debug artifacts by default) once emulator_run starts it. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
     inputSchema: sourceDebugQuerySchema,
     annotations: readOnly2
   }, async (input) => safely(() => context.runOperation(() => context.sourceDebug(input))));
@@ -69931,11 +69946,46 @@ function createGbStudioServer(options = {}) {
     const fallback = chosen.unavailable?.code === "SOURCE_DEBUG_UNAVAILABLE" ? void 0 : chosen.unavailable;
     return { ...running, debugMode: chosen.context === void 0 ? "rom" : "source", ...fallback ? { sourceDebug: fallback } : {} };
   }
-  async function inspectSource(input) {
+  async function inspectSource(input, reads = emulator) {
     if (activeSourceDebug === void 0) {
       throw new PlaytestError("SOURCE_DEBUG_DISABLED", "This emulator session runs without source debugging. Rebuild with rom_build (it captures debug artifacts unless captureDebugArtifacts is false) and start the ROM it returns with emulator_run.");
     }
-    return activeSourceDebug.inspect(emulator, input);
+    return activeSourceDebug.inspect(reads, input);
+  }
+  /**
+   * A step's debug request, read on the step's last frame inside the same emulator operation. Variables are only the
+   * named ones, and a refusal is returned as data: the step has already run, so it is never an error to retry. The
+   * read never ends the session itself (a timeout fails only the read); its error text is bounded like the
+   * engine's other reported failures.
+   */
+  async function stepLiveState({ variableIds, variableNames, ...query }) {
+    const reads = {
+      status: () => emulator.status({ keepSession: true }),
+      inspect: (view) => emulator.inspect(view, { keepSession: true })
+    };
+    try {
+      authorizedEmulatorRoot();
+      const named = variableIds === void 0 && variableNames === void 0 ? { variableIds: [] } : { variableIds, variableNames };
+      const { scene, live, variables, limitations } = await inspectSource({ ...query, ...named, referenceLimit: 0 }, reads);
+      return {
+        ...scene ? { scene: { id: scene.id, name: scene.name, type: scene.type } } : {},
+        ...live ? { live } : {},
+        ...variables.length > 0 ? { variables: variables.map(({ id: id3, name: name3, value }) => ({ id: id3, name: name3, value })) } : {},
+        ...limitations ? { limitations } : {}
+      };
+    } catch (cause) {
+      const { error: error2, code } = errorResult(cause).structuredContent;
+      return { error: error2.slice(0, 2e3), code };
+    }
+  }
+  /** Said in a step's result when the emulator stopped during its debug read, so the step never reads as a plain success. */
+  function lostSession(observation) {
+    const recorded = observation.recordingSpan !== void 0;
+    return {
+      status: "lost",
+      recording: recorded ? "interrupted" : "none",
+      recovery: recorded ? "The recording kept this step's inputs (recordingSpan) and ends interrupted: emulator_recording status reads it. emulator_run starts a new session." : "emulator_run starts a new session."
+    };
   }
   async function performMutation(action) {
     await initialized;
@@ -70688,7 +70738,7 @@ function createGbStudioServer(options = {}) {
       throw error2;
     }
   }
-  function observationResult(observation, { includeImages = true, imageLayout = "individual", scale, colorCorrection, detail = "compact" }, signal) {
+  function observationResult(observation, { includeImages = true, imageLayout = "individual", scale, colorCorrection, detail = "compact", liveState, session: session2 }, signal) {
     const colors = frameColors(observation, colorCorrection);
     const images = includeImages ? observationImages(observation, imageLayout, scale, colors, signal) : { pngs: [] };
     const result = toolResult({
@@ -70697,6 +70747,8 @@ function createGbStudioServer(options = {}) {
         samples: observation.samples.map(({ pngBase64: _bytes, ...sample }) => sample),
         genuineEmulatorFrames: true
       } : compactObservation(observation),
+      ...liveState === void 0 ? {} : { debug: liveState },
+      ...session2 === void 0 ? {} : { session: session2 },
       imageDelivery: {
         status: includeImages ? "available" : "omitted",
         sampleCount: observation.samples.length,
@@ -70719,12 +70771,17 @@ function createGbStudioServer(options = {}) {
   }
   server.registerTool("emulator_step", {
     title: "Play exact frames and observe the result",
-    description: "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image. To look without advancing, use emulator_observe. After emulator_recording stop, steps are refused until emulator_run boots again or emulator_replay, given the recordingPath and branchId stop returned, continues from the recording. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does.",
+    description: "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. To see the player, actors, dialogue or variables after the inputs, add debug (emulator_debug's selectors) instead of calling emulator_debug after the step. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image. To look without advancing, use emulator_observe. After emulator_recording stop, steps are refused until emulator_run boots again or emulator_replay, given the recordingPath and branchId stop returned, continues from the recording. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does.",
     inputSchema: domainSchemas.emulatorStep,
     annotations: changeSession2
-  }, async ({ includeImages, imageLayout, scale, colorCorrection, detail, ...options2 }, extra) => {
+  }, async ({ includeImages, imageLayout, scale, colorCorrection, detail, debug, ...options2 }, extra) => {
     try {
-      return await performEmulatorOperation(async (signal) => observationResult(await emulator.playStep(options2, signal), { includeImages, imageLayout, scale, colorCorrection, detail }, signal), extra.signal);
+      return await performEmulatorOperation(async (signal) => {
+        const observation = await emulator.playStep(options2, signal);
+        const liveState = debug === void 0 ? void 0 : await stepLiveState(debug);
+        const session2 = liveState?.error !== void 0 && !emulator.active ? lostSession(observation) : void 0;
+        return observationResult(observation, { includeImages, imageLayout, scale, colorCorrection, detail, liveState, session: session2 }, signal);
+      }, extra.signal);
     } catch (error2) {
       return errorResult(error2);
     }

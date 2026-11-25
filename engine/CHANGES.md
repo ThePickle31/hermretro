@@ -255,3 +255,12 @@ files, what changed and why.
   run in the replay's own queued emulator operation, so no step, restart or other replay comes between. hermretro's
   `chromatic_playtest` made the replay, the state read and the stop three calls, so another call could come between
   them, a reused folder replayed another attempt, and a live attempt was ended without saying so.
+- `dist/server.js` (`tool-domains/schemas.js`, `tool-domains/playtest.js`, `server.js`): `emulator_step`, in
+  both forms, takes an optional `debug` with `emulator_debug`'s selectors (`actors`, `variableNames`, `variableIds`,
+  `includeScene`, shared as `liveStateSelectors`) and returns, read on the last frame in the same emulator operation,
+  `debug`: `live`, the scene's id, name and type, and only the named variables as `{id, name, value}`. A read that
+  cannot be made (ROM-only session, an unknown actor) is `debug: {error, code}` in a successful step, since the
+  inputs already ran; its text is cut to 2,000 characters. The read's worker requests (`status`, `inspect` with
+  `keepSession`) fail alone on a timeout instead of ending the session, and when the worker stopped during the read
+  the step's result says so (`session: {status: "lost", recording}`). In the benchmark about 300 of Bolt Bounce's 345 calls alternated `emulator_step` and
+  `emulator_debug` to see the state after each step.

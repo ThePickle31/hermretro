@@ -136,6 +136,7 @@ def exercise(suite):
         art_limits.check_art_limits(suite, client_b)
         debugging.check_live_state(suite, client_b)
         debugging.check_debug_defaults(suite, client_b)
+        debugging.check_step_live_state(suite, client_b)
         debugging.check_debug_fallbacks(suite, client_b)
         recovery.check_watched_folder_replaced(suite, client_b)
         playtest.check_playtest(suite, client_b)

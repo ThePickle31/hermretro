@@ -80,6 +80,7 @@ ordered `inputs` list, never both:
 | `colorCorrection` | Optional, `none` (default) or `chromatic`. `chromatic` draws color-hardware (CGB) frames with the hermretro player's color correction, as the Chromatic shows them; sample hashes stay those of the native frames. A DMG session, including a dual-mode cartridge run as DMG, keeps the emulator's colors and reports `none`. |
 | `imageLayout` | Optional, `individual` (default) or `contact-sheet`. The sheet labels the same requested samples in memory; it adds no frames, captures, or file writes. |
 | `detail` | Optional, `compact` (default) or `full`. |
+| `debug` | Optional, source mode only: the live state on the last frame, read as `chromatic_emulator_debug` reads it. Takes its selectors (`actors`, `variableNames`, `variableIds`, `includeScene`); `{}` returns `live` and the scene, and only named variables are reported. |
 
 A call returns at most 8 samples. The held set persists after the call. Sending
 the same set again does not release and re-press those buttons. To release a
@@ -110,6 +111,29 @@ follows. `detail:"full"` adds the ROM path and hash, runtime, clock, recording
 state, `execution` and the retained path of each sample. Ask for it only when
 you need one of those.
 
+## See the live state in the same call
+
+To know where the player is, whether a text box or menu is waiting for a
+button, or a variable's value after the inputs, add `debug` to the step instead
+of calling `chromatic_emulator_debug` after it:
+
+```text
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":20},{"buttons":[],"frames":1}],"debug":{"actors":["Guard"],"variableNames":["has_key"]}}
+```
+
+The result's `debug` holds `live` (the player, the named actors, `ui` with
+`dialogue` and the `buttons` input accepts, `scripts`), the scene's `id`,
+`name` and `type`, and `variables` as `{id, name, value}`. It is read on the
+step's last frame, so it matches what that frame shows. It needs source mode
+(the ROM the last `chromatic_rom_build` returned); when it cannot be read, such
+as a ROM-only session or an actor not in the current scene, `debug` holds
+`error` and `code` and the step still ran: do not repeat the inputs. If the
+emulator stopped during the read, the result also has `session.status:
+"lost"`: start again with `chromatic_emulator_run` (a recording keeps the
+step's inputs and ends interrupted). Use
+`chromatic_emulator_debug` itself for collision tiles, references, unavailable
+variables or `detail:"full"`.
+
 Read the returned images and exact frame metadata before choosing the next
 input. Use shorter steps near a landing, transition, or uncertain interaction.
 For suspected flicker, request consecutive frames, for example `frames:8`
@@ -137,8 +161,9 @@ that session.
 ## Diagnose, edit, and retest
 
 Use `chromatic_emulator_inspect` for bounded OAM or allowlisted hardware-memory views.
-For named variables or the current scene, call `chromatic_emulator_debug` on
-the ROM the last build returned: builds capture debug artifacts and
+For named variables or the current scene, add `debug` to the step that gets
+there, or call `chromatic_emulator_debug` while paused, on the ROM the last
+build returned: builds capture debug artifacts and
 `chromatic_emulator_run` starts their ROM in source mode by default. Source diagnostics require the matching successful
 build and unchanged authored source; addresses are not guessed.
 
