@@ -136,17 +136,13 @@ def host_clock_rtc(rom: bytes) -> bool:
     return len(rom) > 0x147 and rom[0x147] in {0x0F, 0x10}
 
 
-def unstamped_rom_digest(rom: bytes, rom_path: Path, resolve_path: Any) -> str | None:
-    """The ROM's SHA-256 without what GB Studio stamps into every build, or None without the build's symbols.
+def unstamped_rom_digest(rom: bytes, symbols: bytes) -> str | None:
+    """The ROM's SHA-256 without what GB Studio stamps into every build, or None when the symbols place no signature.
 
     GB Studio's 4-byte `save_signature` hashes the loaded project, whose resources carry their load time, so two
-    builds of an unchanged project differ there and in the header's global checksum, and nowhere else. The
-    signature's place comes from the build's own linker symbols (`<rom>.debug/symbols.noi`) and is part of the
-    digest: two ROMs agree only with the signature in the same bank-0 place and every other byte equal."""
-    try:
-        symbols = bounded_recording_metadata(resolve_path(f"{rom_path}.debug/symbols.noi", existing=True), 1024 * 1024)
-    except (OSError, ValueError):
-        return None
+    builds of an unchanged project differ there and in the header's global checksum, and nowhere else. `symbols` are
+    the linker symbols the build captured with this ROM (`EmulatorWorker.build_symbols`); the signature's place is
+    part of the digest: two ROMs agree only with the signature in the same bank-0 place and every other byte equal."""
     found = SAVE_SIGNATURE_SYMBOL.findall(symbols)
     address = int(found[0], 16) if len(found) == 1 else 0
     if not GLOBAL_CHECKSUM.stop <= address <= 0x4000 - 4 or len(rom) < 0x4000:
@@ -174,6 +170,15 @@ def recording_branch_id(value: object) -> str:
             or not value[7:].isascii() or not value[7:].isdigit()):
         raise ValueError("An exact recording branchId is required")
     return value
+
+
+def cross_build_restore(value: object, prefix_length: int) -> dict[str, Any]:
+    """A branch's first restore from a checkpoint of another build: the action it followed and that build's ROM."""
+    if (not isinstance(value, dict) or set(value) != {"actionIndex", "romSha256"} or not isinstance(value["romSha256"], str)
+            or len(value["romSha256"]) != 64 or any(character not in "0123456789abcdef" for character in value["romSha256"])):
+        raise ValueError("A recording branch's cross-build restore is invalid")
+    bounded_integer(value["actionIndex"], "cross-build restore action index", 0, prefix_length)
+    return dict(value)
 
 
 def recording_prefix_pin(value: object) -> dict[str, Any]:
@@ -1045,7 +1050,9 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
                                                      for hashes, action in zip(prefix_hashes, prefix_actions)],
                                      "frame": row["frame"], "parentBranchId": row["parentBranchId"],
                                      "sourceSessionId": row["sourceSessionId"],
-                                     "checkpointId": row["checkpointId"], "startingCondition": row["startingCondition"]}
+                                     "checkpointId": row["checkpointId"], "startingCondition": row["startingCondition"],
+                                     **({"crossBuildRestore": cross_build_restore(row["crossBuildRestore"], len(prefix_actions))}
+                                        if "crossBuildRestore" in row else {})}
             elif kind == "action":
                 branch = branches[row["branchId"]]
                 bounded_integer(row.get("actionIndex"), "recording action index", 1, MAX_SAFE_INTEGER)
@@ -1499,7 +1506,21 @@ class EmulatorWorker:
                 raise ValueError("A recording output directory must be new; existing attempts are never overwritten")
             check_recording_quota(recording_path.parent, limits["maxBytes"])
         return {"romPath": rom_path, "rom": rom_path.read_bytes(), "initialFrames": initial_frames, "cgb": cgb,
-                "soundEmulated": True, "limits": limits, "recordingPath": recording_path}
+                "soundEmulated": True, "limits": limits, "recordingPath": recording_path, "symbols": params.get("symbols")}
+
+    def build_symbols(self, receipt: object, rom_sha256: str) -> bytes | None:
+        """The linker symbols the official build captured with this exact ROM, or None.
+
+        The engine passes the ROM and symbol SHA-256s its build recorded together. A ROM built another way, symbols
+        left from an earlier build, or a changed or unreadable file gives none, and the ROM matches only itself."""
+        if not isinstance(receipt, dict) or receipt.get("romSha256") != rom_sha256:
+            return None
+        try:
+            symbols = bounded_recording_metadata(self.resolve_project_path(receipt.get("path"), existing=True), 1024 * 1024)
+        except (OSError, ValueError, RuntimeError):
+            # Before Python 3.13 a strict resolve raises RuntimeError on a symbolic link loop.
+            return None
+        return symbols if digest(symbols) == receipt.get("sha256") else None
 
     def load(self, plan: dict[str, Any]) -> int:
         """End the current session and start a clean one from a session plan, recorded when asked, before its
@@ -1517,7 +1538,8 @@ class EmulatorWorker:
         self.rom_path = plan["romPath"]
         self.rom_bytes = raw
         self.rom_sha256 = rom_sha256
-        self.rom_unstamped_sha256 = unstamped_rom_digest(raw, plan["romPath"], self.resolve_project_path)
+        symbols = self.build_symbols(plan["symbols"], rom_sha256)
+        self.rom_unstamped_sha256 = unstamped_rom_digest(raw, symbols) if symbols is not None else None
         self.runtime = {"name": "PyBoy", "version": importlib.metadata.version("pyboy"),
                         "protocolVersion": PROTOCOL_VERSION, "workerSha256": WORKER_SHA256,
                         "soundEmulated": plan["soundEmulated"]}
@@ -1556,9 +1578,9 @@ class EmulatorWorker:
         Stops at the first frame that differs unless asked to continue; the session stays open where the replay
         ended, recorded as a new attempt unless recording is false."""
         if not isinstance(params, dict) or not {"romPath", "recordingPath"} <= set(params) or set(params) - {
-                "romPath", "recordingPath", "branchId", "toActionIndex", "onDivergence", "recording"}:
+                "romPath", "recordingPath", "branchId", "toActionIndex", "onDivergence", "recording", "symbols"}:
             raise RequestValidationError("Replay requires romPath and recordingPath, with optional branchId, "
-                                         "toActionIndex, onDivergence and recording")
+                                         "toActionIndex, onDivergence, recording and symbols")
         on_divergence = params.get("onDivergence", "stop")
         if on_divergence not in {"stop", "continue"}:
             raise RequestValidationError("onDivergence must be stop or continue")
@@ -1577,12 +1599,19 @@ class EmulatorWorker:
                 raise ValueError("Only an attempt recorded from a clean boot can be replayed")
             count = len(branch["actions"])
             end = bounded_integer(params.get("toActionIndex", count), "toActionIndex", 0, count)
+            restored = branch.get("crossBuildRestore")
+            if restored is not None and end > restored["actionIndex"]:
+                raise ValueError(
+                    f"This attempt goes on from a checkpoint of another build (ROM {restored['romSha256'][:16]}) "
+                    f"restored after action {restored['actionIndex']}: its battery RAM holds that build's save "
+                    f"signature, which a clean boot of a ROM cannot reproduce. Replay with toActionIndex up to "
+                    f"{restored['actionIndex']}, or restore the checkpoint")
             # Copies: loading the ROM finishes an active source recording, which appends to its live branch.
             actions = [dict(action) for action in branch["actions"][:end]]
             comparison = ReplayComparison(branch, end)
             rom = self.resolve_project_path(params["romPath"], existing=True).read_bytes()
             plan = self.session_plan({
-                "romPath": params["romPath"], "initialFrames": condition["initialFrames"],
+                "romPath": params["romPath"], "initialFrames": condition["initialFrames"], "symbols": params.get("symbols"),
                 "recording": False if recording is False else {**source["limits"], **recording},
                 # The cartridge default unless the attempt chose other hardware, as its own boot did.
                 **({} if condition["cgb"] == cartridge_cgb(rom) else {"cgb": condition["cgb"]}),
@@ -2312,6 +2341,10 @@ class EmulatorWorker:
         if metadata.get("kind") != "gb-studio-checkpoint" or metadata.get("schemaVersion") != 1 or metadata.get("checkpointId") != checkpoint_id:
             raise ValueError("Unsupported checkpoint format or identity")
         if not self.same_build(metadata.get("romSha256"), metadata.get("romUnstampedSha256")) or metadata.get("cgb") != self.cgb:
+            if metadata.get("romUnstampedSha256") and self.rom_unstamped_sha256 is None:
+                raise ValueError("Checkpoint ROM identity is incompatible with the loaded ROM bytes, and the loaded ROM "
+                                 "has no symbols its build captured in this session to compare the two builds; run the "
+                                 "ROM rom_build returns (debug artifacts on) to restore onto a rebuild")
             raise ValueError("Checkpoint ROM identity is incompatible with the loaded ROM bytes")
         if metadata.get("runtime") != self.runtime:
             raise ValueError("Checkpoint runtime identity is incompatible with this PyBoy worker")
@@ -2372,12 +2405,17 @@ class EmulatorWorker:
                 copy = {**item, "sourceBranchId": item["branchId"], "branchId": branch_id, "file": file}
                 copy.pop("path", None)
                 imported.append(copy)
+            # From a state of another build the branch's battery RAM holds that build's save signature: a clean boot
+            # replays the prefix, not what follows it. The first such restore stays with every later branch.
+            restored = parent.get("crossBuildRestore") or (
+                {"actionIndex": action_count, "romSha256": metadata["romSha256"]} if metadata["romSha256"] != self.rom_sha256 else None)
             payload = {"parentBranchId": metadata["branchId"], "checkpointId": checkpoint_id,
                        "sourceSessionId": metadata["sessionId"], "prefixActions": prefix_actions,
                        "prefixEvidence": imported, "startingCondition": parent["startingCondition"],
                        "frame": metadata["frame"], "bootHashes": parent["bootHashes"],
                        # A button change keeps no hashes: null, as in its own action event.
-                       "prefixFrameHashes": [hashes or None for hashes in prefix_hashes]}
+                       "prefixFrameHashes": [hashes or None for hashes in prefix_hashes],
+                       **({"crossBuildRestore": restored} if restored is not None else {})}
             if len(encoded(payload)) > 16 * 1024 * 1024:
                 raise RecordingLimitError("The checkpoint branch prefix exceeds its supported metadata limit")
             recording.check_budget(sum(len(value) for value in files.values()) + len(encoded(payload)) + 2048)
@@ -2394,7 +2432,8 @@ class EmulatorWorker:
                                              "bootHashes": parent["bootHashes"], "frameHashes": prefix_hashes,
                                              "frame": metadata["frame"], "parentBranchId": metadata["branchId"],
                                              "sourceSessionId": metadata["sessionId"],
-                                             "checkpointId": checkpoint_id, "startingCondition": parent["startingCondition"]}
+                                             "checkpointId": checkpoint_id, "startingCondition": parent["startingCondition"],
+                                             **({"crossBuildRestore": restored} if restored is not None else {})}
             recording.recent.clear()
             recording.recent.extend(copied_evidence[-recording.limits["recentFrameCount"]:])
             self.emulator = candidate

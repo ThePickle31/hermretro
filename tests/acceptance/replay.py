@@ -1,9 +1,6 @@
-"""A recorded attempt replayed onto the same ROM and onto a rebuild, and a checkpoint restored onto a rebuild, on B's
-worker (no later check uses B's game)."""
+"""A recorded attempt replayed onto the same ROM and onto a rebuild, on B's worker (no later check uses B's game)."""
 
-import re
-from pathlib import Path
-
+from tests.acceptance import checkpoints
 from tests.acceptance.fixture import OWNER_B, structured
 
 ROUTE = [
@@ -30,9 +27,12 @@ def check_replay(suite, client_b, rom_b):
     source, played = check_same_rom(suite, client_b, rom_b)
     check_branch_and_cutoff(suite, client_b, rom_b, source)
     check_without_session(suite, client_b, rom_b, source, played)
-    checkpoint = check_unchanged_rebuild(suite, client_b, rom_b)
+    cross = checkpoints.check_unchanged_rebuild(suite, client_b, rom_b)
+    checkpoints.check_restored_replay(suite, client_b, rom_b, cross)
+    checkpoints.check_unverified_symbols(suite, client_b, rom_b, cross)
+    checkpoints.check_archived_checkpoint(suite, client_b, rom_b, cross)
     check_rebuild(suite, client_b, rom_b, source, played)
-    check_changed_rebuild(suite, client_b, checkpoint)
+    checkpoints.check_changed_rebuild(suite, client_b, cross)
 
 
 def check_same_rom(suite, client_b, rom_b):
@@ -167,69 +167,6 @@ def check_without_session(suite, client_b, rom_b, source, played):
         refusal=structured(cold_refusal).get("error"),
         lease_after_refusal=lease_after_refusal,
         cold=structured(cold).get("replay") or structured(cold).get("error"),
-    )
-
-
-def save_signature(rom_path: str) -> int | None:
-    """Where the build's linker symbols put GB Studio's 4-byte save signature."""
-    symbols = Path(f"{rom_path}.debug/symbols.noi")
-    found = (
-        re.findall(r"^DEF _save_signature (0x[0-9A-Fa-f]+)$", symbols.read_text(), re.M) if symbols.is_file() else []
-    )
-    return int(found[0], 16) if len(found) == 1 else None
-
-
-def check_unchanged_rebuild(suite, client_b, rom_b):
-    """A checkpoint saved on one build restores onto a second build of the unchanged project."""
-    # B's last build had batteryless saves on (V4): build the project as it is now, twice.
-    first = structured(client_b.call(OWNER_B, "rom_build", {}))
-    client_b.call(OWNER_B, "emulator_run", {"romPath": rom_b, "recording": {}})
-    client_b.call(
-        OWNER_B, "emulator_step", {"inputs": [{"buttons": ["right"], "frames": 6}, {"buttons": [], "frames": 1}]}
-    )
-    saved = structured(client_b.call(OWNER_B, "emulator_checkpoint", {"action": "save"}))
-    before = Path(rom_b).read_bytes()
-    rebuilt = structured(client_b.call(OWNER_B, "rom_build", {}))
-    after = Path(rom_b).read_bytes()
-    signature = save_signature(rom_b)
-    same_size = len(before) == len(after)
-    differing = [i for i, (old, new) in enumerate(zip(before, after, strict=True)) if old != new] if same_size else []
-    stamped = set(range(signature, signature + 4)) | {0x14E, 0x14F} if signature is not None else set()
-    client_b.call(OWNER_B, "emulator_run", {"romPath": rom_b, "recording": {}})
-    checkpoint = {"checkpointId": saved.get("checkpointId"), "recordingPath": saved.get("recordingPath")}
-    restore = client_b.call(OWNER_B, "emulator_checkpoint", {"action": "restore", **checkpoint})
-    restored = structured(restore)
-    onward = structured(client_b.call(OWNER_B, "emulator_step", {"inputs": [{"buttons": [], "frames": 2}]}))
-    suite.check(
-        "M18",
-        "Two builds of an unchanged project differ only in GB Studio's save signature and the global checksum, and a "
-        "checkpoint saved on one restores onto the other",
-        first.get("success") is not False
-        and rebuilt.get("success") is not False
-        and bool(saved.get("checkpointId"))
-        and bool(differing)
-        and set(differing) <= stamped
-        and not restore["result"].get("isError")
-        and restored.get("frame") == saved.get("frame")
-        and restored.get("romSha256") != saved.get("romSha256")
-        and onward.get("frame") == saved.get("frame", 0) + 2,
-        save_signature=hex(signature) if signature is not None else None,
-        differing=[hex(i) for i in differing[:16]],
-        saved_frame=saved.get("frame") or saved.get("error"),
-        restored=restored.get("frame") or restored.get("error"),
-        onward_frame=onward.get("frame"),
-    )
-    return checkpoint
-
-
-def check_changed_rebuild(suite, client_b, checkpoint):
-    """After a real change the same checkpoint is refused: only the build stamp may differ."""
-    refused_restore = client_b.call(OWNER_B, "emulator_checkpoint", {"action": "restore", **checkpoint})
-    suite.check(
-        "M19",
-        "A checkpoint is refused on a build of a changed project",
-        refused(refused_restore) and "ROM identity is incompatible" in str(structured(refused_restore).get("error")),
-        error=structured(refused_restore).get("error"),
     )
 
 

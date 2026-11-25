@@ -151,8 +151,9 @@ branching an attempt, see [recordings and checkpoints](references/recorded-playt
 Checkpoints need a recording: boot with `recording:{}` before playing to where
 you will save, or every save is refused. Save after a step that ends with `[]`
 for at least one frame, and restore only into the same build and runtime,
-including the worker hash: the identical ROM, or a rebuild with no edit. After
-an edit, replay instead.
+including the worker hash: the identical ROM, or a rebuild with no edit when
+both builds came from `chromatic_rom_build` in this session with their debug
+symbols. After an edit, replay instead.
 
 ## Finishable
 

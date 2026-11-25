@@ -97,7 +97,8 @@ Host throughput is not a cartridge CPU-cycle or physical-hardware measurement.
 Optional [recordings, checkpoints, and clips](recorded-playtesting.md)
 preserve input history and failures. Checkpoints require a neutral delivered
 frame and the same build and runtime, including the worker implementation hash
-(a rebuild without an edit is the same build).
+(a rebuild without an edit is the same build when both builds captured their
+symbols in this session).
 Archive-read compatibility does not authorize loading an old state into a new
 build.
 
