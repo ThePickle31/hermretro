@@ -14,7 +14,7 @@ metadata:
 Work from the user's actual cartridge and project. Select the intended project
 explicitly; an unconfigured `chromatic_project_select` needs its absolute `.gbsproj` path,
 and `chromatic_project_create` leaves it unselected unless called with `select:true`.
-Never fall back to the bundled starter. See the [project selection rules](../authoring/references/agent-guide.md#start-and-select-the-intended-project)
+Never fall back to the bundled starter. See the [project selection rules](../authoring/references/project-selection.md)
 when no authorized project or workspace is selected. If compiler or optional
 PyBoy availability is uncertain, use `chromatic_toolchain_doctor`; report unavailable
 checks rather than substituting a sample ROM or silently installing a runtime.
@@ -68,8 +68,8 @@ reload. An explicit access refusal must not be bypassed through another caller.
 - For interactive human play or annotation, `chromatic_web_preview {}` opens or reuses the
   selected project's official Binjgb browser export; show it to the user with
   `chromatic_present_game`. [Browser playback](references/emulation-and-regression.md#official-browser-play),
-  [saved progress](../authoring/references/agent-guide.md#saved-progress), and
-  [frame annotation](../authoring/references/agent-guide.md#annotate-a-game-preview) cover
+  [saved progress](../authoring/references/preview-states-and-recording.md#saved-progress), and
+  [frame annotation](../authoring/references/preview-evidence-and-annotation.md#annotate-a-game-preview) cover
   those modes. A browser export, a native `chromatic_rom_build`, PyBoy, and physical
   hardware each establish different facts. For physical Chromatic play or
   flashing, use [Chromatic deployment](../deployment/SKILL.md).

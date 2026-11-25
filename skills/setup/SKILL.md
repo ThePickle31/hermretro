@@ -11,7 +11,7 @@ metadata:
 
 # Prepare game dependencies
 
-Follow the shared [agent guide](../authoring/references/agent-guide.md).
+Follow the shared [operating contract](../authoring/references/operating-contract.md) and [platform and setup boundaries](../authoring/references/platform-and-setup.md).
 
 Hermes manages plugin installation and updates. A working plugin must not be
 recreated, registered in another marketplace, or reinstalled to obtain a compiler.

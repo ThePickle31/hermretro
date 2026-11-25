@@ -27,7 +27,7 @@ annotations, browser recordings and physical-device/capture acceptance remain
 separate; emulator tools do not control hardware. Preserve active user play and
 unresolved saves/recordings. Do not switch browsers or reload a blocked view to
 continue gameplay. When the hermretro emulator is available, present the game
-with `chromatic_present_game` as described in the [agent guide](../../authoring/references/agent-guide.md#open-the-official-playable-browser-preview).
+with `chromatic_present_game` as described in [browser preview](../../authoring/references/browser-preview.md).
 
 ## Play the selected project
 
@@ -35,7 +35,7 @@ Select the actual project and check `chromatic_toolchain_doctor` when compiler o
 PyBoy availability is uncertain. To select an existing project in an
 unconfigured session, use its absolute path. A new project created with
 `chromatic_project_create` still needs selection unless `select: true` was explicit.
-Follow the [agent guide](../../authoring/references/agent-guide.md) for first-create authorization and setup.
+Follow [project selection](../../authoring/references/project-selection.md) for first-create authorization and [platform and setup](../../authoring/references/platform-and-setup.md) for setup.
 
 Describe the behavior you want to check, then build and play. These inputs are
 illustrative; choose a route that exercises your own game.

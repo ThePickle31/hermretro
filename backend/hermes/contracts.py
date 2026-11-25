@@ -108,6 +108,18 @@ def hermes_schema(tool: dict) -> dict:
             {"required": ["sceneId"], "not": {"required": ["target"]}},
             {"required": ["target"], "not": {"anyOf": [{"required": [key]} for key in flat]}},
         ]
+    if tool["name"] == "scene_apply":
+        # hermretro's own argument: the broker reads the file into `operations` (backend/broker/operations_file.py).
+        parameters.setdefault("properties", {})["operationsPath"] = {
+            "type": "string",
+            "description": (
+                "Instead of operations: a JSON file holding them (a list, or an object with operations), inside the "
+                "game's project or Hermes's scratch folder (<Hermes home>/cache/scratch). A relative path is read "
+                "from the project folder."
+            ),
+        }
+        parameters["required"] = [key for key in parameters.get("required", []) if key != "operations"]
+        parameters["oneOf"] = [{"required": ["operations"]}, {"required": ["operationsPath"]}]
     if tool["name"] == "project_select":
         # hermretro's own argument, removed by the broker before the engine sees it.
         parameters.setdefault("properties", {})["continueInThisChat"] = {

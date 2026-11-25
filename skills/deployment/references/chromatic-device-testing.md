@@ -335,7 +335,7 @@ commercial game eligible: wrapping, patching, or rebuilding it from leaked or
 decompiled source does not qualify. For a supplied ROM of unknown origin, try to
 boot that exact inspected file locally with `chromatic_emulator_run` and inspect the
 title, credits, or opening gameplay with `chromatic_emulator_step` or `chromatic_emulator_observe`
-([emulator workflow](../../authoring/references/agent-guide.md#playtest-real-roms)). Use credible project,
+([emulator workflow](../../authoring/references/emulator-playtesting.md)). Use credible project,
 creator, or release evidence already available that identifies this exact file as
 homebrew or the user’s own game, such as a creator-published checksum that matches
 the inspected ROM.

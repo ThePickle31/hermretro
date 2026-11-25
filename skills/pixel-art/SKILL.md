@@ -26,7 +26,7 @@ Show the game to the user in the **hermretro emulator** beside the chat: once ev
 
 | Need | Route |
 | --- | --- |
-| **A new static sprite** | Start with the [two-step Image Generation workflow](references/prompting-recoverable-grids.md): generate a deliberately coarse design, then reconstruct it as whole filled grid cells. Use the requested or existing project size; otherwise start at 32 × 32. |
+| **A new static sprite** | When [image generation is available](#check-for-image-generation), start with the [two-step Image Generation workflow](references/prompting-recoverable-grids.md): generate a deliberately coarse design, then reconstruct it as whole filled grid cells. Otherwise draw it natively. Use the requested or existing project size; otherwise start at 32 × 32. |
 | **A background, tileset, or reusable room** | Use [native artwork and tile tools](references/native-pixel-tools.md#new-native-artwork), with [hardware and import guidance](references/hardware-and-imports.md) for palette and tile budgets. Use [native tilemaps](../authoring/references/tilemaps.md) for rooms built from authored tiles. |
 | **Exact pixel edits, manual art, palettes, or tile composition** | Use [native pixel authoring and plugin tools](references/native-pixel-tools.md). Author PNG/cel pixels directly; use the plugin for supported palette, tilemap, and sprite-metadata edits. Prefer this route when existing pixels must stay exact. |
 | **Animation from an approved still** | Use [native animation guidance](references/prompting-grid-animation.md): optional generated motion reference, deliberately authored native frames, then timed review. Preserve the approved still and working motions. |
@@ -36,11 +36,28 @@ Honor a requested method. When the user is choosing, explain the relevant
 tradeoff: Image Generation explores designs; native authoring provides exact
 pixel control. A generated grid still requires cell and visual review.
 
+## Check for image generation
+
+Image Generation means Hermes's `image_generate` tool. It exists only when an image backend is set up (a `FAL_KEY`
+or a configured image provider), so check before choosing that route: it is in your tool list, or
+`tool_search` with `image generate` finds it. When it is missing, say so once if the user asked for generated art,
+and draw the art yourself:
+
+1. Write a script file that draws the PNG at native size in the exact source colours of
+   [hardware and imports](references/hardware-and-imports.md#native-source-images), into a source folder inside
+   the selected project (for example `art/hero.png`, not under `assets/`), and run it.
+2. Check that PNG with `chromatic_graphics_analyze` (its `kind` and the project's `colorMode`). Fix the script and
+   check again until it reports no violations (colours, tile budget, size).
+3. Import it once with `chromatic_asset_import` (`sourcePath` the checked PNG, `assetPath` its place under
+   `assets/`). An import writes the asset even when its analysis reports violations, and a second import to the
+   same `assetPath` is refused with `ASSET_ALREADY_EXISTS`, so import only a PNG that has passed.
+4. Look at it with `chromatic_sprite_preview` or `chromatic_graphics_preview_scene`, then in the game.
+
 ## Work in the right context
 
 Source-art exploration can stay in the workspace. Before changing a game,
 select the intended `.gbsproj` and inspect the actual asset, style, and
-compatibility mode. Follow the [project operating guide](../authoring/references/agent-guide.md#start-and-select-the-intended-project)
+compatibility mode. Follow the [project operating guide](../authoring/references/project-selection.md)
 for selection and revision safeguards; keep original and editable artwork.
 
 - For source colors, dimensions, import profiles, and budgets, read
@@ -57,7 +74,6 @@ for actual scene behavior. Distinguish source previews from verified gameplay.
 
 ## In hermretro
 
-- Image Generation means Hermes's `image_generate` tool; if this session has none, use native authoring.
 - Call `chromatic_*` tools directly, never from `execute_code`. One chat works on one project folder
   (`PATH_OUTSIDE_PROJECT` otherwise: use a new chat); `PROJECT_WRITER_BUSY` means another chat is editing
   or building this project right now.

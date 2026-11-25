@@ -10,7 +10,8 @@
   replaces a `SOUL.md` an earlier release shipped (`studio_profile.refresh_soul`: its hash is in `OLDER_SOULS`; an
   edited one or a link is kept). Fresh creation seeds `agent.max_turns` to 1000 and installs the studio SOUL
   before publishing the profile. Repair keeps any existing turn limit, including a cleared one, and any custom
-  or missing SOUL. Checked by `tests/backend/setup/test_studio_profile.py` and
+  or missing SOUL. Creation and repair set `compression.threshold_tokens` to 200,000 (`COMPACT_AT_TOKENS`) unless the
+  profile has its own value, `null` included. Checked by `tests/backend/setup/test_studio_profile.py` and
   `tests/backend/hermes/test_registration.py`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
   `hooks.py`; the table in `.agents/skills/hermretro-dev-architecture/references/architecture.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's

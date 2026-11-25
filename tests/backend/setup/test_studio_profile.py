@@ -73,9 +73,10 @@ class StudioProfile(unittest.TestCase):
 
     def run_command(self, target, *args):
         self.commands.append((target, args))
-        if args[:3] == ("config", "set", "agent.max_turns"):
+        if args[:2] == ("config", "set") and args[2] in ("agent.max_turns", "compression.threshold_tokens"):
+            section, key = args[2].split(".")
             config = self.read_config(target)
-            config.setdefault("agent", {})["max_turns"] = int(args[3])
+            config.setdefault(section, {})[key] = int(args[3])
             (target / "config.yaml").write_text(json.dumps(config))
 
     def finish(self, *, create=False, run=None):
@@ -163,11 +164,17 @@ class StudioProfile(unittest.TestCase):
                 (staging, ("config", "set", "auxiliary.background_review.enabled", "false")),
                 (staging, ("config", "set", "curator.enabled", "false")),
                 (staging, ("config", "set", "approvals.mode", "smart")),
+                (staging, ("config", "set", "compression.threshold_tokens", "200000")),
                 (staging, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve()))),
             ],
         )
         self.assertEqual(
-            self.read_config(self.target), {"model": {"provider": "example"}, "agent": {"max_turns": 1000}}
+            self.read_config(self.target),
+            {
+                "model": {"provider": "example"},
+                "agent": {"max_turns": 1000},
+                "compression": {"threshold_tokens": 200000},
+            },
         )
         self.assertEqual(self.notifications, [self.target])
         self.assertTrue((self.target / "workspace").is_dir())
@@ -236,6 +243,21 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual((again["ok"], again["soul_written"]), (True, False))
         self.assertEqual((self.target / "SOUL.md").read_text(), "edited by the user")
         self.assertEqual(self.read_config(self.target)["agent"]["max_turns"], 47)
+
+    def test_an_existing_studio_gets_the_compaction_cap_and_a_cap_of_its_own_is_kept(self):
+        self.created()
+        self.finish()
+        self.assertEqual(self.read_config(self.target)["compression"], {"threshold_tokens": 200000})
+        for unset in ({"threshold": 0.7}, {"threshold_tokens": None, "threshold": 0.7}):
+            (self.target / "config.yaml").write_text(json.dumps({"compression": unset}))
+            self.finish()
+            self.assertEqual(self.read_config(self.target)["compression"], {**unset, "threshold_tokens": 200000})
+        own = {"threshold_tokens": 350000, "threshold": 0.7}
+        (self.target / "config.yaml").write_text(json.dumps({"compression": own}))
+        self.commands.clear()
+        self.finish()
+        self.assertFalse(any("compression.threshold_tokens" in args for _target, args in self.commands))
+        self.assertEqual(self.read_config(self.target)["compression"], own)
 
     def test_running_it_again_updates_a_soul_left_as_an_older_release_shipped_it(self):
         self.created()

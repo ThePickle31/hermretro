@@ -13,6 +13,40 @@ metadata:
 
 Work in the creator's genuine `.gbsproj` / `.gbsres` project so the result stays editable in the game editor and builds to a real cartridge.
 
+## Tools for each task
+
+| Task | Tools | Details |
+| --- | --- | --- |
+| Pick or start the game | `chromatic_session_status`, `chromatic_project_select`, `chromatic_project_create`, `chromatic_project_create_blank` | [project selection](references/project-selection.md) |
+| Read game data | `chromatic_project_inspect`, `chromatic_project_inventory`, `chromatic_scene_inspect`, `chromatic_actor_inspect`, `chromatic_trigger_inspect`, `chromatic_script_inspect`, `chromatic_variable_inspect`, `chromatic_collision_inspect`, `chromatic_asset_inspect`, `chromatic_sprite_inspect`, `chromatic_palette_inspect`, `chromatic_tilemap_inspect`, `chromatic_world_dependencies` | [revisions](references/revisions.md) |
+| Scenes, actors, triggers | `chromatic_scene_apply` (inline `operations`, or `operationsPath` for a JSON file), `chromatic_scene_create`, `chromatic_scene_update`, `chromatic_actor_create`, `chromatic_actor_update`, `chromatic_trigger_create` | [resource tools](references/resource-tools.md), [project authoring](references/project-authoring.md) |
+| Events and scripts | `chromatic_event_describe` (any event's args and an example), `chromatic_script_edit`, `chromatic_script_transition` (scene switches), `chromatic_dialogue_update` | [event cookbook](references/event-cookbook.md), [GB Studio behaviours](references/gb-studio-behaviours.md) |
+| Variables, settings, player speed | `chromatic_variable_set`, `chromatic_settings_update`, `chromatic_engine_field_update` | [project authoring](references/project-authoring.md) |
+| Walls and rooms | `chromatic_collision_edit`; `chromatic_tilemap_atlas_create`, `chromatic_tilemap_create`, `chromatic_tilemap_edit` for rooms built from tiles | [tilemaps](references/tilemaps.md) (grid games: which route) |
+| Art | `chromatic_asset_import` (several at once with `assets`, `sprite.paletteIndex`, the `metasprite` profile; returns the graphics analysis), `chromatic_sprite_edit`, `chromatic_palette_create`, `chromatic_palette_assign` | [pixel-art skill](../pixel-art/SKILL.md) |
+| Look at art | `chromatic_sprite_preview`, `chromatic_sprite_contact_sheet` (`scale`), `chromatic_graphics_preview_scene` (`magnification`), all with `colorCorrection: "chromatic"` | [display colours](../pixel-art/references/hardware-and-imports.md#display-colors-the-chromatic-is-the-reference) |
+| Music and sound | `chromatic_music_compose`, `chromatic_asset_import` (`.uge`, `.mod`, `.wav`, `.vgm`), `chromatic_emulator_audio` | [music and sound](references/music-and-sound.md) |
+| Build | `chromatic_rom_build`, `chromatic_rom_inspect` | [building](references/building.md) |
+| Play and check | `chromatic_emulator_run`, `chromatic_emulator_step` (one `inputs` list per sequence, `scale`), `chromatic_emulator_observe` (look without advancing), `chromatic_emulator_debug` (live player, actors, dialogue, variables by name), `chromatic_emulator_inspect` | [emulator playtesting](references/emulator-playtesting.md), [stepped playtesting](../rom-debugging/references/stepped-playtesting.md) |
+| Retest after a rebuild | `chromatic_emulator_replay` (replays a recording on the new ROM, stops where frames differ) | [replay after a rebuild](../rom-debugging/references/recorded-playtesting.md#replay-after-a-rebuild) |
+| Hand the game over | `chromatic_game_info`, `chromatic_present_game`, `chromatic_build_report` | [In hermretro](#in-hermretro) |
+
+## Working in the studio
+
+- Hermes may load the `chromatic_*` tools on demand. When they are not in your tool list, pass the names you are
+  about to use (from the table above) to `tool_describe`, at most 10 per call, and run each with its own
+  `tool_call`: one `chromatic_*` call per `tool_call`. No `tool_search` is needed for a name you know. Independent
+  `tool_call`s can go in one turn; one that needs another's result (a revision, the emulator's state) waits for the
+  next turn.
+- After a context compaction, load this skill and the reference pages you were using again: the summary keeps
+  what you did, not how the tools work.
+- Read game data through the inspect tools above, never with `cat`, `grep` or a script over `.gbsres` or
+  `.gbsproj` files, and never open another game's project as an example: the event cookbook and
+  `chromatic_event_describe` have working events. The game's other files (`docs/game/`, your PNGs, captures) are
+  yours to open.
+- For any helper code (drawing a PNG, computing collision rectangles), write a script file in Hermes's scratch
+  folder (`<Hermes home>/cache/scratch`, also `$TMPDIR`) and run it. One-shot chats refuse `python -c` and heredocs.
+
 If the plugin needs setup or its tools cannot start, use the [setup skill](../setup/SKILL.md) first. Creating or iterating a playable game needs `runtime,build`, including its browser preview. Use runtime alone only for source inspection or edits that do not require a build; add `emulator` for local stepped play. Carry necessary authorized setup through installation and callable tools, then return to the requested game. Do not stop at a passive doctor report or ask the user to install Node/npm manually.
 
 ## Browser previews
@@ -34,12 +68,12 @@ unknown outcomes first. Do not arbitrarily reload or autoplay.
 
 ## Select the intended project
 
-`chromatic_session_status {}` reports the current selection without granting access. Confirm it is the project the user intends; if none is selected or a different one is active, use `chromatic_project_select` with the intended absolute `.gbsproj` path before reading or editing project resources. To start a game, use `chromatic_project_create` without `destinationPath` (it goes in the Studio's games folder; pass an absolute unused destination under an existing canonical parent only for a folder the user names) and `select:true` when continuing in it. `starter` is included. `wrecklight` creates an editable adventure copy; compact installations require its matching local `templateSourcePath`. Never edit the source template. Discovery grants no access and neither creation nor selection expands an existing authorization boundary. See [project selection](references/agent-guide.md#start-and-select-the-intended-project) for the authorization rules, or the [Wrecklight remix guide](references/wrecklight-remix.md) for that template.
+`chromatic_session_status {}` reports the current selection without granting access. Confirm it is the project the user intends; if none is selected or a different one is active, use `chromatic_project_select` with the intended absolute `.gbsproj` path before reading or editing project resources. To start a game, use `chromatic_project_create` without `destinationPath` (it goes in the Studio's games folder; pass an absolute unused destination under an existing canonical parent only for a folder the user names) and `select:true` when continuing in it. `starter` is included. `wrecklight` creates an editable adventure copy; compact installations require its matching local `templateSourcePath`. Never edit the source template. Discovery grants no access and neither creation nor selection expands an existing authorization boundary. See [project selection](references/project-selection.md) for the authorization rules, or the [Wrecklight remix guide](references/wrecklight-remix.md) for that template.
 
 ## Author native resources
 
-- Start with `chromatic_project_inspect {}` and narrow `chromatic_project_inventory` or focused scene/script reads to the part being changed. `chromatic_scene_apply` uses the project `revision`; script edits use the exact target's `chromatic_script_inspect.revision`, and `chromatic_trigger_create` uses `chromatic_scene_inspect.sceneRevision`. Restart after `STALE_CURSOR`. For concurrent editor changes or a destructive global reverse-reference decision, see [revisions and the world index](references/agent-guide.md#inspect-efficiently-and-manage-revisions); the latter needs `chromatic_project_refresh {"mode":"strong"}`.
-- Prefer semantic tools such as `chromatic_scene_apply`, `chromatic_script_edit`, `chromatic_script_transition`, and `chromatic_collision_edit`. Preserve unknown fields, stable resource/event IDs, script branches, collision bytes, plugins, and format versions. If a tool cannot express the change, inspect neighboring resources and make the smallest compatible native edit. A distributed `chromatic_scene_apply` has best-effort rollback, not cross-file atomicity.
+- Start with `chromatic_project_inspect {}` and narrow `chromatic_project_inventory` or focused scene/script reads to the part being changed. `chromatic_scene_apply` uses the project `revision`; script edits use the exact target's `chromatic_script_inspect.revision`, and `chromatic_trigger_create` uses `chromatic_scene_inspect.sceneRevision`. Restart after `STALE_CURSOR`. For concurrent editor changes or a destructive global reverse-reference decision, see [revisions and the world index](references/revisions.md); the latter needs `chromatic_project_refresh {"mode":"strong"}`.
+- Prefer semantic tools such as `chromatic_scene_apply`, `chromatic_script_edit`, `chromatic_script_transition`, and `chromatic_collision_edit`. Preserve unknown fields, stable resource/event IDs, script branches, collision bytes, plugins, and format versions. Never write `.gbsres` or `.gbsproj` files yourself: if no tool can express the change, tell the user what is missing. A distributed `chromatic_scene_apply` has best-effort rollback, not cross-file atomicity.
 - Use the project's actual `mono`, `mixed`, or `color` mode. Actor coordinates are normally gameplay tiles; scene `x`/`y` are editor-canvas positions. Keep assets inside the selected project, preserve authored PNGs/sidecars and the reserved UI palette, and keep generated outputs separate from authored resources and existing tracked cartridges.
 - Preserve native `EVENT_TEXT` wording and page boundaries by default; request wrapping or pagination only when the user wants a rewrite. Guard `chromatic_dialogue_update` with the same owner's `chromatic_script_inspect.revision`; use `validation:"reject"` when overflow must block the write. Unknown custom events remain opaque. See [dialogue and resource examples](references/project-authoring.md#dialogue-representation).
 
@@ -48,9 +82,12 @@ For example, to make a door go to another room: find both scene IDs, inspect the
 ## Choose the relevant detail
 
 - [Native resource layout and tool examples](references/project-authoring.md): scenes, actors, events, variables, collision, palettes, settings, and focused edits.
+- [Resource tools](references/resource-tools.md): every authoring tool by resource, relationship queries, `chromatic_scene_apply` batches and operations files.
 - [Event cookbook](references/event-cookbook.md): working event JSON for a HUD, pickups, hazards and collision groups, gated exits, menus, threads, held buttons, sound effects and scene switches. `chromatic_event_describe` gives any other event's args, defaults and an example; never read GB Studio's source for them.
 - [GB Studio behaviours](references/gb-studio-behaviours.md): what builds but misbehaves in play (sprite palette entry 2, text in `LOGO` scenes, locked start scripts, sprites over menus, `$00$` text tokens, top-down respawns, collision boxes, button presses).
-- [Native tilemaps](references/tilemaps.md): fixed-size rooms built from named 8 × 8 tiles. Capture exact existing patterns or deliberately fill; mutations need the current revision. Ordinary edits preserve protected cells; exclusive replacement operations require inspected preimages. Decoration must not infer or clear collisions.
+- [Native tilemaps](references/tilemaps.md): when a grid game should use recipe tilemaps or a drawn PNG with collision, and rooms built from named 8 × 8 tiles. Mutations need the current revision; replacement operations require inspected preimages; decoration never changes collisions.
+- [Building](references/building.md), [emulator playtesting](references/emulator-playtesting.md), [browser preview](references/browser-preview.md) with its [states and recording](references/preview-states-and-recording.md) and [evidence and annotation](references/preview-evidence-and-annotation.md).
+- [Operating contract](references/operating-contract.md) (what each kind of evidence proves), [recovering a failed step](references/recovery.md), [platform and setup boundaries](references/platform-and-setup.md).
 - [Music and sound](references/music-and-sound.md): write songs from note lists or a bundled track (`chromatic_music_compose`), import `.uge`, `.mod`, `.wav` and `.vgm` files with `chromatic_asset_import`, play them from events, and check the sound hardware with `chromatic_emulator_audio`.
 - [Extensions and builds](references/extensions-and-build.md): custom events, scene modes, project-local plugins, official CLI and GBDK. Use existing visual events and scene modes when they express the mechanic; engine ejection needs authorization.
 - [Packaged setup](../setup/references/setup.md): dependency details. `chromatic_toolchain_doctor` metadata readiness is not executable health; the setup skill preserves the user's authorized scope.
@@ -60,7 +97,7 @@ Verify the change at the level the request needs: reread the native resources, b
 
 ## In hermretro
 
-- Call `chromatic_*` tools directly, never from inside `execute_code` (refused with `IDENTITY_REQUIRED`).
+- Call `chromatic_*` tools directly (or through `tool_call`), never from inside `execute_code` (refused with `IDENTITY_REQUIRED`).
   A delegated subagent can only inspect a project; selecting, creating, editing, building and emulator
   play run in the main conversation (`PARENT_ONLY`, `LEASE_REQUIRED`).
 - Each chat has its own engine worker bound to one project folder: once a project is selected, another

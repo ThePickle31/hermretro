@@ -34,9 +34,11 @@ class ContractTests(unittest.TestCase):
             required = tool["inputSchema"].get("required")
             if tool["name"] in contracts.CREATORS:  # Hermes fills the destination: the Studio games folder
                 required = [key for key in required if key != "destinationPath"]
+            if tool["name"] == "scene_apply":  # the operations may come from a file instead
+                required = [key for key in required if key != "operations"]
             self.assertEqual(schema["parameters"].get("required"), required)
-            # hermretro's own argument (the broker strips it before the engine): project_select only.
-            extra = ["continueInThisChat"] if tool["name"] == "project_select" else []
+            # hermretro's own arguments (the broker takes them out before the engine sees the call).
+            extra = {"project_select": ["continueInThisChat"], "scene_apply": ["operationsPath"]}.get(tool["name"], [])
             self.assertEqual(
                 sorted(schema["parameters"].get("properties", {})),
                 sorted([*tool["inputSchema"].get("properties", {}), *extra]),
@@ -67,16 +69,28 @@ class ContractTests(unittest.TestCase):
         speed = schemas["chromatic_settings_update"]["properties"]["settings"]["properties"]["startMoveSpeed"]
         self.assertEqual((speed["type"], speed["minimum"], speed["maximum"]), ("number", 1 / 32, 255 / 32))
 
+    @staticmethod
+    def holds(rule: dict, args: dict) -> bool:  # the keywords a oneOf here uses: required, not, anyOf, oneOf
+        holds = ContractTests.holds
+        return (
+            all(key in args for key in rule.get("required", []))
+            and ("not" not in rule or not holds(rule["not"], args))
+            and ("anyOf" not in rule or any(holds(branch, args) for branch in rule["anyOf"]))
+            and ("oneOf" not in rule or sum(holds(branch, args) for branch in rule["oneOf"]) == 1)
+        )
+
+    def test_scene_apply_takes_its_operations_inline_or_from_a_file(self):
+        schema = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_scene_apply")["parameters"]
+        self.assertEqual(schema["properties"]["operationsPath"]["type"], "string")
+        self.assertIn("cache/scratch", schema["properties"]["operationsPath"]["description"])
+        for args in ({"sceneId": "s", "operations": []}, {"sceneId": "s", "operationsPath": "ops.json"}):
+            self.assertTrue(self.holds(schema, args), args)
+        for args in ({"sceneId": "s"}, {"sceneId": "s", "operations": [], "operationsPath": "ops.json"}):
+            self.assertFalse(self.holds(schema, args), args)
+
     def test_script_inspect_takes_exactly_one_complete_target(self):
         schema = next(s for s in contracts.hermes_schemas() if s["name"] == "chromatic_script_inspect")["parameters"]
-
-        def holds(rule: dict, args: dict) -> bool:  # the keywords the oneOf uses: required, not, anyOf, oneOf
-            return (
-                all(key in args for key in rule.get("required", []))
-                and ("not" not in rule or not holds(rule["not"], args))
-                and ("anyOf" not in rule or any(holds(branch, args) for branch in rule["anyOf"]))
-                and ("oneOf" not in rule or sum(holds(branch, args) for branch in rule["oneOf"]) == 1)
-            )
+        holds = self.holds
 
         target = {"sceneId": "scene", "actorId": "actor"}
         for args in ({"sceneId": "scene"}, {**target, "scriptKey": "script"}, {"target": target, "eventId": "e"}):

@@ -131,7 +131,7 @@ Check each item on paper while planning, then on the built ROM:
 Write budgets as assumptions with a source. Useful references:
 [hardware and imports](../pixel-art/references/hardware-and-imports.md)
 (palettes, sprites, tiles), [cartridge and hardware limits](../rom-debugging/references/hardware-and-cartridge.md),
-and the [agent guide](../authoring/references/agent-guide.md) for the kinds of
+and the [operating contract](../authoring/references/operating-contract.md) for the kinds of
 evidence each tool establishes. Do not copy a presumed cartridge capacity or
 mapper from a brand name; leave unknowns unknown.
 
