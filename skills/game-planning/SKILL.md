@@ -126,7 +126,9 @@ Check each item on paper while planning, then on the built ROM:
   [scene types](../authoring/references/scene-types.md#platformer); if the
   project changes the jump's engine fields, measure it once on a build and
   write the numbers in the brief. Leave a human margin: a required jump
-  should not need the longest jump at full speed.
+  should not need the longest jump at full speed. A landing higher than the
+  take-off shortens the jump, since the player lands on it on the way down: a
+  ledge near the top of the jump is reached only from close in.
 - **Respawn is safe.** Start and respawn points sit outside every lane and
   hazard, and a respawn mid-move lands on a whole cell.
 - **No dead ends.** No item is used up where another goal still needs it, no

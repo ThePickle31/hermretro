@@ -13,9 +13,13 @@ GB Studio's default jump and run, worked out from its platformer code at the def
 | --- | --- |
 | Walk | 1.56 px per frame at full speed, reached after about 40 frames (`plat_walk_vel` 6400, `plat_walk_acc` 152) |
 | Run (hold B) | 2.56 px per frame, reached after about 45 frames (`plat_run_vel` 10496, `plat_run_acc` 228) |
-| Jump with A held | rises 66 px (just over 8 tiles), top after 33 frames, back to the same height after 52 frames |
-| Jump with A tapped | rises 20 px (2.5 tiles), back down after 20 frames |
+| Jump with A held | rises 66 px (just over 8 tiles), top after 32 frames, back to the same height after 50 frames |
+| Jump with A tapped | rises 16 px (2 tiles), back down after 18 frames |
 | Jump length, same height | about 80 px (10 tiles) at full walking speed, about 130 px (16 tiles) at full running speed |
+
+Frames here are frames in the air. A tap is A pressed for one frame and let go before the jump's first frame in
+the air; held for that frame too, the jump rises 20 px over 20 frames, and letting go later gives a height between
+that and 66 px.
 
 A field's units: velocities (`plat_*_vel`) are 128ths of a subpixel per frame, so 4096 is 1 px per frame;
 `plat_jump_vel` 16384 starts a jump at 4 px per frame, and gravity (`plat_grav` 1792, or `plat_hold_grav` 512 while
@@ -24,10 +28,12 @@ placing gaps and hazards against it.
 
 ## Top-down grid
 
-- **The grid.** The player moves one cell per press and stops on whole cells: 8 px by default, 16 px with
-  `{"id": "topdown_grid", "value": 16}`. On the 16 px grid the player's cells are at even tile x and odd tile y
-  (GB Studio snaps the start there), so put actors and items at even x and odd y too, and build walls
-  and triggers from 2 × 2-tile blocks starting at even x and even y. A patrolling actor moves 2 tiles per cell.
+- **The grid.** A tap moves the player one cell; holding a direction starts another step at each cell, and the
+  player always stops on a whole cell. Cells are 8 px by default, 16 px with
+  `chromatic_engine_field_update {"updates":[{"id":"topdown_grid","value":16}]}`. On the 16 px grid the player's
+  cells are at even tile x and odd tile y (GB Studio snaps the start there), so put actors and items at even x and
+  odd y too, and build walls and triggers from 2 × 2-tile blocks starting at even x and even y. A patrolling actor
+  moves 2 tiles per cell.
 - **Actors block the player.** Every actor with collisions on (not pinned, not disabled with
   `EVENT_ACTOR_COLLISIONS_DISABLE`) stops the player in front of it. Walking into an actor in a collision group
   counts as touching it (its hit scripts run) and the player stays where it is; to take a pickup the player walks
@@ -47,8 +53,9 @@ placing gaps and hazards against it.
   first scene, or the `direction` of the `chromatic_script_transition` that enters it: facing right, the screen
   travels right through the scene; left, up and down likewise. Place the player at the end the screen starts from.
 - **Speed.** `shooter_scroll_speed` is in subpixels per frame: 32 (the default) is 1 px per frame, 60 px a
-  second; it goes from 0 to 128 (4 px per frame). Crossing a scene takes (scene length in px − 160) ÷ (speed ÷ 32)
-  frames for a horizontal scroll, with 144 in place of 160 for a vertical one.
+  second; it goes from 0 to 128 (4 px per frame), and at 0 the screen does not scroll. Crossing a scene from one end
+  takes about (scene length in px − 160) ÷ (speed ÷ 32) frames for a horizontal scroll, with 144 in place of 160
+  for a vertical one; a player placed partway along starts the screen there, so count only the distance left.
 - **The end.** Scrolling stops for good when the far edge of the scene reaches the edge of the screen. Nothing else
   happens there: put the boss, a trigger or a timed scene switch at that end.
 - **Movement** (`SHOOTER_MOVEMENT_TYPE`). GB Studio's default, `MOVEMENT_TYPE_FREE`, moves the player in all eight
@@ -63,7 +70,52 @@ placing gaps and hazards against it.
   default) or as they scroll onto the screen (`ON_SCREEN_ENTER`), which suits starting a wave or a boss.
 - **Hurting walls** (`SHOOTER_WALL_COLLISION_GROUP`): `COLLISION_GROUP_1` to `_3` makes touching a wall run the
   scene's `playerHit1Script` to `playerHit3Script`, as an actor in that group does.
-- **Enemies wake as they scroll in.** Actors more than about 48 px off screen are inactive: their `updateScript`
-  starts when they come near the screen and stops once they fall behind it (see
+- **Enemies wake as they scroll in.** An actor's `updateScript` starts as its tile column (or row) scrolls in, a
+  tile or so ahead of the screen's edge, and stops once it is about 48 px behind the screen (see
   [actors off screen](gb-studio-behaviours.md#movement-and-collisions)). Place enemies along the level where they
-  should appear; shooting and hits are in the [event cookbook](event-cookbook.md#shooting).
+  should appear.
+
+## Shooting
+
+Enemies go in collision group 2, so touching one runs the scene's `playerHit2Script` like a
+[hazard](event-cookbook.md#hazard). The player's shots are projectiles in group 1 that hit only actors in group 2
+(`collisionMask`); the scene's start script fires one each time A is pressed (fire the way the level scrolls):
+
+```json
+[
+  {"command": "EVENT_SET_INPUT_SCRIPT", "args": {"input": ["a"], "override": true}, "children": {"true": [
+    {"command": "EVENT_LAUNCH_PROJECTILE", "args": {"spriteSheetId": "<shot sprite id>", "spriteStateId": "", "actorId": "player", "x": 0, "y": 0, "directionType": "direction", "direction": "right", "speed": 3, "animSpeed": 15, "lifeTime": 1, "initialOffset": 0, "loopAnim": true, "destroyOnHit": true, "collisionGroup": "1", "collisionMask": ["2"]}}
+  ]}}
+]
+```
+
+A shot in group 1 runs the enemy's `hit1Script` (group 2 runs `hit2Script`, group 3 `hit3Script`), not its
+`script`. This enemy `hit1Script` removes the enemy, counts it in variable 0 and redraws the
+[HUD](event-cookbook.md#hud-text-on-the-overlay) (script target
+`{"sceneId": "<scene id>", "actorId": "<enemy id>", "scriptKey": "hit1Script"}`):
+
+```json
+[
+  {"command": "EVENT_ACTOR_DEACTIVATE", "args": {"actorId": "$self$"}},
+  {"command": "EVENT_INC_VALUE", "args": {"variable": "0"}},
+  {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}}
+]
+```
+
+`EVENT_ACTOR_DEACTIVATE` stops the enemy's `updateScript` and keeps it gone until the scene is entered again; the
+hit script itself runs on to its end. Hiding it with collisions off would leave its `updateScript` firing.
+
+An enemy fires back from its `updateScript`. Its shots hit only the player, and a shot in group 3 runs the scene's
+`playerHit3Script`:
+
+```json
+[
+  {"command": "EVENT_LAUNCH_PROJECTILE", "args": {"spriteSheetId": "<shot sprite id>", "spriteStateId": "", "actorId": "$self$", "x": 0, "y": 0, "directionType": "target", "targetActorId": "player", "speed": 2, "animSpeed": 15, "lifeTime": 2, "initialOffset": 0, "loopAnim": true, "destroyOnHit": true, "collisionGroup": "3", "collisionMask": ["player"]}},
+  {"command": "EVENT_WAIT", "args": {"time": {"type": "number", "value": 1.5}, "units": "time"}}
+]
+```
+
+Projectile `speed` is in pixels per frame and `lifeTime` in seconds (at most 4). A shot that hits the player runs
+the hit script even during the 20 frames after a touch. Which actor a shot hits, and when a second shot is ignored:
+[projectile hits](gb-studio-behaviours.md#movement-and-collisions).

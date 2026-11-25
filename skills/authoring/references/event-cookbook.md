@@ -23,16 +23,15 @@ at the bottom of the screen, and the whole HUD line is drawn into it with one ev
 ```json
 [
   {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$  ", "x": 1, "y": 0, "location": "overlay"}}
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}}
 ]
 ```
 
-- Whenever a value changes, draw the whole line again with this same `EVENT_TEXT_DRAW` (the pickup and hazard
-  below do). Never redraw one part of the HUD on its own: GB Studio draws text into a ring of 116 tiles in a colour
-  game (52 in a mono one) and starts again from its first tile when it is full, so letters still on screen from an
-  older draw get overwritten (a HUD that reads `SS 5`). See
-  [the text tile ring](gb-studio-behaviours.md#graphics).
-- The two trailing spaces clear the digits left over when a number gets shorter.
+- Whenever a value changes, run both events again (the pickup and hazard below do). `EVENT_OVERLAY_SHOW` blanks
+  the row first: GB Studio draws text into a ring of 116 tiles in a colour game (52 in a mono one) and starts again
+  from its first tile when it is full, so any letter not drawn again, such as the last digit left over when a
+  number gets shorter, is later overwritten by other text (a HUD that reads `SS 5`). For the same reason never
+  redraw one part of the HUD on its own. See [the text tile ring](gb-studio-behaviours.md#graphics).
 - A text box or menu uses the same window: after one, run these two events again.
 - The overlay stays up in the next scene: start a scene without a HUD with
   `{"command": "EVENT_OVERLAY_HIDE", "args": {}}`.
@@ -50,7 +49,8 @@ Its `script` then runs when the player touches it (an actor in a collision group
   {"command": "EVENT_SET_VALUE", "args": {"variable": "4", "value": {"type": "number", "value": 1}}},
   {"command": "EVENT_INC_VALUE", "args": {"variable": "0"}},
   {"command": "EVENT_SOUND_PLAY_EFFECT", "args": {"type": "beep", "priority": "medium", "pitch": 6, "duration": 0.2, "wait": false}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$  ", "x": 1, "y": 0, "location": "overlay"}}
+  {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}}
 ]
 ```
 
@@ -79,7 +79,8 @@ scene's start script, which runs again on every respawn.
   {"command": "EVENT_SOUND_PLAY_EFFECT", "args": {"type": "crash", "priority": "high", "duration": 0.4, "wait": false}},
   {"command": "EVENT_CAMERA_SHAKE", "args": {"time": 0.3, "units": "time", "shakeDirection": "horizontal", "magnitude": {"type": "number", "value": 3}}},
   {"command": "EVENT_DEC_VALUE", "args": {"variable": "1"}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$  ", "x": 1, "y": 0, "location": "overlay"}},
+  {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}},
   {"command": "EVENT_IF", "args": {"condition": {"type": "lte", "valueA": {"type": "variable", "value": "1"}, "valueB": {"type": "number", "value": 0}}}, "children": {"true": [], "false": []}}
 ]
 ```
@@ -89,64 +90,27 @@ Then fill the branches with scene switches (below), into the `EVENT_IF` by its i
 `EVENT_ACTOR_SET_POSITION` on a walking top-down player can carry its move on past the tile (see
 [GB Studio behaviours](gb-studio-behaviours.md)).
 
-## Shooting
-
-Enemies go in collision group 2, so touching one runs the scene's `playerHit2Script` like a hazard. The player's
-shots are projectiles in group 1 that hit only actors in group 2 (`collisionMask`); the scene's start script fires
-one each time A is pressed (fire the way the level scrolls in a shooter):
-
-```json
-[
-  {"command": "EVENT_SET_INPUT_SCRIPT", "args": {"input": ["a"], "override": true}, "children": {"true": [
-    {"command": "EVENT_LAUNCH_PROJECTILE", "args": {"spriteSheetId": "<shot sprite id>", "spriteStateId": "", "actorId": "player", "x": 0, "y": 0, "directionType": "direction", "direction": "right", "speed": 3, "animSpeed": 15, "lifeTime": 1, "initialOffset": 0, "loopAnim": true, "destroyOnHit": true, "collisionGroup": "1", "collisionMask": ["2"]}}
-  ]}}
-]
-```
-
-A shot in group 1 runs the enemy's `hit1Script` (group 2 runs `hit2Script`, group 3 `hit3Script`), not its
-`script`. This enemy `hit1Script` removes the enemy and counts it in variable 0 (script target
-`{"sceneId": "<scene id>", "actorId": "<enemy id>", "scriptKey": "hit1Script"}`):
-
-```json
-[
-  {"command": "EVENT_ACTOR_HIDE", "args": {"actorId": "$self$"}},
-  {"command": "EVENT_ACTOR_COLLISIONS_DISABLE", "args": {"actorId": "$self$"}},
-  {"command": "EVENT_INC_VALUE", "args": {"variable": "0"}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$  ", "x": 1, "y": 0, "location": "overlay"}}
-]
-```
-
-An enemy fires back from its `updateScript`. Its shots hit only the player, and a shot in group 3 runs the scene's
-`playerHit3Script`:
-
-```json
-[
-  {"command": "EVENT_LAUNCH_PROJECTILE", "args": {"spriteSheetId": "<shot sprite id>", "spriteStateId": "", "actorId": "$self$", "x": 0, "y": 0, "directionType": "target", "targetActorId": "player", "speed": 2, "animSpeed": 15, "lifeTime": 2, "initialOffset": 0, "loopAnim": true, "destroyOnHit": true, "collisionGroup": "3", "collisionMask": ["player"]}},
-  {"command": "EVENT_WAIT", "args": {"time": {"type": "number", "value": 1.5}, "units": "time"}}
-]
-```
-
-Projectile `speed` is in pixels per frame and `lifeTime` in seconds (at most 4). While an actor's hit script is
-still running, further shots that touch it vanish without running it again. Which script each hit runs:
-[collision groups](gb-studio-behaviours.md#movement-and-collisions).
-
 ## Patrolling enemy
 
 A top-down enemy that walks back and forth: put it in collision group 2 (a hazard, above) and give it this
-`updateScript`, which GB Studio runs again from the top each time it ends while the actor is active. Each move
-waits until the actor arrives, and `collideWith: ["walls"]` stops it at a wall:
+`updateScript`, which GB Studio runs again from the top each time it ends while the actor is active. It walks
+between two tile positions on its row (here x 2 and x 6 on row 9, where it starts), and each move waits until it
+arrives:
 
 ```json
 [
-  {"command": "EVENT_ACTOR_MOVE_RELATIVE", "args": {"actorId": "$self$", "x": {"type": "number", "value": 4}, "units": "tiles", "y": {"type": "number", "value": 0}, "collideWith": ["walls"], "lockDirection": [], "moveType": "horizontal"}},
-  {"command": "EVENT_ACTOR_MOVE_RELATIVE", "args": {"actorId": "$self$", "x": {"type": "number", "value": -4}, "units": "tiles", "y": {"type": "number", "value": 0}, "collideWith": ["walls"], "lockDirection": [], "moveType": "horizontal"}}
+  {"command": "EVENT_ACTOR_MOVE_TO", "args": {"actorId": "$self$", "x": {"type": "number", "value": 6}, "units": "tiles", "y": {"type": "number", "value": 9}, "collideWith": ["walls"], "lockDirection": [], "moveType": "horizontal"}},
+  {"command": "EVENT_ACTOR_MOVE_TO", "args": {"actorId": "$self$", "x": {"type": "number", "value": 2}, "units": "tiles", "y": {"type": "number", "value": 9}, "collideWith": ["walls"], "lockDirection": [], "moveType": "horizontal"}}
 ]
 ```
 
-On a 16 px grid, start it on a cell and move in whole cells (2 tiles each), so it stays lined up with the player
-([top-down grid](scene-types.md#top-down-grid)). Its speed is the actor's `moveSpeed` property in pixels per frame
-(`chromatic_actor_update` with `properties`). It walks through the player: the touch counts while the player stands
-on a cell or steps into the enemy, not while the player is between cells.
+Keep the path between the two ends clear of walls. Use fixed ends, not `EVENT_ACTOR_MOVE_RELATIVE`: a relative move
+starts from wherever the last one ended, so a move cut short by a wall, or by the actor going inactive off screen,
+shifts the whole patrol. On a 16 px grid, put both ends on cells (even x, odd y) so it stays lined up with the
+player ([top-down grid](scene-types.md#top-down-grid)). Its speed is the actor's `moveSpeed` property in pixels per
+frame (`chromatic_actor_update` with `properties`). It walks through the player: the touch counts while the player
+stands on a cell or steps into the enemy, not while the player is between cells. Enemies that shoot:
+[shooting](scene-types.md#shooting).
 
 ## Gated exit with a counter
 

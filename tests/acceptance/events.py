@@ -10,7 +10,7 @@ from pathlib import Path
 from tests.acceptance.fixture import OWNER_E, structured
 
 ROOT = Path(__file__).resolve().parents[2]
-COOKBOOK = ROOT / "skills" / "authoring" / "references" / "event-cookbook.md"
+RECIPE_PAGES = [ROOT / "skills" / "authoring" / "references" / page for page in ("event-cookbook.md", "scene-types.md")]
 WARNINGS = {"TEXT_IN_LOGO_SCENE", "TEXT_VARIABLE_TOKEN", "ACTORS_OVER_MENU", "DEPRECATED_EVENT"}
 
 
@@ -28,8 +28,8 @@ def catalog_module():
 
 
 def recipes() -> dict[str, list[list[dict]]]:
-    """The cookbook's event lists by section heading, in order."""
-    sections = re.split(r"^## ", COOKBOOK.read_text(), flags=re.M)[1:]
+    """The event lists of the cookbook and the scene types page by section heading, in order."""
+    sections = [section for page in RECIPE_PAGES for section in re.split(r"^## ", page.read_text(), flags=re.M)[1:]]
     return {
         section.splitlines()[0]: [json.loads(block) for block in re.findall(r"```json\n(.*?)```", section, re.S)]
         for section in sections
