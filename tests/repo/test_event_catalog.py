@@ -1,11 +1,11 @@
-"""tools/engine/event_catalog.py: the engine's event catalog is generated from GB Studio's own event definitions, the
-committed one is complete, and every recipe in the authoring skill's event cookbook fits it. Whether the catalog
-matches the toolchain's GB Studio, and whether the recipes build, is checked by the acceptance run (C1, C3), which has
-the toolchain."""
+"""tools/engine/event_catalog.py: the engine's event catalog is generated from GB Studio's own event definitions and
+the hand-written guidance in event_guidance.mjs, and the generator stops on anything it cannot describe truthfully.
+The committed catalog and the cookbook are checked in test_event_catalog_committed.py; whether the catalog matches
+the toolchain's GB Studio is checked by the acceptance run (C1), which has the toolchain."""
 
 import importlib.util
 import json
-import re
+import os
 import sys
 import tempfile
 import unittest
@@ -13,7 +13,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL = ROOT / "skills" / "authoring" / "references"
 sys.path.insert(0, str(ROOT / "tools" / "engine"))
 _spec = importlib.util.spec_from_file_location("event_catalog", ROOT / "tools" / "engine" / "event_catalog.py")
 event_catalog = importlib.util.module_from_spec(_spec)
@@ -28,7 +27,7 @@ STRINGS = {
     "FIELD_LOGO": "Text glitches in Logo scenes.",
 }
 # Shaped like GB Studio's own definitions: l10n labels, a group, repeated keys under different conditions, a
-# collapsible section whose condition applies to its fields, a units field, a branch and a scene-type warning.
+# collapsible section whose condition applies to its fields, a units field, branches and a scene-type warning.
 PICK = """
 const l10n = require("../helpers/l10n").default;
 const id = "EVENT_PICK";
@@ -48,29 +47,68 @@ const fields = [
     { key: "extra", type: "checkbox", defaultValue: true },
   ] },
   { key: "true", type: "events" },
+  { key: "false", type: "events", conditions: [{ key: "__collapseElse", ne: true }, { key: "__disableElse", ne: true }] },
   { key: "layout", type: "select", defaultValue: "menu", options: [["menu", "Menu"], ["dialogue", "Dialogue"]] },
 ];
-module.exports = { id, description: l10n("EVENT_PICK_DESC"), groups, fields, compile: () => {} };
+const compile = (input, helpers) => {
+  const { pickThings } = helpers;
+  pickThings(input.true, input.__disableElse ? [] : input.false);
+};
+module.exports = { id, description: l10n("EVENT_PICK_DESC"), groups, fields, compile };
 """
 OLD_PICK = """
 const id = "EVENT_OLD_PICK";
 module.exports = { id, groups: [], fields: [], compile: () => {}, deprecated: true };
 """
+BUILDER = "class ScriptBuilder {\n  pickThings = () => {};\n  // weaponAttack was removed\n}\n"
+
+
+def definition(event_id: str, fields: str, compile_body: str = "") -> str:
+    return (
+        f'const id = "{event_id}";\nconst fields = {fields};\n'
+        f"module.exports = {{ id, groups: [], fields, compile: (input, helpers) => {{ {compile_body} }} }};\n"
+    )
 
 
 def gb_studio(folder: Path, events: dict[str, str]) -> Path:
     (folder / "package.json").write_text('{"name": "gb-studio", "version": "9.9.9"}')
     (folder / "src" / "lang").mkdir(parents=True)
     (folder / "src" / "lang" / "en.json").write_text(json.dumps(STRINGS))
+    (folder / "src" / "lib" / "compiler" / "scriptBuilder").mkdir(parents=True)
+    (folder / "src" / "lib" / "compiler" / "scriptBuilder" / "scriptBuilder.ts").write_text(BUILDER)
     (folder / "src" / "lib" / "events").mkdir(parents=True)
     for name, source in events.items():
         (folder / "src" / "lib" / "events" / name).write_text(source)
     return folder
 
 
+@contextmanager
+def generator(guidance: dict | None = None, through_symlink: bool = False):
+    """A copy of the generator with the test's own guidance tables (the real ones name GB Studio's events), reached
+    through a symlinked folder when asked (macOS's /var and /tmp are symlinks)."""
+    tables = {"DEPRECATIONS": {}, "UNAVAILABLE": [], "EXAMPLES": {}, "EDITOR_DEFAULTS": {}, **(guidance or {})}
+    saved = event_catalog.GENERATOR
+    with tempfile.TemporaryDirectory() as folder:
+        real = Path(folder) / "real"
+        real.mkdir()
+        (real / "event_catalog.mjs").write_text(saved.read_text())
+        (real / "event_guidance.mjs").write_text(
+            "".join(f"export const {name} = {json.dumps(value)};\n" for name, value in tables.items())
+        )
+        reached = real
+        if through_symlink:
+            reached = Path(folder) / "link"
+            os.symlink(real, reached)
+        event_catalog.GENERATOR = reached / "event_catalog.mjs"
+        try:
+            yield
+        finally:
+            event_catalog.GENERATOR = saved
+
+
 class GeneratorTests(unittest.TestCase):
-    def generate(self, events: dict[str, str], replacements: dict | None = None) -> dict:
-        with tempfile.TemporaryDirectory() as folder, replacement_table(replacements or {}):
+    def generate(self, events: dict[str, str], guidance: dict | None = None, through_symlink: bool = False) -> dict:
+        with tempfile.TemporaryDirectory() as folder, generator(guidance, through_symlink):
             return json.loads(event_catalog.generate(gb_studio(Path(folder), events)))
 
     def test_an_event_lists_its_args_branches_warnings_and_the_editors_example(self):
@@ -81,7 +119,9 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(pick["groups"], ["Miscellaneous"])
         self.assertEqual(pick["warnings"], [{"sceneTypes": ["LOGO"], "message": "Text glitches in Logo scenes."}])
         fields = {field["key"]: field for field in pick["fields"]}
-        self.assertEqual(list(fields), ["variable", "items", "x", "units", "option3", "extra", "layout"])
+        self.assertEqual(
+            list(fields), ["variable", "items", "x", "units", "option3", "extra", "layout", "__disableElse"]
+        )
         self.assertEqual(fields["variable"]["default"], "<variable>")
         self.assertEqual(
             fields["items"],
@@ -94,7 +134,9 @@ class GeneratorTests(unittest.TestCase):
         )
         self.assertEqual(fields["extra"]["when"], [{"key": "items", "gt": 2}])
         self.assertEqual(fields["layout"]["options"], ["menu", "dialogue"])
-        self.assertEqual(pick["branches"], ["true"])
+        self.assertEqual(
+            pick["branches"], [{"key": "true"}, {"key": "false", "when": [{"key": "__disableElse", "ne": True}]}]
+        )
         self.assertEqual(
             pick["example"],
             {
@@ -107,129 +149,115 @@ class GeneratorTests(unittest.TestCase):
                     "option3": "",
                     "layout": "menu",
                 },
-                "children": {"true": []},
+                "children": {"true": [], "false": []},
             },
         )
 
-    def test_a_deprecated_event_names_its_replacement(self):
-        catalog = self.generate({"eventPick.js": PICK, "eventOldPick.js": OLD_PICK}, {"EVENT_OLD_PICK": "EVENT_PICK"})
-        self.assertEqual(catalog["events"]["EVENT_OLD_PICK"]["deprecated"], True)
-        self.assertEqual(catalog["events"]["EVENT_OLD_PICK"]["replacement"], "EVENT_PICK")
+    def test_disable_else_is_kept_only_where_the_compiler_reads_it(self):
+        fields = '[{ key: "true", type: "events" }, { key: "false", type: "events", conditions: [{ key: "__disableElse", ne: true }] }]'
+        printed = self.generate({"eventPrint.js": definition("EVENT_PRINT", fields)})["events"]["EVENT_PRINT"]
+        self.assertEqual(printed["branches"], [{"key": "true"}, {"key": "false"}])
+        self.assertNotIn("__disableElse", [field["key"] for field in printed["fields"]])
+
+    def test_or_and_place_conditions_become_alternatives(self):
+        fields = """[{ key: "actorId", type: "actor", defaultValue: "$self$" }, { type: "group", conditions: [
+          { sceneType: ["platform"] },
+          { or: [[{ key: "actorId", eq: "$self$" }, { entityTypeNot: ["actor"] }], [{ key: "actorId", eq: "player" }]] },
+        ], fields: [{ label: "Player speed is an engine field.", labelVariant: "warning" }] },
+        { key: "position", type: "select", options: [["top", "Top"]], conditions: [{ parallaxEnabled: false }] }]"""
+        speed = self.generate({"eventSpeed.js": definition("EVENT_SPEED", fields)})["events"]["EVENT_SPEED"]
+        self.assertEqual(
+            speed["warnings"],
+            [
+                {
+                    "sceneTypes": ["PLATFORM"],
+                    "whenAny": [
+                        [{"key": "actorId", "eq": "$self$"}, {"entityTypeNot": ["actor"]}],
+                        [{"key": "actorId", "eq": "player"}],
+                    ],
+                    "message": "Player speed is an engine field.",
+                }
+            ],
+        )
+        self.assertEqual(speed["fields"][1]["when"], [{"parallaxEnabled": False}])
+
+    def test_a_condition_the_catalog_does_not_know_stops_it_naming_the_field(self):
+        fields = '[{ key: "speed", type: "number", conditions: [{ key: "mode", startsWith: "fast" }] }]'
+        with self.assertRaisesRegex(RuntimeError, "EVENT_FAST field speed: condition .* the catalog does not know"):
+            self.generate({"eventFast.js": definition("EVENT_FAST", fields)})
+
+    def test_cardinality_and_collision_groups(self):
+        fields = """[
+          { key: "channels", type: "togglebuttons", options: [[0, "Duty 1"], [1, "Duty 2"]], allowMultiple: true },
+          { key: "collisionGroup", type: "collisionMask", includePlayer: false, defaultValue: "3" },
+          { key: "collisionMask", type: "collisionMask", includePlayer: true, defaultValue: ["1"] }]"""
+        fired = self.generate({"eventFire.js": definition("EVENT_FIRE", fields)})["events"]["EVENT_FIRE"]
+        channels, group, mask = fired["fields"]
+        self.assertEqual((channels["options"], channels["multiple"]), ([0, 1], True))
+        self.assertEqual((group["options"], group.get("multiple")), (["1", "2", "3"], None))
+        self.assertEqual((mask["options"], mask["multiple"]), (["player", "1", "2", "3"], True))
+
+    def test_a_union_field_defaults_to_its_default_types_value(self):
+        fields = """[{ key: "amount", type: "union", types: ["number", "variable"], defaultType: "number",
+          defaultValue: { number: 4, variable: "LAST_VARIABLE" } }]"""
+        add = self.generate({"eventAdd.js": definition("EVENT_ADD", fields)})["events"]["EVENT_ADD"]
+        self.assertEqual(add["fields"][0]["types"], ["number", "variable"])
+        self.assertEqual(add["example"]["args"], {"amount": {"type": "number", "value": 4}})
+        broken = '[{ key: "amount", type: "union", types: ["number"], defaultValue: { number: 4 } }]'
+        with self.assertRaisesRegex(RuntimeError, "EVENT_ADD field amount: union field amount has no defaultType"):
+            self.generate({"eventAdd.js": definition("EVENT_ADD", broken)})
+
+    def test_an_event_whose_compiler_helper_is_gone_must_be_listed_and_is_marked(self):
+        attack = definition("EVENT_ATTACK", "[]", "const { weaponAttack } = helpers; weaponAttack();")
+        with self.assertRaisesRegex(RuntimeError, "EVENT_ATTACK compiles with weaponAttack, which .* lacks"):
+            self.generate({"eventAttack.js": attack})
+        entry = self.generate({"eventAttack.js": attack}, {"UNAVAILABLE": ["EVENT_ATTACK"]})["events"]["EVENT_ATTACK"]
+        self.assertIn("no weaponAttack", entry["unavailable"])
+        with self.assertRaisesRegex(RuntimeError, "UNAVAILABLE names EVENT_PICK, whose helpers"):
+            self.generate({"eventPick.js": PICK}, {"UNAVAILABLE": ["EVENT_PICK"]})
+
+    def test_a_hand_written_example_replaces_the_default_and_must_fit(self):
+        loop = {"command": "EVENT_PICK", "args": {"items": 3}, "children": {"true": []}}
+        guidance = {"EXAMPLES": {"EVENT_PICK": {"requires": "A thing to pick.", "example": loop}}}
+        pick = self.generate({"eventPick.js": PICK}, guidance)["events"]["EVENT_PICK"]
+        self.assertEqual((pick["example"], pick["requires"]), (loop, "A thing to pick."))
+        wrong = {"EXAMPLES": {"EVENT_PICK": {"example": {"command": "EVENT_PICK", "args": {"colour": 1}}}}}
+        with self.assertRaisesRegex(RuntimeError, "EVENT_PICK's example gives EVENT_PICK an arg colour"):
+            self.generate({"eventPick.js": PICK}, wrong)
+
+    def test_an_editor_default_replaces_the_definitions_default(self):
+        fields = '[{ key: "data", type: "dataTable", defaultValue: [{ variable: "0", values: [] }] }]'
+        shape = {"variables": ["0"], "rows": []}
+        table = self.generate(
+            {"eventTable.js": definition("EVENT_TABLE", fields)}, {"EDITOR_DEFAULTS": {"dataTable": shape}}
+        )
+        self.assertEqual(table["events"]["EVENT_TABLE"]["example"]["args"], {"data": shape})
+
+    def test_a_deprecated_event_names_its_replacement_and_conversion(self):
+        old = {"EVENT_OLD_PICK": {"replacement": "EVENT_PICK", "migration": "Pick instead."}}
+        catalog = self.generate({"eventPick.js": PICK, "eventOldPick.js": OLD_PICK}, {"DEPRECATIONS": old})
+        entry = catalog["events"]["EVENT_OLD_PICK"]
+        self.assertEqual(
+            (entry["deprecated"], entry["replacement"], entry["migration"]), (True, "EVENT_PICK", "Pick instead.")
+        )
 
     def test_a_newly_deprecated_event_stops_the_generator(self):
-        with self.assertRaisesRegex(RuntimeError, "EVENT_OLD_PICK is deprecated: add it to REPLACEMENTS"):
+        with self.assertRaisesRegex(RuntimeError, "EVENT_OLD_PICK is deprecated: add it to DEPRECATIONS"):
             self.generate({"eventPick.js": PICK, "eventOldPick.js": OLD_PICK})
 
     def test_a_replacement_must_be_a_current_event(self):
+        old = {"EVENT_OLD_PICK": {"replacement": "EVENT_GONE", "migration": "Gone."}}
         with self.assertRaisesRegex(RuntimeError, "EVENT_OLD_PICK's replacement EVENT_GONE is not a current"):
-            self.generate({"eventPick.js": PICK, "eventOldPick.js": OLD_PICK}, {"EVENT_OLD_PICK": "EVENT_GONE"})
+            self.generate({"eventPick.js": PICK, "eventOldPick.js": OLD_PICK}, {"DEPRECATIONS": old})
 
     def test_a_definition_needing_another_module_is_named(self):
         source = 'const x = require("../helpers/other"); module.exports = { id: "EVENT_X", fields: [] };'
         with self.assertRaisesRegex(RuntimeError, "eventX.js requires ../helpers/other"):
             self.generate({"eventX.js": source})
 
-
-@contextmanager
-def replacement_table(table: dict):
-    """Run a copy of the generator whose REPLACEMENTS table is the test's own (the real one names GB Studio's events)."""
-    source = event_catalog.GENERATOR.read_text()
-    start = source.index("export const REPLACEMENTS = {")
-    end = source.index("};", start) + 2
-    saved = event_catalog.GENERATOR
-    with tempfile.TemporaryDirectory() as folder:
-        copy = Path(folder) / "event_catalog.mjs"
-        copy.write_text(source[:start] + f"export const REPLACEMENTS = {json.dumps(table)};" + source[end:])
-        event_catalog.GENERATOR = copy
-        try:
-            yield
-        finally:
-            event_catalog.GENERATOR = saved
-
-
-class CommittedCatalogTests(unittest.TestCase):
-    def setUp(self):
-        self.catalog = json.loads(event_catalog.CATALOG.read_text())
-        self.events = self.catalog["events"]
-
-    def test_every_event_has_args_and_an_example_of_itself(self):
-        self.assertGreater(len(self.events), 100)
-        for command, entry in self.events.items():
-            with self.subTest(command=command):
-                self.assertRegex(command, r"^EVENT_[A-Z0-9_]+$")
-                self.assertTrue(entry["name"])
-                self.assertEqual(entry["example"]["command"], command)
-                keys = {field["key"] for field in entry["fields"]}
-                self.assertLessEqual(set(entry["example"]["args"]), keys)
-                self.assertEqual(set(entry["example"].get("children", {})) - set(entry.get("branches", [])), set())
-                self.assertNotIn("LAST_", json.dumps(entry))
-
-    def test_deprecated_events_name_a_current_replacement(self):
-        deprecated = {command: entry for command, entry in self.events.items() if entry.get("deprecated")}
-        self.assertIn("EVENT_IF_VALUE", deprecated)
-        for command, entry in deprecated.items():
-            with self.subTest(command=command):
-                if "replacement" in entry:
-                    self.assertFalse(self.events[entry["replacement"]].get("deprecated"))
-
-    def test_script_values_are_typed_in_examples(self):
-        self.assertEqual(
-            self.events["EVENT_ACTOR_SET_DIRECTION"]["example"]["args"]["direction"],
-            {"type": "direction", "value": "up"},
-        )
-        self.assertEqual(self.events["EVENT_SWITCH_SCENE"]["example"]["args"]["x"], {"type": "number", "value": 0})
-
-    def test_text_events_warn_about_logo_scenes(self):
-        warned = sorted(
-            command
-            for command, entry in self.events.items()
-            if any("LOGO" in warning.get("sceneTypes", []) for warning in entry.get("warnings", []))
-        )
-        self.assertEqual(warned, ["EVENT_CHOICE", "EVENT_MENU", "EVENT_TEXT", "EVENT_TEXT_DRAW"])
-
-
-class CookbookTests(unittest.TestCase):
-    """Each recipe is a JSON list of current events whose args, values and branches are the ones GB Studio declares."""
-
-    def setUp(self):
-        self.events = json.loads(event_catalog.CATALOG.read_text())["events"]
-
-    def check_event(self, event: dict, where: str):
-        command = event.get("command")
-        self.assertIn(command, self.events, where)
-        entry = self.events[command]
-        self.assertFalse(entry.get("deprecated"), f"{where}: {command} is deprecated")
-        self.assertNotIn("id", event, f"{where}: recipes leave ids to the engine")
-        fields = {field["key"]: field for field in entry["fields"]}
-        for key, value in event.get("args", {}).items():
-            self.assertIn(key, list(fields), f"{where}: {command} has no arg {key}")
-            field = fields[key]
-            if field["type"] in ("value", "constvalue"):
-                self.assertIsInstance(value, dict, f"{where}: {command}.{key} must be a typed ScriptValue")
-                self.assertIn("type", value, f"{where}: {command}.{key}")
-            if "options" in field:
-                for option in value if isinstance(value, list) else [value]:
-                    self.assertIn(option, field["options"], f"{where}: {command}.{key}")
-        for branch, children in event.get("children", {}).items():
-            self.assertIn(branch, entry.get("branches", []), f"{where}: {command} has no branch {branch}")
-            for index, child in enumerate(children):
-                self.check_event(child, f"{where} > {command}.{branch}[{index}]")
-
-    def test_every_recipe_is_current_events_with_their_declared_args(self):
-        text = (SKILL / "event-cookbook.md").read_text()
-        recipes = re.findall(r"```json\n(.*?)```", text, re.S)
-        self.assertGreaterEqual(len(recipes), 10)
-        for number, recipe in enumerate(recipes, 1):
-            events = json.loads(recipe)
-            self.assertIsInstance(events, list)
-            for index, event in enumerate(events):
-                self.check_event(event, f"recipe {number}[{index}]")
-
-    def test_the_pages_name_only_real_events(self):
-        for page in ("event-cookbook.md", "gb-studio-behaviours.md", "project-authoring.md"):
-            for command in set(re.findall(r"\bEVENT_[A-Z0-9_]*[A-Z0-9]", (SKILL / page).read_text())):
-                with self.subTest(page=page, command=command):
-                    self.assertIn(command, self.events)
+    def test_the_generator_runs_through_a_symlinked_folder(self):
+        catalog = self.generate({"eventPick.js": PICK}, through_symlink=True)
+        self.assertIn("EVENT_PICK", catalog["events"])
 
 
 if __name__ == "__main__":

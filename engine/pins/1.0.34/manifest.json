@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36173217,
+ "total_bytes": 36200160,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "ff7a7759641c64186d5b316f401f024eddcadcb1cb5e39c7cb2e20665945ac34",
+ "aggregate_sha256": "9406559c614444face3e0a2fc1f6e1423a6ba911b4d3d4c6eb9090998244b5e0",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -649,9 +649,9 @@
   {
    "path": "dist/gb-studio-events.json",
    "type": "file",
-   "size": 149723,
+   "size": 164335,
    "mode": "0o644",
-   "sha256": "f9e0b688733a6a1b30d4bbb82e0959a09a8bbc94c4e8ea7ba16633d169d8ab46"
+   "sha256": "1fcb3e821e642e96810ea1e4557897de870020100f706a69d8a840b816636e86"
   },
   {
    "path": "dist/graphics-palette-packing.js",
@@ -1048,9 +1048,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3011334,
+   "size": 3023665,
    "mode": "0o644",
-   "sha256": "c7d5e78fe1aca2cad491aa9213e369501638bf1c287489e7b19de8518e6ca863"
+   "sha256": "edce06662b2cdd6a65200f7b6f5a0d5b0afb6fe86541a297645e77ae82a0942b"
   },
   {
    "path": "dist/server.js.map",

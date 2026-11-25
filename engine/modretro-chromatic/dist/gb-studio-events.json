@@ -357,6 +357,7 @@
     "Actor"
    ],
    "deprecated": true,
+   "migration": "Move the actor's interact script into a custom script and call it with EVENT_CALL_CUSTOM_EVENT from the actor and from here.",
    "fields": [
     {
      "key": "actorId",
@@ -447,6 +448,7 @@
       "walls",
       "actors"
      ],
+     "multiple": true,
      "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
     },
     {
@@ -457,6 +459,7 @@
       "x",
       "y"
      ],
+     "multiple": true,
      "description": "Prevents the actor from changing facing direction along the selected axis while moving."
     },
     {
@@ -541,6 +544,7 @@
       "walls",
       "actors"
      ],
+     "multiple": true,
      "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
     },
     {
@@ -551,6 +555,7 @@
       "x",
       "y"
      ],
+     "multiple": true,
      "description": "Prevents the actor from changing facing direction along the selected axis while moving."
     },
     {
@@ -588,6 +593,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_ACTOR_MOVE_TO",
+   "migration": "Keep actorId; x becomes {\"type\":\"variable\",\"value\":<vectorX>}, y {\"type\":\"variable\",\"value\":<vectorY>}, units \"tiles\". The old event moves horizontally first and through walls and actors: set moveType \"horizontal\" and collideWith [] to keep that (the editor's default collideWith [\"walls\"] stops at walls).",
    "fields": [
     {
      "key": "actorId",
@@ -644,6 +650,7 @@
     "Actor"
    ],
    "deprecated": true,
+   "migration": "It compiles to nothing in this GB Studio: remove it.",
    "fields": [
     {
      "key": "actorId",
@@ -859,6 +866,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_ACTOR_SET_FRAME",
+   "migration": "Keep actorId; frame becomes {\"type\":\"variable\",\"value\":<variable>}.",
    "fields": [
     {
      "key": "actorId",
@@ -890,6 +898,25 @@
      "sceneTypes": [
       "PLATFORM",
       "ADVENTURE"
+     ],
+     "whenAny": [
+      [
+       {
+        "key": "actorId",
+        "eq": "$self$"
+       },
+       {
+        "entityTypeNot": [
+         "actor"
+        ]
+       }
+      ],
+      [
+       {
+        "key": "actorId",
+        "eq": "player"
+       }
+      ]
      ],
      "message": "To set the Player Movement speed in Platformer or Adventure scene types, you must use the \"Engine Field Update\" event to set the Walk Velocity or Run Velocity fields."
     }
@@ -1045,6 +1072,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_ACTOR_SET_POSITION",
+   "migration": "Keep actorId; x becomes {\"type\":\"variable\",\"value\":<vectorX>}, y {\"type\":\"variable\",\"value\":<vectorY>}, units \"tiles\".",
    "fields": [
     {
      "key": "actorId",
@@ -1404,9 +1432,14 @@
      "description": "The script to run."
     }
    ],
+   "requires": "A custom script in the project: its id from project_inventory's scripts. Give one \"$variable[V<n>]$\" arg per variable parameter the script declares (a variable id; a ScriptValue for a parameter taken by value) and one \"$actor[<n>]$\" arg per actor parameter (an actor id, \"player\" or \"$self$\"). Without the script GB Studio compiles nothing for the call.",
    "example": {
     "command": "EVENT_CALL_CUSTOM_EVENT",
-    "args": {}
+    "args": {
+     "customEventId": "<custom script>",
+     "$variable[V0]$": "<variable>",
+     "$actor[0]$": "player"
+    }
    }
   },
   "EVENT_CAMERA_LOCK": {
@@ -1433,11 +1466,13 @@
       "x",
       "y"
      ],
+     "multiple": true,
      "description": "Set if either horizontal axis, vertical axis or both should be locked."
     },
     {
      "key": "preventScroll",
      "type": "direction",
+     "multiple": true,
      "description": "Prevents camera from scrolling in selected directions."
     }
    ],
@@ -1657,11 +1692,13 @@
       "x",
       "y"
      ],
+     "multiple": true,
      "description": "Set if either horizontal axis, vertical axis or both should be locked."
     },
     {
      "key": "preventScroll",
      "type": "direction",
+     "multiple": true,
      "description": "Prevents camera from scrolling in selected directions."
     }
    ],
@@ -2042,17 +2079,22 @@
     {
      "key": "data",
      "type": "dataTable",
-     "default": [
-      {
-       "variable": "0",
-       "values": [
-        {
-         "type": "number",
-         "value": 0
-        }
-       ]
-      }
-     ],
+     "default": {
+      "variables": [
+       "0"
+      ],
+      "rows": [
+       {
+        "label": "",
+        "values": [
+         {
+          "type": "number",
+          "value": 0
+         }
+        ]
+       }
+      ]
+     },
      "description": "A table of values to fetch data from based on the Index Variable. The values are loaded into the specified variable for each column."
     }
    ],
@@ -2060,17 +2102,22 @@
     "command": "EVENT_DATA_TABLE",
     "args": {
      "indexVariable": "<variable>",
-     "data": [
-      {
-       "variable": "0",
-       "values": [
-        {
-         "type": "number",
-         "value": 0
-        }
-       ]
-      }
-     ]
+     "data": {
+      "variables": [
+       "0"
+      ],
+      "rows": [
+       {
+        "label": "",
+        "values": [
+         {
+          "type": "number",
+          "value": 0
+         }
+        ]
+       }
+      ]
+     }
     }
    }
   },
@@ -2100,6 +2147,7 @@
    "groups": [],
    "deprecated": true,
    "replacement": "EVENT_LOOP_WHILE",
+   "migration": "Labels have no current event: rewrite the jump as structure. A backward EVENT_GOTO_LABEL that repeats events becomes an EVENT_LOOP_WHILE around them, with the condition that kept it jumping as the loop's condition; a forward one that skips events becomes an EVENT_IF whose false branch holds the skipped events. Remove both events of the pair.",
    "fields": [
     {
      "key": "label",
@@ -2107,10 +2155,26 @@
      "description": "Label"
     }
    ],
-   "example": {
-    "command": "EVENT_DEFINE_LABEL",
-    "args": {}
-   }
+   "example": [
+    {
+     "command": "EVENT_GOTO_LABEL",
+     "args": {
+      "label": "skip"
+     }
+    },
+    {
+     "command": "EVENT_TEXT",
+     "args": {
+      "text": "Never shown."
+     }
+    },
+    {
+     "command": "EVENT_DEFINE_LABEL",
+     "args": {
+      "label": "skip"
+     }
+    }
+   ]
   },
   "EVENT_DIALOGUE_CLOSE_NONMODAL": {
    "name": "Close Non-Modal Dialogue",
@@ -2279,6 +2343,7 @@
    "groups": [],
    "deprecated": true,
    "replacement": "EVENT_LOOP_WHILE",
+   "migration": "Labels have no current event: rewrite the jump as structure. A backward EVENT_GOTO_LABEL that repeats events becomes an EVENT_LOOP_WHILE around them, with the condition that kept it jumping as the loop's condition; a forward one that skips events becomes an EVENT_IF whose false branch holds the skipped events. Remove both events of the pair.",
    "fields": [
     {
      "key": "label",
@@ -2286,10 +2351,27 @@
      "description": "Label"
     }
    ],
-   "example": {
-    "command": "EVENT_GOTO_LABEL",
-    "args": {}
-   }
+   "requires": "An EVENT_DEFINE_LABEL with the same label in the same script.",
+   "example": [
+    {
+     "command": "EVENT_GOTO_LABEL",
+     "args": {
+      "label": "skip"
+     }
+    },
+    {
+     "command": "EVENT_TEXT",
+     "args": {
+      "text": "Never shown."
+     }
+    },
+    {
+     "command": "EVENT_DEFINE_LABEL",
+     "args": {
+      "label": "skip"
+     }
+    }
+   ]
   },
   "EVENT_GROUP": {
    "name": "Event Group",
@@ -2299,7 +2381,9 @@
    ],
    "fields": [],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
    "example": {
     "command": "EVENT_GROUP",
@@ -2355,11 +2439,27 @@
       }
      },
      "description": "The condition to evaluate."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF",
@@ -2426,11 +2526,27 @@
      "min": 0,
      "max": 255,
      "description": "The vertical position."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_ACTOR_AT_POSITION",
@@ -2474,11 +2590,27 @@
       "value": "up"
      },
      "description": "The actor direction."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_ACTOR_DIRECTION",
@@ -2531,11 +2663,27 @@
      "type": "actor",
      "default": "$self$",
      "description": "The actor to compare distance with."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_ACTOR_DISTANCE_FROM_ACTOR",
@@ -2585,11 +2733,27 @@
      "type": "actor",
      "default": "$self$",
      "description": "The actor to compare position with."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_ACTOR_RELATIVE_TO_ACTOR",
@@ -2611,10 +2775,27 @@
     "Control Flow",
     "Color"
    ],
-   "fields": [],
+   "fields": [
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
+    }
+   ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_COLOR_SUPPORTED",
@@ -2637,11 +2818,27 @@
      "type": "scene",
      "default": "<scene>",
      "description": "Scene"
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_CURRENT_SCENE_IS",
@@ -2661,10 +2858,27 @@
     "Control Flow",
     "Color"
    ],
-   "fields": [],
+   "fields": [
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
+    }
+   ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_DEVICE_GBA",
@@ -2682,10 +2896,27 @@
     "Control Flow",
     "Color"
    ],
-   "fields": [],
+   "fields": [
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
+    }
+   ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_DEVICE_SGB",
@@ -2705,17 +2936,34 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_IF",
+   "migration": "EVENT_IF with condition {\"type\":\"gt\",\"valueA\":{\"type\":\"expression\",\"value\":<expression>},\"valueB\":{\"type\":\"number\",\"value\":0}} and the same true and false branches. The old event is true only above 0; an expression alone as the condition is true for anything but 0, so a negative result would take the other branch.",
    "fields": [
     {
      "key": "expression",
      "type": "matharea",
      "default": "",
      "description": "The expression to evaluate."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_EXPRESSION",
@@ -2736,17 +2984,34 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_IF",
+   "migration": "EVENT_IF with condition {\"type\":\"lte\",\"valueA\":{\"type\":\"variable\",\"value\":<variable>},\"valueB\":{\"type\":\"number\",\"value\":0}} and the same true and false branches. The old event takes its true branch at 0 or below.",
    "fields": [
     {
      "key": "variable",
      "type": "variable",
      "default": "<variable>",
      "description": "The variable to use."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_FALSE",
@@ -2777,11 +3042,27 @@
      "type": "selectFlags",
      "default": 0,
      "description": "The flag to check."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_FLAGS_COMPARE",
@@ -2811,11 +3092,27 @@
       "b"
      ],
      "description": "The input buttons to check."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_INPUT",
@@ -2849,11 +3146,27 @@
       2
      ],
      "description": "The save slot to use."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_SAVED_DATA",
@@ -2874,17 +3187,34 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_IF",
+   "migration": "EVENT_IF with condition {\"type\":\"gt\",\"valueA\":{\"type\":\"variable\",\"value\":<variable>},\"valueB\":{\"type\":\"number\",\"value\":0}} and the same true and false branches. The old event takes its true branch only above 0; a variable alone as the condition is true for anything but 0, so a negative value would take the other branch.",
    "fields": [
     {
      "key": "variable",
      "type": "variable",
      "default": "<variable>",
      "description": "The variable to use."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_TRUE",
@@ -2906,6 +3236,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_IF",
+   "migration": "EVENT_IF with condition {\"type\":<op>,\"valueA\":{\"type\":\"variable\",\"value\":<variable>},\"valueB\":{\"type\":\"number\",\"value\":<comparator>}} and the same true and false branches. operator ==, !=, <, >, <=, >= becomes type eq, ne, lt, gt, lte, gte.",
    "fields": [
     {
      "key": "variable",
@@ -2926,11 +3257,27 @@
      "min": -32768,
      "max": 32767,
      "description": "The value to compare with."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_VALUE",
@@ -2954,6 +3301,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_IF",
+   "migration": "EVENT_IF with condition {\"type\":<op>,\"valueA\":{\"type\":\"variable\",\"value\":<vectorX>},\"valueB\":{\"type\":\"variable\",\"value\":<vectorY>}} and the same true and false branches. operator ==, !=, <, >, <=, >= becomes type eq, ne, lt, gt, lte, gte.",
    "fields": [
     {
      "key": "vectorX",
@@ -2972,11 +3320,27 @@
      "type": "variable",
      "default": "<variable>",
      "description": "The variable to compare with."
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_IF_VALUE_COMPARE",
@@ -3172,6 +3536,11 @@
      "key": "collisionGroup",
      "type": "collisionMask",
      "default": "3",
+     "options": [
+      "1",
+      "2",
+      "3"
+     ],
      "description": "The collision group that should be used when registering collisions with actors."
     },
     {
@@ -3180,6 +3549,13 @@
      "default": [
       "1"
      ],
+     "options": [
+      "player",
+      "1",
+      "2",
+      "3"
+     ],
+     "multiple": true,
      "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
     }
    ],
@@ -3501,6 +3877,11 @@
      "key": "collisionGroup",
      "type": "collisionMask",
      "default": "3",
+     "options": [
+      "1",
+      "2",
+      "3"
+     ],
      "description": "The collision group that should be used when registering collisions with actors."
     },
     {
@@ -3509,6 +3890,13 @@
      "default": [
       "1"
      ],
+     "options": [
+      "player",
+      "1",
+      "2",
+      "3"
+     ],
+     "multiple": true,
      "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
     }
    ],
@@ -3539,13 +3927,27 @@
    ],
    "fields": [],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
+   "requires": "It never ends: run it in a thread (EVENT_THREAD_START) or an actor's updateScript, and give its body an EVENT_WAIT so the game keeps running.",
    "example": {
     "command": "EVENT_LOOP",
     "args": {},
     "children": {
-     "true": []
+     "true": [
+      {
+       "command": "EVENT_WAIT",
+       "args": {
+        "frames": {
+         "type": "number",
+         "value": 1
+        },
+        "units": "frames"
+       }
+      }
+     ]
     }
    }
   },
@@ -3609,7 +4011,9 @@
     }
    ],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
    "example": {
     "command": "EVENT_LOOP_FOR",
@@ -3660,8 +4064,11 @@
     }
    ],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
+   "requires": "The body must change what the condition reads, and wait a frame, or the game freezes.",
    "example": {
     "command": "EVENT_LOOP_WHILE",
     "args": {
@@ -3678,7 +4085,24 @@
      }
     },
     "children": {
-     "true": []
+     "true": [
+      {
+       "command": "EVENT_INC_VALUE",
+       "args": {
+        "variable": "<variable>"
+       }
+      },
+      {
+       "command": "EVENT_WAIT",
+       "args": {
+        "frames": {
+         "type": "number",
+         "value": 1
+        },
+        "units": "frames"
+       }
+      }
+     ]
     }
    }
   },
@@ -4066,6 +4490,7 @@
       2,
       3
      ],
+     "multiple": true,
      "description": "The channels that will produce sound. Any unselected channels will be muted."
     }
    ],
@@ -4593,8 +5018,12 @@
     }
    ],
    "branches": [
-    "true",
-    "false"
+    {
+     "key": "true"
+    },
+    {
+     "key": "false"
+    }
    ],
    "example": {
     "command": "EVENT_PRINT",
@@ -4666,7 +5095,9 @@
     }
    ],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
    "example": {
     "command": "EVENT_RATE_LIMIT",
@@ -5010,8 +5441,12 @@
     }
    ],
    "branches": [
-    "true",
-    "load"
+    {
+     "key": "true"
+    },
+    {
+     "key": "load"
+    }
    ],
    "example": {
     "command": "EVENT_SAVE_DATA",
@@ -5177,7 +5612,9 @@
     }
    ],
    "branches": [
-    "script"
+    {
+     "key": "script"
+    }
    ],
    "example": {
     "command": "EVENT_SET_ADVENTURE_CALLBACK_SCRIPT",
@@ -5216,6 +5653,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_SET_VALUE",
+   "migration": "Keep variable; value becomes {\"type\":\"number\",\"value\":0}.",
    "fields": [
     {
      "key": "variable",
@@ -5408,7 +5846,9 @@
     }
    ],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
    "example": {
     "command": "EVENT_SET_INPUT_SCRIPT",
@@ -5440,7 +5880,9 @@
     }
    ],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
    "example": {
     "command": "EVENT_SET_MUSIC_ROUTINE",
@@ -5493,7 +5935,9 @@
     }
    ],
    "branches": [
-    "script"
+    {
+     "key": "script"
+    }
    ],
    "example": {
     "command": "EVENT_SET_PLATFORMER_CALLBACK_SCRIPT",
@@ -5661,7 +6105,9 @@
     }
    ],
    "branches": [
-    "script"
+    {
+     "key": "script"
+    }
    ],
    "example": {
     "command": "EVENT_SET_TIMER_SCRIPT",
@@ -5683,6 +6129,7 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_SET_VALUE",
+   "migration": "Keep variable; value becomes {\"type\":\"number\",\"value\":1}.",
    "fields": [
     {
      "key": "variable",
@@ -6176,26 +6623,168 @@
        "gt": 15
       }
      ]
+    },
+    {
+     "key": "__disableElse",
+     "type": "checkbox",
+     "optional": true,
+     "description": "true leaves the false branch out (the editor's Disable Else): the compiler ignores children.false."
     }
    ],
    "branches": [
-    "true0",
-    "true1",
-    "true2",
-    "true3",
-    "true4",
-    "true5",
-    "true6",
-    "true7",
-    "true8",
-    "true9",
-    "true10",
-    "true11",
-    "true12",
-    "true13",
-    "true14",
-    "true15",
-    "false"
+    {
+     "key": "true0",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 0
+      }
+     ]
+    },
+    {
+     "key": "true1",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 1
+      }
+     ]
+    },
+    {
+     "key": "true2",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 2
+      }
+     ]
+    },
+    {
+     "key": "true3",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 3
+      }
+     ]
+    },
+    {
+     "key": "true4",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 4
+      }
+     ]
+    },
+    {
+     "key": "true5",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 5
+      }
+     ]
+    },
+    {
+     "key": "true6",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 6
+      }
+     ]
+    },
+    {
+     "key": "true7",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 7
+      }
+     ]
+    },
+    {
+     "key": "true8",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 8
+      }
+     ]
+    },
+    {
+     "key": "true9",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 9
+      }
+     ]
+    },
+    {
+     "key": "true10",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 10
+      }
+     ]
+    },
+    {
+     "key": "true11",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 11
+      }
+     ]
+    },
+    {
+     "key": "true12",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 12
+      }
+     ]
+    },
+    {
+     "key": "true13",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 13
+      }
+     ]
+    },
+    {
+     "key": "true14",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 14
+      }
+     ]
+    },
+    {
+     "key": "true15",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 15
+      }
+     ]
+    },
+    {
+     "key": "false",
+     "when": [
+      {
+       "key": "__disableElse",
+       "ne": true
+      }
+     ]
+    }
    ],
    "example": {
     "command": "EVENT_SWITCH",
@@ -6305,6 +6894,9 @@
       {
        "key": "closeWhen",
        "eq": "notModal"
+      },
+      {
+       "parallaxEnabled": false
       }
      ],
      "message": "To close a non-modal dialog positioned at the top of the screen, you can use a \"Close Non-Modal Dialogue\" event or you will need to manually reset the overlay scanline cutoff with a \"Set Overlay Scanline Cutoff\" event."
@@ -6372,7 +6964,12 @@
       "bottom",
       "top"
      ],
-     "description": "The position to place the dialogue window."
+     "description": "The position to place the dialogue window.",
+     "when": [
+      {
+       "parallaxEnabled": false
+      }
+     ]
     },
     {
      "key": "clearPrevious",
@@ -6730,7 +7327,9 @@
     }
    ],
    "branches": [
-    "true"
+    {
+     "key": "true"
+    }
    ],
    "example": {
     "command": "EVENT_THREAD_START",
@@ -7035,6 +7634,8 @@
    ],
    "deprecated": true,
    "replacement": "EVENT_LAUNCH_PROJECTILE",
+   "migration": "Keep spriteSheetId, actorId, collisionGroup and collisionMask; offset becomes initialOffset; set directionType \"actor\" with otherActorId the same actor, so it launches the way the source faces. The old attack had no speed or lifetime: choose speed and lifeTime (a short lifeTime for a swing) and check the frame.",
+   "unavailable": "GB Studio's compiler has no weaponAttack: a script with this event does not build.",
    "fields": [
     {
      "key": "spriteSheetId",
@@ -7060,6 +7661,11 @@
      "key": "collisionGroup",
      "type": "collisionMask",
      "default": "3",
+     "options": [
+      "1",
+      "2",
+      "3"
+     ],
      "description": "Collision Group"
     },
     {
@@ -7068,6 +7674,13 @@
      "default": [
       "1"
      ],
+     "options": [
+      "player",
+      "1",
+      "2",
+      "3"
+     ],
+     "multiple": true,
      "description": "Collide With"
     }
    ],

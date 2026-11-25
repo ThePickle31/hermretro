@@ -5492,7 +5492,7 @@
     {
       "name": "event_describe",
       "title": "Describe GB Studio events",
-      "description": "Look up GB Studio's script events. With no arguments, list the categories; with query or category, list matching events (command, name, one-line summary); with events, describe up to 5: every arg with its type, default and allowed values, child branches, scene-type warnings, deprecation with its replacement, and an example event to adapt. Read from GB Studio's own event definitions; needs no project.",
+      "description": "Look up GB Studio's script events. With no arguments, list the categories; with query, category or includeDeprecated, list matching events (command, name, one-line summary; 40 at a time, nextCursor for more); with events, describe up to 5: every arg with its type, default, allowed values and the conditions under which it is used, child branches, warnings, deprecation with its replacement and how to convert, what the event needs first, and an example to adapt. Read from GB Studio's own event definitions; needs no project.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5517,11 +5517,24 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "description": "A category from the listing, e.g. Actor or Dialogue & Menus."
+            "description": "A category from the listing, e.g. Actor, Dialogue & Menus or Uncategorized."
           },
           "includeDeprecated": {
             "type": "boolean",
-            "description": "List deprecated events too (default false)."
+            "description": "List deprecated events too (default false); alone, lists every event."
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^\\d{1,4}$",
+            "description": "A listing's nextCursor, to list the matches after it."
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "full",
+              "compact"
+            ],
+            "description": "With events: compact leaves out descriptions and conditions (default full)."
           }
         },
         "additionalProperties": false,

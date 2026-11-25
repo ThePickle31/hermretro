@@ -1,5 +1,6 @@
 """Script events through the real engine: the event catalog against the toolchain's GB Studio, event_describe, the
-authoring skill's cookbook recipes building in their places, and rom_build's authoring warnings."""
+authoring skill's cookbook recipes building in their places, and rom_build's authoring warnings (on every path,
+through custom scripts, on compiled text only)."""
 
 import importlib.util
 import json
@@ -51,10 +52,12 @@ def check_events(suite, client):
         },
     )
     inventory = call(client, "project_inventory")
-    start = inventory["scenes"][0]
+    start_id = call(client, "project_inspect")["settings"]["startSceneId"]
+    start = next(scene for scene in inventory["scenes"] if scene["id"] == start_id)
     sprite = next(asset["id"] for asset in inventory["assets"] if asset["type"] == "sprite")
     clean = check_recipes(suite, client, start, sprite)
-    check_warnings(suite, client, start, sprite, clean)
+    logo = check_warnings(suite, client, start, sprite, clean)
+    check_warning_paths(suite, client, root, start, sprite, logo)
 
 
 def check_catalog(suite):
@@ -85,6 +88,16 @@ def check_describe(suite, client):
     )
     sound = call(client, "event_describe", {"query": "play sound"})
     current = call(client, "event_describe", {"query": "if variable"})
+    actors = call(client, "event_describe", {"category": "Actor", "includeDeprecated": True})
+    rest = call(
+        client,
+        "event_describe",
+        {"category": "Actor", "includeDeprecated": True, "cursor": actors.get("nextCursor", "0")},
+    )
+    uncategorized = call(client, "event_describe", {"category": "Uncategorized"})
+    big = ["EVENT_SWITCH", "EVENT_MENU", "EVENT_TEXT", "EVENT_LAUNCH_PROJECTILE", "EVENT_LAUNCH_PROJECTILE_SLOT"]
+    full = call(client, "event_describe", {"events": big})
+    compact = call(client, "event_describe", {"events": big, "detail": "compact"})
     by_event = {entry["event"]: entry for entry in described.get("events", [])}
     direction = {field["key"]: field for field in by_event.get("EVENT_ACTOR_SET_DIRECTION", {}).get("fields", [])}
     menu = {field["key"]: field for field in by_event.get("EVENT_MENU", {}).get("fields", [])}
@@ -105,11 +118,18 @@ def check_describe(suite, client):
         and "value" in described.get("fieldTypes", {})
         and sound.get("matches", [{}])[0].get("event") == "EVENT_SOUND_PLAY_EFFECT"
         and all(not match.get("deprecated") for match in current.get("matches", []))
-        and current.get("deprecatedHidden", 0) >= 1,
+        and current.get("deprecatedHidden", 0) >= 1
+        and len(actors.get("matches", [])) + len(rest.get("matches", [])) == actors.get("total", -1) > 40
+        and "nextCursor" not in rest
+        and "EVENT_PRINT" in [match["event"] for match in uncategorized.get("matches", [])]
+        and len(json.dumps(compact)) < len(json.dumps(full)) / 2,
         listing=listing,
         described=json.dumps(described)[:1500],
         sound=sound,
         current=current,
+        actors={"total": actors.get("total"), "first": len(actors.get("matches", [])), "rest": rest},
+        uncategorized=uncategorized,
+        sizes={"full": len(json.dumps(full)), "compact": len(json.dumps(compact))},
     )
 
 
@@ -223,4 +243,102 @@ def check_warnings(suite, client, start, sprite, clean):
         and clean.get("success") is True,
         found=found,
         diagnostics=built.get("diagnostics"),
+    )
+    return logo
+
+
+def check_warning_paths(suite, client, root, start, sprite, logo):
+    """Hidden sprites count only on every path to a menu; a menu without layout is the right-hand one; text the
+    compiler never prints is not checked; and a custom script is checked where it is called, its deprecated events
+    counted once."""
+    lines = {
+        "_resourceType": "script",
+        "id": "e01-shared-lines",
+        "name": "Shared Lines",
+        "symbol": "script_e01_shared_lines",
+        "description": "",
+        "variables": {},
+        "actors": {},
+        "script": [
+            {"id": "e01-shared-text", "command": "EVENT_TEXT", "args": {"text": "Shared."}},
+            {
+                "id": "e01-shared-if",
+                "command": "EVENT_IF_TRUE",
+                "args": {"variable": "4"},
+                "children": {"true": [], "false": []},
+            },
+        ],
+    }
+    scripts = root / "project" / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    (scripts / "shared_lines.gbsres").write_text(json.dumps(lines, indent=2))
+    call_lines = {"command": "EVENT_CALL_CUSTOM_EVENT", "args": {"customEventId": lines["id"]}}
+    paths = call(
+        client, "scene_create", {"name": "Paths", "backgroundId": start["backgroundId"], "width": 20, "height": 18}
+    )["scene"]
+    guard = call(
+        client, "actor_create", {"sceneId": paths["id"], "name": "Guard", "x": 15, "y": 16, "spriteSheetId": sprite}
+    )["actor"]
+    gate = call(client, "trigger_create", {"sceneId": paths["id"], "name": "Quiet", "x": 2, "y": 2})["trigger"]
+    menu = {"command": "EVENT_MENU", "args": {"variable": "2", "items": 2, "option1": "YES", "option2": "NO"}}
+    hide = {"command": "EVENT_HIDE_SPRITES", "args": {}}
+    inserted = insert(
+        client,
+        {"sceneId": paths["id"]},
+        [
+            {
+                "command": "EVENT_IF",
+                "args": {"condition": {"type": "variable", "value": "4"}},
+                "children": {"true": [hide], "false": [menu]},
+            },
+            call_lines,
+            call_lines,
+        ],
+    )
+    inserted += insert(
+        client,
+        {"sceneId": paths["id"], "actorId": guard["id"]},
+        [{"command": "EVENT_THREAD_START", "args": {"variable": "3"}, "children": {"true": [hide]}}, menu],
+    )
+    inserted += insert(
+        client,
+        {"sceneId": paths["id"], "triggerId": gate["id"]},
+        [
+            {"command": "EVENT_COMMENT", "args": {"text": "Shows $0$ coins."}},
+            {
+                "command": "EVENT_IF",
+                "args": {"condition": {"type": "variable", "value": "4"}, "__disableElse": True},
+                "children": {"true": [], "false": [{"command": "EVENT_TEXT", "args": {"text": "Never $0$."}}]},
+            },
+            {**menu, "args": {**menu["args"], "layout": "dialogue", "option8": "Unused $0$"}},
+        ],
+    )
+    inserted += insert(client, {"sceneId": logo["id"]}, [call_lines])
+    built = call(client, "rom_build")
+    found = [item for item in built.get("diagnostics", []) if item.get("code") in WARNINGS]
+    messages = {item["code"]: [] for item in found}
+    for item in found:
+        messages[item["code"]].append(item["message"])
+    over = messages.get("ACTORS_OVER_MENU", [])
+    deprecated = [item for item in found if item["code"] == "DEPRECATED_EVENT" and item.get("event") == "EVENT_IF_TRUE"]
+    suite.check(
+        "C5",
+        "rom_build warns about a menu reached on a path without hidden sprites (another branch or a thread hid them), "
+        "follows a custom script into a LOGO scene and counts its deprecated event once, and leaves out comments, a "
+        "disabled else branch and menu options past the menu's items",
+        built.get("success") is True
+        and not any(result["failed"] for result in inserted)
+        and any(message.startswith("The menu in scene Paths opens over Guard") for message in over)
+        and any("actor Guard in scene Paths" in message for message in over)
+        and any(
+            "custom script Shared Lines (called from scene Ending)" in message
+            for message in messages.get("TEXT_IN_LOGO_SCENE", [])
+        )
+        and not any("Paths" in message for message in messages.get("TEXT_VARIABLE_TOKEN", []))
+        and len(deprecated) == 1
+        and "(2 in the project" in deprecated[0]["message"],
+        found=found,
+        failed=[result for result in inserted if result["failed"]][:3],
+        diagnostics=built.get("diagnostics"),
+        log=built.get("logPath"),
     )

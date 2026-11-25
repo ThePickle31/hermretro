@@ -263,13 +263,15 @@ a variable or expression value is accepted, and a commented-out event is not
 checked. `EVENT_SWITCH_SCENE`'s own `direction` stays a plain string.
 
 `chromatic_event_describe` answers what an event takes, from GB Studio's own event definitions: with no arguments
-its categories, with `query` or `category` matching events, with `events` (up to five) every arg's type, default and
-allowed values, child branches, scene-type warnings, deprecation with the replacement, and an example event. The
+its categories, with `query`, `category` or `includeDeprecated` matching events (40 at a time; `nextCursor` gives
+the rest), with `events` (up to five) every arg's type, default, allowed values and the conditions under which it is
+used, child branches, warnings, deprecation with the replacement and how to convert, what the event needs first
+(`requires`), and an example event (`detail: "compact"` for the shapes alone). The
 [event cookbook](event-cookbook.md) has working scripts for HUDs, pickups, hazards, gated exits, menus, threads,
 held buttons and sound effects; [GB Studio behaviours](gb-studio-behaviours.md) lists what builds but misbehaves in
 play. `chromatic_rom_build` adds warnings for text in a `LOGO` scene (`TEXT_IN_LOGO_SCENE`), a `$0$` text token
-(`TEXT_VARIABLE_TOKEN`), actors under a `layout: "menu"` menu (`ACTORS_OVER_MENU`) and deprecated events
-(`DEPRECATED_EVENT`); the ROM still builds.
+(`TEXT_VARIABLE_TOKEN`), actors or the player under a right-hand menu (`ACTORS_OVER_MENU`) and deprecated events
+(`DEPRECATED_EVENT`), following custom scripts and prefabs; the ROM still builds.
 
 `chromatic_script_edit` also supports `update`, `delete`, and `move`, including
 `branchPath` segments identified by stable event ID and branch name. Preserve

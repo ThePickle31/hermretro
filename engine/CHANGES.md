@@ -155,12 +155,18 @@ files, what changed and why.
   played its song through a raw GBVM line).
 - `dist/gb-studio-events.json` (new), `dist/server.js` (`event-catalog.js` module, `rom_build`, the tool domains):
   a catalog of GB Studio's script events, written by `tools/engine/event_catalog.py` from the event definitions of
-  the GB Studio the toolchain compiles with: each event's args (type, default, allowed values, conditions), child
-  branches, scene-type warnings, deprecation with its replacement, and the example event GB Studio's editor adds.
-  A new tool `event_describe` lists the categories, searches events (command, name, one-line summary) and
-  describes up to five. `rom_build` adds warnings for scene, actor and trigger scripts that build but misbehave:
-  text in a LOGO scene (`TEXT_IN_LOGO_SCENE`), a `$0$` text token (GB Studio prints another variable;
-  `TEXT_VARIABLE_TOKEN`), a menu with layout `menu` opening over actors in a Game Boy Color scene no larger than the
-  screen without `EVENT_HIDE_SPRITES` before it (`ACTORS_OVER_MENU`), and each deprecated event in the project, in
-  place of GB Studio's own notice for it (`DEPRECATED_EVENT`). Agents read GB Studio's source about 160 times in
+  the GB Studio the toolchain compiles with and the hand-written `tools/engine/event_guidance.mjs`: each event's args
+  (type, default, allowed values, whether it takes a list, the conditions under which it is used, `__disableElse`
+  where the compiler reads it), child branches with their conditions, warnings, deprecation with its replacement and
+  how to convert the args, events the compiler can no longer build (`EVENT_WEAPON_ATTACK`), what an event needs first,
+  and an example that works (the editor's, or a hand-written one where that loops forever or needs another event). A
+  new tool `event_describe` lists the categories, lists events by query, category or `includeDeprecated` 40 at a
+  time with a cursor, and describes up to five, in full or compact. `rom_build` adds warnings for scripts that build
+  but misbehave, in scenes, actors, triggers, the prefabs they inherit and the custom scripts they call (each in the
+  calling scene): text in a LOGO scene (`TEXT_IN_LOGO_SCENE`), a `$0$` token in printed text (GB Studio prints the
+  script's default variable; `TEXT_VARIABLE_TOKEN`), a right-hand menu opening over actors or the player's start or
+  landing tile in a Game Boy Color scene no larger than the screen, unless every path to it hides the sprites
+  (`ACTORS_OVER_MENU`), and each deprecated event, counted by where it is written, in place of GB Studio's own notice
+  for it (`DEPRECATED_EVENT`); disabled else branches and commented-out events are skipped, at most three of each
+  warning are listed, and the compiler's own diagnostics come first. Agents read GB Studio's source about 160 times in
   the five-game audit to find event args, and met each of these only when playing the game.
