@@ -11,17 +11,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.broker.broker import Broker  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.lifecycle import Notices  # noqa: E402 - the repository root goes on sys.path first
 
 
 def bare_broker(**fields):
     broker = Broker.__new__(Broker)
     broker.stopping = threading.Event()
     broker.lanes, broker.writer_leases = {}, {}
+    broker.retiring, broker.retire_started, broker.running = False, 0.0, 0
     broker.table_lock = threading.RLock()
+    broker.settled = threading.Condition(broker.table_lock)
     broker.events = []
     broker.trace = lambda **record: broker.events.append(record)
     for name, value in fields.items():
         setattr(broker, name, value)
+    # Kept notices are read from the run folder a test gives (state_dir); with none, there are none.
+    broker.notices = Notices(fields.get("state_dir", Path("/nonexistent-hermretro-run")))
     return broker
 
 

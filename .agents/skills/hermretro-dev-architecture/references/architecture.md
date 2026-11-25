@@ -89,7 +89,7 @@ layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
 | `backend/assets/` | RPCs `asset`, `asset_info`, `asset_restore`, `assets`; `post_llm_call`, `post_tool_call` (kept image versions) | nothing; `assets.image_restored`; listens to `library.build_reported` |
 | `backend/history/` | RPCs `builds`, `build_restore`; `post_tool_call` (a snapshot after each build) | nothing; `history.build_kept` |
 | `backend/player/` | nothing | the loopback player server (`get_server`, `game_build`, …) |
-| `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `BrokerUnavailable`, `BrokerNotRunning`, `OtherCopyBusy`) |
+| `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `BrokerUnavailable`, `BrokerNotRunning`, `BrokerRestarting`, `OtherCopyBusy`) |
 | `backend/system/` | nothing | a shared layer: `paths.py`, `host.py`, `events.py`, `hermes_home.py` |
 
 `__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
@@ -145,7 +145,7 @@ Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contract
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
 (ModRetro's CLI, pinned SHA-256; removing downloads), `backend/broker/broker.py` (the single authority: identity,
 admission, the hardware gate), `lane.py` (a conversation's engine worker and writer leases), `control.py`
-(control ops, the page's install), `server.py` (the user-only Unix socket), `client.py` (finds or starts the
+(control ops, the page's install), `lifecycle.py` (admission, shutdown, retirement, notices), `server.py` (the user-only Unix socket), `client.py` (finds or starts the
 broker; refuses a stale one), `backend/system/paths.py` (every location, the code fingerprint, the version).
 
 Modules the broker imports stay standard-library only: the broker runs as `python -m backend.broker` with a
@@ -155,11 +155,22 @@ imports; there are no exceptions).
 
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the
-gateway talks to it over a private Unix socket with a token. It replaces itself when the backend's code on disk
-changes and it is idle (the fingerprint covers every file under `backend/`, `__init__.py`, `plugin.yaml` and the pinned
+gateway talks to it over a private Unix socket with a token. A client replaces it when the backend's code on disk
+changes (the fingerprint covers every file under `backend/`, `__init__.py`, `plugin.yaml` and the pinned
 `tools.json`: what the plugin reads as it loads), and likewise when
 its handshake shows its new workers cannot start (its `node` was removed, or `temp_ok` is false while the
-client's TMPDIR would work); a busy one keeps its games. The broker
+client's TMPDIR would work): it asks `{"op": "shutdown", "replace": true}`. The broker's life is one state under its
+table lock (`backend/broker/lifecycle.py`): serving, retiring, stopping. Work (a call, the page's install start,
+doctor) is admitted under that lock and counted until its answer has been written. Retiring, it admits nothing
+(`RESTARTING`) and answers `RETIRING` (the client raises `BrokerRestarting`; an engine tool call waits for the new
+broker up to two minutes in all, `backend/hermes/host.py`) until nothing it must finish runs: admitted work, the
+page's install, and for up to 15 minutes engine work whose outcome is unknown (a call that timed out), a recording a
+call started and a browser preview someone records or saves in (it asks the engine to close each preview itself
+first). Idle workers do not keep it (a worker it started would run the new engine against the contracts it loaded,
+`ENGINE_PIN_MISMATCH`): they close with it, and each of their conversations is told on its first call to a later
+broker (`notices.json` in the run folder, kept until a call's answer has carried it). A plain shutdown (Setup's
+removal, another copy) is decided under the same lock and refused while anything runs or a worker lives. A broker
+from before `replace` answers it busy and is never dispatched to (`BrokerRestarting` that does not wait). The broker
 reads its fingerprint once, at start, and its handshake names it as `loaded_fingerprint`; the client compares
 that with the files on disk now, so a broker an update rewrote underneath is told apart from a new one.
 

@@ -5,6 +5,7 @@ from disk at each handshake, it claimed the new build's fingerprint after the up
 the old code went on serving every call. tools/ci/clean_install_check.py --update-from runs the real thing.
 """
 
+import fcntl
 import os
 import shutil
 import socket
@@ -26,9 +27,17 @@ NEW_BUILD = "new-build-on-disk"
 
 
 class Running:
-    """A real Broker behind the real socket server, with main()'s stop sequence, inside this process."""
+    """A real Broker behind the real socket server, inside this process, in main()'s order: it holds the election lock
+    (another raises BlockingIOError, a lost election), and once stopping it stops accepting, closes its workers, then
+    removes its socket and token, and only then (the process's exit) closes the listener and lets the election go."""
 
     def __init__(self, state: Path):
+        self.lock = open(state / "broker.lock", "a+")  # noqa: SIM115 - held until this broker has stopped
+        try:
+            fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self.lock.close()
+            raise
         self.broker = Broker(state, "node")
         self.socket_path = state / "broker.sock"
         self.server = server.Server(str(self.socket_path), server.Handler)
@@ -40,14 +49,30 @@ class Running:
 
     def _stop_when_asked(self):
         self.broker.stopping.wait()
-        self.socket_path.unlink(missing_ok=True)
         self.server.shutdown()
-        self.server.server_close()  # a process exit closes the listener too: no connect waits on it
+        self.broker.close_all()
+        self.socket_path.unlink(missing_ok=True)
+        (self.socket_path.parent / "broker.token").unlink(missing_ok=True)
+        self.server.server_close()
+        self.lock.close()
         self.stopped.set()
 
     def close(self):
         self.broker.stopping.set()
         self.stopped.wait(5)
+
+
+def launched(start, started: list) -> mock.Mock:
+    """What spawn_broker returns after starting a broker of the new files: one that won the election, or one that
+    lost it (exit 3) because the old broker still holds its lock while it closes its workers."""
+    process = mock.Mock()
+    try:
+        started.append(start())
+    except BlockingIOError:
+        process.poll.return_value = 3
+    else:
+        process.poll.return_value = None
+    return process
 
 
 @unittest.skipUnless(POSIX, "Linux and macOS only")
@@ -86,10 +111,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
         started: list[Running] = []
 
         def spawn(state, _node, *, deadline):  # what the update's first call starts: a broker of the new files
-            started.append(self.start())
-            process = mock.Mock()
-            process.poll.return_value = None
-            return process
+            return launched(self.start, started)
 
         with (
             mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD),
@@ -124,10 +146,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
 
         def spawn(state, _node, *, deadline):
             server.Handler.handle = real  # the new broker is of this build
-            started.append(self.start())
-            process = mock.Mock()
-            process.poll.return_value = None
-            return process
+            return launched(self.start, started)
 
         self.addCleanup(setattr, server.Handler, "handle", real)
         server.Handler.handle = handle

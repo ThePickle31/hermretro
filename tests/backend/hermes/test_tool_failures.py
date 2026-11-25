@@ -1,5 +1,5 @@
 """Every failure tells the agent what to do next (``nextStep``): a broker another copy of hermretro still runs,
-an unexpected fault, and a new game whose folder name is taken.
+one of older code finishing a call after an update, an unexpected fault, and a new game whose folder name is taken.
 
 Run alone: python -m unittest tests.backend.hermes.test_tool_failures
 """
@@ -13,7 +13,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.broker import OtherCopyBusy  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker import BrokerRestarting, BrokerUnavailable, OtherCopyBusy  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker.client import LEGACY_BUSY  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import contracts  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes.tool_args import tool_error  # noqa: E402 - the repository root goes on sys.path first
@@ -30,7 +31,7 @@ class OtherCopyOfThePlugin(unittest.TestCase):
     def call(self, lane):
         """A chromatic tool call while another copy's broker runs games; ``lane`` is what it knows of this chat."""
 
-        def busy():
+        def busy(**_):
             raise OtherCopyBusy("Another copy of hermretro (/old/copy) is running games right now.", "/old/copy")
 
         client = FakeBrokerClient(lane)
@@ -56,7 +57,7 @@ class OtherCopyOfThePlugin(unittest.TestCase):
         self.assertIn("outside the chromatic tools", answer["nextStep"])
 
     def test_a_copy_that_cannot_be_asked_leaves_whose_games_open(self):
-        def busy():
+        def busy(**_):
             raise OtherCopyBusy("The previous version of hermretro is still running games.")
 
         with (
@@ -69,12 +70,94 @@ class OtherCopyOfThePlugin(unittest.TestCase):
         self.assertIn("stop", answer["nextStep"])
 
     def test_a_broker_that_cannot_start_points_at_setup(self):
-        def down():
+        def down(**_):
             raise hermes_host.BrokerUnavailable("Node.js 22 or newer is required but was not found.")
 
         with mock.patch.object(hermes_host, "ensure_broker", down):
             answer = json.loads(hermes_host.make_tool_handler(self.ctx, {"name": "rom_build"})({}))
         self.assertIn("hermretro:setup", answer["nextStep"])
+
+
+class AfterAnUpdate(unittest.TestCase):
+    """The broker of the code before an update or reload still runs work in another chat: it admits nothing new and
+    stops after that work, so this chat's call waits for the new broker instead of failing, within one deadline."""
+
+    def setUp(self):
+        isolated_home(self)
+        self.ctx = mock.Mock()
+        self.ctx.get_config = lambda key, default=None: default
+        self.now, self.waits, self.deadlines = 1000.0, [], []
+        for name, fake in (("monotonic", lambda: self.now), ("sleep", self.sleep)):
+            patch = mock.patch.object(hermes_host.time, name, fake)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def sleep(self, seconds):
+        self.waits.append(seconds)
+        self.now += seconds
+
+    def call(self, *answers, spends=0.0):
+        """The tool call, with ensure_broker answering these in turn (each spending ``spends`` of the clock)."""
+        answers = list(answers)
+
+        def connect(*, deadline):
+            self.deadlines.append(deadline)
+            self.now += spends
+            answer = answers.pop(0) if len(answers) > 1 else answers[0]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with (
+            mock.patch.object(hermes_host, "ensure_broker", connect),
+            mock.patch.object(hermes_host, "_attach_images", lambda: False),
+        ):
+            handler = hermes_host.make_tool_handler(self.ctx, {"name": "session_status"})
+            return json.loads(handler({}, conversation_id="chat-a", session_id="chat-a"))
+
+    def test_the_call_waits_for_the_new_broker_and_runs(self):
+        client = FakeBrokerClient({"ok": True, "dispatched": True, "result": {"structuredContent": {"ok": 1}}})
+        result = self.call(
+            BrokerRestarting("hermretro was updated."), BrokerRestarting("hermretro was updated."), client
+        )
+        self.assertEqual(len(client.calls), 1)
+        self.assertNotIn("code", result)
+        self.assertEqual(self.waits, [hermes_host.RESTART_POLL] * 2)
+
+    def test_a_connection_lost_while_the_old_broker_stops_is_waited_through(self):
+        client = FakeBrokerClient({"ok": True, "dispatched": True, "result": {"structuredContent": {"ok": 1}}})
+        lost = BrokerUnavailable("Broker closed the connection")
+        result = self.call(BrokerRestarting("hermretro was updated."), lost, client)
+        self.assertNotIn("code", result)
+        self.assertEqual(len(client.calls), 1)
+
+    def test_without_a_restart_a_lost_broker_is_unavailable_at_once(self):
+        answer = self.call(BrokerUnavailable("Broker closed the connection"))
+        self.assertEqual(answer["code"], "UNAVAILABLE")
+        self.assertEqual(self.waits, [])
+
+    def test_the_whole_wait_has_one_deadline(self):
+        # Each attempt may spend its own startup budget: the wait still ends at RESTART_WAIT, not RESTART_WAIT plus
+        # those budgets.
+        began = self.now
+        answer = self.call(
+            BrokerRestarting("hermretro was updated, and its game tools restart as soon as the build finishes."),
+            spends=20.0,
+        )
+        self.assertEqual((answer["code"], answer["dispatched"]), ("RESTARTING", False))
+        self.assertIn("as soon as the build finishes. Nothing was run.", answer["error"])
+        self.assertIn("Call it again in a minute", answer["nextStep"])
+        self.assertIn("Do not stop or restart hermretro's background processes", answer["nextStep"])
+        self.assertEqual(set(self.deadlines), {began + hermes_host.RESTART_WAIT})
+        self.assertLessEqual(self.now - began, hermes_host.RESTART_WAIT + 20.0)
+
+    def test_a_broker_from_before_retirement_is_not_waited_for_and_nothing_runs(self):
+        answer = self.call(BrokerRestarting(LEGACY_BUSY, waits=False))
+        self.assertEqual((answer["code"], answer["dispatched"]), ("RESTARTING", False))
+        self.assertIn("the version before it still has game workers open", answer["error"])
+        self.assertIn("Call it again in a few minutes; if it still answers this, tell the user", answer["nextStep"])
+        self.assertIn("Do not stop or restart hermretro's background processes", answer["nextStep"])
+        self.assertEqual(self.waits, [])
 
 
 class FailureAnswers(unittest.TestCase):
@@ -105,7 +188,7 @@ class NewGameFolders(unittest.TestCase):
         ctx = mock.Mock()
         ctx.get_config = lambda key, default=None: default
         with (
-            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
+            mock.patch.object(hermes_host, "ensure_broker", lambda **_: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             hermes_host.make_tool_handler(ctx, {"name": "project_create_blank"})({"name": "Cat Game"})

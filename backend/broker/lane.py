@@ -20,6 +20,10 @@ from ..system import paths
 from .engine import EngineError, EngineProcess, sanitized_environment
 
 DEFAULT_CALL_TIMEOUT = 900.0
+# A recording started by a call runs for its duration (the engine's default when none is given), then takes up to the
+# engine's 30 s to save.
+RECORDING_DEFAULT = 180.0
+RECORDING_SAVE = 30.0
 
 
 def canonical_hash(value) -> str:
@@ -54,6 +58,7 @@ class Lane:
         self.last_used = time.monotonic()
         self.last_write = 0.0
         self.live_surface = False  # browser preview or capture feed opened in this worker
+        self.recording_until = 0.0  # monotonic: a recording a call started may run and save until then
         self.pending_notice: str | None = None
         # What the desktop panel shows. Memory only: it describes this worker's life, nothing more.
         self.activity: collections.deque = collections.deque(maxlen=80)
@@ -64,6 +69,23 @@ class Lane:
         self.last_activity = 0.0
         # Told about every finished call (the broker records the game library through it).
         self.observer: Callable[..., None] | None = None
+
+    def note_surface(self, tool: str, arguments: dict) -> None:
+        """After a successful preview or capture call: whether a browser preview or capture feed is open, and until
+        when a recording the call started may still run and save (a retiring broker lets it finish)."""
+        if tool == "web_preview_close":
+            self.live_surface, self.recording_until = False, 0.0
+            return
+        if tool not in ("web_preview", "device_capture"):
+            return
+        self.live_surface = True
+        action = arguments.get("action")
+        if action == "start_recording":
+            asked = arguments.get("recordingDurationMs" if tool == "web_preview" else "durationMs")
+            seconds = asked / 1000 if isinstance(asked, (int, float)) and asked > 0 else RECORDING_DEFAULT
+            self.recording_until = max(self.recording_until, time.monotonic() + seconds + RECORDING_SAVE)
+        elif action in ("stop_recording", "close"):
+            self.recording_until = 0.0
 
     def remember(self, tool: str, kind: str, result: dict, seconds: float, arguments: dict | None = None) -> None:
         """Keep a short, display-only record of one finished call."""

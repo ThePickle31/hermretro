@@ -204,7 +204,7 @@ class BrokerAndGateway(unittest.TestCase):
         ctx = mock.Mock()
         ctx.get_config = lambda key, default=None: default
         with (
-            mock.patch.object(hermes_host, "ensure_broker", lambda: contextlib.nullcontext(client)),
+            mock.patch.object(hermes_host, "ensure_broker", lambda **_: contextlib.nullcontext(client)),
             mock.patch.object(hermes_host, "_profile_identity", lambda: "/profiles/hermretro"),
             mock.patch.object(hermes_host.hermes_api, "scratch_dir", lambda: Path("/h/cache/scratch")),
             mock.patch.object(hermes_host, "_deliver", lambda response, name: response),

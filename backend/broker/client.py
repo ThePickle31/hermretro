@@ -36,6 +36,30 @@ class OtherCopyBusy(BrokerUnavailable):
         self.plugin_root = plugin_root
 
 
+class ConnectionLost(BrokerUnavailable):
+    """The broker closed the connection, or did not answer in time, in the middle of a request."""
+
+
+class BrokerRestarting(BrokerUnavailable):
+    """The running broker is of older code (the plugin was updated or reloaded under it). Nothing ran.
+
+    ``waits``: it is retiring (it admits nothing new and stops by itself once the work it still runs has ended; a new
+    one then starts), so the caller may wait for that. A broker from before retirement existed cannot make way and
+    keeps its workers until they have been idle for a while: ``waits`` is False."""
+
+    def __init__(self, message: str, *, waits: bool = True):
+        super().__init__(message)
+        self.waits = waits
+
+
+# Only a broker from before `replace` answers it busy: it cannot retire, and a worker it started would fail every call
+# with ENGINE_PIN_MISMATCH.
+LEGACY_BUSY = (
+    "hermretro was updated, and the version before it still has game workers open in this or other chats. Its game "
+    "tools restart by themselves once those have been idle for a while."
+)
+
+
 CONTROL_TIMEOUT = 3.0
 QUICK_OPS = frozenset({"hello", "stats", "activity", "install_start", "install_status", "install_cancel"})
 
@@ -124,14 +148,14 @@ class BrokerClient:
                 part = self.sock.recv(65536)
                 if not part:
                     self.close()
-                    raise BrokerUnavailable("Broker closed the connection")
+                    raise ConnectionLost("Broker closed the connection")
                 line.extend(part)
         except TimeoutError as error:
             self.close()
-            raise BrokerUnavailable(f"Broker did not answer {op} before its deadline") from error
+            raise ConnectionLost(f"Broker did not answer {op} before its deadline") from error
         except OSError as error:
             self.close()
-            raise BrokerUnavailable(str(error)) from error
+            raise ConnectionLost(str(error)) from error
         answer = json.loads(line)
         if not isinstance(answer, dict):
             raise ValueError(f"Invalid broker response to {op}")
@@ -264,10 +288,13 @@ class BrokenBroker(BrokerUnavailable):
         self.stopping = stopping
 
 
-def request_shutdown(client: BrokerClient) -> bool:
-    """Return whether the broker agreed to stop. Only an explicit busy reply returns False."""
+def request_shutdown(client: BrokerClient, *, replace: bool = False) -> bool:
+    """Return whether the broker agreed to stop. Only an explicit busy reply returns False.
+
+    ``replace`` asks it to make way for this newer code: its idle workers do not keep it, and while a call still runs
+    it raises BrokerRestarting (a broker from before ``replace`` answers as to a plain shutdown)."""
     try:
-        answer = client.request({"op": "shutdown"})
+        answer = client.request({"op": "shutdown", "replace": True} if replace else {"op": "shutdown"})
     except ValueError as error:
         raise BrokerUnavailable("Shutdown was unconfirmed.") from error
     if answer.get("ok") is True:
@@ -277,12 +304,16 @@ def request_shutdown(client: BrokerClient) -> bool:
         denied = {}
     if answer.get("ok") is False and denied.get("code") == "BUSY":
         return False
+    if answer.get("ok") is False and denied.get("code") == "RETIRING":
+        raise BrokerRestarting(denied.get("message") or "hermretro's game tools are restarting after an update.")
     raise BrokerUnavailable(denied.get("message") or answer.get("error") or "Shutdown was unconfirmed.")
 
 
-def _shutdown_for_replacement(client: BrokerClient) -> bool:
+def _shutdown_for_replacement(client: BrokerClient, *, replace: bool = False) -> bool:
     try:
-        return request_shutdown(client)
+        return request_shutdown(client, replace=replace)
+    except (BrokerRestarting, ConnectionLost):
+        raise
     except BrokerUnavailable as error:
         raise BrokerUnavailable(f"The previous hermretro broker did not confirm shutdown: {error}") from error
 
@@ -331,7 +362,9 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0, *, deadline
     """Connect to the broker, starting it when needed. Racing callers converge on one winner.
 
     The startup budget begins after Node discovery, bounded by the caller's monotonic deadline if given.
-    A broker left over from another build is replaced when idle."""
+    A broker left over from another build is replaced: at once when nothing runs in it, and BrokerRestarting
+    is raised while it finishes its work (the caller may wait and ask again). One that went away while it was asked
+    is looked for again, within the deadline."""
     state_dir = Path(state_dir) if state_dir else paths.runtime_dir()
     node = paths.find_node()
     if not node.get("ok"):
@@ -356,8 +389,11 @@ def ensure_broker(state_dir: Path | None = None, wait: float = 20.0, *, deadline
             spawned = None
             delay = 0.4
         elif client is not None:
-            if not _retire_stale_broker(client, node["path"], deadline):
-                return client
+            try:
+                if not _retire_stale_broker(client, node["path"], deadline):
+                    return client
+            except ConnectionLost as error:  # it stopped while it answered: connect again
+                last = error
             spawned = None
             delay = 0.4
         elif isinstance(last, BrokerNotRunning) and (spawned is None or spawned.poll() == 3):
@@ -384,8 +420,9 @@ def _retire_stale_broker(client: BrokerClient, node: str, deadline: float) -> bo
         loaded = client.hello.get("loaded_fingerprint")
         current = loaded is not None and loaded == paths.code_fingerprint() and not other_install
         if not current or _workers_cannot_start(client.hello, node):
-            # A busy broker retires on its own. Its workers can keep serving this install's conversations.
-            if _shutdown_for_replacement(client):
+            # This install's broker makes way (its idle workers close; its running work is waited for). Another
+            # copy's is only asked to stop, and keeps its games when busy.
+            if _shutdown_for_replacement(client, replace=not other_install):
                 client.close()
                 return True
             if other_install:
@@ -394,6 +431,7 @@ def _retire_stale_broker(client: BrokerClient, node: str, deadline: float) -> bo
                     "close those chats, then try again.",
                     theirs,
                 )
+            raise BrokerRestarting(LEGACY_BUSY, waits=False)
         _remaining(deadline, CONTROL_TIMEOUT)
     except TimeoutError as error:
         client.close()

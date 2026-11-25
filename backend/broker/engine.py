@@ -85,6 +85,9 @@ class EngineProcess:
         self._compiler_temp = None
         self._proc: subprocess.Popen | None = None
         self._pending: dict[int, queue.Queue] = {}
+        # Requests whose wait timed out: the engine may still be running them (a compiler, an export) until it
+        # answers or exits.
+        self._unanswered: set[int] = set()
         self._lock = threading.Lock()
         self._write_lock = threading.Lock()
         self._seq = 0
@@ -151,6 +154,12 @@ class EngineProcess:
     def alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
+    def unconfirmed(self) -> bool:
+        """A request timed out and the worker, still alive, has not answered it since: its outcome is unknown and
+        it may still be running."""
+        with self._lock:
+            return bool(self._unanswered) and self.alive()
+
     def close(self, grace: float = 8.0) -> int | None:
         try:
             return self._stop(grace)
@@ -214,6 +223,7 @@ class EngineProcess:
             if "id" in message and ("result" in message or "error" in message):
                 with self._lock:
                     waiter = self._pending.pop(message["id"], None)
+                    self._unanswered.discard(message["id"])
                 if waiter is not None:
                     waiter.put(message)
             elif "id" in message and "method" in message:
@@ -272,6 +282,7 @@ class EngineProcess:
         except queue.Empty:
             with self._lock:
                 self._pending.pop(request_id, None)
+                self._unanswered.add(request_id)
             # The engine may still complete the operation. Callers must treat
             # this as "outcome unknown", never as "did not happen".
             raise EngineError(f"Timed out waiting for {method} after {timeout}s (outcome unknown)")

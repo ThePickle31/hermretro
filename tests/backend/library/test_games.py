@@ -295,7 +295,7 @@ class GamesRpc(unittest.TestCase):
 
         client = FakeBrokerClient(response)
         with (
-            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
+            mock.patch.object(hermes_host, "ensure_broker", lambda **_: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             handler = hermes_host.make_tool_handler(self.ctx, {"name": "rom_build"})
@@ -310,7 +310,7 @@ class GamesRpc(unittest.TestCase):
         folder = self.base / "studio-games"
         with (
             mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(folder)}),
-            mock.patch.object(hermes_host, "ensure_broker", lambda: client),
+            mock.patch.object(hermes_host, "ensure_broker", lambda **_: client),
             mock.patch.object(hermes_host, "_attach_images", lambda: False),
         ):
             for tool in ("project_create", "project_create_blank"):

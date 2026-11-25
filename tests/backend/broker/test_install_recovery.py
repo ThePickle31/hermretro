@@ -305,7 +305,7 @@ class Explain(unittest.TestCase):
 class McpCancellation(unittest.TestCase):
     def test_a_cancelled_request_sends_notifications_cancelled_for_its_id(self):
         engine = EngineProcess.__new__(EngineProcess)
-        engine._pending, engine._lock, engine._seq = {}, threading.Lock(), 6
+        engine._pending, engine._unanswered, engine._lock, engine._seq = {}, set(), threading.Lock(), 6
         sent = []
         engine._send = sent.append
         cancel = control._Cancel()
@@ -326,10 +326,11 @@ class McpCancellation(unittest.TestCase):
 
     def test_without_cancel_a_timeout_is_still_outcome_unknown(self):
         engine = EngineProcess.__new__(EngineProcess)
-        engine._pending, engine._lock, engine._seq = {}, threading.Lock(), 0
+        engine._pending, engine._unanswered, engine._lock, engine._seq = {}, set(), threading.Lock(), 0
         engine._send = lambda obj: None
         with self.assertRaisesRegex(Exception, "outcome unknown"):
             engine.request("tools/call", {}, timeout=0.05, cancel=threading.Event())
+        self.assertEqual(engine._unanswered, {1}, "a timed-out request stays unconfirmed until the engine answers")
 
 
 if __name__ == "__main__":

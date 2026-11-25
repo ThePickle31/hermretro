@@ -116,7 +116,7 @@ class BrokerAfterUpdate(unittest.TestCase):
             mock.patch.object(client, "spawn_broker") as spawn,
         ):
             began = time.monotonic()
-            with self.assertRaisesRegex(client.BrokerUnavailable, "did not confirm shutdown") as failure:
+            with self.assertRaisesRegex(client.BrokerUnavailable, "did not answer shutdown") as failure:
                 client.ensure_broker(self.state, wait=0.05)
             self.assertLess(time.monotonic() - began, 1.0)
         self.assertNotIsInstance(failure.exception, client.OtherCopyBusy)

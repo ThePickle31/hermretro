@@ -1,5 +1,5 @@
 """The broker's control operations (everything but `call`): the desktop page's toolchain install,
-stats, shutdown, doctor, the page's activity and lane lookups, leases and lanes, and housekeeping.
+stats, shutdown (lifecycle.py), doctor, the page's activity and lane lookups, leases and lanes, and housekeeping.
 
 Stdlib only and no Hermes imports: the broker runs as `python -m backend.broker`.
 """
@@ -51,24 +51,13 @@ class ControlMixin(InstallMixin):
                 "ok": True,
                 "pid": os.getpid(),
                 "broker_generation": self.generation,
+                "retiring": self.retiring,
                 "lanes": lanes,
                 "writer_leases": leases,
             }
         if op == "shutdown":
-            with self.table_lock:
-                busy = any(l.inflight or (l.engine and l.engine.alive()) for l in self.lanes.values())
-            # An installer whose exit is unconfirmed counts as busy too: replacing or stopping this broker (or
-            # Remove downloaded tools, which asks this first) must wait until that worker is gone.
-            with self.install_lock:
-                if not request.get("force") and (
-                    busy
-                    or self.prepare_lock.locked()
-                    or self.install.get("state") == "running"
-                    or self.install_worker_left()
-                ):
-                    raise Denied("BUSY", "Conversations still have live Chromatic workers.")
-                self.stopping.set()
-            return {"ok": True}
+            # A client of newer code asks with `replace` (retire); Remove downloaded tools and other copies do not.
+            return self.retire() if request.get("replace") else self.shutdown(bool(request.get("force")))
         if op == "doctor":
             arguments = {"tasks": ["authoring", "projectBuild", "cBuild", "play", "desktop"]}
             if request.get("probe"):

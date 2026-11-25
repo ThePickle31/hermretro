@@ -4,8 +4,9 @@
 Covers election, identity, private workers, lossless results, art and audio import, source-mode live state,
 authoring (symbols, scene transactions and their operations files, script events), the event catalog and build
 warnings, the golden path (one game through the studio's whole workflow with the plugin's tools and hooks), writer
-handoff, delegated children, hardware gating, worker and broker crash recovery. It does not cover anything that needs
-Hermes itself (host-injected identity, real compaction, pixels reaching a model).
+handoff, delegated children, hardware gating, worker and broker crash recovery, the broker's replacement after an
+update and the upgrade from a broker from before it. It does not cover anything that needs Hermes itself
+(host-injected identity, real compaction, pixels reaching a model).
 
     python tests/acceptance/broker_acceptance.py
 """
@@ -39,6 +40,7 @@ from tests.acceptance import (  # noqa: E402 - direct script entry point
     recovery,
     replay,
     tool_friction,
+    update,
 )
 from tests.acceptance.fixture import HANDOFF, BrokerRun  # noqa: E402 - direct script entry point
 
@@ -146,6 +148,8 @@ def exercise(suite):
         recovery.check_worker_restart(suite, client_a)
         recovery.check_broker_crash(suite, control, broker_pid)
     recovery.check_restarted_brokers(suite, broker_pid, rom_a)
+    update.check_update_replaces_broker(suite, rom_a)
+    update.check_legacy_broker_gets_nothing(suite, rom_a)
 
 
 def run() -> int:
