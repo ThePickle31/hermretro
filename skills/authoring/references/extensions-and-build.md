@@ -143,8 +143,10 @@ Node's `[DEP0190]` notice from the official CLI is left out. A nonzero compiler
 exit, missing output ROM, invalid cartridge header, or bad Nintendo logo remains a
 failure, and so does a script event GB Studio has no compiler for
 (`UNKNOWN_EVENT_COMMAND`, with the nearest real events): GB Studio leaves it out
-and still writes a ROM. A failed build leaves the previous ROM in place and
-returns `rom: null`.
+and still writes a ROM. An event whose compile fails stops the build with one
+`SCRIPT_EVENT_COMPILE_FAILED` naming the innermost failing event and the cause,
+and for one GB Studio deprecates its replacement, in place of its deprecation
+warning. A failed build leaves the previous ROM in place and returns `rom: null`.
 
 Build commands must write generated cartridges only to authorized output
 locations and leave authored resources plus existing tracked ROMs unchanged.

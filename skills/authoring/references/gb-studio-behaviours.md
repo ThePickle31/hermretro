@@ -61,7 +61,8 @@ How GB Studio's compiler and engine behave in ways that build without an error b
   `EVENT_IF_TRUE`, `EVENT_IF_FALSE`, `EVENT_IF_VALUE_COMPARE` and `EVENT_IF_EXPRESSION` become `EVENT_IF` with a
   condition; `EVENT_SET_TRUE` and `EVENT_SET_FALSE` become `EVENT_SET_VALUE`. Convert the args, not only the
   command: `EVENT_IF_TRUE` is true only above 0, while a variable alone as an `EVENT_IF` condition is true for
-  anything but 0. `EVENT_WEAPON_ATTACK` no longer builds at all. `chromatic_event_describe` gives each replacement
+  anything but 0. `EVENT_WEAPON_ATTACK` no longer builds at all, so the script tools refuse it: use
+  `EVENT_LAUNCH_PROJECTILE`. `chromatic_event_describe` gives each replacement
   and its conversion, and the build warning repeats it, for events in custom scripts and prefabs too.
 
 ## Movement and collisions

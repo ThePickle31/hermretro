@@ -10,7 +10,7 @@ import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { DEPRECATIONS, EDITOR_DEFAULTS, EXAMPLES, UNAVAILABLE } from "./event_guidance.mjs";
+import { DEPRECATIONS, EDITOR_DEFAULTS, EXAMPLES } from "./event_guidance.mjs";
 
 // Field types that only arrange the editor and are never stored in an event's args.
 const LAYOUT_TYPES = new Set(["addEventButton", "break", "collapsable", "presets", "tabs"]);
@@ -50,22 +50,43 @@ function withoutComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
-// The text of GB Studio's ScriptBuilder, which holds every helper a compile function can take.
-function loadScriptBuilder(root) {
+// Where GB Studio declares the helpers compileEventsWithScriptBuilder (compileEntityEvents.ts) passes a compile function
+// besides LATEST_PROJECT_VERSION, scriptSymbolName and event: the ScriptBuilder's options and its own properties. Those
+// are the fields its classes declare (a method declared `name() {}` stays on the prototype and is not passed) and the
+// deprecated API it assigns to itself. Each is [file, where the declarations start, where they end, their indent].
+const HELPER_DECLARATIONS = [
+  ["scriptBuilderBase.ts", /^abstract class ScriptBuilderBase\b/m, /^}$/m, "  "],
+  ["scriptBuilder.ts", /^class ScriptBuilder\b/m, /^}$/m, "  "],
+  ["types.ts", /^export interface ScriptBuilderOptions\b/m, /^}$/m, "  "],
+  ["deprecatedAPI.ts", /^  return \{$/m, /^  };$/m, "    "],
+];
+
+// The names a compile function's helpers hold.
+function loadHelperNames(root) {
   const folder = path.join(root, "src", "lib", "compiler", "scriptBuilder");
-  return readdirSync(folder)
-    .filter((name) => name.endsWith(".ts"))
-    .map((name) => withoutComments(readFileSync(path.join(folder, name), "utf8")))
-    .join("\n");
+  const names = new Set(["LATEST_PROJECT_VERSION", "scriptSymbolName", "event"]);
+  for (const [file, start, end, indent] of HELPER_DECLARATIONS) {
+    const text = readFileSync(path.join(folder, file), "utf8");
+    const from = text.search(start);
+    const length = from < 0 ? -1 : text.slice(from).search(end);
+    if (length < 0) throw new Error(`GB Studio's ${file} no longer has ${start.source}: the catalog cannot tell which helpers a compile function gets`);
+    const declaration = new RegExp(`^${indent}(?:readonly\\s+)?([A-Za-z_$][\\w$]*)[?!]?\\s*[:=,]`, "gm");
+    for (const [, name] of text.slice(from, from + length).matchAll(declaration)) names.add(name);
+  }
+  return names;
 }
 
-// The helpers a compile function takes (`const { a, b } = helpers`) that the ScriptBuilder no longer defines.
-function missingHelpers(compile, builder) {
+// The helpers a compile function takes (`const { a, b } = helpers` or `helpers.a`) that GB Studio no longer passes.
+function missingHelpers(compile, helpers) {
   if (typeof compile !== "function") return [];
-  const names = [...withoutComments(compile.toString()).matchAll(/const\s*\{([^}]*)\}\s*=\s*helpers/g)].flatMap((match) =>
-    match[1].split(",").map((name) => name.split(":")[0].trim()),
-  );
-  return names.filter((name) => name && !new RegExp(`\\b${name}\\b`).test(builder));
+  const source = withoutComments(compile.toString());
+  const names = [
+    ...[...source.matchAll(/const\s*\{([^}]*)\}\s*=\s*helpers/g)].flatMap((match) =>
+      match[1].split(",").map((name) => name.split(":")[0].trim()),
+    ),
+    ...[...source.matchAll(/\bhelpers\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1]),
+  ];
+  return [...new Set(names)].filter((name) => name && !helpers.has(name));
 }
 
 function plain(value) {
@@ -309,9 +330,6 @@ function checkGuidance(events) {
       throw new Error(`${id}'s replacement ${replacement} is not a current GB Studio event`);
     }
   }
-  for (const id of UNAVAILABLE) {
-    if (!events[id]?.unavailable) throw new Error(`UNAVAILABLE names ${id}, whose helpers GB Studio's compiler has`);
-  }
   for (const [id, guidance] of Object.entries(EXAMPLES)) {
     if (!events[id]) throw new Error(`EXAMPLES names ${id}, which GB Studio does not have`);
     checkExample(id, guidance.example, events);
@@ -320,7 +338,7 @@ function checkGuidance(events) {
 
 export function buildCatalog(root) {
   const strings = loadStrings(root);
-  const builder = loadScriptBuilder(root);
+  const helpers = loadHelperNames(root);
   const folder = path.join(root, "src", "lib", "events");
   const files = readdirSync(folder).filter((name) => /^event[A-Z]\w*\.js$/.test(name)).sort();
   const events = {};
@@ -341,10 +359,12 @@ export function buildCatalog(root) {
       const { replacement, migration } = DEPRECATIONS[id];
       Object.assign(entry, { deprecated: true, ...(replacement ? { replacement } : {}), migration });
     }
-    const missing = missingHelpers(definition.compile, builder);
+    const missing = missingHelpers(definition.compile, helpers);
+    // An event that needs a helper GB Studio no longer passes cannot build. The engine refuses to write one and names its
+    // replacement from DEPRECATIONS, so one GB Studio does not deprecate stops here.
     if (missing.length > 0) {
-      if (!UNAVAILABLE.includes(id)) {
-        throw new Error(`${id} compiles with ${missing.join(", ")}, which GB Studio's ScriptBuilder lacks: add it to UNAVAILABLE in tools/engine/event_guidance.mjs`);
+      if (!definition.deprecated) {
+        throw new Error(`${id} compiles with ${missing.join(", ")}, which GB Studio no longer passes, but GB Studio does not deprecate it: the engine has no replacement to name`);
       }
       entry.unavailable = `GB Studio's compiler has no ${missing.join(" or ")}: a script with this event does not build.`;
     }

@@ -60,6 +60,7 @@ def check_events(suite, client):
     logo = check_warnings(suite, client, start, sprite, clean)
     check_warning_paths(suite, client, root, start, sprite, logo)
     unknown_events.check(suite, client, root, start)
+    unknown_events.check_unavailable(suite, client, root, start, sprite)
 
 
 def check_catalog(suite):

@@ -219,3 +219,15 @@ files, what changed and why.
   battery RAM held the other build's signature. Without verified symbols, or with any other byte different, the
   restore is refused as before; the game's own battery save still refuses the other build's signature. A checkpoint
   saved before a no-change rebuild was refused, so the agent replayed the route by hand.
+- `dist/server.js` (`event-catalog.js`, `native-script-events.js`, `game-scripts.js`, `actors.js`, `triggers.js`,
+  `project.js`, `scene-batch.js`, `build.js`): an event GB Studio lists but cannot compile (the catalog's
+  `unavailable`, set from source when its compile takes a helper GB Studio no longer passes; in 4.3.2 only
+  `EVENT_WEAPON_ATTACK`, whose `weaponAttack` is gone) is refused by every script-writing tool the same way as an
+  unknown command (new, changed, moved, or held by a patch's branches), with `INVALID_EVENT` naming its replacement
+  and how to convert. A project with plugin events keeps it (a plugin may register it again), and so does a
+  single-file project from before 2.0.0 r14, which GB Studio's legacy migration converts on load. A failed GB Studio
+  build whose last failure record is `Compiling "…" failed with error "…"` reports one `SCRIPT_EVENT_COMPILE_FAILED`
+  for the innermost event (GB Studio wraps the error again at every enclosing event), with the replacement for a
+  deprecated one in place of its deprecation warning, instead of generic `COMPILER_ERROR`s. Before,
+  `EVENT_WEAPON_ATTACK` was written without complaint and the build failed with GB Studio's raw `weaponAttack is not
+  a function`.

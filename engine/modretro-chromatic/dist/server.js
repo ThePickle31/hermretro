@@ -10549,8 +10549,9 @@ function findInvalidNativeScriptEvent(proposed, previous, options = {}) {
     const priorArguments = isObject2(prior?.args) ? prior.args : {};
     const revalidate = !prior || prior.command !== event.command || Boolean(priorArguments.__comment);
     const edited = options.explicitlyPatchedValues?.has(eventId) === true || !equivalentJson(priorArguments, args);
-    if ((revalidate || edited) && !knownEventCommand(event.command, options.projectRoot))
-      return { eventId, message: `${unknownEventMessage(event.command, `Event ${eventId}`)} GB Studio would build the game without it.` };
+    const unbuildable = revalidate || edited ? unbuildableEventMessage(event.command, `Event ${eventId}`, options) : void 0;
+    if (unbuildable)
+      return { eventId, message: unbuildable };
     const keys = TYPED_EVENT_ARGUMENTS.get(event.command);
     if (!keys)
       continue;
@@ -11893,7 +11894,8 @@ async function updateActor(projectPath, input, access4) {
     const validationContext = format === "legacy" ? access4 ?? await inventoryProject(projectPath) : context;
     validateActorResource(validationContext, ownerScene, actor, original, {
       explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties),
-      properties: input.properties
+      properties: input.properties,
+      legacyDescriptor: format === "legacy" ? loaded.json : void 0
     });
     const updated = format === "distributed" ? actor : rewriteLegacySceneCollection({ descriptor: loaded.json }, scene.id, "actors", (resources) => resources.map((resource) => resource.id === input.actorId ? actor : resource));
     await assertExpectedResourceRevision(context.projectRoot, target, loaded.revision);
@@ -12722,7 +12724,7 @@ function validateDimensions(input) {
     }
   }
 }
-function validateNativeSceneUpdate(previous, updated, changes, backgroundExists, projectRoot) {
+function validateNativeSceneUpdate(previous, updated, changes, backgroundExists, project) {
   if (updated.name !== void 0)
     validateName(updated.name, "Scene name");
   for (const key of ["width", "height"]) {
@@ -12746,7 +12748,7 @@ function validateNativeSceneUpdate(previous, updated, changes, backgroundExists,
   }
   const invalid4 = findInvalidNativeScriptEvent(updated, previous, {
     explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(changes),
-    projectRoot
+    ...project
   });
   if (invalid4)
     throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
@@ -12755,7 +12757,7 @@ function validateNativeSceneUpdate(previous, updated, changes, backgroundExists,
     for (const resource of Array.isArray(changes[kind]) ? changes[kind].filter(isObject4) : []) {
       if (kind === "actors")
         assertNoActorPalette(resource, void 0, resource);
-      const invalid5 = findInvalidNativeScriptEvent(resource, void 0, { projectRoot });
+      const invalid5 = findInvalidNativeScriptEvent(resource, void 0, project);
       if (invalid5)
         throw new GameStudioProjectError("INVALID_EVENT", invalid5.message);
     }
@@ -12802,7 +12804,7 @@ async function createScene(projectPath, input, indexedAccess) {
         throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A scene with id ${id4} already exists`);
       }
       const scene2 = withNativeScriptEventIds(mergeObjects(sceneDefaults({ settings }, input, id4, nextIndex(scenes), slug2), input.properties ?? {}));
-      const invalid5 = findInvalidNativeScriptEvent(scene2, void 0, { projectRoot: inventory.projectRoot });
+      const invalid5 = findInvalidNativeScriptEvent(scene2, void 0, { projectRoot: inventory.projectRoot, legacyDescriptor: loaded.json });
       if (invalid5)
         throw new GameStudioProjectError("INVALID_EVENT", invalid5.message);
       if (await resourceRevision(inventory.projectRoot, target2) !== loaded.revision) {
@@ -12852,7 +12854,7 @@ async function updateScene(projectPath, input, indexedAccess) {
     let owner3;
     if (inventory.format === "distributed") {
       scene = withNativeScriptEventIds(mergeObjects(loaded.json, updates));
-      validateNativeSceneUpdate(loaded.json, scene, updates, backgroundExists, inventory.projectRoot);
+      validateNativeSceneUpdate(loaded.json, scene, updates, backgroundExists, { projectRoot: inventory.projectRoot });
       owner3 = scene;
     } else {
       const originalScenes = Array.isArray(loaded.json.scenes) ? loaded.json.scenes : [];
@@ -12860,7 +12862,7 @@ async function updateScene(projectPath, input, indexedAccess) {
       if (!isObject4(original))
         throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${input.sceneId} disappeared during update`);
       const updated = withNativeScriptEventIds(mergeObjects(original, updates));
-      validateNativeSceneUpdate(original, updated, updates, backgroundExists, inventory.projectRoot);
+      validateNativeSceneUpdate(original, updated, updates, backgroundExists, { projectRoot: inventory.projectRoot, legacyDescriptor: loaded.json });
       scene = resourceWithoutInventoryFields(updated);
       owner3 = { ...loaded.json, scenes: originalScenes.map((value) => value === original ? updated : value) };
     }
@@ -12961,7 +12963,7 @@ async function createActor(projectPath, input, indexedAccess) {
       throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `An actor with id ${id3} already exists`);
     const symbol = uniqueResourceSymbol("actor", input.name, takenResourceSymbols(await inventoryProject(projectPath, indexedAccess)));
     const actor = withNativeScriptEventIds(mergeObjects(actorDefaults(input, id3, nextIndex(existingActors), symbol), input.properties ?? {}));
-    validateActorResource(indexedAccess ?? inventory, ownerScene, actor);
+    validateActorResource(indexedAccess ?? inventory, ownerScene, actor, void 0, { legacyDescriptor: inventory.format === "legacy" ? loaded.json : void 0 });
     if (await resourceRevision(inventory.projectRoot, owner3) !== loaded.revision) {
       throw new GameStudioProjectError("STALE_RESOURCE", "The target scene changed before the requested actor creation", owner3);
     }
@@ -13892,10 +13894,20 @@ function applyScriptEdit(resource, input, options = {}) {
   }
   assignNativeScriptEventIds(cloned);
   validateEventTree(cloned, options);
+  // What the edit writes is checked again even when unchanged: the updated event with the args its patch gives and the
+  // events its patch's branches hold (a branch the compiler skipped may have held one that cannot build), or the moved
+  // event.
   const explicitlyPatchedValues = /* @__PURE__ */ new Map();
-  if (input.action === "update" && input.eventId)
+  if (input.action === "update") {
+    for (const branch of isObject6(input.patch.children) ? Object.values(input.patch.children) : []) {
+      for (const [eventId, keys] of explicitlyPatchedNativeScriptValues({ script: branch }))
+        explicitlyPatchedValues.set(eventId, keys);
+    }
     explicitlyPatchedValues.set(input.eventId, new Set(isObject6(input.patch.args) ? Object.keys(input.patch.args) : []));
-  const invalid4 = findInvalidNativeScriptEvent(cloned, resource, { explicitlyPatchedValues, projectRoot: options.projectRoot });
+  } else if (input.action === "move") {
+    explicitlyPatchedValues.set(input.eventId, /* @__PURE__ */ new Set());
+  }
+  const invalid4 = findInvalidNativeScriptEvent(cloned, resource, { explicitlyPatchedValues, projectRoot: options.projectRoot, legacyDescriptor: options.legacyDescriptor });
   if (invalid4)
     throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
   return { resource: cloned, event, action: input.action, index, scriptKey };
@@ -14001,6 +14013,7 @@ async function editSelectedScript(projectPath, input, access4, inventory) {
     const selection = await readSelectedResource(location, input.target, loaded.json);
     const applied = applyScriptEdit(selection.resource, input, {
       projectRoot: location.projectRoot,
+      legacyDescriptor: selection.descriptor,
       ...access4 ? { sceneExists: (sceneId) => access4.scene(sceneId) !== void 0 } : { knownSceneIds: new Set(selection.inventory.scenes.map((scene) => scene.id)) }
     });
     let updated = applied.resource;
@@ -14456,7 +14469,7 @@ async function createTrigger(projectPath, input, access4) {
     }
     const symbol = uniqueResourceSymbol("trigger", input.name, takenResourceSymbols(await inventoryProject(projectPath, access4)));
     const trigger = mergeTriggerChanges(createTriggerResource(input, id3, nextResourceIndex(ownerScene.triggers), symbol), { properties: input.properties });
-    validateTriggerResource(ownerScene, trigger, void 0, { projectRoot: context.projectRoot });
+    validateTriggerResource(ownerScene, trigger, void 0, { projectRoot: context.projectRoot, legacyDescriptor: format === "legacy" ? loaded.json : void 0 });
     const updated = format === "distributed" ? trigger : rewriteLegacySceneCollection({ descriptor: loaded.json }, ownerScene.id, "triggers", (resources) => [...resources, trigger]);
     await assertExpectedResourceRevision(context.projectRoot, sceneTarget, loaded.revision);
     await writeProjectJsonAtomic(context.projectRoot, target, updated);
@@ -14494,7 +14507,8 @@ async function updateTrigger(projectPath, input, access4) {
       trigger = { ...trigger, symbol: renamedResourceSymbol("trigger", original, trigger, takenResourceSymbols(await inventoryProject(projectPath, access4), input.triggerId)) };
     validateTriggerResource(ownerScene, trigger, original, {
       explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties),
-      projectRoot: context.projectRoot
+      projectRoot: context.projectRoot,
+      legacyDescriptor: format === "legacy" ? loaded.json : void 0
     });
     const updated = format === "distributed" ? trigger : rewriteLegacySceneCollection({ descriptor: loaded.json }, scene.id, "triggers", (resources) => resources.map((resource) => resource.id === input.triggerId ? trigger : resource));
     await assertExpectedResourceRevision(context.projectRoot, target, loaded.revision);
@@ -15028,7 +15042,7 @@ async function applyActorOperation(overlay, type, fields2) {
     const input = { ...fields2, sceneId: overlay.scene.id, name: name3 };
     const created = createActorResource(input, id3, nextOverlayIndex(overlay.actors), uniqueResourceSymbol("actor", name3, overlaySymbols(overlay)));
     const value = fields2.properties === void 0 ? created : mergeActorChanges(created, { sceneId: overlay.scene.id, actorId: id3, properties: fields2.properties });
-    validateActorResource(overlay.inventory, sceneResource(overlay), value);
+    validateActorResource(overlay.inventory, sceneResource(overlay), value, void 0, overlayScriptProject(overlay));
     const resource2 = { id: id3, relativePath: chosen.relativePath, value };
     overlay.actors.set(id3, resource2);
     pushLegacyResource(overlay, "actors", value);
@@ -15051,6 +15065,7 @@ async function applyActorOperation(overlay, type, fields2) {
   if (merged.name !== resource.value.name)
     merged = { ...merged, symbol: renamedResourceSymbol("actor", resource.value, merged, overlaySymbols(overlay, actorId)) };
   validateActorResource(overlay.inventory, sceneResource(overlay), merged, resource.value, {
+    ...overlayScriptProject(overlay),
     explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0),
     properties: isObject8(fields2.properties) ? fields2.properties : void 0
   });
@@ -15068,7 +15083,7 @@ async function applyTriggerOperation(overlay, type, fields2) {
     const input = { ...fields2, sceneId: overlay.scene.id, name: name3 };
     const created = createTriggerResource(input, id3, nextOverlayIndex(overlay.triggers), uniqueResourceSymbol("trigger", name3, overlaySymbols(overlay)));
     const value = fields2.properties === void 0 ? created : mergeTriggerChanges(created, { sceneId: overlay.scene.id, triggerId: id3, properties: fields2.properties });
-    validateTriggerResource(sceneResource(overlay), value, void 0, { projectRoot: overlay.inventory.projectRoot });
+    validateTriggerResource(sceneResource(overlay), value, void 0, overlayScriptProject(overlay));
     const resource2 = { id: id3, relativePath: chosen.relativePath, value };
     overlay.triggers.set(id3, resource2);
     pushLegacyResource(overlay, "triggers", value);
@@ -15091,8 +15106,8 @@ async function applyTriggerOperation(overlay, type, fields2) {
   if (merged.name !== resource.value.name)
     merged = { ...merged, symbol: renamedResourceSymbol("trigger", resource.value, merged, overlaySymbols(overlay, triggerId)) };
   validateTriggerResource(sceneResource(overlay), merged, resource.value, {
-    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0),
-    projectRoot: overlay.inventory.projectRoot
+    ...overlayScriptProject(overlay),
+    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0)
   });
   resource.value = merged;
   replaceLegacyResource(overlay, "triggers", triggerId, merged);
@@ -15120,10 +15135,14 @@ function resolveScriptOwner(overlay, fields2) {
   }
   return { owner: overlay.scene, target };
 }
+// What the script checks need to know about the project a batch edits.
+function overlayScriptProject(overlay) {
+  return { projectRoot: overlay.inventory.projectRoot, legacyDescriptor: overlay.format === "legacy" ? overlay.descriptor : void 0 };
+}
 async function applyEventOperation(overlay, fields2) {
   const { owner: owner3, target } = resolveScriptOwner(overlay, fields2);
   const input = { ...fields2, ...target, target: { ...target, sceneId: overlay.scene.id } };
-  const edited = applyScriptEdit(owner3.value, input, { projectRoot: overlay.inventory.projectRoot });
+  const edited = applyScriptEdit(owner3.value, input, overlayScriptProject(overlay));
   owner3.value = edited.resource;
   if (owner3.id === overlay.scene.id) {
     if (overlay.format === "legacy" && overlay.descriptor) {
@@ -15213,7 +15232,7 @@ async function applySceneUpdateOperation(overlay, fields2) {
   assertSafeValue(typed, "Scene updates", true);
   const updates = { ...isObject8(properties) ? properties : {}, ...typed };
   const updated = withNativeScriptEventIds({ ...overlay.scene.value, ...updates });
-  validateNativeSceneUpdate(overlay.scene.value, updated, updates, (id3) => resolveNativeAssetIdentity(overlay.inventory, id3)?.type === "background", overlay.inventory.projectRoot);
+  validateNativeSceneUpdate(overlay.scene.value, updated, updates, (id3) => resolveNativeAssetIdentity(overlay.inventory, id3)?.type === "background", overlayScriptProject(overlay));
   if (overlay.format === "legacy" && overlay.descriptor) {
     const scenes = Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : [];
     const index = scenes.findIndex((scene) => isObject8(scene) && scene.id === overlay.scene.id);
@@ -15272,16 +15291,17 @@ async function applyOperation(overlay, operation, index) {
 function validateFinalGraph(overlay, indexedAccess) {
   const selected = sceneResource(overlay);
   const originalScene = overlay.snapshot.scenesById.get(overlay.scene.id);
-  const invalidScene = findInvalidNativeScriptEvent(overlay.scene.value, originalScene, { projectRoot: overlay.inventory.projectRoot });
+  const project = overlayScriptProject(overlay);
+  const invalidScene = findInvalidNativeScriptEvent(overlay.scene.value, originalScene, project);
   if (invalidScene)
     projectError("INVALID_EVENT", invalidScene.message);
   for (const actor of overlay.actors.values()) {
     const original = originalScene?.actors.find((candidate) => candidate.id === actor.id);
-    validateActorResource(overlay.inventory, selected, actor.value, original);
+    validateActorResource(overlay.inventory, selected, actor.value, original, project);
   }
   for (const trigger of overlay.triggers.values()) {
     const original = originalScene?.triggers.find((candidate) => candidate.id === trigger.id);
-    validateTriggerResource(selected, trigger.value, original, { projectRoot: overlay.inventory.projectRoot });
+    validateTriggerResource(selected, trigger.value, original, project);
   }
   const deletedResources = overlay.deletedActorIds.size > 0 || overlay.deletedTriggerIds.size > 0 || overlay.deletedVariableIds.size > 0;
   if (deletedResources)
@@ -30980,6 +31000,25 @@ function droppedGbStudioEvent(builder, stdout, stderr) {
   return builder === "gb-studio-cli" && `${stdout}
 ${stderr}`.split(/\r?\n/).some((line) => GB_STUDIO_UNKNOWN_EVENT.test(line.trim()));
 }
+// What GB Studio's build worker prints when a build stops (buildWorker.ts): this, then the error and its stack.
+var GB_STUDIO_BUILD_FAILURE = /^buildTask process terminated with error: /gm;
+// GB Studio's error for an event whose compile threw (compileEntityEvents.ts): the cause, then where as JSON. Every
+// event around it wraps it again with the wrapped error as the cause, and each one is also printed on its own.
+var GB_STUDIO_EVENT_COMPILE_FAILURE = /^(?:Error: )?Compiling "([^"]+)" failed with error "([\s\S]*)"\. (\{(?:"\w+":"(?:[^"\\]|\\.)*",?)*\})$/;
+var GB_STUDIO_EVENT_COMPILE_LINE = /\bCompiling "[^"]+" failed with error "/;
+// The innermost event a failed GB Studio build stopped on, read from the worker's last failure record as a whole (a
+// cause can span lines), or undefined when something else stopped it.
+function failedGbStudioEventCompile(stderr) {
+  const text = stderr.replace(/\r\n/g, "\n");
+  const record = [...text.matchAll(GB_STUDIO_BUILD_FAILURE)].at(-1);
+  if (!record)
+    return void 0;
+  let failure;
+  let match = GB_STUDIO_EVENT_COMPILE_FAILURE.exec(text.slice(record.index + record[0].length).split(/\n\s+at /)[0].trimEnd());
+  for (; match; match = GB_STUDIO_EVENT_COMPILE_FAILURE.exec(match[2]))
+    failure = { event: match[1], cause: match[2], location: match[3] };
+  return failure;
+}
 var GB_STUDIO_DEPRECATION = /^"([^"]+)" is deprecated and will be removed in a future release\.(?: Use "([^"]+)" instead\.)?.*\(([A-Z][A-Z0-9_]*)\)$/;
 function withoutNodeDeprecationNotice(text) {
   const kept = [];
@@ -31052,6 +31091,22 @@ function summarizeBuildDiagnostics(input) {
   const authoredDeprecations = new Set((input.authoring ?? []).filter((diagnostic) => diagnostic.code === "DEPRECATED_EVENT").map((diagnostic) => diagnostic.event));
   if (input.outputLimit)
     add({ severity: "error", code: "BUILD_OUTPUT_LIMIT", message: "Compiler output exceeded its 8 MiB per-stream limit and was truncated.", suggestedAction: "Inspect the retained output prefix and fix a repeatedly emitted compiler error or overly verbose project plugin before retrying." });
+  // A failed GB Studio build that stopped on an event's compile: that event once, with its replacement when GB Studio
+  // deprecates it (which then stands for the event's deprecation warning).
+  const compileFailure = input.builder === "gb-studio-cli" && !input.success ? failedGbStudioEventCompile(input.stderr) : void 0;
+  const failureGuidance = compileFailure && deprecatedEventGuidance(compileFailure.event);
+  const guidedEvent = failureGuidance ? compileFailure.event : void 0;
+  const failureLines = new Set(compileFailure ? compileFailure.cause.split("\n").map((line) => line.trim()) : []);
+  if (compileFailure) {
+    const { event, cause, location } = compileFailure;
+    add({
+      severity: "error",
+      code: "SCRIPT_EVENT_COMPILE_FAILED",
+      message: `Compiling "${event}" failed with error "${cause}". ${location}`,
+      event,
+      suggestedAction: unavailableEventMessage(event, "The project") ?? `GB Studio stopped on ${event}: ${cause.replace(/\.$/, "")}. Fix that event in the script the message names (event_describe gives its args), then rebuild.${failureGuidance ? ` ${event} is deprecated: ${failureGuidance}` : ""}`
+    });
+  }
   for (const raw of `${input.stderr}
 ${input.stdout}`.split(/\r?\n/)) {
     const line = raw.trim();
@@ -31060,7 +31115,7 @@ ${input.stdout}`.split(/\r?\n/)) {
     const deprecated = GB_STUDIO_DEPRECATION.exec(line);
     if (deprecated) {
       const [, helper, replacement, event] = deprecated;
-      if (authoredDeprecations.has(event))
+      if (authoredDeprecations.has(event) || event === guidedEvent)
         continue;
       add({
         severity: "warning",
@@ -31082,6 +31137,9 @@ ${input.stdout}`.split(/\r?\n/)) {
       });
       continue;
     }
+    // The compile failure's own lines: each wrapper, and the cause as GB Studio printed it.
+    if (compileFailure && (GB_STUDIO_EVENT_COMPILE_LINE.test(line) || failureLines.has(line)))
+      continue;
     let code;
     let suggestedAction = "";
     if (/compiler process cleanup could not be confirmed/i.test(line)) {
@@ -31128,8 +31186,10 @@ ${input.stdout}`.split(/\r?\n/)) {
       } : {}
     });
   }
-  for (const diagnostic of input.authoring ?? [])
-    add(diagnostic);
+  for (const diagnostic of input.authoring ?? []) {
+    if (!(diagnostic.code === "DEPRECATED_EVENT" && diagnostic.event === guidedEvent))
+      add(diagnostic);
+  }
   if (!input.success && errors.length === 0) {
     add({ severity: "error", code: "BUILD_FAILED", message: input.exitCode === 0 ? "The compiler did not produce a valid requested ROM or required debug artifacts." : `The compiler failed${input.exitCode === null ? "" : ` with exit code ${input.exitCode}`}.`, suggestedAction: "Read the retained stdout/stderr, run toolchain_doctor, and fix the first reported error before rebuilding." });
   }
@@ -59402,7 +59462,8 @@ var PLUGIN_EVENT_FILE = /^event.*\.js$/i;
 // GB Studio loads a plugin's events from plugins/*/**/events/event*.js and registers the id each one's code returns
 // when run, which reading the source cannot tell. A project with any such file (looked for more widely than GB Studio
 // does: hidden folders, symbolic links, any letter case) keeps every command on write; its build reports one GB Studio
-// has no compiler for.
+// has no compiler for. That includes an event GB Studio cannot compile, which a plugin may register again with a
+// compile that works: if none does, its build stops with SCRIPT_EVENT_COMPILE_FAILED naming the replacement.
 function projectHasPluginEvents(projectRoot) {
   const visited2 = /* @__PURE__ */ new Set();
   const visit = (directory) => {
@@ -59437,12 +59498,18 @@ function projectHasPluginEvents(projectRoot) {
   };
   return visit(path.join(projectRoot, "plugins"));
 }
-function knownEventCommand(command, projectRoot) {
-  if (typeof command !== "string")
-    return false;
-  if (Object.hasOwn(eventCatalog().events, command) || COMPILER_EVENT_COMMANDS.has(command))
-    return true;
-  return projectRoot !== void 0 && projectHasPluginEvents(projectRoot);
+// Why GB Studio cannot build a script event, or undefined when it can: a command it has no event for (it builds the
+// game without it) or an event whose compile helper its compiler no longer has (the build fails), unless GB Studio's
+// legacy migration converts it in this project. A project with plugin events keeps every command.
+function unbuildableEventMessage(command, where, project = {}) {
+  const entry = typeof command === "string" && Object.hasOwn(eventCatalog().events, command) ? eventCatalog().events[command] : void 0;
+  if (entry && !entry.unavailable || COMPILER_EVENT_COMMANDS.has(command))
+    return void 0;
+  if (legacyMigrationConverts(command, project.legacyDescriptor))
+    return void 0;
+  if (typeof command === "string" && project.projectRoot !== void 0 && projectHasPluginEvents(project.projectRoot))
+    return void 0;
+  return entry ? unavailableEventMessage(command, where) : `${unknownEventMessage(command, where)} GB Studio would build the game without it.`;
 }
 function editDistance(left, right) {
   let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
@@ -59469,6 +59536,32 @@ function unknownEventMessage(command, where) {
   if (typeof command !== "string" || command.length === 0)
     return `${where} has no command.`;
   return `${where} uses ${command}, which is not a GB Studio ${eventCatalog().gbStudioVersion} event or one of the project's plugin events. Nearest events: ${nearestEvents(command).join(", ")} (event_describe describes them).`;
+}
+// GB Studio's legacy migration (migrateLegacyProjectVersions.ts) turns EVENT_WEAPON_ATTACK into EVENT_LAUNCH_PROJECTILE
+// when it loads a single-file project from before 2.0.0 r14, so such a project builds it. As in its migrateProject,
+// versions 1.x reach 2.0.0 r2, and every 2.0.0 release from r1 to r13 passes the r13 to r14 step.
+function legacyMigrationConverts(command, descriptor) {
+  if (command !== "EVENT_WEAPON_ATTACK" || !isObject2(descriptor) || descriptor._resourceType === "project")
+    return false;
+  const version = descriptor._version === "1" ? "1.0.0" : descriptor._version || "1.0.0";
+  if (["1.0.0", "1.1.0", "1.2.0"].includes(version))
+    return true;
+  const release = descriptor._release || "1";
+  return version === "2.0.0" && typeof release === "string" && /^(?:[1-9]|1[0-3])$/.test(release);
+}
+// How to replace an event GB Studio deprecates, or undefined for one it does not.
+function deprecatedEventGuidance(command) {
+  const entry = Object.hasOwn(eventCatalog().events, command) ? eventCatalog().events[command] : void 0;
+  if (!entry?.deprecated)
+    return void 0;
+  return entry.replacement ? `Use ${entry.replacement} instead (event_describe describes it): ${entry.migration}` : entry.migration;
+}
+// For an event GB Studio lists but cannot compile (always one it deprecates): why, and how to replace it.
+function unavailableEventMessage(command, where) {
+  const entry = Object.hasOwn(eventCatalog().events, command) ? eventCatalog().events[command] : void 0;
+  if (!entry?.unavailable)
+    return void 0;
+  return `${where} uses ${command}. ${entry.unavailable} ${deprecatedEventGuidance(command)}`;
 }
 function eventCategories(entry) {
   return entry.groups.length > 0 ? entry.groups : [EVENT_UNCATEGORIZED];
