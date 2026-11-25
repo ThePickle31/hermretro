@@ -19,10 +19,10 @@ from .games import (
     web_rom,
 )
 from .games import _json as read_json
-from .freshness import plays_game_rom
+from .freshness import plays_game_rom, source_digest
 from .ownership import engine_path
 from .pipeline import after_build
-from .project import ROM_STEM, canonical_rom
+from .project import ROM_STEM, built_rom_sha256, canonical_rom
 
 __all__ = [
     "PNG_MAGIC",
@@ -30,6 +30,7 @@ __all__ = [
     "SELECTORS",
     "Registry",
     "after_build",
+    "built_rom_sha256",
     "canonical_rom",
     "cover_path",
     "engine_path",
@@ -39,6 +40,7 @@ __all__ = [
     "plays_game_rom",
     "project_file",
     "read_json",
+    "source_digest",
     "valid_id",
     "web_dir",
     "web_rom",

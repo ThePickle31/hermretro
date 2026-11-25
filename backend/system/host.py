@@ -123,6 +123,19 @@ def engine_tempdir(env: Mapping[str, str]) -> tempfile.TemporaryDirectory | None
     raise OSError(TEMP_UNAVAILABLE)
 
 
+def ignores_case(root: Path) -> bool:
+    """Whether the volume holding ``root`` finds a name in another case (as macOS's usually does), judged by the
+    folder's own name; False for a name without letter case."""
+    root = Path(root)
+    other = root.parent / root.name.swapcase()
+    if other == root:
+        return False
+    try:
+        return os.path.samestat(root.lstat(), other.lstat())
+    except OSError:
+        return False
+
+
 def unsupported_reason() -> str | None:
     """Why hermretro cannot run on this computer, or None."""
     if LINUX or MACOS:

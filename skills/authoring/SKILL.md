@@ -133,7 +133,8 @@ Verify the change at the level the request needs: reread the native resources, b
   `chromatic_playtest {}` after every rebuild ([the test plan, replayed](../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed)).
   `chromatic_present_game` and the report are refused (`PLAYTEST_FIRST`) until the bound checks and F1 pass on
   the latest build; `unfinished` overrides it only when the user asked for the game as it is, or for a report
-  that ends the turn with a failure you could not fix.
+  that ends the turn with a failure you could not fix or a turn that built nothing. The Build card then shows
+  the build as unfinished, with what is not verified.
   The report needs each open check's result on this ROM (`checks`, agreeing with the last playtest run) and a
   `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused;
   name that run's recording as `finishRun` (F1 `passed` or `failed` needs it).

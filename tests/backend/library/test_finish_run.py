@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import plan_checks, report_plan, report_tools  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, record_build  # noqa: E402 - the repository root goes on sys.path first
 
 REPORT = {"title": "Burrow Run", "summary": "Three mazes to the den."}
 SESSION = "0123456789abcdef0123456789abcdef"
@@ -31,6 +31,9 @@ class FinishRun(unittest.TestCase):
         self.root = self.base / "burrow"
         (self.root / "build").mkdir(parents=True)
         (self.root / "build" / "game.gbc").write_bytes(ROM)
+        # The chat's game, built as it stands (the report's gate holds an unrecorded build).
+        entry = record_build(self.root)
+        hermes_host._registry().bind(entry["id"], "s1", hermes_host._profile_identity())
         for patch in (
             mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)),
             mock.patch.object(host_assets, "_keep_paths"),

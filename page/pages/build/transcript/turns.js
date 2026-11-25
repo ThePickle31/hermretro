@@ -1,4 +1,5 @@
 // A conversation as turns, and the numbered builds among them.
+import { mergeUnfinished } from '#pages/build/chat/report.js'
 import { replyAssets } from './reply.js'
 import { assetKind, capturedFrames, BUILD_STEPS, HIDDEN_STEPS, shortTool, stepImages, stepWords } from './step-words.js'
 
@@ -121,6 +122,7 @@ export function turnParts(turn, root) {
     report,
     reportAt,
     note: presented?.info?.note ?? null,
+    unfinished: mergeUnfinished(report?.unfinished, presented?.info?.unfinished),
     running: steps.find(tool => tool.state === 'running') ?? null
   }
 }
@@ -154,7 +156,8 @@ function isGameBuild(tool) {
 }
 
 /** The conversation's builds in order, numbered from 1: one per turn that compiled the game, with the
- *  card's title (the report's, else the message that asked for it) and when it ran. */
+ *  card's title (the report's, else the message that asked for it), when it ran and whether it was reported or
+ *  shown unfinished. */
 export function buildHistory(turns) {
   const builds = []
 
@@ -167,6 +170,7 @@ export function buildHistory(turns) {
     }
 
     let report = null
+    let shown = null
     let endAt = null
     let startAt = turn.user?.at ?? null
     let thumb = null
@@ -179,6 +183,8 @@ export function buildHistory(turns) {
         for (const tool of item.tools) {
           if (shortTool(tool.name) === 'build_report' && tool.state !== 'failed') {
             report = tool.info?.report ?? tool.report ?? report
+          } else if (shortTool(tool.name) === 'present_game' && tool.state === 'done') {
+            shown = tool.info?.unfinished ?? null
           }
 
           for (const path of tool.state === 'failed' ? [] : (tool.info?.images ?? [])) {
@@ -202,6 +208,7 @@ export function buildHistory(turns) {
       title: report?.title ?? (asked ? (asked.length > 48 ? `${asked.slice(0, 47)}…` : asked) : `Build ${builds.length + 1}`),
       startAt,
       endAt,
+      unfinished: Boolean(mergeUnfinished(report?.unfinished, shown)),
       buildRef: isGameBuild(compile) ? compile.info?.buildRef ?? null : null,
       resultCall: isGameBuild(compile) ? compile.resultCall ?? null : null,
       thumb

@@ -22,6 +22,7 @@ from unittest import mock
 
 from backend.hermes import api as hermes_api
 from backend.hermes import host as hermes_host
+from backend.library import freshness
 from backend.system import paths
 
 
@@ -249,6 +250,27 @@ def make_project(base: Path, name="Space Game", web=True, built=True, card=True)
     return root
 
 
+def recorded_build(root: Path, **fields) -> dict:
+    """The library's record of a successful build of ``root`` as it stands (``lastBuild``), as the broker writes it:
+    the ROM's time and hash and the sources' digest; ``fields`` override any of them."""
+    rom = root / "build" / "game.gbc"
+    return {
+        "t": rom.stat().st_mtime,
+        "ok": True,
+        "rom": str(rom),
+        "sha256": hashlib.sha256(rom.read_bytes()).hexdigest(),
+        "sources": freshness.source_digest(root),
+        "error": None,
+        **fields,
+    }
+
+
+def record_build(root: Path, **fields) -> dict:
+    """Register ``root`` in the library with ``recorded_build(root, **fields)`` as its last build (call
+    ``isolated_home(self)`` first); returns the library entry."""
+    return hermes_host._registry().upsert(str(root), build=recorded_build(root, **fields))
+
+
 def make_library_game(
     home: SimpleNamespace,
     name: str = "Game",
@@ -257,12 +279,14 @@ def make_library_game(
     web: bool = True,
     card: bool = True,
     chat: str | None = None,
+    recorded: bool = True,
 ) -> tuple[str, Path]:
     """A game in the library, as the gateway records one: ``make_project(paths.games_dir(), name, ...)`` (a
     ``.gbsproj``, a scene, a built ROM and web export, a finished card) registered with ``host._registry().upsert``.
     ``home`` is what ``isolated_home(self)`` returns. ``built``, ``web`` and ``card`` are ``make_project``'s, with its
     defaults: by default the game is ready to present; ``web=False`` gives one with no playable copy,
-    ``card=False`` one without a card (``built=False`` leaves out the native ROM only). Returns ``(game id, project
+    ``card=False`` one without a card (``built=False`` leaves out the native ROM, ``recorded=False`` only the
+    broker's record of building it). Returns ``(game id, project
     root)`` either way (the id is always there); ``host._game_root(id)`` answers the root. Registering never reaches
     the broker (and the isolated runtime folder has none), so nothing else needs patching. Pictures for the assets
     RPC: ``add_images(root, count)``. ``chat`` binds the game to that conversation id (in this profile): a game's
@@ -270,7 +294,7 @@ def make_library_game(
     for folder in (paths.library_dir(), paths.games_dir()):
         assert Path(folder).is_relative_to(home.base), f"call isolated_home(self) first, unpatched: {folder}"
     root = make_project(paths.games_dir(create=True), name, web=web, built=built, card=card)
-    entry = hermes_host._registry().upsert(str(root))
+    entry = hermes_host._registry().upsert(str(root), build=recorded_build(root) if built and recorded else None)
     assert entry is not None and entry.get("id"), f"the library did not register {root}"
     if chat is not None:
         hermes_host._registry().bind(entry["id"], chat, hermes_host._profile_identity())

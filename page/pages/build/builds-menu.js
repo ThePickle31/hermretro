@@ -140,6 +140,7 @@ export function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
                       const target = build ? `build #${build.n}` : `${title.toLowerCase()} from ${savedAt}`
                       const subtitle = build ? [
                         build.endAt ? timeOfDay(build.endAt) : null,
+                        build.unfinished ? 'unfinished' : null,
                         build.state === 'failed' ? 'didn’t finish' : build.state === 'unknown' && !snapshot ? 'outcome unknown' : playing ? (game.state === 'changed' ? 'playing now · edited since' : 'playing now') : null
                       ].filter(Boolean).join(' · ') : backup ? `${savedAt} · ${snapshot.id}` : savedAt
 

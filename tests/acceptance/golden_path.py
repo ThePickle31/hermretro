@@ -221,7 +221,7 @@ def apply(studio, root, scene, operations):
 @step(
     "GP5",
     "Golden path, build: the game's ROM builds where the game keeps it, with source debugging; the library records "
-    "the build and the build hook keeps its snapshot",
+    "the build with its ROM's hash and the sources it was built from, and the build hook keeps its snapshot",
 )
 def build(check, studio, root):
     built = studio.engine("chromatic_rom_build")
@@ -235,6 +235,8 @@ def build(check, studio, root):
         and bool(built.get("debugArtifacts"))
         and (entry.get("lastBuild") or {}).get("ok") is True
         and (entry.get("lastBuild") or {}).get("rom") == rom
+        and (entry.get("lastBuild") or {}).get("sha256") == (built.get("rom") or {}).get("sha256")
+        and (entry.get("lastBuild") or {}).get("sources") == library.source_digest(root)
         and len(kept) == 1,
         build=built.get("error") or built.get("diagnostics"),
         last_build=entry.get("lastBuild"),
@@ -360,7 +362,7 @@ def check_audio(check, studio):
 @step(
     "GP12",
     "Golden path, gates: with the game card filled in, presenting and reporting the rebuild wait until its checks "
-    "pass on it, naming them; the user's request to see it as it is shows it unfinished",
+    "pass on it, naming them; the user's request to see it as it is shows it unfinished, and the library keeps that",
 )
 def present_unfinished(check, studio, root, finish):
     (root / "art" / "cover.png").write_bytes(encode_png(160, 144, cover))
@@ -385,6 +387,8 @@ def present_unfinished(check, studio, root, finish):
         and "T1 has no result on this ROM." in unreported.get("error", "")  # F1 shown by the report's finish run
         and "chromatic_playtest {}" in held.get("nextStep", "")
         and (shown.get("unfinished") or {}).get("request") == UNFINISHED
+        and (shown.get("unfinished") or {}).get("notVerified") == ["T1, F1 have no result on this ROM."]
+        and (entry.get("presented") or {}).get("unfinished") == shown.get("unfinished")
         and (entry.get("presented") or {}).get("note") == "Walk right.",
         card=card.get("problems") or card.get("missing") or card.get("error"),
         held=held.get("error"),
@@ -417,6 +421,7 @@ def present(check, studio, root):
     check(
         shown.get("ok") is True
         and "unfinished" not in shown
+        and "unfinished" not in (entry.get("presented") or {})
         and (shown.get("studio") or {}).get("playerUrl", "").endswith("/index.html")
         and (entry.get("presented") or {}).get("note") == "Walk right.",
         shown=shown.get("error") or shown.get("studio"),

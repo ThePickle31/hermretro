@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..hermes import host, results
 from ..hermes.declare import Tool
-from . import plan_checks, playtest, playtest_run
+from . import finish_run, plan_checks, playtest, playtest_run
 from .tool_args import tool_error, tool_project
 
 logger = host.logger
@@ -180,10 +180,23 @@ def _bind(root: str, args: dict, engine: _Engine) -> str:
 
 
 def _unbind(root: str, args: dict) -> str:
-    removed = playtest.unbind(Path(root), args.get("check"))
+    """Unbind a check; a failed or unjudged result on this ROM it takes away is named (``cleared``), with what the
+    build report still owes for it."""
     plan = plan_checks.read_plan(Path(root))
+    check = args.get("check")
+    key = plan_checks.check_key(check.strip()) if isinstance(check, str) else None
+    known = playtest.current(plan, playtest.read(Path(root)), finish_run.current_rom(Path(root))[1]) if plan else {}
+    lost = (known.get(key) or {}).get("result")
+    removed = playtest.unbind(Path(root), check)
     cover = playtest.coverage(plan, playtest.read(Path(root))) if plan else {}
-    return json.dumps({"ok": True, "removed": removed, **cover})
+    answer = {"ok": True, "removed": removed, **cover}
+    if removed and lost in ("failed", "error"):
+        answer["cleared"] = {"check": check.strip(), "result": lost}
+        answer["nextStep"] = (
+            f"{check.strip()} {'failed' if lost == 'failed' else 'could not be judged'} on this ROM, and that result "
+            "went with the binding: verify it by hand and report its true result in chromatic_build_report."
+        )
+    return json.dumps(answer)
 
 
 def playtest_handler(args: dict, **kwargs) -> str:

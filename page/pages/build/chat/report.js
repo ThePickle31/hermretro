@@ -3,19 +3,39 @@ import { REPORT_TOOL } from '#app/tools.js'
 
 const REPORT_KINDS = new Set(['added', 'changed', 'removed'])
 const CHECK_RESULTS = new Set(['passed', 'failed', 'not run', 'blocked', 'needs review'])
-// backend/library/plan_checks.py: MAX_CHECKS and MAX_CHECK_ID.
+// backend/library/plan_checks.py: MAX_CHECKS and MAX_CHECK_ID; backend/library/pipeline.py: MAX_OVERRIDE.
 const MAX_CHECKS = 100
 const MAX_CHECK_ID = 9
+const MAX_OVERRIDE = 160
+
+const line = (text, max) => (typeof text === 'string' && text.trim() ? text.trim().slice(0, max) : null)
+const lines = (list, count, max) => (Array.isArray(list) ? list.map(item => line(item, max)).filter(Boolean).slice(0, count) : [])
+
+/** A build shown or reported before it passed its checks (the tools' `unfinished`): why, what was not verified and,
+ *  for a presentation of an earlier copy, why it is not the current sources; null when it was not. */
+export function normalizeUnfinished(reason, notVerified, notCurrent = null) {
+  const why = line(reason, MAX_OVERRIDE)
+
+  return why ? { reason: why, notVerified: lines(notVerified, 8, 300), notCurrent: line(notCurrent, 300) } : null
+}
+
+/** A turn's unfinished marks (its report's, then its presentation's) as one, or null. */
+export function mergeUnfinished(...marks) {
+  const given = marks.filter(Boolean)
+
+  return given.length
+    ? { reason: given[0].reason, notVerified: [...new Set(given.flatMap(mark => mark.notVerified))], notCurrent: given.find(mark => mark.notCurrent)?.notCurrent ?? null }
+    : null
+}
 
 /** The build card a turn reported (`chromatic_build_report` arguments or its result's `report`), trimmed
- *  to what the card shows; null when it has no title or summary. Test-plan checks stay `{ id, text, result }`. */
+ *  to what the card shows; null when it has no title or summary. Test-plan checks stay `{ id, text, result }`;
+ *  `unfinished` is `normalizeUnfinished`'s. */
 export function normalizeReport(value) {
   if (!value || typeof value !== 'object') {
     return null
   }
 
-  const line = (text, max) => (typeof text === 'string' && text.trim() ? text.trim().slice(0, max) : null)
-  const lines = (list, count, max) => (Array.isArray(list) ? list.map(item => line(item, max)).filter(Boolean).slice(0, count) : [])
   const title = line(value.title, 60)
   const summary = line(value.summary, 400)
 
@@ -44,7 +64,8 @@ export function normalizeReport(value) {
     checks,
     difficulty: line(value.difficulty, 240),
     notes: lines(value.notes, 3, 200),
-    suggestions: lines(value.suggestions, 4, 60)
+    suggestions: lines(value.suggestions, 4, 60),
+    unfinished: normalizeUnfinished(value.unfinished, value.notVerified)
   }
 }
 

@@ -89,8 +89,17 @@ class Lane:
         elif action in ("stop_recording", "close"):
             self.recording_until = 0.0
 
-    def remember(self, tool: str, kind: str, result: dict, seconds: float, arguments: dict | None = None) -> None:
-        """Keep a short, display-only record of one finished call."""
+    def remember(
+        self,
+        tool: str,
+        kind: str,
+        result: dict,
+        seconds: float,
+        arguments: dict | None = None,
+        sources_before: str | None = None,
+    ) -> None:
+        """Keep a short, display-only record of one finished call; the observer also gets ``sources_before`` (a
+        build's source digest from before it started)."""
         structured = result.get("structuredContent")
         structured = structured if isinstance(structured, dict) else {}
         failed = bool(result.get("isError")) or structured.get("success") is False
@@ -134,7 +143,7 @@ class Lane:
             self.preview_url = None
         if self.observer is not None:
             try:
-                self.observer(self, tool, arguments or {}, structured, failed)
+                self.observer(self, tool, arguments or {}, structured, failed, sources_before)
             except Exception:  # the library is bookkeeping; it must never fail a call
                 pass
 

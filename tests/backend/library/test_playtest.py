@@ -181,9 +181,9 @@ class Results(PlaytestCase):
         self.recording()
         self.bind()
         state = playtest.read(self.root)
-        self.assertEqual(set(state), {"bindings", "results"})
+        self.assertEqual(set(state), {"bindings", "results", "verified"})
         layout.write_state(self.root, playtest.STATE_FILE, {"bindings": [], "results": {"T1": "x"}})
-        self.assertEqual(playtest.read(self.root), {"bindings": {}, "results": {}})
+        self.assertEqual(playtest.read(self.root), {"bindings": {}, "results": {}, "verified": {}})
 
 
 if __name__ == "__main__":

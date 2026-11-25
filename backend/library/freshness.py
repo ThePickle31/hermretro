@@ -7,6 +7,7 @@ import hashlib
 import os
 from pathlib import Path
 
+from ..system.host import ignores_case
 from .project import (
     GAME_FILES,
     NOT_SOURCE,
@@ -22,8 +23,9 @@ from .project import (
     web_rom,
 )
 
-# How many source files sources_newer_than looks at before it stops and calls the ROM current. Its own bound, not the
-# snapshot cap (backend/history/snapshots.py MAX_FILES, which skips the copy): the two only happen to share a number.
+# How many source files source_files lists before it stops (sources_newer_than then calls the ROM current). Its own
+# bound, not the snapshot cap (backend/history/snapshots.py MAX_FILES, which skips the copy): the two only happen to
+# share a number.
 MAX_SOURCE_FILES = 20000
 # File times of a build and the web export made right after it can differ by a little.
 FRESH_SLACK_SECONDS = 2.0
@@ -92,26 +94,49 @@ def plays_game_rom(root: Path) -> bool:
 
 # What a GB Studio web export is made from (the engine's own source fingerprint covers the same).
 EXPORT_SOURCES = ("project", "assets", "plugins")
+# A C game's notes, anywhere in it: never compiled.
+NOTES_SUFFIX = ".md"
+
+
+def source_files(root: Path) -> list[Path] | None:
+    """What a build of the game reads, in a stable order; None past ``MAX_SOURCE_FILES`` (counted while listing). A
+    GB Studio project: its ``.gbsproj`` and every file under ``project/``, ``assets/`` and ``plugins/``. Any other (a C
+    game): every file in the folder but the folders ``NOT_SOURCE`` names (in any spelling on a volume that ignores
+    case), the game files at the top (``GAME_FILES``) and notes (``*.md``). Hidden files and folders never count."""
+    root = Path(root)
+    descriptor = project_file(root)
+    files = [descriptor] if descriptor is not None else []
+    tops = [root / folder for folder in EXPORT_SOURCES] if descriptor is not None else [root]
+    folds = descriptor is None and ignores_case(root)
+    for top in tops:
+        for directory, folders, names in os.walk(top):
+            folders[:] = sorted(
+                name
+                for name in folders
+                if not name.startswith(".")
+                and not (descriptor is None and (name.lower() if folds else name) in NOT_SOURCE)
+            )
+            for name in sorted(names):
+                if name.startswith(".") or (
+                    descriptor is None
+                    and (name.lower().endswith(NOTES_SUFFIX) or (directory == os.fspath(root) and name in GAME_FILES))
+                ):
+                    continue
+                files.append(Path(directory, name))
+                if len(files) > MAX_SOURCE_FILES:
+                    return None
+    return files
 
 
 def source_digest(root: Path) -> str | None:
-    """A digest of what the playable copy is made from: the ``.gbsproj`` and every file under ``project/``,
-    ``assets/`` and ``plugins/``, by path and content. A deleted or renamed file changes it too; the card, the
-    plans and the README do not. None for a project that is not GB Studio's, or past ``MAX_SOURCE_FILES``."""
-    descriptor = project_file(root)
-    if descriptor is None:
+    """A digest of what a build of the game reads (``source_files``), by path and content: a deleted or renamed file
+    changes it too; the card, the plans and the README do not. None past ``MAX_SOURCE_FILES``."""
+    root = Path(root)
+    files = source_files(root)
+    if files is None:
         return None
     digest = hashlib.sha256(b"hermretro\0export-sources\0v1\0")
-    seen = 0
-    files = [descriptor]
-    for folder in EXPORT_SOURCES:
-        for directory, folders, names in os.walk(root / folder):
-            folders.sort()
-            files += [Path(directory, name) for name in sorted(names)]
     for path in files:
-        seen += 1
-        if seen > MAX_SOURCE_FILES:
-            return None
         try:
             if path.is_symlink() or not path.is_file():
                 continue
@@ -139,14 +164,14 @@ _REMAKE = (
 
 
 def export_freshness(
-    root: Path, last_build: dict | None = None, last_web_export: dict | None = None
+    root: Path, last_build: dict | None = None, last_web_export: dict | None = None, sources: str | None = None
 ) -> tuple[bool, str | None, str | None]:
     """Whether the web copy shows the latest build: ``(fresh, why, next step)``. Fresh means it exists, the engine
     made it (``engine_made_export``), it is not older than the last ROM build, and no game source changed after it.
     When the library recorded the build, its time counts (the native ROM file otherwise), and the copy's time is
     the later of its files and the last successful web export the broker recorded (the engine reuses an unchanged
     export without rewriting it). A failed build after the copy also counts as stale: the user would be shown an
-    older game than the one being worked on."""
+    older game than the one being worked on. ``sources`` is the current ``source_digest`` when the caller has it."""
     last = last_build if isinstance(last_build, dict) else None
     recorded = timestamp(last.get("t")) if last else 0.0
     game_rom = _game_rom(root)
@@ -187,7 +212,7 @@ def export_freshness(
         return False, "The playable web copy is older than the last ROM build.", recover
     recorded_sources = last_web_export.get("sources") if isinstance(last_web_export, dict) else None
     if isinstance(recorded_sources, str):
-        changed = source_digest(root) != recorded_sources
+        changed = (sources or source_digest(root)) != recorded_sources
     else:  # an export recorded before the library kept its sources' digest
         changed = sources_newer_than(root, exported)
     if changed:
@@ -195,32 +220,19 @@ def export_freshness(
     return True, None, None
 
 
+def intact_export(root: Path) -> bool:
+    """Whether ``build/web`` holds a playable copy the engine made and nothing changed since
+    (``engine_made_export``), whichever build it is of."""
+    return has_web_export(root) and engine_made_export(root)
+
+
 def sources_newer_than(root: Path, moment: float) -> bool:
-    """Whether any game source file under the project changed after ``moment`` (a ROM's mtime). For a GB Studio
-    project that is what a build reads: its ``.gbsproj``, ``project/``, ``assets/`` and ``plugins/`` (a file the game
-    layout keeps local never counts); for any other project, every file but build output and the game files."""
-    descriptor = project_file(Path(root))
-    if descriptor is not None:
+    """Whether any game source file (``source_files``) changed after ``moment`` (a ROM's mtime). False past
+    ``MAX_SOURCE_FILES``."""
+    for path in source_files(Path(root)) or []:
         try:
-            if descriptor.stat().st_mtime > moment + 1.0:
+            if path.stat().st_mtime > moment + 1.0:
                 return True
         except OSError:
-            pass
-    seen = 0
-    top = os.fspath(root)
-    walks = [os.walk(Path(root, folder)) for folder in EXPORT_SOURCES] if descriptor is not None else [os.walk(root)]
-    for directory, folders, files in (step for walk in walks for step in walk):
-        folders[:] = [f for f in folders if not f.startswith(".") and f not in NOT_SOURCE]
-        for name in files:
-            # The game card, README, changelog and licence describe the game; they are not game source.
-            if name.startswith(".") or (directory == top and name in GAME_FILES):
-                continue
-            seen += 1
-            if seen > MAX_SOURCE_FILES:
-                return False
-            try:
-                if os.stat(os.path.join(directory, name)).st_mtime > moment + 1.0:
-                    return True
-            except OSError:
-                continue
+            continue
     return False

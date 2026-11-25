@@ -184,6 +184,9 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   A result can feature a sprite or background with Before and After at the turn's start and end. When an
   earlier version is available, the latest turn offers Keep and Undo. Undo restores the earlier version
   and offers to rebuild. Details opens the change list, additional image comparisons, checks and notes.
+  A build the turn reported or presented with `unfinished` (before it passed its checks) is marked Unfinished
+  beside its title; Details gives the reason, why a presented copy is not the current sources and what was not
+  verified (`normalizeUnfinished`, `mergeUnfinished` in `chat/report.js`), and Builds ▾ marks it unfinished.
   The change thumbnails open the original images at the report capture time from its tool result, or the
   recorded tool time for older reports. Turns without reports list the pictures they made. Recorded playtest
   frames can be opened individually or scrubbed and replayed in capture order. Reply media uses the Hermes

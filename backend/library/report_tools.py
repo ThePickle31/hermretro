@@ -10,7 +10,7 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import games as library
-from . import finish_run, pipeline, plan_checks
+from . import finish_run, pipeline, plan_checks, playtest
 from .report_plan import plan_problems, playtest_problems
 from .tool_args import other_game_refusal, tool_error
 
@@ -67,9 +67,10 @@ BUILD_REPORT_TOOL = {
         "(docs/game/TEST-PLAN.md), checks and difficulty are required: a result for every check it lists (a bound "
         "check's must agree with "
         "chromatic_playtest's results on this ROM; one it could not judge is passed only with evidence), and "
-        "finishRun when its F1 (the run from power-on to the ending) passed or failed. It waits until the game's ROM "
-        "is its latest build and that plan's bound checks and F1 passed on it (unfinished says why a turn ends "
-        "before that). Reads the test plan and the recording and writes nothing in the project; never touches a "
+        "finishRun when its F1 (the one run from power-on the plan describes) passed or failed. It waits until the "
+        "game's ROM is its latest build and that plan's bound checks and F1 passed on it (unfinished says why a turn "
+        "ends before that; the card then shows it unfinished). Reads the test plan and the recordings, keeps the "
+        "checks it took on their own evidence for chromatic_present_game, and writes nothing else; never touches a "
         "device."
     ),
     "parameters": {
@@ -172,8 +173,9 @@ BUILD_REPORT_TOOL = {
                 "minLength": 1,
                 "maxLength": pipeline.MAX_OVERRIDE,
                 "description": "Only when this turn ends before the game's bound test-plan checks and F1 pass on its "
-                "latest build (the user asked for it as it is, or a failure you could not fix): why, in a few words. "
-                "The report is taken with what is not verified in its warnings.",
+                "latest build (the user asked for it as it is, a failure you could not fix, or a turn that built "
+                "nothing): why, in a few words. The card shows the build unfinished, with this and what is not "
+                "verified.",
             },
             "notes": _report_list("notes", REPORT_LIMITS["notes"], "One note.", "Things the user might notice."),
             "suggestions": _report_list(
@@ -268,21 +270,37 @@ def _report_checks(values, problems: list) -> list[dict]:
     return checks
 
 
-def _held(root: Path | None, report: dict) -> dict | None:
-    """The pipeline gate's refusal for the report's game (``pipeline.gate``), None when it may be reported or the chat
-    has no project. The report's own evidence of this ROM counts: a check ``chromatic_playtest`` could not judge,
-    verified with a recording (its ``playtest.verifiedBy``), and F1 reported passed with a finish run that ended
-    passed. A game with no ROM yet holds nothing: there is no build to verify."""
-    if root is None or finish_run.current_rom(root)[0] is None:
-        return None
-    entry = host._registry().get(library.game_id(str(root))) or {}
-    shown = [check["id"] for check in report["checks"] if (check.get("playtest") or {}).get("verifiedBy")]
+def _shown(report: dict) -> dict[str, str]:
+    """What the report shows passed on this ROM with its own evidence, ``{check ID: the recording}``: a check
+    ``chromatic_playtest`` could not judge, verified with a recording (its ``playtest.verifiedBy``), and F1 reported
+    passed with a finish run that ended passed."""
+    shown = {
+        check["id"]: check["playtest"]["verifiedBy"]
+        for check in report["checks"]
+        if (check.get("playtest") or {}).get("verifiedBy")
+    }
     finish = plan_checks.check_key(plan_checks.FINISH_CHECK)
-    if (report["finishRun"] or {}).get("outcome") == "passed" and any(
-        plan_checks.check_key(check["id"] or "") == finish and check["result"] == "passed" for check in report["checks"]
-    ):
-        shown.append(plan_checks.FINISH_CHECK)
-    return pipeline.gate("chromatic_build_report", root, entry.get("lastBuild"), shown)
+    run = report["finishRun"] or {}
+    for check in report["checks"]:
+        if (
+            plan_checks.check_key(check["id"] or "") == finish
+            and check["result"] == "passed"
+            and run.get("outcome") == "passed"
+        ):
+            shown[check["id"]] = run["recordingPath"]
+    return shown
+
+
+def _held(root: Path | None, shown: dict[str, str]) -> dict | None:
+    """The pipeline gate's refusal for the report's game (``pipeline.gate``, the report's own evidence ``shown``
+    counted), None when it may be reported. Nothing holds a chat with no project, or a folder the library does not
+    know that has no ROM; a library game with no ROM is held like any other (a turn that built nothing says why)."""
+    if root is None:
+        return None
+    entry = host._registry().get(library.game_id(str(root)))
+    if entry is None and finish_run.current_rom(root)[0] is None:
+        return None
+    return pipeline.gate("chromatic_build_report", root, (entry or {}).get("lastBuild"), list(shown))
 
 
 def build_report_handler(args: dict, **kwargs) -> str:
@@ -412,9 +430,12 @@ def build_report_handler(args: dict, **kwargs) -> str:
         unfinished, why = pipeline.override(args.get(pipeline.OVERRIDE))
         if why:
             problems.append(why)
-        held = _held(root, report)
+        shown = _shown(report)
+        held = _held(root, shown)
         if held and unfinished:
+            # The card shows both: an overridden report never looks fully tested.
             report[pipeline.OVERRIDE] = unfinished
+            report["notVerified"] = held["reasons"]
             warnings.append(f"Reported unfinished ({unfinished}): {held['error']}")
         elif held and not problems:
             return json.dumps(held)
@@ -430,6 +451,10 @@ def build_report_handler(args: dict, **kwargs) -> str:
                     "nextStep": "Fix every listed problem and call chromatic_build_report again with the whole report.",
                 }
             )
+        if root is not None and shown and (plan := plan_checks.read_plan(root)) is not None:
+            rom_sha256 = finish_run.current_rom(root)[1]
+            if rom_sha256:
+                playtest.verify(root, plan, rom_sha256, shown)  # chromatic_present_game counts it on this ROM
         # The card shows each image as it is now, even after a later turn rewrites it (assets listens).
         emit(
             "library.build_reported",

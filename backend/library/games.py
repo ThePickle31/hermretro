@@ -172,9 +172,12 @@ class Registry:
             self._save(data)
             return project.identified_game(identifier, entry)
 
-    def present(self, root: str, *, chat: dict | None = None, note: str | None = None) -> dict | None:
+    def present(
+        self, root: str, *, chat: dict | None = None, note: str | None = None, unfinished: dict | None = None
+    ) -> dict | None:
         """Record that the agent showed this game to the user (``chromatic_present_game``): the chat
-        that did it, when, and the note for the user. The desktop reads it back via ``presentations``."""
+        that did it, when, the note for the user and, for a game shown before it passed its checks, ``unfinished``
+        (the user's request and what was not verified). The desktop reads it back via ``presentations``."""
         real = Path(os.path.realpath(root))
         if not real.is_dir():
             return None
@@ -187,7 +190,7 @@ class Registry:
             entry = entry if isinstance(entry, dict) else {"id": identifier, "projectRoot": str(real), "addedAt": now}
             self._update_project(entry, real, now)
             bindings.record_chat(entry, chat)
-            entry["presented"] = {"t": now, "note": note}
+            entry["presented"] = {"t": now, "note": note, **({"unfinished": unfinished} if unfinished else {})}
             data["games"][identifier] = entry
             record = {
                 "gameId": identifier,
@@ -197,6 +200,7 @@ class Registry:
                 "sessionId": (chat or {}).get("sessionId"),
                 "conversationId": (chat or {}).get("conversationId"),
                 "profile": (chat or {}).get("profile"),
+                **({"unfinished": unfinished} if unfinished else {}),
             }
             data["presentations"] = (data["presentations"] + [record])[-MAX_PRESENTATIONS:]
             self._save(data)
@@ -307,8 +311,10 @@ class Registry:
         conversation_id: str | None,
         sessions_seen=(),
         profile: str | None = None,
+        sources_before: str | None = None,
     ) -> dict | None:
-        """Record what one finished engine call means for the library. Called by the broker."""
+        """Record what one finished engine call means for the library. Called by the broker; ``sources_before`` is
+        a build's ``source_digest`` of the project taken before it started."""
         arguments = arguments if isinstance(arguments, dict) else {}
         structured = structured if isinstance(structured, dict) else {}
         chat = None
@@ -347,23 +353,24 @@ class Registry:
             root = lane_root or structured.get("projectRoot")
             if not isinstance(root, str):
                 return None
-            if "sourcePath" in arguments and project_file(Path(root)):
-                return None  # a standalone C experiment inside a GB Studio project, not the game's build
+            if not project.game_build(Path(root), arguments):
+                return None
             rom = structured.get("outputPath") or structured.get("romPath")
-            built = structured.get("rom") if isinstance(structured.get("rom"), dict) else {}
-            sha = structured.get("romSha256") or structured.get("sha256") or built.get("sha256")
+            sha = project.built_rom_sha256(structured)
             build = {
                 "t": time.time(),
                 "ok": not failed,
                 "rom": rom if isinstance(rom, str) else None,
-                "sha256": sha if isinstance(sha, str) else None,
+                "sha256": sha,
                 "error": None,
             }
             if failed:
                 message = structured.get("error") or structured.get("message") or "The build failed."
                 build["error"] = (message if isinstance(message, str) else json.dumps(message))[:ERROR_CHARS]
-            elif (sources := source_digest(Path(root))) is not None:
-                build["sources"] = sources  # what the ROM was built from (pipeline.rom_state)
+            elif sources_before is not None and source_digest(Path(root)) == sources_before:
+                # What the ROM was built from (pipeline.rom_state). Left out when a file changed while it ran: the
+                # gate never pairs this ROM with sources the compiler may not have read.
+                build["sources"] = sources_before
             return self.upsert(root, chat=chat, build=build)
         if tool == "web_preview" and not failed and lane_root and arguments.get("action") in (None, "open"):
             # The engine reuses an export whose sources did not change without rewriting its files, so

@@ -6,8 +6,10 @@ the last action to replay and what the replay must end in (``expect``): every co
 it, or the current scene and variable values. It holds the digest of the check's words when it was bound and a
 revision of its own fields. Each check's last result holds the ROM it ran on and that binding revision and check
 digest, so it stands only while all three still are (``current``): binding again, unbinding, editing the check's
-words or reusing a retired ID leaves it out. Both are the game's ``.hermretro/playtest.json``, read once per call
-(``read``) and changed under the game folder's lock. Standard library only."""
+words or reusing a retired ID leaves it out. A check a build report showed passed with its own evidence (a recording
+of the ROM) is kept as verified on that ROM while its words stay the same (``verify``, ``verified``). All three are
+the game's ``.hermretro/playtest.json``, read once per call (``read``) and changed under the game folder's lock.
+Standard library only."""
 
 from __future__ import annotations
 
@@ -45,14 +47,14 @@ def engine_answer(response: dict) -> tuple[dict | None, dict, str | None]:
 
 
 def read(root: Path) -> dict:
-    """The game's playtest state as one snapshot: ``{"bindings": {key: binding}, "results": {key: result}}``, by
-    check key (``plan_checks.check_key``)."""
+    """The game's playtest state as one snapshot: ``{"bindings": {key: binding}, "results": {key: result},
+    "verified": {key: verification}}``, by check key (``plan_checks.check_key``)."""
     state = layout.state(root, STATE_FILE)
     return {
         name: {key: value for key, value in (state.get(name) or {}).items() if isinstance(value, dict)}
         if isinstance(state.get(name), dict)
         else {}
-        for name in ("bindings", "results")
+        for name in ("bindings", "results", "verified")
     }
 
 
@@ -109,6 +111,33 @@ def current(plan: plan_checks.Plan, state: dict, rom_sha256: str | None) -> dict
         ):
             results[key] = result
     return results
+
+
+def verified(plan: plan_checks.Plan, state: dict, rom_sha256: str | None) -> set[str]:
+    """The keys of the checks a build report showed passed on the ROM ``rom_sha256`` with its own evidence
+    (``verify``), while their words are still the ones it showed."""
+    return {
+        key
+        for key, item in state["verified"].items()
+        if rom_sha256 and item.get("romSha256") == rom_sha256 and item.get("check") == definition(plan, key)
+    }
+
+
+def verify(root: Path, plan: plan_checks.Plan, rom_sha256: str, shown: dict[str, str]) -> None:
+    """Keep the checks a build report showed passed on the ROM ``rom_sha256`` with its own evidence, ``{check ID:
+    the recording}``, over their earlier verifications."""
+    at = int(time.time() * 1000)
+    entries = {
+        plan_checks.check_key(identifier): {
+            "id": identifier,
+            "romSha256": rom_sha256,
+            "check": definition(plan, plan_checks.check_key(identifier)),
+            "evidence": evidence,
+            "at": at,
+        }
+        for identifier, evidence in shown.items()
+    }
+    _change(root, lambda state: state["verified"].update(entries))
 
 
 # -- binding a check ------------------------------------------------------------------------

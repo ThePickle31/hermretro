@@ -272,7 +272,7 @@ def make_tool_handler(ctx, tool: dict):
                 scratch = hermes_api.scratch_dir()
                 policy["scratch_dir"] = str(scratch) if scratch else None
             response, context = engine_call(original, args, kwargs, policy)
-            extra = _build_extra(response, conversation_id, session_id) if original == "rom_build" else None
+            extra = _build_extra(response, args, conversation_id, session_id) if original == "rom_build" else None
             return _deliver(response, name, context, extra)
         except OtherCopyBusy as error:
             return json.dumps(other_copy_busy(error, conversation_id, session_id))
@@ -293,16 +293,18 @@ def make_tool_handler(ctx, tool: dict):
     return handler
 
 
-def _build_extra(response: dict, conversation_id: str, session_id: str) -> dict | None:
-    """After a successful build, the checks of the game's test plan whose results it left on an earlier ROM
-    (``library.after_build``), as the result's ``testPlan``. Never raises: the build has already run."""
+def _build_extra(response: dict, args: dict, conversation_id: str, session_id: str) -> dict | None:
+    """After a successful build of the game's ROM, the checks of its test plan whose results it left on an earlier
+    ROM (``library.after_build``, given the build's arguments and the ROM it made), as the result's ``testPlan``.
+    Never raises: the build has already run."""
     try:
         result = response.get("result") if response.get("ok") else None
         structured = (result or {}).get("structuredContent")
         if not isinstance(structured, dict) or result.get("isError") or structured.get("success") is not True:
             return None
         root = structured.get("projectRoot") or _chat_project(conversation_id, session_id)
-        left = library.after_build(Path(root)) if isinstance(root, str) and root else None
+        built = library.built_rom_sha256(structured)
+        left = library.after_build(Path(root), args, built) if isinstance(root, str) and root else None
         return {"testPlan": left} if left else None
     except Exception:
         logger.debug("hermretro: could not read the test plan after a build", exc_info=True)
