@@ -10,8 +10,9 @@
  *   node tools/bundle/bundle.mjs --check --same-esbuild   also fail when the byte comparison cannot run (releases)
  *   node tools/bundle/bundle.mjs --report         lines per source file
  *
- * Both outputs are plain, readable code: the page bundle is ESM that imports only the three
- * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
+ * The page bundle is ESM that imports only the three specifiers the app's loader allows, with its whitespace
+ * and comments removed (every name kept) to stay inside its size limit; the frame script is a plain, readable
+ * self-contained IIFE. Each banner records the
  * esbuild version and two hashes (sources: only the folders that output bundles, and body), so a stale or
  * hand-edited output is detected without esbuild.
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
@@ -61,7 +62,8 @@ const BANNER = /^\/\*\*\n(?: \*[^\n]*\n)*? \* build: esbuild (\S+)\n \* sources:
 
 const sha256 = data => createHash('sha256').update(data).digest('hex')
 const abs = relative => path.join(ROOT, relative)
-const importsOf = text => [...text.matchAll(/^import\s(?:[^;]*?\sfrom\s+)?"([^"]+)";$/gm)].map(match => match[1]).sort()
+// An import statement at the start of a line or right after another statement (the page bundle has no whitespace).
+const importsOf = text => [...text.matchAll(/(?<=^|;)import(?=[\s{*"])(?:[^;"]*?from\s*)?"([^"]+)";/gm)].map(match => match[1]).sort()
 
 /** The outputs: where each comes from, what its banner says, and what must hold for it whatever built it.
  *  `sources` are the folders its banner hashes: everything it bundles must lie in them (checked on each build),
@@ -75,12 +77,14 @@ const TARGETS = [
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
-      'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.',
+      'ESM without whitespace or comments (names kept); imports only @hermes/plugin-sdk, react and react/jsx-runtime.',
       'Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its',
       'provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.'
     ],
-    esbuild: { format: 'esm', external: EXTERNAL },
-    // Hermes's install scanner notes any single file over 1024 KB.
+    // Whitespace only: names and code stay as written. The line limit keeps lines short for the install
+    // scanner, which reads line by line, and for anyone reading the installed file.
+    esbuild: { format: 'esm', external: EXTERNAL, minifyWhitespace: true, lineLimit: 200 },
+    // Hermes's install scanner notes any single file over 1024 KB (MAX_PLUGIN_SINGLE_FILE_KB).
     maxBytes: 1_000_000,
     warnBytes: 900_000,
     problems(text) {
