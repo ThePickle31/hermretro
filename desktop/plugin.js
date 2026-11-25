@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 9659a24f0fefa58d556bafd21baa95f7980e6c5c3bcf1e9f4e771b996b03e3c5
- * body: sha256 72231a295f38db31d6da00207a3aa8f3e3495896ba68cd216a087368e23efa3f
+ * sources: sha256 e231243f4ea6f7714601725e500d58d8c68d17ac232d346aefe6366ef8f30028
+ * body: sha256 197759dfa8cdda1fcb1db9de8b4052fd2a77046cc46a29d7dbc4304dcc6f9e17
  */
 // page/sdk.js
 import {
@@ -197,6 +197,7 @@ var RPC_NAMES = Object.freeze({
   install: `plugin.${ID}.install`,
   player: `plugin.${ID}.player`,
   presentations: `plugin.${ID}.presentations`,
+  releases: `plugin.${ID}.releases`,
   remove_tools: `plugin.${ID}.remove_tools`,
   status: `plugin.${ID}.status`,
   studio_claude_sign_in: `plugin.${ID}.studio_claude_sign_in`,
@@ -219,6 +220,7 @@ var RPC_GAMES = RPC_NAMES.games;
 var RPC_INSTALL = RPC_NAMES.install;
 var RPC_PLAYER = RPC_NAMES.player;
 var RPC_PRESENTATIONS = RPC_NAMES.presentations;
+var RPC_RELEASES = RPC_NAMES.releases;
 var RPC_REMOVE_TOOLS = RPC_NAMES.remove_tools;
 var RPC_STATUS = RPC_NAMES.status;
 var RPC_STUDIO_CLAUDE_SIGN_IN = RPC_NAMES.studio_claude_sign_in;
@@ -454,8 +456,8 @@ function setUpdating(active) {
 var UPDATING_MESSAGE = "hermretro is updating. You can start again in a moment.";
 
 // page/pages/build/build-snapshots.js
-async function requestBuildSnapshots(game, stored) {
-  const answer = await callStudioOnly(RPC_BUILDS, { game, stored }, 2e4);
+async function requestBuildSnapshots(game, stored2) {
+  const answer = await callStudioOnly(RPC_BUILDS, { game, stored: stored2 }, 2e4);
   return answer?.ok && Array.isArray(answer.builds) ? answer.builds : false;
 }
 function snapshotFor(build, snapshots) {
@@ -528,8 +530,8 @@ function toolBuildRef(value, parsed) {
     return parsed.buildRef;
   }
   const output = parsed?.truncated === true ? parsed.output : value;
-  const body2 = typeof output === "string" && output.startsWith("<persisted-output>\n") ? output.split(/^Preview \(first [0-9]+ chars\):\n/m, 2)[1] : parsed?.truncated === true ? output : null;
-  return /^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]/.exec(body2 ?? "")?.[1] ?? null;
+  const body = typeof output === "string" && output.startsWith("<persisted-output>\n") ? output.split(/^Preview \(first [0-9]+ chars\):\n/m, 2)[1] : parsed?.truncated === true ? output : null;
+  return /^\{\s*"buildRef"\s*:\s*"([0-9a-f]{32})"\s*[,}]/.exec(body ?? "")?.[1] ?? null;
 }
 function jsonValue(value) {
   if (typeof value === "string") {
@@ -568,11 +570,11 @@ function toolFailed(payload) {
     payload?.error || payload?.is_error === true || result?.ok === false || result?.isError === true || result?.structuredContent?.success === false || result && typeof result.error === "string" && result.error
   );
 }
-function engineError(parsed, content) {
-  if (content.success !== false) {
+function engineError(parsed, content2) {
+  if (content2.success !== false) {
     return null;
   }
-  const diagnostics = Array.isArray(content.diagnostics) ? content.diagnostics : [];
+  const diagnostics = Array.isArray(content2.diagnostics) ? content2.diagnostics : [];
   const error = diagnostics.find((item) => item?.severity === "error" && typeof item.message === "string");
   return error?.message ?? (typeof parsed.result === "string" && parsed.result ? parsed.result : null);
 }
@@ -599,15 +601,15 @@ function stepInfo(name, result, exactCall = true) {
     return null;
   }
   const parsed = value ?? {};
-  const content = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
+  const content2 = parsed.structuredContent && typeof parsed.structuredContent === "object" ? parsed.structuredContent : {};
   const text2 = (value2) => typeof value2 === "string" && value2 ? value2 : null;
   const images = (Array.isArray(parsed.images) ? parsed.images : []).map((image) => typeof image?.file === "string" ? image.file.replace(/^MEDIA:/, "") : null).filter(Boolean);
   const report = String(name ?? "") === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null;
   return {
-    error: (text2(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
-    projectRoot: text2(content.projectRoot),
-    assetPath: text2(content.assetPath),
-    outputPath: text2(content.outputPath) ?? (text2(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
+    error: (text2(parsed.error) ?? engineError(parsed, content2))?.slice(0, 400) ?? null,
+    projectRoot: text2(content2.projectRoot),
+    assetPath: text2(content2.assetPath),
+    outputPath: text2(content2.outputPath) ?? (text2(content2.path) && /\.(png|gif)$/i.test(content2.path) ? content2.path : null),
     buildRef,
     images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),
     note: String(name ?? "") === PRESENT_TOOL && parsed.ok === true ? text2(parsed.studio?.note) : null,
@@ -637,9 +639,9 @@ function notePresented({ gameId, ...presentation }) {
 }
 var buildShowing = () => BUILD_VIEWING.get();
 var BUILD_INJECT = atom({});
-function injectBuildDraft(stored, text2) {
+function injectBuildDraft(stored2, text2) {
   const all = BUILD_INJECT.get();
-  BUILD_INJECT.set({ ...all, [stored]: { seq: (all[stored]?.seq ?? 0) + 1, text: text2 } });
+  BUILD_INJECT.set({ ...all, [stored2]: { seq: (all[stored2]?.seq ?? 0) + 1, text: text2 } });
 }
 var BUILD_CHATS = atom({});
 var buildChatIdle = (chat) => Boolean(chat?.runtime && !chat.busy && !chat.opening && !chat.queued?.length && !chat.lost?.length);
@@ -691,12 +693,12 @@ async function chatRequest(method, params = {}, timeoutMs) {
   const { route } = target;
   return route ? host.requestProfile(route, method, params, timeoutMs, { spawnPriority: "foreground" }) : host.request(method, params, timeoutMs);
 }
-function patchChat(stored, change) {
+function patchChat(stored2, change) {
   const all = BUILD_CHATS.get();
-  const current = all[stored] ?? { stored, items: [], busy: false, segments: {} };
+  const current = all[stored2] ?? { stored: stored2, items: [], busy: false, segments: {} };
   const next = change(current);
   if (next !== current) {
-    BUILD_CHATS.set({ ...all, [stored]: next });
+    BUILD_CHATS.set({ ...all, [stored2]: next });
   }
 }
 
@@ -704,21 +706,21 @@ function patchChat(stored, change) {
 var FAST_PROVIDERS = /* @__PURE__ */ new Set(["openai-codex", "openai-api"]);
 var hasFastMode = (provider, caps) => FAST_PROVIDERS.has(provider) && caps?.fast === true;
 var failedAt = /* @__PURE__ */ new Map();
-async function pickBuildModel(stored, pick) {
-  const chat = BUILD_CHATS.get()[stored];
+async function pickBuildModel(stored2, pick) {
+  const chat = BUILD_CHATS.get()[stored2];
   if (!chat?.runtime) {
     return { ok: false };
   }
-  patchChat(stored, (current) => ({ ...current, heldPick: { ...current.heldPick ?? {}, ...pick } }));
-  return chat.busy ? { ok: true, held: true } : applyBuildPick(stored);
+  patchChat(stored2, (current) => ({ ...current, heldPick: { ...current.heldPick ?? {}, ...pick } }));
+  return chat.busy ? { ok: true, held: true } : applyBuildPick(stored2);
 }
-async function applyBuildPick(stored, { confirmed = false } = {}) {
-  const chat = BUILD_CHATS.get()[stored];
+async function applyBuildPick(stored2, { confirmed = false } = {}) {
+  const chat = BUILD_CHATS.get()[stored2];
   const pick = chat?.heldPick;
   if (!chat?.runtime || !pick || chat.applyingPick) {
     return { ok: false };
   }
-  patchChat(stored, (current) => ({ ...current, applyingPick: true }));
+  patchChat(stored2, (current) => ({ ...current, applyingPick: true }));
   try {
     if (pick.model && pick.provider) {
       const answer = await chatRequest("config.set", {
@@ -728,34 +730,34 @@ async function applyBuildPick(stored, { confirmed = false } = {}) {
         ...confirmed ? { confirm_expensive_model: true } : {}
       });
       if (answer?.confirm_required) {
-        patchChat(stored, (current) => ({ ...current, applyingPick: false, pickConfirm: { message: String(answer.confirm_message || "This model costs more to run.") } }));
+        patchChat(stored2, (current) => ({ ...current, applyingPick: false, pickConfirm: { message: String(answer.confirm_message || "This model costs more to run.") } }));
         return { ok: false, confirm: true };
       }
-      patchChat(stored, (current) => withInfo(current, { model: pick.model, provider: pick.provider }));
+      patchChat(stored2, (current) => withInfo(current, { model: pick.model, provider: pick.provider }));
     }
     if (pick.effort) {
       await chatRequest("config.set", { session_id: chat.runtime, key: "reasoning", value: pick.effort });
-      patchChat(stored, (current) => withInfo(current, { reasoning_effort: pick.effort }));
+      patchChat(stored2, (current) => withInfo(current, { reasoning_effort: pick.effort }));
     }
     const fast = pick.fast === true && pick.model && pick.fastOk === false ? false : pick.fast;
     if (typeof fast === "boolean") {
       await chatRequest("config.set", { session_id: chat.runtime, key: "fast", value: fast ? "fast" : "normal" });
-      patchChat(stored, (current) => withInfo(current, { fast }));
+      patchChat(stored2, (current) => withInfo(current, { fast }));
     }
-    patchChat(stored, (current) => {
+    patchChat(stored2, (current) => {
       const { heldPick, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
       const newer = heldPick && heldPick !== pick ? heldPick : null;
       return newer ? { ...rest, heldPick: newer } : rest;
     });
-    const next = BUILD_CHATS.get()[stored];
+    const next = BUILD_CHATS.get()[stored2];
     if (next?.heldPick && !next.busy) {
-      void applyBuildPick(stored);
+      void applyBuildPick(stored2);
     }
     return { ok: true };
   } catch (error) {
     const { message } = describeRequestError(error);
-    failedAt.set(stored, Date.now());
-    patchChat(stored, (current) => {
+    failedAt.set(stored2, Date.now());
+    patchChat(stored2, (current) => {
       const { heldPick: _held, applyingPick: _applying, pickConfirm: _confirm, ...rest } = current;
       return rest;
     });
@@ -763,26 +765,26 @@ async function applyBuildPick(stored, { confirmed = false } = {}) {
     return { ok: false };
   }
 }
-async function settleBuildPick(stored, limitMs = 3e4) {
+async function settleBuildPick(stored2, limitMs = 3e4) {
   const since = Date.now();
   while (Date.now() - since < limitMs) {
-    const chat = BUILD_CHATS.get()[stored];
-    if ((failedAt.get(stored) ?? 0) >= since) {
+    const chat = BUILD_CHATS.get()[stored2];
+    if ((failedAt.get(stored2) ?? 0) >= since) {
       return { ok: false };
     }
     if (!chat?.heldPick || chat.pickConfirm) {
       return { ok: true };
     }
     if (!chat.applyingPick) {
-      await applyBuildPick(stored);
+      await applyBuildPick(stored2);
     } else {
       await new Promise((done) => setTimeout(done, 25));
     }
   }
   return { ok: true };
 }
-function cancelBuildPick(stored) {
-  patchChat(stored, (current) => {
+function cancelBuildPick(stored2) {
+  patchChat(stored2, (current) => {
     const { heldPick: _held, pickConfirm: _confirm, applyingPick: _applying, ...rest } = current;
     return rest;
   });
@@ -1155,59 +1157,59 @@ function mergeOpenRequests(chat, open) {
   const added = open.filter((request) => !known.has(request.id)).map((request) => ({ kind: request.method === "approval" ? "approval" : "clarify", requestId: request.id, payload: request.params ?? {} }));
   return added.length || items.some((item, index) => item !== chat.items[index]) ? { ...chat, items: [...items, ...added], waiting: added.length > 0 || items.some((item) => item.requestId && !item.answered) } : chat;
 }
-async function checkOpenRequests(stored) {
-  promptChecks.delete(stored);
-  const chat = BUILD_CHATS.get()[stored];
+async function checkOpenRequests(stored2) {
+  promptChecks.delete(stored2);
+  const chat = BUILD_CHATS.get()[stored2];
   if (!chat?.runtime || !chat.busy) {
     return;
   }
   try {
-    const snapshot = await chatRequest("session.resume", { session_id: stored, omit_messages: true });
+    const snapshot = await chatRequest("session.resume", { session_id: stored2, omit_messages: true });
     const open = (Array.isArray(snapshot?.open_requests) ? snapshot.open_requests : []).filter(
       (request) => request && typeof request.id === "string" && (request.method === "clarify" || request.method === "approval")
     );
-    patchChat(stored, (current) => {
+    patchChat(stored2, (current) => {
       const merged = mergeOpenRequests(current, open);
       return snapshot?.running === false && !open.length && merged.busy ? endTurn(merged, "complete") : merged;
     });
-    patchChat(stored, (current) => current.unreachable ? { ...current, unreachable: 0 } : current);
-    if (!BUILD_CHATS.get()[stored]?.busy && BUILD_CHATS.get()[stored]?.heldPick) {
-      void applyBuildPick(stored);
+    patchChat(stored2, (current) => current.unreachable ? { ...current, unreachable: 0 } : current);
+    if (!BUILD_CHATS.get()[stored2]?.busy && BUILD_CHATS.get()[stored2]?.heldPick) {
+      void applyBuildPick(stored2);
     }
   } catch {
-    patchChat(stored, (current) => ({ ...current, unreachable: (current.unreachable ?? 0) + 1 }));
+    patchChat(stored2, (current) => ({ ...current, unreachable: (current.unreachable ?? 0) + 1 }));
   }
-  if (BUILD_CHATS.get()[stored]?.busy) {
-    schedulePromptCheck(stored, toolRunning(BUILD_CHATS.get()[stored]) ? 2500 : 4e3);
+  if (BUILD_CHATS.get()[stored2]?.busy) {
+    schedulePromptCheck(stored2, toolRunning(BUILD_CHATS.get()[stored2]) ? 2500 : 4e3);
   }
 }
-function schedulePromptCheck(stored, delay = 1200) {
-  if (!promptChecks.has(stored)) {
-    promptChecks.set(stored, setTimeout(() => void checkOpenRequests(stored), delay));
+function schedulePromptCheck(stored2, delay = 1200) {
+  if (!promptChecks.has(stored2)) {
+    promptChecks.set(stored2, setTimeout(() => void checkOpenRequests(stored2), delay));
   }
 }
 var APPROVAL_LABELS = { once: "Allow once", session: "Allow for this chat", always: "Always allow", deny: "Deny" };
 
 // page/pages/build/chat/actions.js
-async function openBuildChat(stored, game) {
-  const known = BUILD_CHATS.get()[stored];
+async function openBuildChat(stored2, game) {
+  const known = BUILD_CHATS.get()[stored2];
   if (known?.runtime || known?.opening) {
     return;
   }
   game ??= known?.game;
-  patchChat(stored, (chat) => ({ ...chat, game, opening: true, failure: null }));
+  patchChat(stored2, (chat) => ({ ...chat, game, opening: true, failure: null }));
   await retainChatRoute();
   try {
-    const result = await chatRequest("session.resume", { session_id: stored }, 6e4);
+    const result = await chatRequest("session.resume", { session_id: stored2 }, 6e4);
     const runtime = result?.session_id;
     if (runtime) {
-      buildRuntime.set(runtime, stored);
+      buildRuntime.set(runtime, stored2);
     }
-    const running = typeof result?.running === "boolean" ? result.running : Boolean(BUILD_CHATS.get()[stored]?.busy);
+    const running = typeof result?.running === "boolean" ? result.running : Boolean(BUILD_CHATS.get()[stored2]?.busy);
     const pending = result?.pending ?? result?.info?.pending_submissions;
     const at = Date.now();
     const items = historyItems(result?.messages, running);
-    patchChat(stored, (chat) => ({
+    patchChat(stored2, (chat) => ({
       ...withInfo(chat, result?.info),
       runtime,
       opening: false,
@@ -1224,44 +1226,44 @@ async function openBuildChat(stored, game) {
       unreachable: 0
     }));
     if (game) {
-      void confirmStoredBuilds(stored, game, items);
+      void confirmStoredBuilds(stored2, game, items);
     }
   } catch (error) {
     const { message } = describeRequestError(error);
     const missing = error?.code === 4007 || /^session not found$/i.test(message.trim());
-    patchChat(stored, (chat) => ({ ...chat, opening: false, failure: message, missing }));
+    patchChat(stored2, (chat) => ({ ...chat, opening: false, failure: message, missing }));
   }
 }
-async function confirmStoredBuilds(stored, game, items) {
+async function confirmStoredBuilds(stored2, game, items) {
   const unresolved = items.flatMap((item) => item.kind === "tools" ? item.tools : []).filter((tool) => tool.name === ROM_BUILD_TOOL && tool.state === "unknown" && tool.resultCall && !tool.args?.sourcePath);
   if (!unresolved.length) {
     return;
   }
-  const snapshots = await requestBuildSnapshots(game, stored).catch(() => false);
+  const snapshots = await requestBuildSnapshots(game, stored2).catch(() => false);
   const confirmed = new Set(unresolved.filter((tool) => snapshotFor(tool, snapshots)));
   if (confirmed.size) {
-    patchChat(stored, (chat) => ({
+    patchChat(stored2, (chat) => ({
       ...chat,
       // These are the exact tool objects from this resume, even if live events appended more work.
       items: chat.items.map((item) => item.kind === "tools" && item.tools.some((tool) => confirmed.has(tool)) ? { ...item, tools: item.tools.map((tool) => confirmed.has(tool) ? { ...tool, state: "done" } : tool) } : item)
     }));
   }
 }
-async function reopenBuildChat(stored) {
-  const known = BUILD_CHATS.get()[stored];
+async function reopenBuildChat(stored2) {
+  const known = BUILD_CHATS.get()[stored2];
   if (known?.opening) {
     return;
   }
   for (const [runtime, owner] of buildRuntime) {
-    if (owner === stored) {
+    if (owner === stored2) {
       buildRuntime.delete(runtime);
     }
   }
-  patchChat(stored, (chat2) => ({ ...chat2, runtime: null, seq: null, epoch: null, segments: {}, failure: null }));
-  await openBuildChat(stored);
-  const chat = BUILD_CHATS.get()[stored];
+  patchChat(stored2, (chat2) => ({ ...chat2, runtime: null, seq: null, epoch: null, segments: {}, failure: null }));
+  await openBuildChat(stored2);
+  const chat = BUILD_CHATS.get()[stored2];
   if (chat?.runtime && chat.busy) {
-    schedulePromptCheck(stored);
+    schedulePromptCheck(stored2);
   }
 }
 async function createBuildChat(title, pick = null) {
@@ -1272,10 +1274,10 @@ async function createBuildChat(title, pick = null) {
     ...typeof pick?.fast === "boolean" && FAST_PROVIDERS.has(pick?.provider) ? { fast: pick.fast } : {}
   };
   const result = await chatRequest("session.create", { hidden: true, source: "gui", ...choice }, 6e4);
-  const stored = result?.stored_session_id ?? result?.session_id;
+  const stored2 = result?.stored_session_id ?? result?.session_id;
   const runtime = result?.session_id;
   const info = result?.info;
-  if (!stored || !runtime) {
+  if (!stored2 || !runtime) {
     throw new Error("Hermes did not return a session.");
   }
   if (result.message_count > 0 || result.messages?.length) {
@@ -1284,25 +1286,25 @@ async function createBuildChat(title, pick = null) {
   if (choice.model && (info?.model !== choice.model || info?.provider !== choice.provider)) {
     throw new Error(`Hermes did not confirm ${choice.model} (${choice.provider}) for the new conversation. Your message was not sent.`);
   }
-  buildRuntime.set(runtime, stored);
-  patchChat(stored, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
-  return stored;
+  buildRuntime.set(runtime, stored2);
+  patchChat(stored2, (chat) => ({ ...withInfo(chat, info), runtime, title, items: [] }));
+  return stored2;
 }
-async function sendBuildChat(stored, text2, shown = text2, attachments = [], { mustLand = false, assetChange = null } = {}) {
+async function sendBuildChat(stored2, text2, shown = text2, attachments = [], { mustLand = false, assetChange = null } = {}) {
   if (isUpdating()) {
     host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return false;
   }
-  if (!BUILD_CHATS.get()[stored]?.runtime) {
-    await openBuildChat(stored);
+  if (!BUILD_CHATS.get()[stored2]?.runtime) {
+    await openBuildChat(stored2);
     if (isUpdating()) {
       host.notify({ kind: "warning", message: UPDATING_MESSAGE });
       return false;
     }
   }
-  const before = BUILD_CHATS.get()[stored];
-  const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored) : { ok: true };
-  const chat = BUILD_CHATS.get()[stored];
+  const before = BUILD_CHATS.get()[stored2];
+  const settled = before?.runtime && !before.busy && before.heldPick ? await settleBuildPick(stored2) : { ok: true };
+  const chat = BUILD_CHATS.get()[stored2];
   if (assetChange && (chat?.assetChange !== assetChange || !buildChatIdle(chat))) {
     return false;
   }
@@ -1311,7 +1313,7 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
   const paused = Boolean(chat?.lost?.length);
   const behindTurn = Boolean(chat?.busy) || paused;
   const submission = newId();
-  patchChat(stored, (current) => ({
+  patchChat(stored2, (current) => ({
     ...current,
     busy: live && !paused,
     activity: live && !paused ? "thinking" : current.activity,
@@ -1332,20 +1334,20 @@ async function sendBuildChat(stored, text2, shown = text2, attachments = [], { m
     ]
   }));
   if (!chat?.runtime) {
-    patchChat(stored, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
+    patchChat(stored2, (current) => ({ ...current, items: [...current.items, { kind: "error", text: "This conversation could not be opened, so the message was not sent." }] }));
     return !mustLand;
   }
   if (!settled.ok) {
-    patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
+    patchChat(stored2, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: "The model change did not go through, so the message was not sent.", resend: { text: text2, shown, attachments } }] }, "error"));
     return !mustLand;
   }
-  schedulePromptCheck(stored);
+  schedulePromptCheck(stored2);
   try {
     const named = attachments.length ? `${attachments.map(attachmentLine).join("\n")}
 ${text2}` : text2;
     const reply = await chatRequest("prompt.submit", { session_id: chat.runtime, submission_id: submission, text: named });
     if (behindTurn && (reply?.status === "queued" || reply?.status === "streaming")) {
-      patchChat(stored, (current) => {
+      patchChat(stored2, (current) => {
         const index = current.items.findIndex((item2) => item2.submission === submission);
         if (index === -1) {
           return current;
@@ -1362,23 +1364,23 @@ ${text2}` : text2;
     }
   } catch (error) {
     const { message } = describeRequestError(error);
-    patchChat(stored, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: message, resend: { text: text2, shown, attachments } }] }, "error"));
+    patchChat(stored2, (current) => endTurn({ ...current, items: [...current.items, { kind: "error", text: message, resend: { text: text2, shown, attachments } }] }, "error"));
     if (/not.?found|4007|unknown session/i.test(message)) {
-      void reopenBuildChat(stored);
+      void reopenBuildChat(stored2);
     }
     return !mustLand;
   }
   return true;
 }
-async function stopBuildChat(stored) {
-  const chat = BUILD_CHATS.get()[stored];
+async function stopBuildChat(stored2) {
+  const chat = BUILD_CHATS.get()[stored2];
   if (chat?.runtime) {
     await chatRequest("session.interrupt", { session_id: chat.runtime }).catch(() => {
     });
   }
 }
-async function resumeBuildChat(stored) {
-  const chat = BUILD_CHATS.get()[stored];
+async function resumeBuildChat(stored2) {
+  const chat = BUILD_CHATS.get()[stored2];
   if (!chat?.runtime || chat.resuming) {
     return;
   }
@@ -1386,30 +1388,30 @@ async function resumeBuildChat(stored) {
     host.notify({ kind: "warning", message: UPDATING_MESSAGE });
     return;
   }
-  patchChat(stored, (current) => ({ ...current, resuming: true, lostFailure: null }));
+  patchChat(stored2, (current) => ({ ...current, resuming: true, lostFailure: null }));
   try {
-    const snapshot = await chatRequest("session.resume", { session_id: stored, omit_messages: true }, 6e4);
+    const snapshot = await chatRequest("session.resume", { session_id: stored2, omit_messages: true }, 6e4);
     const runtime = snapshot?.session_id ?? chat.runtime;
     const pending = snapshot?.pending ?? snapshot?.info?.pending_submissions ?? [];
     for (const turn of lostTurns(pending)) {
       if (isUpdating()) {
-        patchChat(stored, (current) => ({ ...current, resuming: false }));
+        patchChat(stored2, (current) => ({ ...current, resuming: false }));
         host.notify({ kind: "warning", message: UPDATING_MESSAGE });
         return;
       }
       await chatRequest("prompt.resolve_unknown", { session_id: runtime, admission_id: turn.id });
     }
     const waiting = Array.isArray(pending) && pending.some((row) => row?.status === "queued");
-    patchChat(stored, (current) => ({ ...current, lost: [], resuming: false }));
+    patchChat(stored2, (current) => ({ ...current, lost: [], resuming: false }));
     if (!waiting) {
-      await sendBuildChat(stored, "Your last turn was cut off when Hermes restarted. Continue where you left off.", "Continue");
+      await sendBuildChat(stored2, "Your last turn was cut off when Hermes restarted. Continue where you left off.", "Continue");
     }
   } catch (error) {
-    patchChat(stored, (current) => ({ ...current, resuming: false, lostFailure: describeRequestError(error).message }));
+    patchChat(stored2, (current) => ({ ...current, resuming: false, lostFailure: describeRequestError(error).message }));
   }
 }
-async function answerBuildPrompt(stored, item, answer) {
-  const chat = BUILD_CHATS.get()[stored];
+async function answerBuildPrompt(stored2, item, answer) {
+  const chat = BUILD_CHATS.get()[stored2];
   if (!chat?.runtime) {
     return;
   }
@@ -1442,7 +1444,7 @@ async function answerBuildPrompt(stored, item, answer) {
     await call;
     const label = typeof answer === "string" ? answer : Object.values(answer ?? {}).map((value) => value ?? "skipped").join("; ");
     const picked = typeof answer === "string" ? [APPROVAL_LABELS[answer] ?? answer] : Object.values(answer ?? {}).map((value) => String(value ?? "skipped"));
-    patchChat(stored, (current) => ({
+    patchChat(stored2, (current) => ({
       ...current,
       waiting: false,
       items: current.items.map(
@@ -1453,10 +1455,10 @@ async function answerBuildPrompt(stored, item, answer) {
     host.notify({ kind: "error", message: `Could not answer Hermes: ${describeRequestError(error).message}` });
   }
 }
-function openInFullChat(stored) {
+function openInFullChat(stored2) {
   const target = studioTarget();
   if (target && typeof host.openSession === "function") {
-    void host.openSession(stored, target.profile ? { profile: target.profile } : {}).catch(
+    void host.openSession(stored2, target.profile ? { profile: target.profile } : {}).catch(
       (error) => host.notify({ kind: "error", message: `Could not open the chat: ${describeRequestError(error).message}` })
     );
   }
@@ -1879,24 +1881,24 @@ function AssetTile({ asset, size = "sm", animate = false }) {
 }
 
 // page/pages/build/composer/composer.js
-function attachToBuild(stored, attachments, text2 = "") {
+function attachToBuild(stored2, attachments, text2 = "") {
   const all = BUILD_INJECT.get();
-  const current = all[stored];
-  BUILD_INJECT.set({ ...all, [stored]: { seq: (current?.seq ?? 0) + 1, text: text2, attach: attachments } });
+  const current = all[stored2];
+  BUILD_INJECT.set({ ...all, [stored2]: { seq: (current?.seq ?? 0) + 1, text: text2, attach: attachments } });
 }
-function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored = null, status = null, picker = null, game = null, fresh = false, ask = null }) {
+function BuildComposer({ busy, disabled, placeholder, onSend, onStop, stored: stored2 = null, status = null, picker = null, game = null, fresh = false, ask = null }) {
   const [text2, setText] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [mention, setMention] = useState(null);
   const [pick, setPick] = useState(0);
-  const inject = useValue(BUILD_INJECT)[stored ?? ""] ?? null;
+  const inject = useValue(BUILD_INJECT)[stored2 ?? ""] ?? null;
   const box = useRef(null);
   const assets = useProjectAssets(mention && game ? game.id : null, mention ? "open" : "closed");
   const query = (mention?.query ?? "").toLowerCase();
   const matches = Array.isArray(assets) ? assets.filter((item) => !query || String(item.name).toLowerCase().includes(query) || String(item.file ?? "").toLowerCase().includes(query)).slice(0, 8) : assets === false ? [] : null;
   useEffect(() => {
     if (inject && !inject.used) {
-      BUILD_INJECT.set({ ...BUILD_INJECT.get(), [stored ?? ""]: { ...inject, used: true } });
+      BUILD_INJECT.set({ ...BUILD_INJECT.get(), [stored2 ?? ""]: { ...inject, used: true } });
       if (inject.attach?.length) {
         setAttachments((current) => mergeAttachments(current, inject.attach));
       }
@@ -1911,7 +1913,7 @@ ${inject.text}` : inject.text);
         focus();
       }
     }
-  }, [inject?.seq, stored]);
+  }, [inject?.seq, stored2]);
   useLayoutEffect(() => {
     const element = box.current;
     if (element) {
@@ -3620,7 +3622,7 @@ function ModelPicker({ ctx, value, pending = null, waiting = false, confirm = nu
     ]
   });
 }
-function ChatModelPicker({ ctx, stored, chat, disabled }) {
+function ChatModelPicker({ ctx, stored: stored2, chat, disabled }) {
   const options = useModelOptions(chat?.runtime ?? null);
   return jsx(ModelPicker, {
     ctx,
@@ -3629,12 +3631,12 @@ function ChatModelPicker({ ctx, stored, chat, disabled }) {
     // A model that asks first is not on its way until Use it: until then the panel keeps the model in use.
     pending: chat?.pickConfirm ? null : chat?.heldPick ?? null,
     waiting: Boolean(chat?.busy && chat?.heldPick),
-    onCancelConfirm: () => cancelBuildPick(stored),
-    onConfirm: () => void applyBuildPick(stored, { confirmed: true }),
-    onEffort: (effort) => void pickBuildModel(stored, { effort }),
-    onFast: (fast) => void pickBuildModel(stored, { fast }),
+    onCancelConfirm: () => cancelBuildPick(stored2),
+    onConfirm: () => void applyBuildPick(stored2, { confirmed: true }),
+    onEffort: (effort) => void pickBuildModel(stored2, { effort }),
+    onFast: (fast) => void pickBuildModel(stored2, { fast }),
     // A model pick says whether that model has fast mode, so a Fast picked before it is applied is checked against it.
-    onPick: (pick, row) => void pickBuildModel(stored, { ...pick, fastOk: hasFastMode(row.provider, row.caps) }),
+    onPick: (pick, row) => void pickBuildModel(stored2, { ...pick, fastOk: hasFastMode(row.provider, row.caps) }),
     options,
     value: chat?.info ?? null
   });
@@ -4027,20 +4029,20 @@ async function openGameChat(game) {
   const conversation = gameConversation(game);
   const target = studioTarget();
   const inStudio = conversation?.profile ? conversation.profile === STUDIO_PROFILE : true;
-  const stored = conversation?.stored;
-  if (!stored || !target || !inStudio || typeof host.openSession !== "function") {
+  const stored2 = conversation?.stored;
+  if (!stored2 || !target || !inStudio || typeof host.openSession !== "function") {
     return null;
   }
   try {
-    await host.openSession(stored, target.profile ? { profile: target.profile } : {});
-    return stored;
+    await host.openSession(stored2, target.profile ? { profile: target.profile } : {});
+    return stored2;
   } catch {
     return null;
   }
 }
 async function sendToGameChat(ctx, game, text2) {
-  const stored = await openGameChat(game);
-  if (stored && await insertWhenMounted(ctx, stored, text2)) {
+  const stored2 = await openGameChat(game);
+  if (stored2 && await insertWhenMounted(ctx, stored2, text2)) {
     promptAdded();
     return;
   }
@@ -4332,15 +4334,15 @@ function markPosition(metadata) {
 }
 function markDetail(mark, framePath, build) {
   const changed2 = (mark.colors ?? []).some((color, index) => color !== mark.original?.[index]);
-  const parts = [
+  const parts2 = [
     `Marked ${mark.n}: ${mark.name} (${targetKind(mark.role)})${framePath ? ` on the frame ${framePath}` : ""}${build ? `, build #${build}` : ""}.`,
     mark.metadata?.Hardware ? `Hardware: ${mark.metadata.Hardware}.` : null,
     mark.metadata?.Build ? `${mark.metadata.Build}.` : null,
     changed2 ? `The user previewed new colours for it: ${mark.original.join(" ")} → ${mark.colors.join(" ")}.` : null
   ];
-  return parts.filter(Boolean).join(" ");
+  return parts2.filter(Boolean).join(" ");
 }
-async function sendMarks({ bridge, game, stored, build, notes }) {
+async function sendMarks({ bridge, game, stored: stored2, build, notes }) {
   const taken = await bridge.takeMarks();
   if (!taken) {
     host.notify({ kind: "warning", message: "The game did not hand over the marks in time. Mark them again, then Add to message." });
@@ -4359,7 +4361,7 @@ async function sendMarks({ bridge, game, stored, build, notes }) {
     detail: markDetail(mark, path, build)
   }));
   const text2 = taken.marks.map((mark) => `${mark.n}. ${(notes[mark.id] ?? "").trim()}`).join("\n");
-  attachToBuild(stored, attachments, text2);
+  attachToBuild(stored2, attachments, text2);
   if (failure) {
     host.notify({ kind: "warning", message: `The frame was not saved: ${failure}` });
   }
@@ -4859,24 +4861,24 @@ function usePlayerPrefs(ctx) {
 }
 
 // page/pages/build/player/report-flow.js
-async function attachFrame({ game, stored, image, text: text2 }) {
-  if (!stored) {
+async function attachFrame({ game, stored: stored2, image, text: text2 }) {
+  if (!stored2) {
     return;
   }
   const { path, failure } = await saveCapture(game, image);
   if (path) {
-    attachToBuild(stored, [{ key: path, path, name: "this frame" }], text2);
+    attachToBuild(stored2, [{ key: path, path, name: "this frame" }], text2);
   } else {
-    injectBuildDraft(stored, text2);
+    injectBuildDraft(stored2, text2);
     host.notify({ kind: "warning", message: `The screenshot was not saved: ${failure}` });
   }
 }
-async function reportCheck({ bridge, game, stored, playtest, item }) {
+async function reportCheck({ bridge, game, stored: stored2, playtest, item }) {
   playtest.report(item.key, item.text);
-  await attachFrame({ game, stored, image: await bridge.snap(), text: `When I tried “${item.text}”, ` });
+  await attachFrame({ game, stored: stored2, image: await bridge.snap(), text: `When I tried “${item.text}”, ` });
 }
-async function askAboutMoment({ bridge, game, stored }) {
-  await attachFrame({ game, stored, image: await bridge.snap(), text: `About what ${game.title} shows here: ` });
+async function askAboutMoment({ bridge, game, stored: stored2 }) {
+  await attachFrame({ game, stored: stored2, image: await bridge.snap(), text: `About what ${game.title} shows here: ` });
 }
 
 // page/pages/build/player/checks.js
@@ -5003,7 +5005,7 @@ function useFullScreen(ref) {
   }, []);
   return full;
 }
-function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
+function InlinePlayer({ ctx, game, stored: stored2, note, report, build, onClose }) {
   const surface = `build:${game.id}`;
   const owner = useValue(LIVE_PLAYER);
   const live = owner === surface;
@@ -5080,14 +5082,14 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
     setPrefs({ panel: !panelOpen });
   };
   const actions = {
-    onAsk: () => void askAboutMoment({ bridge, game, stored }),
+    onAsk: () => void askAboutMoment({ bridge, game, stored: stored2 }),
     onAnnotate: annotate.start,
     onShot: () => bridge.press("screenshot")
   };
   const done = async () => {
     setSending(true);
     try {
-      await sendMarks({ bridge, build: build?.n ?? null, game, notes: annotate.notes, stored });
+      await sendMarks({ bridge, build: build?.n ?? null, game, notes: annotate.notes, stored: stored2 });
     } finally {
       setSending(false);
     }
@@ -5097,7 +5099,7 @@ function InlinePlayer({ ctx, game, stored, note, report, build, onClose }) {
     build: build?.n ?? null,
     layout: narrow ? "tabs" : "side",
     note,
-    onWrong: (item) => void reportCheck({ bridge, game, item, playtest, stored }),
+    onWrong: (item) => void reportCheck({ bridge, game, item, playtest, stored: stored2 }),
     playtest,
     ready
   }) : narrow ? null : jsx(FoldedPanel, { counts: playtest.counts, onOpen: togglePanel });
@@ -5647,17 +5649,17 @@ function rootOf(game, items) {
 // page/pages/build/assets/changes.js
 var canSendAssetChange = (chat) => buildChatIdle(chat) && !chat.assetChange;
 var assetRestoreBlocked = (chat) => Boolean(chat?.busy || chat?.assetChange);
-async function sendAssetChange(stored, text2, shown, attachments) {
-  if (!canSendAssetChange(BUILD_CHATS.get()[stored])) {
+async function sendAssetChange(stored2, text2, shown, attachments) {
+  if (!canSendAssetChange(BUILD_CHATS.get()[stored2])) {
     return false;
   }
   const change = { path: attachments[0].path, text: shown };
-  patchChat(stored, (chat) => ({ ...chat, assetChange: change }));
+  patchChat(stored2, (chat) => ({ ...chat, assetChange: change }));
   let started2 = false;
   let completed = false;
   let accepted = null;
   const finish = () => {
-    const chat = BUILD_CHATS.get()[stored];
+    const chat = BUILD_CHATS.get()[stored2];
     started2 ||= chat.items.at(-1)?.assetChange === change;
     completed ||= started2 && !chat.busy && !chat.opening;
     if (accepted === null || accepted && !completed) {
@@ -5667,11 +5669,11 @@ async function sendAssetChange(stored, text2, shown, attachments) {
     if (accepted) {
       forgetAsset(change.path);
     }
-    patchChat(stored, (current) => ({ ...current, assetChange: null, ...accepted ? { lastAssetChange: change } : {} }));
+    patchChat(stored2, (current) => ({ ...current, assetChange: null, ...accepted ? { lastAssetChange: change } : {} }));
   };
   const stop = BUILD_CHATS.listen(finish);
   try {
-    accepted = await sendBuildChat(stored, text2, shown, attachments, { assetChange: change, mustLand: true });
+    accepted = await sendBuildChat(stored2, text2, shown, attachments, { assetChange: change, mustLand: true });
     return accepted;
   } finally {
     accepted ??= false;
@@ -5934,9 +5936,9 @@ function turnBuilt(turn) {
   return (state === null || state === "built") && turn.items.some((item) => item.kind === "tools" && item.tools.some((tool) => tool.state === "done" && BUILD_STEPS.has(shortTool(tool.name))));
 }
 var LOOK_STEPS = /^(vision_analyze|read_file|search_files|browser_exec|.+_inspect|.+_analyze|graphics_analyze_scene)$/;
-function madeAssets(parts, root) {
-  const made = parts.assets.filter((asset) => !asset.looked && asset.kind !== "Playtest frame");
-  for (const asset of replyAssets([...parts.intro, ...parts.outro], root)) {
+function madeAssets(parts2, root) {
+  const made = parts2.assets.filter((asset) => !asset.looked && asset.kind !== "Playtest frame");
+  for (const asset of replyAssets([...parts2.intro, ...parts2.outro], root)) {
     if (asset.kind !== "Playtest frame" && !made.some((entry) => entry.path === asset.path)) {
       made.push(asset);
     }
@@ -6584,7 +6586,7 @@ function StageViewport({ area, children, kind, picking, running, shownView, stag
 }
 
 // page/pages/build/viewer/asset-viewer.js
-function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game, stored, turns }) {
+function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, chat, root, game, stored: stored2, turns }) {
   const asset = assets[index];
   const path = asset?.path ?? null;
   const [refresh, setRefresh] = useState(0);
@@ -6602,7 +6604,7 @@ function AssetViewer({ ctx, assets, index, onIndex, onClose, onSend, opener, cha
     edit,
     info,
     root,
-    canRestore: () => !assetRestoreBlocked(BUILD_CHATS.get()[stored]),
+    canRestore: () => !assetRestoreBlocked(BUILD_CHATS.get()[stored2]),
     onRefresh: () => setRefresh((value) => value + 1)
   });
   const { state, loaded, shownNumber } = version;
@@ -6904,10 +6906,10 @@ function changeImage(change, root, version) {
   const path = raw && (isAbsolute(raw) ? raw : joinPath(root, raw));
   return path ? { path, version, kind: assetKind(path), step: change.text } : null;
 }
-function buildCardArt(parts, root) {
-  const made = madeAssets(parts, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
-  const reported = parts.report?.changes;
-  const version = reported?.length && parts.reportAt ? `reply:${parts.reportAt}` : "card";
+function buildCardArt(parts2, root) {
+  const made = madeAssets(parts2, root).filter((asset) => asset.kind !== "Image" || /cover\.png$/i.test(asset.path));
+  const reported = parts2.report?.changes;
+  const version = reported?.length && parts2.reportAt ? `reply:${parts2.reportAt}` : "card";
   const rows = reported?.length ? reported : made.slice(0, 6).map((asset) => ({ kind: "changed", text: baseName(asset.path), asset: asset.path }));
   const changes = rows.map((change) => ({ ...change, image: changeImage(change, root, version) }));
   const edited = [.../* @__PURE__ */ new Set([
@@ -6915,7 +6917,7 @@ function buildCardArt(parts, root) {
     ...made.map((asset) => asset.path)
   ])].slice(0, 2);
   const primary = reported?.length ? changes.find((change) => change.kind !== "removed" && /\.(png|gif|jpe?g|webp)$/i.test(change.image?.path ?? ""))?.image.path : null;
-  return { changes, edited, primary: primary ?? parts.assets.find((asset) => !asset.looked && asset.kind !== "Playtest frame")?.path ?? null };
+  return { changes, edited, primary: primary ?? parts2.assets.find((asset) => !asset.looked && asset.kind !== "Playtest frame")?.path ?? null };
 }
 function BeforeAfter({ path, from, to, actions, onOpen, onSend }) {
   const beforeVersion = from ? `reply:${from}` : null;
@@ -6992,7 +6994,7 @@ function ChangeList({ changes, onOpen }) {
     ))
   });
 }
-function BuildCard({ art, primary, replay, play, build, parts, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
+function BuildCard({ art, primary, replay, play, build, parts: parts2, report, took, at, live, isLast, chatBusy, onOpenAsset, onSend, playLabel }) {
   const [details, setDetails] = useState(false);
   const failed = build?.state === "failed";
   const { changes, edited } = art;
@@ -7000,16 +7002,16 @@ function BuildCard({ art, primary, replay, play, build, parts, report, took, at,
   const untested = report?.untested ?? [];
   const notes = report?.notes ?? [];
   const title = report?.title ?? (failed ? "The build didn’t finish" : build?.title ?? (primary ? baseName(primary) : "Done"));
-  const summary = failed && parts.buildFailed || report?.summary;
+  const summary = failed && parts2.buildFailed || report?.summary;
   const extraArt = edited.filter((path) => path !== primary);
   const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || failed;
   const compareArt = (path) => jsx(BeforeAfter, {
     actions: isLast && !chatBusy,
-    from: parts.startedAt,
+    from: parts2.startedAt,
     onOpen: onOpenAsset,
     onSend,
     path,
-    to: parts.endedAt
+    to: parts2.endedAt
   }, path);
   return jsxs("div", {
     className: `cs-b-bc${failed ? " bad" : ""}${live ? " live" : ""}`,
@@ -7054,20 +7056,20 @@ function BuildCard({ art, primary, replay, play, build, parts, report, took, at,
           tested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Play-tested" }), ...tested.map((line, index) => jsxs("p", { children: [jsx("span", { className: "cs-b-ok", children: "✓ " }), line] }, index))] }) : null,
           untested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Not tested" }), ...untested.map((line, index) => jsx("p", { className: "cs-faint", children: `○ ${line}` }, index))] }) : null,
           notes.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "You might notice" }), ...notes.map((line, index) => jsx("p", { children: line }, index))] }) : null,
-          failed && parts.buildFailed ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "What went wrong" }), jsx("pre", { className: "cs-b-cmd", children: parts.buildFailed })] }) : null
+          failed && parts2.buildFailed ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "What went wrong" }), jsx("pre", { className: "cs-b-cmd", children: parts2.buildFailed })] }) : null
         ]
       }) : null
     ]
   });
 }
-function NextSteps({ stored, suggestions }) {
-  if (!stored || !suggestions?.length) {
+function NextSteps({ stored: stored2, suggestions }) {
+  if (!stored2 || !suggestions?.length) {
     return null;
   }
   return jsx("div", {
     className: "cs-b-next-steps",
     children: suggestions.map(
-      (text2) => jsxs("button", { className: "cs-b-sugg-chip", onClick: () => injectBuildDraft(stored, text2), type: "button", children: [jsx(Codicon, { name: "arrow-small-right", size: 12 }), text2] }, text2)
+      (text2) => jsxs("button", { className: "cs-b-sugg-chip", onClick: () => injectBuildDraft(stored2, text2), type: "button", children: [jsx(Codicon, { name: "arrow-small-right", size: 12 }), text2] }, text2)
     )
   });
 }
@@ -7142,7 +7144,7 @@ function FrameReplay({ frames, onOpen }) {
 
 // page/pages/build/transcript/questions.js
 var SUGGESTED = /\s*\((recommended|suggested)\)\s*$/i;
-function BuildQuestions({ stored, item }) {
+function BuildQuestions({ stored: stored2, item }) {
   const payload = item.payload ?? {};
   const questions = Array.isArray(payload.questions) && payload.questions.length ? payload.questions : [{ qid: "q0", question: payload.question ?? "", choices: payload.choices ?? [] }];
   const [answers, setAnswers] = useState({});
@@ -7171,7 +7173,7 @@ function BuildQuestions({ stored, item }) {
   const send = async () => {
     setSending(true);
     try {
-      await answerBuildPrompt(stored, item, answers);
+      await answerBuildPrompt(stored2, item, answers);
     } finally {
       setSending(false);
     }
@@ -7233,13 +7235,13 @@ function BuildQuestions({ stored, item }) {
         children: [
           jsx(Button, { disabled: !complete || sending, onClick: () => void send(), size: "sm", variant: "outline", children: sending ? "Sending…" : "Send answer" }),
           jsx("span", { className: "cs-faint cs-grow", children: `${AGENT} is waiting for you` }),
-          jsx(Button, { onClick: () => openInFullChat(stored), size: "sm", variant: "ghost", children: "Answer in full chat" })
+          jsx(Button, { onClick: () => openInFullChat(stored2), size: "sm", variant: "ghost", children: "Answer in full chat" })
         ]
       })
     ]
   });
 }
-function BuildPromptCard({ stored, item }) {
+function BuildPromptCard({ stored: stored2, item }) {
   const payload = item.payload ?? {};
   const approval = item.kind === "approval";
   const choices = (Array.isArray(payload.choices) && payload.choices.length ? payload.choices : ["once", "deny"]).filter((choice) => APPROVAL_LABELS[choice]);
@@ -7260,12 +7262,12 @@ function BuildPromptCard({ stored, item }) {
         className: "cs-row",
         children: [
           ...choices.map(
-            (choice) => jsx(Button, { onClick: () => void answerBuildPrompt(stored, item, choice), size: "sm", variant: choice === "deny" ? "ghost" : "outline", children: APPROVAL_LABELS[choice] }, choice)
+            (choice) => jsx(Button, { onClick: () => void answerBuildPrompt(stored2, item, choice), size: "sm", variant: choice === "deny" ? "ghost" : "outline", children: APPROVAL_LABELS[choice] }, choice)
           ),
           jsx("span", { className: "cs-grow" }),
-          jsx(Button, { onClick: () => openInFullChat(stored), size: "sm", variant: "ghost", children: "Answer in full chat" })
+          jsx(Button, { onClick: () => openInFullChat(stored2), size: "sm", variant: "ghost", children: "Answer in full chat" })
         ]
-      }) : jsx(BuildQuestions, { item, stored })
+      }) : jsx(BuildQuestions, { item, stored: stored2 })
     ]
   });
 }
@@ -7396,27 +7398,27 @@ function WorkGroup({ group, live, open, onToggle, assetsByStep, freshFrom, onOpe
   });
 }
 var WORKED_MODE = atom("simple");
-function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) {
+function Worked({ parts: parts2, live, startedAt, endedAt, status, root, onOpenAsset }) {
   const id = useId();
   const [shown, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
   const mode = useValue(WORKED_MODE);
-  const count = parts.steps.length;
+  const count = parts2.steps.length;
   const freshFrom = live ? Date.now() - 4e3 : null;
   const icon = live ? jsx("i", { className: "cs-b-spin" }) : jsx(Codicon, { name: status === "interrupted" ? "debug-stop" : status === "error" ? "error" : "check", size: 12 });
   const took = startedAt && endedAt ? spanWords(endedAt - startedAt) : null;
-  const { groups: allGroups, last } = workGroups(parts.entries);
+  const { groups: allGroups, last } = workGroups(parts2.entries);
   const groups = count >= GROUP_MIN_STEPS ? allGroups : [];
-  const headline = live ? parts.running ? stepWords(parts.running)[0] : "Working…" : status === "interrupted" ? "Stopped" : null;
+  const headline = live ? parts2.running ? stepWords(parts2.running)[0] : "Working…" : status === "interrupted" ? "Stopped" : null;
   const stepCount = count ? `${count} ${count === 1 ? "step" : "steps"}` : "Activity";
   const assetsByStep = /* @__PURE__ */ new Map();
-  for (const asset of parts.assets) {
+  for (const asset of parts2.assets) {
     const list = assetsByStep.get(asset.version) ?? [];
     list.push(asset);
     assetsByStep.set(asset.version, list);
   }
-  const made = madeAssets(parts, root);
-  const latest = live ? parts.assets[parts.assets.length - 1] : null;
+  const made = madeAssets(parts2, root);
+  const latest = live ? parts2.assets[parts2.assets.length - 1] : null;
   const groupOpen = (group, index) => openGroups[group.kind] ?? (live && group.kind === last);
   return jsxs("div", {
     className: `cs-b-wk${live ? " live" : ""}`,
@@ -7482,10 +7484,10 @@ function Worked({ parts, live, startedAt, endedAt, status, root, onOpenAsset }) 
                 },
                 group.kind
               )
-            ) }, "groups")] : mode === "simple" ? parts.entries.map(
+            ) }, "groups")] : mode === "simple" ? parts2.entries.map(
               (entry, index) => entry.type === "step" ? jsx(SimpleStep, { assets: assetsByStep.get(entry.tool.id) ?? [], freshFrom, onOpenAsset, tool: entry.tool }, entry.tool.id ?? `s${index}`) : workedEntry(entry, index, assetsByStep, freshFrom, onOpenAsset)
-            ) : parts.entries.map((entry, index) => workedEntry(entry, index, assetsByStep, freshFrom, onOpenAsset)),
-            live && !parts.running && !parts.prompts.length ? jsx("div", { className: "cs-b-tool cs-b-next", children: jsx("span", { className: "cs-b-shimmer", children: "Thinking about the next step…" }) }, "next") : null,
+            ) : parts2.entries.map((entry, index) => workedEntry(entry, index, assetsByStep, freshFrom, onOpenAsset)),
+            live && !parts2.running && !parts2.prompts.length ? jsx("div", { className: "cs-b-tool cs-b-next", children: jsx("span", { className: "cs-b-shimmer", children: "Thinking about the next step…" }) }, "next") : null,
             latest ? jsx(LatestAsset, { asset: latest, onOpen: onOpenAsset }, "latest") : null
           ]
         })
@@ -7504,22 +7506,22 @@ function UserMessage({ user }) {
     ]
   });
 }
-function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
-  const parts = turnParts(turn, root);
+function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chatBusy, latestBuild, build = null, game, root, ctx, stored: stored2, playerOpen, onPlay, onClosePlayer, onOpenAsset, onSend, isLast }) {
+  const parts2 = turnParts(turn, root);
   const user = turn.user;
-  const end = parts.end;
+  const end = parts2.end;
   const agentAt = end?.at ?? null;
   const hasAgent = live || turn.items.length > 0;
   const startedAt = user?.at ?? end?.startedAt ?? null;
-  const showWorked = parts.entries.length > 0 || live;
-  const report = parts.report;
+  const showWorked = parts2.entries.length > 0 || live;
+  const report = parts2.report;
   const carded = !live && (build || report);
-  const art = !live ? buildCardArt(parts, root) : null;
+  const art = !live ? buildCardArt(parts2, root) : null;
   const primary = build?.state === "failed" ? null : art?.primary;
-  const frames = parts.frames;
+  const frames = parts2.frames;
   const frame = frames.at(-1) ?? null;
-  const viewerAssets = [...parts.assets];
-  for (const asset of [...frames, ...replyAssets([...parts.intro, ...parts.outro], root), ...art?.changes.map((change) => change.image) ?? []]) {
+  const viewerAssets = [...parts2.assets];
+  for (const asset of [...frames, ...replyAssets([...parts2.intro, ...parts2.outro], root), ...art?.changes.map((change) => change.image) ?? []]) {
     if (asset && !viewerAssets.some((entry) => entry.path === asset.path && entry.version === asset.version)) {
       viewerAssets.push(asset);
     }
@@ -7544,7 +7546,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
   const inlinePlaying = playable && playerOpen && !chatBusy;
   const replay = !live && build?.state !== "failed" && !primary && frame ? jsx(FrameReplay, { frames, onOpen: openAsset }) : null;
   const featuredPaths = primary ? [primary] : replay ? frames.map((asset) => asset.path) : [];
-  const hasReplyMedia = [...parts.intro, ...parts.outro].some((item) => /^\s*MEDIA:/im.test(item.text));
+  const hasReplyMedia = [...parts2.intro, ...parts2.outro].some((item) => /^\s*MEDIA:/im.test(item.text));
   const compactPlayer = Boolean(primary || replay || hasReplyMedia);
   let play = null;
   let playLabel = null;
@@ -7554,9 +7556,9 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
     } else if (!playable) {
       play = jsx(PlayCard, { compact: compactPlayer, frame, game, state: "unplayable" });
     } else if (playerOpen) {
-      play = jsx(InlinePlayer, { build, ctx, game, note: parts.note, onClose: onClosePlayer, report, stored }, `player:${game.id}`);
+      play = jsx(InlinePlayer, { build, ctx, game, note: parts2.note, onClose: onClosePlayer, report, stored: stored2 }, `player:${game.id}`);
     } else {
-      play = jsx(PlayCard, { compact: compactPlayer, build: playsBuild(game, build) ? build.n : null, frame, game, note: parts.note, onPlay, state: "ready" });
+      play = jsx(PlayCard, { compact: compactPlayer, build: playsBuild(game, build) ? build.n : null, frame, game, note: parts2.note, onPlay, state: "ready" });
     }
   } else if (build?.state === "built" && !live) {
     playLabel = jsx("span", { className: "cs-faint cs-small", children: "Earlier build" });
@@ -7573,12 +7575,12 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
     isLast,
     onOpenAsset: openAsset,
     onSend,
-    parts: { ...parts, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
+    parts: { ...parts2, startedAt: startedAt ?? null, endedAt: end?.at ?? null },
     playLabel,
     report,
     took
   }) : replay;
-  const outro = parts.outro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `o${index}`));
+  const outro = parts2.outro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `o${index}`));
   return jsxs("div", {
     className: "cs-b-turn-body",
     children: [
@@ -7591,12 +7593,12 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
         children: [
           // No name over the reply (it is the agent's thread); a line only where the model changed.
           user?.model && previousModel && (user.model !== previousModel.model || (user.effort ?? "") !== (previousModel.effort ?? "")) ? jsx("div", { className: "cs-b-who", children: `${modelName(user.model).name}${user.effort ? ` · ${effortLabel(user.effort)}` : ""}` }) : null,
-          ...parts.intro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `i${index}`)),
+          ...parts2.intro.map((item, index) => jsx(AgentText, { item, featuredPaths, onOpenAsset: openAsset, root }, `i${index}`)),
           ...outro,
-          showWorked ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts, root, startedAt: live ? turnStartedAt ?? startedAt ?? Date.now() : startedAt, status: end?.status ?? null }, "worked") : null,
+          showWorked ? jsx(Worked, { endedAt: end?.at ?? null, live, onOpenAsset: openAsset, parts: parts2, root, startedAt: live ? turnStartedAt ?? startedAt ?? Date.now() : startedAt, status: end?.status ?? null }, "worked") : null,
           card,
           inlinePlaying || !carded && !primary ? play : null,
-          ...parts.errors.map(
+          ...parts2.errors.map(
             (item, index) => jsxs(
               "div",
               {
@@ -7610,11 +7612,11 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
               `e${index}`
             )
           ),
-          parts.buildFailed && !live && !carded ? jsxs("div", {
+          parts2.buildFailed && !live && !carded ? jsxs("div", {
             className: "cs-b-card bad",
             children: [
               jsxs("div", { className: "cs-row", children: [jsx(Codicon, { name: "error", size: 14 }), jsx("b", { children: "The build failed" })] }),
-              jsx("p", { className: "cs-small", children: parts.buildFailed }),
+              jsx("p", { className: "cs-small", children: parts2.buildFailed }),
               isLast && !chatBusy ? jsx("div", { className: "cs-row", children: jsx(Button, { onClick: () => onSend("The build failed. Please fix it and build again."), size: "sm", variant: "outline", children: `Ask ${AGENT} to fix it` }) }) : null
             ]
           }) : null,
@@ -7625,7 +7627,7 @@ function TurnBody({ turn, live, turnStartedAt = null, previousModel = null, chat
               jsx(Button, { onClick: () => onSend("Please carry on where you left off."), size: "sm", variant: "outline", children: "Carry on" })
             ]
           }) : null,
-          isLast && !chatBusy && !live ? jsx(NextSteps, { stored, suggestions: report?.suggestions }) : null
+          isLast && !chatBusy && !live ? jsx(NextSteps, { stored: stored2, suggestions: report?.suggestions }) : null
         ]
       }) : null
     ]
@@ -7681,7 +7683,7 @@ var TurnMemo = memo(
 
 // page/pages/build/transcript/transcript.js
 var TURN_PAGE = 40;
-function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null, onFocusHandled }) {
+function Transcript({ ctx, chat, stored: stored2, game, playerOpen, onPlay, onClosePlayer, onSend, empty, focusTurn = null, onFocusHandled }) {
   const items = chat?.items ?? [];
   const turns = useMemo(() => deriveTurns(items), [items]);
   const buildCache = useRef(/* @__PURE__ */ new Map());
@@ -7721,7 +7723,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     setLimit(TURN_PAGE);
     setBehind(false);
     setViewer(null);
-  }, [stored]);
+  }, [stored2]);
   const keepFromBottom = useRef(null);
   useLayoutEffect(() => {
     const element = scroller.current;
@@ -7750,7 +7752,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
     });
     observer.observe(column);
     return () => observer.disconnect();
-  }, [stored]);
+  }, [stored2]);
   const onScroll = () => {
     const element = scroller.current;
     if (!element) {
@@ -7874,7 +7876,7 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
                   onSend,
                   playerOpen: index === latestBuild && playerOpen,
                   root,
-                  stored,
+                  stored: stored2,
                   turn
                 },
                 turn.key
@@ -7893,12 +7895,12 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
                 `q${index}`
               )
             ),
-            chat?.lost?.length && !busy ? jsx(LostTurnCard, { chat, stored }, "lost") : null,
+            chat?.lost?.length && !busy ? jsx(LostTurnCard, { chat, stored: stored2 }, "lost") : null,
             // A playable game whose conversation has not built it (it was built elsewhere): play it here, once the
             // agent is not working.
             latestBuild === -1 && playableGame && turns.length && !busy ? jsx("div", {
               className: "cs-b-her",
-              children: playerOpen ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored }, `player:${game.id}`) : jsx(PlayCard, { game, onPlay, state: "ready" })
+              children: playerOpen ? jsx(InlinePlayer, { ctx, game, note: null, onClose: onClosePlayer, stored: stored2 }, `player:${game.id}`) : jsx(PlayCard, { game, onPlay, state: "ready" })
             }) : null
           ]
         })
@@ -7912,16 +7914,16 @@ function Transcript({ ctx, chat, stored, game, playerOpen, onPlay, onClosePlayer
         index: viewer.index,
         onClose: () => setViewer(null),
         onIndex: (index) => setViewer((current) => ({ ...current, index })),
-        onSend: stored ? (...args) => sendAssetChange(stored, ...args) : null,
+        onSend: stored2 ? (...args) => sendAssetChange(stored2, ...args) : null,
         opener: viewer.opener,
         root,
-        stored,
+        stored: stored2,
         turns
       }) : null
     ]
   });
 }
-function LostTurnCard({ chat, stored }) {
+function LostTurnCard({ chat, stored: stored2 }) {
   const waiting = chat.queued?.length ?? 0;
   const updating = useUpdating();
   return jsxs("div", {
@@ -7935,7 +7937,7 @@ function LostTurnCard({ chat, stored }) {
       chat.lostFailure ? jsx("p", { className: "cs-small", children: chat.lostFailure }) : null,
       jsx("div", {
         className: "cs-row",
-        children: jsx(Button, { disabled: Boolean(chat.resuming || updating), onClick: () => void resumeBuildChat(stored), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
+        children: jsx(Button, { disabled: Boolean(chat.resuming || updating), onClick: () => void resumeBuildChat(stored2), size: "sm", children: chat.resuming ? "Continuing…" : "Continue" })
       })
     ]
   });
@@ -8010,7 +8012,7 @@ function BuildPill({ builds, chat, game }) {
   return jsxs("span", { className: `cs-b-pill ${tone}`, children: [tone === "quiet" ? null : jsx("i", { className: "cs-b-pill-dot" }), label] });
 }
 var snapshotDate = new Intl.DateTimeFormat(void 0, { dateStyle: "medium", timeStyle: "medium" });
-function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
+function BuildsMenu({ builds, busy, game, stored: stored2, onShow, onRestore }) {
   const [open, setOpen] = useState(false);
   const [snapshots, setSnapshots] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -8023,7 +8025,7 @@ function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
     }
     let live = true;
     setSnapshots(null);
-    requestBuildSnapshots(game.id, stored).then((answer) => live && setSnapshots(answer)).catch(() => live && setSnapshots(false));
+    requestBuildSnapshots(game.id, stored2).then((answer) => live && setSnapshots(answer)).catch(() => live && setSnapshots(false));
     const onDown = (event) => {
       if (wrap.current && !wrap.current.contains(event.target)) {
         setOpen(false);
@@ -8041,7 +8043,7 @@ function BuildsMenu({ builds, busy, game, stored, onShow, onRestore }) {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, game.id, stored, builds]);
+  }, [open, game.id, stored2, builds]);
   const newest = builds[builds.length - 1] ?? null;
   const rows = [...builds].reverse().map((build) => ({ build, snapshot: snapshotFor(build, snapshots), key: build.key }));
   const playingBuild = rows.find(({ build, snapshot }) => build.state === "built" || build.state === "unknown" && snapshot)?.build ?? null;
@@ -8682,8 +8684,8 @@ function shortPath(path, keep = 4) {
   if (!path) {
     return null;
   }
-  const parts = String(path).split(/[\\/]/).filter(Boolean);
-  return parts.length > keep ? `…/${parts.slice(-keep).join("/")}` : path;
+  const parts2 = String(path).split(/[\\/]/).filter(Boolean);
+  return parts2.length > keep ? `…/${parts2.slice(-keep).join("/")}` : path;
 }
 
 // page/pages/games/model.js
@@ -9564,11 +9566,11 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     return () => BUILD_VIEWING.set(null);
   }, [game?.id]);
   const elsewhere = Boolean(game?.session && game.session.thisProfile === false);
-  const stored = elsewhere ? null : game?.buildSession ?? pendingItem?.storedId ?? null;
-  const chat = stored ? chats[stored] : null;
+  const stored2 = elsewhere ? null : game?.buildSession ?? pendingItem?.storedId ?? null;
+  const chat = stored2 ? chats[stored2] : null;
   const [restartIds, setRestartIds] = useState({});
-  const replaces = game && stored && restartIds[game.id] === stored ? stored : null;
-  const fresh = Boolean(game && !elsewhere && (!stored || replaces));
+  const replaces = game && stored2 && restartIds[game.id] === stored2 ? stored2 : null;
+  const fresh = Boolean(game && !elsewhere && (!stored2 || replaces));
   useEffect(() => {
     setRestartIds((current) => {
       const kept = Object.entries(current).filter(([id, expected]) => rail.some((item) => item.id === id && item.buildSession === expected));
@@ -9578,20 +9580,20 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
   const [draftPick, setDraftPick, draftOptions] = useDraftPick(ctx, selected === "new" || fresh);
   const startingGame = startingGames.has(game?.id);
   useEffect(() => {
-    if (!stored || chat?.runtime || chat?.opening || chat?.failure) {
+    if (!stored2 || chat?.runtime || chat?.opening || chat?.failure) {
       return;
     }
-    if (game?.session?.storedId === stored && game.session.exists === false) {
-      patchChat(stored, (current) => current.missing ? current : { ...current, missing: true });
+    if (game?.session?.storedId === stored2 && game.session.exists === false) {
+      patchChat(stored2, (current) => current.missing ? current : { ...current, missing: true });
     } else {
-      void openBuildChat(stored, game?.id);
+      void openBuildChat(stored2, game?.id);
     }
-  }, [stored, chat?.runtime]);
+  }, [stored2, chat?.runtime]);
   useEffect(() => {
-    if (stored && chat && !chat.busy && (chat.lastCompleteAt ?? 0) > (chat.seenAt ?? 0)) {
-      patchChat(stored, (current) => ({ ...current, seenAt: Date.now() }));
+    if (stored2 && chat && !chat.busy && (chat.lastCompleteAt ?? 0) > (chat.seenAt ?? 0)) {
+      patchChat(stored2, (current) => ({ ...current, seenAt: Date.now() }));
     }
-  }, [stored, chat?.lastCompleteAt, chat?.busy]);
+  }, [stored2, chat?.lastCompleteAt, chat?.busy]);
   const { onClosePlayer, onPlay, playerOpen, playerReady } = useInlinePlayer(playerVisit.state, game?.id, chat);
   const select = (key) => {
     void playerVisit.choose(key === selected ? null : () => onSelect(key));
@@ -9647,11 +9649,11 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     select("new");
     onLibraryChanged();
   };
-  const shownStored = fresh ? null : stored;
+  const shownStored = fresh ? null : stored2;
   const shownChat = shownStored ? chat : null;
   const shownItems = shownChat?.items ?? null;
   const binding = local.bound[game?.id];
-  const composerKey = binding && binding.stored === stored ? binding.replaces ?? game.id : stored ?? game?.id ?? "";
+  const composerKey = binding && binding.stored === stored2 ? binding.replaces ?? game.id : stored2 ?? game?.id ?? "";
   const [focusTurn, setFocusTurn] = useState(null);
   const [switcherRequest, setSwitcherRequest] = useState(null);
   const settledItems = useRef(null);
@@ -9666,7 +9668,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     const cursor = playerVisit.state.get().capture();
     if (!fresh) {
       if (cursor) await cursor;
-      return stored ? sendBuildChat(stored, text2, shown, attachments, options) : false;
+      return stored2 ? sendBuildChat(stored2, text2, shown, attachments, options) : false;
     }
     const { id, title: title2, projectRoot } = game;
     if (BUILD_STARTING.get().has(id)) {
@@ -9682,7 +9684,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
         buildRpc({ action: "bind", game: id, stored: target, ...replaces ? { replace: replaces } : {} }),
         cursor
       ]);
-      setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored } } }));
+      setLocal((current) => ({ ...current, bound: { ...current.bound, [id]: { stored: target, replaces: stored2 } } }));
       onLibraryChanged();
       return await sendBuildChat(
         target,
@@ -9699,8 +9701,8 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     }
   };
   const startOver = () => {
-    if (game && stored && chat?.missing && !BUILD_STARTING.get().has(game.id)) {
-      setRestartIds((current) => ({ ...current, [game.id]: stored }));
+    if (game && stored2 && chat?.missing && !BUILD_STARTING.get().has(game.id)) {
+      setRestartIds((current) => ({ ...current, [game.id]: stored2 }));
     }
   };
   const stopEditing = async (target) => {
@@ -9734,7 +9736,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       result[key2] = {
         busy: Boolean(value?.busy),
         waiting: Boolean(value?.items?.some((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered)),
-        unread: key2 !== stored && (value?.lastCompleteAt ?? 0) > (value?.seenAt ?? 0)
+        unread: key2 !== stored2 && (value?.lastCompleteAt ?? 0) > (value?.seenAt ?? 0)
       };
     }
     const key = JSON.stringify(result);
@@ -9742,7 +9744,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       statesRef.current = { key, value: result };
     }
     return statesRef.current.value;
-  }, [chats, stored]);
+  }, [chats, stored2]);
   const title = game?.title ?? pendingItem?.name ?? (waitingForSelection ? "Build" : "New game");
   const entries = useMemo(() => switcherEntries(rail, pending, states, selected), [rail, pending, states, selected]);
   const library = useMemo(() => rail.filter((item) => !item.buildSession && item.id !== selected), [rail, selected]);
@@ -9810,14 +9812,14 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
   });
   const selectionError = libraryError || missingGame.error;
   const libraryNotice = selectionError ? jsx("p", { className: "cs-error cs-b-library-error", role: "alert", children: selectionError }, "library-error") : null;
-  let body2;
+  let body;
   if (waitingForSelection) {
-    body2 = selectionError ? null : jsx("div", {
+    body = selectionError ? null : jsx("div", {
       className: "cs-b-empty",
       children: jsx(Working, { quiet: true, children: "Reading your games…" })
     });
   } else if (elsewhere) {
-    body2 = jsx("div", {
+    body = jsx("div", {
       className: "cs-b-empty",
       children: jsx("p", {
         className: "cs-small",
@@ -9825,7 +9827,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       })
     });
   } else if (shownChat?.missing) {
-    body2 = jsxs("div", {
+    body = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-small", children: "This game’s conversation was removed from Hermes. The game itself is fine." }),
@@ -9833,7 +9835,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       ]
     });
   } else if (shownChat?.failure) {
-    body2 = jsxs("div", {
+    body = jsxs("div", {
       className: "cs-b-empty",
       children: [
         jsx("p", { className: "cs-error", children: `Could not open this conversation: ${shownChat.failure}` }),
@@ -9841,7 +9843,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       ]
     });
   } else if (!shownChat?.items?.length && !shownChat?.busy) {
-    body2 = jsx("div", {
+    body = jsx("div", {
       className: "cs-b-tx",
       children: jsxs("div", {
         className: "cs-b-col",
@@ -9855,7 +9857,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
       })
     });
   } else {
-    body2 = jsx(Transcript, {
+    body = jsx(Transcript, {
       chat: shownChat,
       ctx,
       empty: emptyState,
@@ -9883,7 +9885,7 @@ function BuildPage({ ctx, games, selection, onSelect, pendingGames, localPending
     children: [
       header,
       libraryNotice,
-      body2,
+      body,
       !waitingForSelection && jsx(BuildComposer, {
         busy: Boolean(shownChat?.busy),
         game,
@@ -10426,7 +10428,7 @@ function versionFact(data, update) {
       children: [
         `${version} · a new version is ready`,
         jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update" }),
-        jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }),
+        jsx(Button, { onClick: () => update.setOpen(true), size: "sm", variant: "link", children: "What's new" }),
         update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
       ]
     });
@@ -10436,7 +10438,7 @@ function versionFact(data, update) {
       className: "cs-note",
       children: [
         `${version} · the update is not finished`,
-        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }),
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.finish, size: "sm", variant: "default", children: "Finish update" }),
         update.blocked ? jsx("span", { role: "status", children: update.blocked }) : null
       ]
     });
@@ -11878,17 +11880,17 @@ function OnboardMake({ onDone, onDevice }) {
 function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFinish, onDevice, doctor }) {
   const toolchain = steps.find((step) => step.id === "toolchain");
   const profileStep = steps.find((step) => step.id === "profile");
-  let body2;
+  let body;
   if (screen2 === "checking") {
-    body2 = jsx(Working, { children: "Checking what is already installed…" });
+    body = jsx(Working, { children: "Checking what is already installed…" });
   } else if (screen2 === "welcome") {
-    body2 = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
+    body = jsx(OnboardWelcome, { manifest: install.data?.manifest, onStart: () => update({ onboardStarted: true }) });
   } else if (screen2 === "install") {
-    body2 = jsx(OnboardInstall, { ctx, doctor, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
+    body = jsx(OnboardInstall, { ctx, doctor, install, profileStep, status, toolchainDone: toolchain?.state === "done" });
   } else if (screen2 === "chromatic") {
-    body2 = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
+    body = jsx(OnboardChromatic, { onDevice, onEmulator: () => update({ hardwareSkipped: true, hardwareWanted: false }) });
   } else {
-    body2 = jsx(OnboardMake, { onDevice, onDone: onFinish });
+    body = jsx(OnboardMake, { onDevice, onDone: onFinish });
   }
   const section = useRef(null);
   const shown = useRef(screen2);
@@ -11903,7 +11905,7 @@ function Onboarding({ ctx, screen: screen2, status, install, steps, update, onFi
       title.focus?.({ preventScroll: true });
     }
   }, [screen2]);
-  return jsx("section", { className: "cs-onb", "data-screen": screen2, ref: section, children: body2 });
+  return jsx("section", { className: "cs-onb", "data-screen": screen2, ref: section, children: body });
 }
 
 // page/pages/setup/index.js
@@ -12006,23 +12008,23 @@ function flushChatEvents() {
   queuedFlush = null;
   const batches = [...queuedEvents];
   queuedEvents.clear();
-  for (const [stored, events] of batches) {
-    patchChat(stored, (chat2) => events.reduce(reduceChat, chat2));
-    const chat = BUILD_CHATS.get()[stored];
+  for (const [stored2, events] of batches) {
+    patchChat(stored2, (chat2) => events.reduce(reduceChat, chat2));
+    const chat = BUILD_CHATS.get()[stored2];
     if (chat && !chat.busy && chat.heldPick) {
-      void applyBuildPick(stored);
+      void applyBuildPick(stored2);
     }
     if (events.some((event) => event.type === "message.start" || event.type === "tool.start" || event.type === "tool.generating")) {
-      schedulePromptCheck(stored);
+      schedulePromptCheck(stored2);
     }
   }
 }
-function queueChatEvent(stored, event) {
-  const list = queuedEvents.get(stored);
+function queueChatEvent(stored2, event) {
+  const list = queuedEvents.get(stored2);
   if (list) {
     list.push(event);
   } else {
-    queuedEvents.set(stored, [event]);
+    queuedEvents.set(stored2, [event]);
   }
   if (!STREAM_EVENTS.has(event.type)) {
     if (queuedFlush) {
@@ -12057,15 +12059,15 @@ function watchBuildChats(ctx) {
   }
   for (const type of BUILD_EVENTS) {
     buildChatListeners.push(listen(type, (event) => {
-      const stored = buildRuntime.get(event?.session_id);
-      if (!stored) {
+      const stored2 = buildRuntime.get(event?.session_id);
+      if (!stored2) {
         return;
       }
       if (event.type === "session.replay_gap") {
-        void reopenBuildChat(stored);
+        void reopenBuildChat(stored2);
         return;
       }
-      queueChatEvent(stored, event);
+      queueChatEvent(stored2, event);
     }));
   }
 }
@@ -13041,9 +13043,9 @@ function physStep(L, b, ignoreOneway, gravity = GRAV) {
   return { ground, bumped, wall };
 }
 function solidAt(L, x, y) {
-  const p = { x, y, w: 1, h: 1 };
-  for (const r of near(L, L.sGrid, p)) if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return true;
-  for (const o of near(L, L.oGrid, p)) if (x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + 4) return true;
+  const p2 = { x, y, w: 1, h: 1 };
+  for (const r of near(L, L.sGrid, p2)) if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return true;
+  for (const o of near(L, L.oGrid, p2)) if (x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + 4) return true;
   return false;
 }
 
@@ -13285,10 +13287,10 @@ function shortest(L, fromId) {
 function firstEdge(paths, fromId, toId) {
   let cur = toId, step = null, guard = 0;
   while (cur !== fromId && guard++ < 200) {
-    const p = paths.prev.get(cur);
-    if (!p) return null;
-    step = p.e;
-    cur = p.from;
+    const p2 = paths.prev.get(cur);
+    if (!p2) return null;
+    step = p2.e;
+    cur = p2.from;
   }
   return step;
 }
@@ -13359,8 +13361,8 @@ function placeCoins(L, rng) {
   for (const s of order) {
     if (L.coinSpots.length >= wantCoins) break;
     if (L.arcs.some((a) => a.from === s.id || a.to === s.id) && rng() < (apart < 50 ? 0.2 : 0.6)) continue;
-    const parts = Math.max(1, Math.floor((s.r - s.l) / 200)), seg = (s.r - s.l) / parts;
-    for (let j = 0; j < parts && L.coinSpots.length < wantCoins; j++) {
+    const parts2 = Math.max(1, Math.floor((s.r - s.l) / 200)), seg = (s.r - s.l) / parts2;
+    for (let j = 0; j < parts2 && L.coinSpots.length < wantCoins; j++) {
       const l = s.l + j * seg, r = l + seg;
       const n = r - l >= 90 && rng() < 0.6 ? 3 : 2, gap = 30;
       const hi = rng() < 0.25 ? 52 : 0;
@@ -13553,8 +13555,8 @@ function buildLevel(W, H, seed, { flat = [] } = {}) {
       break;
     }
   }
-  for (const p of pits) {
-    const r = gTop - 3, x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8 + 48;
+  for (const p2 of pits) {
+    const r = gTop - 3, x0 = p2.c0 * T - 40, x1 = (p2.c1 + 1) * T - 8 + 48;
     for (let c = Math.floor(x0 / T) - 1; c <= Math.ceil(x1 / T); c++) for (const rr of [r, r - 1]) if (at(c, rr) === 5) set(c, rr, 0);
     for (let c = Math.floor(x0 / T) - 2; c <= Math.ceil(x1 / T) + 1; c++) for (const rr of [r - 2, r - 3]) if (at(c, rr) === 3 || at(c, rr) === 4) set(c, rr, 5);
   }
@@ -13582,10 +13584,10 @@ function buildLevel(W, H, seed, { flat = [] } = {}) {
     }
   }
   const movers = [];
-  for (const p of pits) {
+  for (const p2 of pits) {
     const y = cellY(gTop - 3);
     if (y < T * 2) continue;
-    const x0 = p.c0 * T - 40, x1 = (p.c1 + 1) * T - 8;
+    const x0 = p2.c0 * T - 40, x1 = (p2.c1 + 1) * T - 8;
     const m = { x: x0, y, w: 48, h: 8, x0, x1, vx: 0.5, dx: 0, dy: 0, mover: true, kind: "mover" };
     movers.push(m);
     oneways.push(m);
@@ -14142,13 +14144,13 @@ var ACTORS = {
   updateEnemies() {
     const L = this.L, g = this.girl, rng = this.rng;
     const maxE = this.H < 160 ? 1 : Math.max(1, Math.min(8, Math.round(this.W * this.H / 6e4)));
-    for (const p of L.pipes) {
-      if (--p.timer > 0) continue;
-      p.timer = Math.round((320 + rng() * 380) * Math.max(1, L.pipes.length / 3));
-      if (this.enemies.length < maxE && !this.enemies.some((e) => Math.abs(e.x - p.x - 14) < 40 && Math.abs(e.y - p.y) < 28)) {
+    for (const p2 of L.pipes) {
+      if (--p2.timer > 0) continue;
+      p2.timer = Math.round((320 + rng() * 380) * Math.max(1, L.pipes.length / 3));
+      if (this.enemies.length < maxE && !this.enemies.some((e) => Math.abs(e.x - p2.x - 14) < 40 && Math.abs(e.y - p2.y) < 28)) {
         const k = rng(), kind = k < 0.5 ? "bug" : k < 0.75 ? "spiny" : "blob";
         const sz = { bug: [20, 15], spiny: [20, 14], blob: [18, 13] }[kind];
-        this.enemies.push({ kind, x: p.x + 24 - sz[0] / 2, y: p.y + 6, w: sz[0], h: sz[1], vx: (kind === "spiny" ? 0.4 : 0.5) * p.dir, vy: 0, state: "emerge", t: 0, edgeTurn: kind === "blob" || rng() < 0.55, ground: null, pipeY: p.y, hopT: 40 + Math.floor(rng() * 60), dir: p.dir });
+        this.enemies.push({ kind, x: p2.x + 24 - sz[0] / 2, y: p2.y + 6, w: sz[0], h: sz[1], vx: (kind === "spiny" ? 0.4 : 0.5) * p2.dir, vy: 0, state: "emerge", t: 0, edgeTurn: kind === "blob" || rng() < 0.55, ground: null, pipeY: p2.y, hopT: 40 + Math.floor(rng() * 60), dir: p2.dir });
       }
     }
     const wide = L.surfaces.filter((s) => s.x1 - s.x0 >= 72 && s.y < L.groundY - 1);
@@ -14457,28 +14459,28 @@ function ngLayer(g, draw, keep = () => true) {
   for (let y = 0; y < NG_H; y++) for (let x = 0; x < NG_W; x++) if (l[y][x] !== "." && keep(x, y, l[y][x])) g[y][x] = l[y][x];
 }
 var NG_ARM = { thick: false, upper: 2, fore: 2, dx: 3, ink: "K", hand: true };
-function ngDraw(p) {
+function ngDraw(p2) {
   const g = ngGrid();
   const cx = 14, THIGH = 3, SHIN = 4;
-  let hipY = NG_H - 2 - THIGH - SHIN + (p.bob || 0);
+  let hipY = NG_H - 2 - THIGH - SHIN + (p2.bob || 0);
   const legs = ["b", "f"].map((k) => {
-    const [t, kn] = p.legs[k];
+    const [t, kn] = p2.legs[k];
     return { k, ...ngLimb(cx + (k === "f" ? 1 : -2), hipY, t, -kn, THIGH, SHIN) };
   });
-  const dy = p.lift == null ? NG_H - 2 - Math.max(...legs.map((l) => l.ey)) : -p.lift;
+  const dy = p2.lift == null ? NG_H - 2 - Math.max(...legs.map((l) => l.ey)) : -p2.lift;
   hipY += dy;
   for (const l of legs) {
     l.ky += dy;
     l.ey += dy;
   }
-  const lean = p.lean || 0;
+  const lean = p2.lean || 0;
   const skirtY = hipY - 2;
   const topY = skirtY - NG_TOP.length;
   const shY = topY + 1;
-  const hx = cx - NG_NECK + lean, hy = topY - NG_HEAD.length + 1 + (p.lag || 0);
+  const hx = cx - NG_NECK + lean, hy = topY - NG_HEAD.length + 1 + (p2.lag || 0);
   const arm = (k) => {
     const sx = cx + lean + (k === "f" ? NG_ARM.dx : -NG_ARM.dx);
-    const [u, e] = p.arms[k];
+    const [u, e] = p2.arms[k];
     return { sx, ...ngLimb(sx, shY + 1, u, e, NG_ARM.upper, NG_ARM.fore) };
   };
   const drawArm = (l, a) => {
@@ -14505,7 +14507,7 @@ function ngDraw(p) {
     ngThick(l, lb.kx, lb.ky, lb.ex, lb.ey, "W");
   });
   shoe(g, lb, false);
-  ngStamp(g, NG_SKIRT[p.skirt || "still"], cx - 6, skirtY);
+  ngStamp(g, NG_SKIRT[p2.skirt || "still"], cx - 6, skirtY);
   ngStamp(g, NG_TOP, cx - 5 + lean, topY);
   const lf = legs[1];
   ngLayer(g, (l) => {
@@ -14515,8 +14517,8 @@ function ngDraw(p) {
   shoe(g, lf, true);
   ngStamp(g, NG_HEAD.slice(0, NG_LOWER), hx, hy);
   ngStamp(g, front, hx, hy + NG_LOWER);
-  if (p.blink) for (const [x, y] of NG_EYE.open) ngPut(g, hx + x, hy + y, "W");
-  if (p.eyes === "x") {
+  if (p2.blink) for (const [x, y] of NG_EYE.open) ngPut(g, hx + x, hy + y, "W");
+  if (p2.eyes === "x") {
     for (const [x, y] of NG_EYE.hurtW) ngPut(g, hx + x, hy + y, "W");
     for (const [x, y] of NG_EYE.hurtK) ngPut(g, hx + x, hy + y, "K");
   }
@@ -15019,34 +15021,34 @@ function flipped(c) {
 }
 var NG_FRAMES = ngFrames();
 function makeSprites(name) {
-  const p = PAL[name];
+  const p2 = PAL[name];
   const pairO = (rows, map) => {
     const w = rows[0].length + 2;
     const r = sprite([".".repeat(w), ...rows.map((row) => "." + row + "."), ".".repeat(w)], map);
-    if (p.girlLine) outlined(r, p.girlLine);
+    if (p2.girlLine) outlined(r, p2.girlLine);
     return [r, flipped(r)];
   };
   const set = (map) => Object.fromEntries(Object.entries(NG_FRAMES).map(([k, v]) => [k, Array.isArray(v[0]) ? v.map((f) => pairO(f, map)) : pairO(v, map)]));
-  const girl = set(p.girl);
+  const girl = set(p2.girl);
   girl.inv = set({ K: "#ffffff", W: "#000000" });
   return {
     girl,
-    bug: BUG.map((f) => pair(f, p.bug)),
-    bugFlat: pair(BUG_FLAT, p.bug),
-    spiny: SPINY.map((f) => pair(f, p.spiny)),
-    blob: BLOB.map((f) => pair(f, p.blob)),
-    blobFlat: pair(BLOB_FLAT, p.blob),
-    bat: BAT.map((f) => pair(f, p.bat)),
-    bullet: pair(BULLET, p.bullet),
-    cannon: pair(CANNON, p.cannon),
-    coin: COIN.map((f) => sprite(f, p.coin)),
-    coinHud: sprite(COIN_SMALL, p.coin),
-    wing: pair(WING, p.wing),
-    heart: sprite(HEART, { K: p.hud[0], R: p.hud[2] }),
-    heartOff: sprite(HEART, { K: p.hud[0], R: p.hud[4] }),
-    spark: SPARK.map((f) => sprite(f, { W: p.spark })),
-    q: sprite(QMARK, { K: p.block[3] }),
-    qHi: sprite(QMARK, { K: p.block[2] })
+    bug: BUG.map((f) => pair(f, p2.bug)),
+    bugFlat: pair(BUG_FLAT, p2.bug),
+    spiny: SPINY.map((f) => pair(f, p2.spiny)),
+    blob: BLOB.map((f) => pair(f, p2.blob)),
+    blobFlat: pair(BLOB_FLAT, p2.blob),
+    bat: BAT.map((f) => pair(f, p2.bat)),
+    bullet: pair(BULLET, p2.bullet),
+    cannon: pair(CANNON, p2.cannon),
+    coin: COIN.map((f) => sprite(f, p2.coin)),
+    coinHud: sprite(COIN_SMALL, p2.coin),
+    wing: pair(WING, p2.wing),
+    heart: sprite(HEART, { K: p2.hud[0], R: p2.hud[2] }),
+    heartOff: sprite(HEART, { K: p2.hud[0], R: p2.hud[4] }),
+    spark: SPARK.map((f) => sprite(f, { W: p2.spark })),
+    q: sprite(QMARK, { K: p2.block[3] }),
+    qHi: sprite(QMARK, { K: p2.block[2] })
   };
 }
 
@@ -15118,10 +15120,10 @@ function smallText(str, color) {
   });
 }
 function drawHud(world, x) {
-  const p = world.p, W = world.W, y = world.H - 10, spr = world.spr;
-  x.fillStyle = p.hud[0];
+  const p2 = world.p, W = world.W, y = world.H - 10, spr = world.spr;
+  x.fillStyle = p2.hud[0];
   x.fillRect(0, y, W, 10);
-  x.fillStyle = p.hud[4];
+  x.fillStyle = p2.hud[4];
   x.fillRect(0, y, W, 1);
   let cx = 6;
   for (let i = 0; i < 3; i++) {
@@ -15131,12 +15133,12 @@ function drawHud(world, x) {
   cx += 6;
   x.drawImage(spr.coinHud, cx, y + 1);
   cx += 10;
-  const coins = pixelText("x" + String(world.coinsGot % 100).padStart(2, "0"), p.hud[3]);
+  const coins = pixelText("x" + String(world.coinsGot % 100).padStart(2, "0"), p2.hud[3]);
   x.drawImage(coins, cx, y + 2);
   cx += coins.width + 6;
-  const score = pixelText("SCORE " + String(world.score % 1e6).padStart(6, "0"), p.hud[1]);
-  const demo = pixelText("DEMO PLAY", p.hud[3]);
-  const stage = pixelText("WORLD 1-1", p.hud[1]);
+  const score = pixelText("SCORE " + String(world.score % 1e6).padStart(6, "0"), p2.hud[1]);
+  const demo = pixelText("DEMO PLAY", p2.hud[3]);
+  const stage = pixelText("WORLD 1-1", p2.hud[1]);
   const right = W - 6 - demo.width;
   if (world.frame % 70 < 48) x.drawImage(demo, right, y + 2);
   const sx = Math.round(W / 2 - score.width / 2);
@@ -15174,12 +15176,12 @@ var DRAW = {
     return c;
   },
   prerender() {
-    const L = this.L, p = this.p, W = this.W, H = this.H;
+    const L = this.L, p2 = this.p, W = this.W, H = this.H;
     this.cv.width = W;
     this.cv.height = H;
     const bg = this.bg = canvas(W, H), b = bg.getContext("2d");
     {
-      const n = p.sky.length, img = b.createImageData(W, H), rgb = p.sky.map(hexRgb);
+      const n = p2.sky.length, img = b.createImageData(W, H), rgb = p2.sky.map(hexRgb);
       for (let y = 0; y < H; y++) {
         const f = y / H * n, i = Math.min(n - 1, Math.floor(f)), frac = f - i;
         for (let x = 0; x < W; x++) {
@@ -15194,18 +15196,18 @@ var DRAW = {
         }
       }
       b.putImageData(img, 0, 0);
-      if (p.dither) for (let y = 0; y < H * 0.6; y += 4) for (let x = y / 4 % 2 * 2; x < W; x += 4) {
-        b.fillStyle = p.dither;
+      if (p2.dither) for (let y = 0; y < H * 0.6; y += 4) for (let x = y / 4 % 2 * 2; x < W; x += 4) {
+        b.fillStyle = p2.dither;
         b.fillRect(x, y, 1, 1);
       }
-      if (p.moon) {
+      if (p2.moon) {
         const mx = Math.round(W * 0.84), my = Math.round(Math.min(40, H * 0.14));
-        b.fillStyle = p.moon;
+        b.fillStyle = p2.moon;
         for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) if (x * x + y * y <= 81 && (x + 4) ** 2 + (y - 2) ** 2 > 40) b.fillRect(mx + x, my + y, 1, 1);
       }
     }
     this.stars = [];
-    if (p.stars) {
+    if (p2.stars) {
       const n = Math.round(W * H / 1500);
       for (let i = 0; i < n; i++) {
         const r = this.rng();
@@ -15220,8 +15222,8 @@ var DRAW = {
         b.fillRect(x, gy - h, 1, h);
       }
     };
-    hill(Math.min(40, H * 0.16), 18, 0.017, 0.053, 1.3, p.hill[0]);
-    hill(Math.min(22, H * 0.09), 6, 0.031, 0.081, 4.1, p.hill[1]);
+    hill(Math.min(40, H * 0.16), 18, 0.017, 0.053, 1.3, p2.hill[0]);
+    hill(Math.min(22, H * 0.09), 6, 0.031, 0.081, 4.1, p2.hill[1]);
     const tl = this.tiles = canvas(W, H), t = tl.getContext("2d");
     const isSolidTop = (v) => v === 1 || v === 2 || v === 3 || v === 4 || v === 6 || v === 7 || v === 8;
     for (const d of L.decos) if (d.type === "tree") this.drawTree(t, d.x, d.y);
@@ -15239,16 +15241,16 @@ var DRAW = {
     for (const d of L.decos) if (d.type === "bush") this.drawBush(t, d.x, d.y);
   },
   render() {
-    const x = this.ctx, L = this.L, p = this.p, sp = this.spr, f = this.frame;
+    const x = this.ctx, L = this.L, p2 = this.p, sp = this.spr, f = this.frame;
     x.imageSmoothingEnabled = false;
     x.clearRect(0, 0, this.W, this.H);
     x.drawImage(this.bg, 0, 0);
     for (const s of this.stars) {
       const ph = s.tw ? (f + s.ph) % s.per : 999, up = ph < 48;
-      x.fillStyle = up ? ph > 16 && ph < 32 ? "#ffffff" : p.cloud[0] : s.lvl ? p.cloud[1] : p.sky[Math.min(p.sky.length - 1, 1)];
+      x.fillStyle = up ? ph > 16 && ph < 32 ? "#ffffff" : p2.cloud[0] : s.lvl ? p2.cloud[1] : p2.sky[Math.min(p2.sky.length - 1, 1)];
       x.fillRect(s.x, s.y, 1, 1);
       if (up && s.glint && ph > 20 && ph < 28) {
-        x.fillStyle = p.cloud[1];
+        x.fillStyle = p2.cloud[1];
         x.fillRect(s.x - 1, s.y, 1, 1);
         x.fillRect(s.x + 1, s.y, 1, 1);
         x.fillRect(s.x, s.y - 1, 1, 1);
@@ -15262,48 +15264,48 @@ var DRAW = {
       const fx = L.flag.x + 2, fy = L.flag.y - L.flag.h + 2;
       for (let i = 0; i < 24; i++) {
         const wv = Math.round(Math.sin(f * 0.12 - i * 0.5) * 1.5 * (i / 18));
-        this.px(x, i < 1 ? p.hud[0] : p.block[0], fx + i, fy + wv, 1, 18 - Math.floor(i / 2));
-        this.px(x, p.hud[0], fx + i, fy + wv + 18 - Math.floor(i / 2), 1, 1);
-        this.px(x, p.hud[0], fx + i, fy + wv - 1, 1, 1);
+        this.px(x, i < 1 ? p2.hud[0] : p2.block[0], fx + i, fy + wv, 1, 18 - Math.floor(i / 2));
+        this.px(x, p2.hud[0], fx + i, fy + wv + 18 - Math.floor(i / 2), 1, 1);
+        this.px(x, p2.hud[0], fx + i, fy + wv - 1, 1, 1);
       }
       x.drawImage(this.spr.q, fx + 5, fy + 2);
     }
     for (const m of L.movers) {
       this.drawLedgeLive(x, Math.round(m.x), m.y, m.w);
-      x.fillStyle = p.ledge[2];
+      x.fillStyle = p2.ledge[2];
       for (let i = m.x0; i < m.x1 + m.w; i += 6) x.fillRect(Math.round(i), m.y + 12, 2, 1);
     }
     for (const b of L.blocks) {
       const by = b.y - (b.bump > 0 ? Math.round(Math.sin((8 - b.bump) / 8 * Math.PI) * 4) : 0);
       if (b.active) {
-        this.px(x, p.block[3], b.x, by, T, T);
-        this.px(x, p.block[0], b.x + 1, by + 1, T - 2, T - 2);
-        this.px(x, p.block[2], b.x + 1, by + 1, T - 2, 1);
-        this.px(x, p.block[2], b.x + 1, by + 1, 1, T - 2);
-        this.px(x, p.block[1], b.x + 1, by + T - 2, T - 2, 1);
-        this.px(x, p.block[1], b.x + T - 2, by + 1, 1, T - 2);
-        for (const [a, c] of [[3, 3], [T - 4, 3], [3, T - 4], [T - 4, T - 4]]) this.px(x, p.block[3], b.x + a, by + c, 1, 1);
+        this.px(x, p2.block[3], b.x, by, T, T);
+        this.px(x, p2.block[0], b.x + 1, by + 1, T - 2, T - 2);
+        this.px(x, p2.block[2], b.x + 1, by + 1, T - 2, 1);
+        this.px(x, p2.block[2], b.x + 1, by + 1, 1, T - 2);
+        this.px(x, p2.block[1], b.x + 1, by + T - 2, T - 2, 1);
+        this.px(x, p2.block[1], b.x + T - 2, by + 1, 1, T - 2);
+        for (const [a, c] of [[3, 3], [T - 4, 3], [3, T - 4], [T - 4, T - 4]]) this.px(x, p2.block[3], b.x + a, by + c, 1, 1);
         const shimmer = (f >> 4) % 6 === 0;
         x.drawImage(shimmer ? sp.qHi : sp.q, b.x + 7, by + 5);
       } else {
-        this.px(x, p.used[1], b.x, by, T, T);
-        this.px(x, p.used[0], b.x + 1, by + 1, T - 2, T - 2);
-        for (const [a, c] of [[4, 4], [T - 5, 4], [4, T - 5], [T - 5, T - 5]]) this.px(x, p.used[1], b.x + a, by + c, 2, 2);
+        this.px(x, p2.used[1], b.x, by, T, T);
+        this.px(x, p2.used[0], b.x + 1, by + 1, T - 2, T - 2);
+        for (const [a, c] of [[4, 4], [T - 5, 4], [4, T - 5], [T - 5, T - 5]]) this.px(x, p2.used[1], b.x + a, by + c, 2, 2);
       }
     }
     for (const pit of L.pits) {
       const x0 = pit.c0 * T, w = (pit.c1 - pit.c0 + 1) * T, y0 = L.groundY + 14;
-      this.px(x, p.water[0], x0, y0, w, this.H - y0);
-      for (let i = 0; i < w; i++) if ((i + (f >> 3)) % 6 < 2) this.px(x, p.water[1], x0 + i, y0, 1, 1);
-      for (let i = 0; i < w; i += 1) if ((i * 3 + (f >> 4)) % 11 === 0) this.px(x, p.water[1], x0 + i, y0 + 4, 2, 1);
+      this.px(x, p2.water[0], x0, y0, w, this.H - y0);
+      for (let i = 0; i < w; i++) if ((i + (f >> 3)) % 6 < 2) this.px(x, p2.water[1], x0 + i, y0, 1, 1);
+      for (let i = 0; i < w; i += 1) if ((i * 3 + (f >> 4)) % 11 === 0) this.px(x, p2.water[1], x0 + i, y0 + 4, 2, 1);
     }
     for (const d of L.decos) if (d.type === "flower") {
       const sway = f + d.ph >> 5 & 1;
-      this.px(x, p.deco[1], d.x + 4, d.y - 6, 1, 6);
-      this.px(x, p.deco[1], d.x + 5, d.y - 3, 2, 1);
-      this.px(x, p.deco[2], d.x + 2 + sway, d.y - 10, 5, 4);
-      this.px(x, p.deco[2], d.x + 3 + sway, d.y - 11, 3, 6);
-      this.px(x, p.deco[3], d.x + 4 + sway, d.y - 9, 1, 2);
+      this.px(x, p2.deco[1], d.x + 4, d.y - 6, 1, 6);
+      this.px(x, p2.deco[1], d.x + 5, d.y - 3, 2, 1);
+      this.px(x, p2.deco[2], d.x + 2 + sway, d.y - 10, 5, 4);
+      this.px(x, p2.deco[2], d.x + 3 + sway, d.y - 11, 3, 6);
+      this.px(x, p2.deco[3], d.x + 4 + sway, d.y - 9, 1, 2);
     }
     for (const it of this.items) {
       const flap = f >> 3 & 1;
@@ -15345,14 +15347,14 @@ var DRAW = {
     for (const pt of this.parts) {
       if (pt.t < 0) continue;
       if (pt.type === "spark") x.drawImage(sp.spark[Math.min(2, Math.floor(pt.t / 6))], Math.round(pt.x), Math.round(pt.y));
-      else if (pt.type === "text") x.drawImage(smallText(pt.s, p.hud[1]), Math.round(pt.x), Math.round(pt.y));
+      else if (pt.type === "text") x.drawImage(smallText(pt.s, p2.hud[1]), Math.round(pt.x), Math.round(pt.y));
       else if (pt.type === "dust") {
-        x.fillStyle = p.cloud[0];
+        x.fillStyle = p2.cloud[0];
         const s = pt.t < 7 ? 2 : 1;
         x.fillRect(Math.round(pt.x), Math.round(pt.y) - s, s, s);
       } else if (pt.type === "coinpop") x.drawImage(sp.coin[(pt.t >> 2) % 4], Math.round(pt.x), Math.round(pt.y));
       else if (pt.type === "splash") {
-        x.fillStyle = p.water[1];
+        x.fillStyle = p2.water[1];
         for (const k of [-6, -2, 2, 6]) x.fillRect(Math.round(pt.x + k * pt.t * 0.15), Math.round(pt.y - 10 * Math.sin(pt.t / pt.life * Math.PI) * (1 - Math.abs(k) / 10)), 1, 2);
       }
     }
@@ -15363,123 +15365,123 @@ var DRAW = {
     x.fillRect(X, Y, w, h);
   },
   drawGround(t, x, y, top, openL, openR) {
-    const p = this.p;
+    const p2 = this.p;
     this.drawDirt(t, x, y, openL, openR);
     if (!top) return;
-    this.px(t, p.grass[0], x, y, T, 1);
-    this.px(t, p.grass[1], x, y + 1, T, 3);
+    this.px(t, p2.grass[0], x, y, T, 1);
+    this.px(t, p2.grass[1], x, y + 1, T, 3);
     for (let i = 0; i < T; i++) {
       const dip = (i * 7 + x) % 5 < 2 ? 1 : 0;
-      this.px(t, p.grass[1], x + i, y + 4, 1, dip + 1);
-      this.px(t, p.grass[2], x + i, y + 5 + dip, 1, 1);
+      this.px(t, p2.grass[1], x + i, y + 4, 1, dip + 1);
+      this.px(t, p2.grass[2], x + i, y + 5 + dip, 1, 1);
     }
-    for (let i = 1; i < T; i += 4) this.px(t, p.grass[0], x + i, y + 2, 1, 1);
-    if (openL) this.px(t, p.grass[2], x, y, 1, 6);
-    if (openR) this.px(t, p.grass[2], x + T - 1, y, 1, 6);
+    for (let i = 1; i < T; i += 4) this.px(t, p2.grass[0], x + i, y + 2, 1, 1);
+    if (openL) this.px(t, p2.grass[2], x, y, 1, 6);
+    if (openR) this.px(t, p2.grass[2], x + T - 1, y, 1, 6);
   },
   drawDirt(t, x, y, openL, openR, openB) {
-    const p = this.p;
-    this.px(t, p.dirt[0], x, y, T, T);
+    const p2 = this.p;
+    this.px(t, p2.dirt[0], x, y, T, T);
     if (openB) {
-      this.px(t, p.dirt[2], x, y + T - 2, T, 2);
-      for (let i = 1; i < T; i += 3) this.px(t, p.dirt[2], x + i, y + T, 1, 1 + i % 2);
+      this.px(t, p2.dirt[2], x, y + T - 2, T, 2);
+      for (let i = 1; i < T; i += 3) this.px(t, p2.dirt[2], x + i, y + T, 1, 1 + i % 2);
     }
     const specks = [[3, 4], [13, 3], [20, 10], [7, 13], [16, 18], [4, 20], [10, 8], [20, 21], [12, 22]];
     for (const [a, b] of specks) {
-      this.px(t, p.dirt[1], x + a, y + b, 2, 1);
-      this.px(t, p.dirt[2], x + a, y + b + 1, 1, 1);
+      this.px(t, p2.dirt[1], x + a, y + b, 2, 1);
+      this.px(t, p2.dirt[2], x + a, y + b + 1, 1, 1);
     }
-    if (openL) this.px(t, p.dirt[2], x, y, 1, T);
-    if (openR) this.px(t, p.dirt[2], x + T - 1, y, 1, T);
+    if (openL) this.px(t, p2.dirt[2], x, y, 1, T);
+    if (openR) this.px(t, p2.dirt[2], x + T - 1, y, 1, T);
   },
   drawBrick(t, x, y) {
-    const p = this.p;
-    this.px(t, p.brick[0], x, y, T, T);
-    this.px(t, p.brick[1], x, y + 11, T, 1);
-    this.px(t, p.brick[1], x, y + 23, T, 1);
-    this.px(t, p.brick[1], x + 11, y, 1, 11);
-    this.px(t, p.brick[1], x + 23, y, 1, 11);
-    this.px(t, p.brick[1], x + 5, y + 12, 1, 11);
-    this.px(t, p.brick[1], x + 17, y + 12, 1, 11);
-    this.px(t, p.brick[2], x, y, 11, 1);
-    this.px(t, p.brick[2], x + 12, y, 11, 1);
-    this.px(t, p.brick[2], x, y + 12, 5, 1);
-    this.px(t, p.brick[2], x + 6, y + 12, 11, 1);
-    this.px(t, p.brick[2], x + 18, y + 12, 5, 1);
+    const p2 = this.p;
+    this.px(t, p2.brick[0], x, y, T, T);
+    this.px(t, p2.brick[1], x, y + 11, T, 1);
+    this.px(t, p2.brick[1], x, y + 23, T, 1);
+    this.px(t, p2.brick[1], x + 11, y, 1, 11);
+    this.px(t, p2.brick[1], x + 23, y, 1, 11);
+    this.px(t, p2.brick[1], x + 5, y + 12, 1, 11);
+    this.px(t, p2.brick[1], x + 17, y + 12, 1, 11);
+    this.px(t, p2.brick[2], x, y, 11, 1);
+    this.px(t, p2.brick[2], x + 12, y, 11, 1);
+    this.px(t, p2.brick[2], x, y + 12, 5, 1);
+    this.px(t, p2.brick[2], x + 6, y + 12, 11, 1);
+    this.px(t, p2.brick[2], x + 18, y + 12, 5, 1);
   },
   drawLedge(t, x, y, capL, capR) {
-    const p = this.p;
-    this.px(t, p.ledge[0], x, y, T, 1);
-    this.px(t, p.ledge[1], x, y + 1, T, 6);
-    this.px(t, p.ledge[2], x, y + 7, T, 1);
-    this.px(t, p.ledge[0], x, y + 2, T, 1);
+    const p2 = this.p;
+    this.px(t, p2.ledge[0], x, y, T, 1);
+    this.px(t, p2.ledge[1], x, y + 1, T, 6);
+    this.px(t, p2.ledge[2], x, y + 7, T, 1);
+    this.px(t, p2.ledge[0], x, y + 2, T, 1);
     for (let i = 3; i < T; i += 8) {
-      this.px(t, p.ledge[2], x + i, y + 4, 2, 2);
-      this.px(t, p.ledge[0], x + i, y + 4, 1, 1);
+      this.px(t, p2.ledge[2], x + i, y + 4, 2, 2);
+      this.px(t, p2.ledge[0], x + i, y + 4, 1, 1);
     }
     if (capL) {
-      this.px(t, p.ledge[2], x, y, 1, 8);
-      this.px(t, p.ledge[2], x + 3, y + 8, 3, 4);
-      this.px(t, p.ledge[2], x + 4, y + 12, 1, 2);
+      this.px(t, p2.ledge[2], x, y, 1, 8);
+      this.px(t, p2.ledge[2], x + 3, y + 8, 3, 4);
+      this.px(t, p2.ledge[2], x + 4, y + 12, 1, 2);
     }
     if (capR) {
-      this.px(t, p.ledge[2], x + T - 1, y, 1, 8);
-      this.px(t, p.ledge[2], x + T - 6, y + 8, 3, 4);
-      this.px(t, p.ledge[2], x + T - 5, y + 12, 1, 2);
+      this.px(t, p2.ledge[2], x + T - 1, y, 1, 8);
+      this.px(t, p2.ledge[2], x + T - 6, y + 8, 3, 4);
+      this.px(t, p2.ledge[2], x + T - 5, y + 12, 1, 2);
     }
   },
   drawPipe(t, x, y, h = 2) {
-    const p = this.p, w = 2 * T, cap = 12, body2 = h * T - cap;
-    this.px(t, p.pipe[3], x, y, w, cap);
-    this.px(t, p.pipe[0], x + 1, y + 1, w - 2, cap - 2);
-    this.px(t, p.pipe[2], x + 5, y + 1, 4, cap - 2);
-    this.px(t, p.pipe[1], x + w - 9, y + 1, 7, cap - 2);
-    this.px(t, p.pipe[3], x + 3, y + cap, w - 6, body2);
-    this.px(t, p.pipe[0], x + 4, y + cap, w - 8, body2);
-    this.px(t, p.pipe[2], x + 8, y + cap, 4, body2);
-    this.px(t, p.pipe[1], x + w - 13, y + cap, 7, body2);
+    const p2 = this.p, w = 2 * T, cap = 12, body = h * T - cap;
+    this.px(t, p2.pipe[3], x, y, w, cap);
+    this.px(t, p2.pipe[0], x + 1, y + 1, w - 2, cap - 2);
+    this.px(t, p2.pipe[2], x + 5, y + 1, 4, cap - 2);
+    this.px(t, p2.pipe[1], x + w - 9, y + 1, 7, cap - 2);
+    this.px(t, p2.pipe[3], x + 3, y + cap, w - 6, body);
+    this.px(t, p2.pipe[0], x + 4, y + cap, w - 8, body);
+    this.px(t, p2.pipe[2], x + 8, y + cap, 4, body);
+    this.px(t, p2.pipe[1], x + w - 13, y + cap, 7, body);
   },
   drawCannon(t, x, y, dir = -1) {
     t.drawImage(this.spr.cannon[dir < 0 ? 0 : 1], dir < 0 ? x - 2 : x, y);
   },
   drawStone(t, x, y) {
-    const p = this.p;
-    this.px(t, p.dirt[2], x, y, T, T);
-    this.px(t, p.ledge[1], x + 1, y + 1, T - 2, T - 2);
-    this.px(t, p.ledge[0], x + 1, y + 1, T - 2, 1);
-    this.px(t, p.ledge[0], x + 1, y + 1, 1, T - 2);
-    this.px(t, p.ledge[2], x + 2, y + T - 2, T - 3, 1);
-    this.px(t, p.ledge[2], x + T - 2, y + 2, 1, T - 3);
-    this.px(t, p.ledge[0], x + 5, y + 5, 3, 3);
-    this.px(t, p.ledge[2], x + 15, y + 14, 3, 3);
+    const p2 = this.p;
+    this.px(t, p2.dirt[2], x, y, T, T);
+    this.px(t, p2.ledge[1], x + 1, y + 1, T - 2, T - 2);
+    this.px(t, p2.ledge[0], x + 1, y + 1, T - 2, 1);
+    this.px(t, p2.ledge[0], x + 1, y + 1, 1, T - 2);
+    this.px(t, p2.ledge[2], x + 2, y + T - 2, T - 3, 1);
+    this.px(t, p2.ledge[2], x + T - 2, y + 2, 1, T - 3);
+    this.px(t, p2.ledge[0], x + 5, y + 5, 3, 3);
+    this.px(t, p2.ledge[2], x + 15, y + 14, 3, 3);
   },
   drawPole(t, f) {
-    const p = this.p;
-    this.px(t, p.dirt[2], f.x - 4, f.y - 8, 10, 8);
-    this.px(t, p.ledge[1], f.x - 3, f.y - 7, 8, 6);
-    this.px(t, p.hud[0], f.x, f.y - f.h, 2, f.h - 8);
-    this.px(t, p.ledge[0], f.x, f.y - f.h, 1, f.h - 8);
-    this.px(t, p.hud[0], f.x - 2, f.y - f.h - 5, 6, 6);
-    this.px(t, p.block[0], f.x - 1, f.y - f.h - 4, 4, 4);
-    this.px(t, p.block[2], f.x - 1, f.y - f.h - 4, 1, 1);
+    const p2 = this.p;
+    this.px(t, p2.dirt[2], f.x - 4, f.y - 8, 10, 8);
+    this.px(t, p2.ledge[1], f.x - 3, f.y - 7, 8, 6);
+    this.px(t, p2.hud[0], f.x, f.y - f.h, 2, f.h - 8);
+    this.px(t, p2.ledge[0], f.x, f.y - f.h, 1, f.h - 8);
+    this.px(t, p2.hud[0], f.x - 2, f.y - f.h - 5, 6, 6);
+    this.px(t, p2.block[0], f.x - 1, f.y - f.h - 4, 4, 4);
+    this.px(t, p2.block[2], f.x - 1, f.y - f.h - 4, 1, 1);
   },
   drawBush(t, x, y) {
-    const p = this.p;
+    const p2 = this.p;
     const shape = ["......DDDDD.............", "...DDDLLLDDD....DDD.....", "..DLLLLDDDDDD..DLLLDD...", ".DLLLDDDDDDDDDDLLDDDDDD.", "DLLDDDDDDDDDDDDDDDDDDDDD", "DDDDDDDDDDDDDDDDDDDDDDDD", "DDDDDDDDDDDDDDDDDDDDDDDD"];
     shape.forEach((row, i) => {
       for (let j = 0; j < 24; j++) {
         const ch = row[j];
         if (ch === ".") continue;
-        this.px(t, ch === "L" ? p.deco[0] : p.deco[1], x + j, y - 7 + i, 1, 1);
+        this.px(t, ch === "L" ? p2.deco[0] : p2.deco[1], x + j, y - 7 + i, 1, 1);
       }
     });
   },
   drawTree(t, x, y) {
-    const p = this.p;
-    this.px(t, p.dirt[2], x + 6, y - 22, 4, 22);
+    const p2 = this.p;
+    this.px(t, p2.dirt[2], x + 6, y - 22, 4, 22);
     for (let yy = -40; yy < -16; yy++) for (let xx = -6; xx < 22; xx++) {
       const dx = xx - 8, dy = yy + 28;
-      if (dx * dx / 160 + dy * dy / 120 <= 1) this.px(t, dy > 4 || dx > 6 ? p.deco[1] : p.deco[0], x + xx, y + yy);
+      if (dx * dx / 160 + dy * dy / 120 <= 1) this.px(t, dy > 4 || dx > 6 ? p2.deco[1] : p2.deco[0], x + xx, y + yy);
     }
   },
   drawEnemy(x, e) {
@@ -15501,14 +15503,14 @@ var DRAW = {
     x.drawImage(img, X, bottom - img.height + (e.state === "squish" ? 0 : kind === "bug" ? 1 : 0));
   },
   drawLedgeLive(x, X, Y, w) {
-    const p = this.p;
-    this.px(x, p.ledge[0], X, Y, w, 1);
-    this.px(x, p.ledge[1], X, Y + 1, w, 6);
-    this.px(x, p.ledge[0], X, Y + 2, w, 1);
-    this.px(x, p.ledge[2], X, Y + 7, w, 1);
-    this.px(x, p.ledge[2], X, Y, 1, 8);
-    this.px(x, p.ledge[2], X + w - 1, Y, 1, 8);
-    for (let i = 4; i < w - 2; i += 8) this.px(x, p.ledge[2], X + i, Y + 4, 2, 2);
+    const p2 = this.p;
+    this.px(x, p2.ledge[0], X, Y, w, 1);
+    this.px(x, p2.ledge[1], X, Y + 1, w, 6);
+    this.px(x, p2.ledge[0], X, Y + 2, w, 1);
+    this.px(x, p2.ledge[2], X, Y + 7, w, 1);
+    this.px(x, p2.ledge[2], X, Y, 1, 8);
+    this.px(x, p2.ledge[2], X + w - 1, Y, 1, 8);
+    for (let i = 4; i < w - 2; i += 8) this.px(x, p2.ledge[2], X + i, Y + 4, 2, 2);
   }
 };
 
@@ -15836,27 +15838,53 @@ var UPDATE_CSS = `
 .cs-upd-chip.bad { background: color-mix(in srgb, var(--ui-red) 12%, transparent); }
 .cs-upd-chip:hover { filter: brightness(1.15); }
 .cs-upd-chip:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-.cs-upd-pop { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 8px;
-  box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 14px 36px color-mix(in srgb, black 40%, transparent); display: flex; flex-direction: column;
-  gap: 8px; padding: 14px 16px; position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, calc(100vw - 32px)); z-index: 30; }
-.cs-upd-pop h3 { font-size: 17px; }
-.cs-upd-pop p { color: var(--ui-text-secondary); font-size: 13px; line-height: 1.45; margin: 0; }
-.cs-upd-pop .cs-eyebrow { color: var(--ui-text-tertiary); }
-.cs-upd-kv { align-items: baseline; display: flex; gap: 10px; }
-.cs-upd-kv b { color: var(--ui-text-tertiary); font: 700 10px ${MONO}; letter-spacing: .12em; text-transform: uppercase; }
-.cs-upd-acts { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.cs-upd-scrim { align-items: center; background: color-mix(in srgb, black 55%, transparent); backdrop-filter: blur(2px); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 80; }
+.cs-upd-dlg { background: linear-gradient(var(--ui-bg-secondary), var(--ui-bg-secondary)), var(--ui-bg-editor); border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--ui-stroke-secondary), 0 24px 60px color-mix(in srgb, black 55%, transparent); display: flex; flex-direction: column;
+  max-height: min(640px, calc(100vh - 48px)); overflow: hidden; width: min(520px, 100%); }
+.cs-upd-card { bottom: 20px; position: fixed; right: 20px; width: min(380px, calc(100vw - 32px)); z-index: 70; }
+.cs-upd-card .cs-upd-dlg { max-height: min(460px, calc(100vh - 120px)); width: 100%; }
+.cs-upd-head { display: flex; flex-direction: column; gap: 10px; padding: 22px 24px 16px; position: relative; }
+.cs-upd-head h2 { font-size: 30px; padding-right: 24px; }
+.cs-upd-card .cs-upd-head { padding: 16px 18px 12px; }
+.cs-upd-card .cs-upd-head h2 { font-size: 22px; }
+.cs-upd-head h2 span { color: var(--ui-accent); }
+.cs-upd-ver { align-items: center; color: var(--ui-text-secondary); display: flex; font: 700 11px ${MONO}; gap: 8px; letter-spacing: .1em; }
+.cs-upd-ver b { background: color-mix(in srgb, var(--ui-accent) 16%, transparent); border-radius: 4px; color: var(--ui-text-primary); padding: 3px 7px; }
+.cs-upd-x { appearance: none; background: none; border: 0; color: var(--ui-text-tertiary); cursor: pointer; position: absolute; right: 14px; top: 14px; }
+.cs-upd-x:hover { color: var(--ui-text-primary); }
+.cs-upd-notes, .cs-upd-body { border-top: 1px solid var(--ui-stroke-secondary); display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow: auto; padding: 16px 24px 18px; }
+.cs-upd-body { gap: 10px; }
+.cs-upd-card .cs-upd-notes { padding: 12px 18px 14px; }
+.cs-upd-text { color: var(--ui-text-secondary); font-size: 13.5px; line-height: 1.45; margin: 0; }
+.cs-upd-rel { display: flex; flex-direction: column; gap: 10px; }
+.cs-upd-rel + .cs-upd-rel { border-top: 1px dashed var(--ui-stroke-secondary); padding-top: 16px; }
+.cs-upd-relh { align-items: baseline; display: flex; gap: 10px; }
+.cs-upd-relh b { color: var(--ui-text-primary); font: 700 12px ${MONO}; letter-spacing: .08em; }
+.cs-upd-relh span { color: var(--ui-text-tertiary); font: 11px ${MONO}; }
+.cs-upd-grp { display: flex; flex-direction: column; gap: 6px; }
+.cs-upd-tag { align-self: flex-start; border-radius: 3px; font: 700 9.5px ${MONO}; letter-spacing: .14em; padding: 2px 6px; text-transform: uppercase; }
+.cs-upd-tag[data-kind=new] { background: color-mix(in srgb, var(--ui-accent) 16%, transparent); color: var(--ui-accent); }
+.cs-upd-tag[data-kind=fixed] { background: color-mix(in srgb, var(--ui-green) 14%, transparent); color: var(--ui-green); }
+.cs-upd-grp ul { display: flex; flex-direction: column; gap: 5px; margin: 0; padding-left: 18px; }
+.cs-upd-grp li { color: var(--ui-text-secondary); font-size: 13.5px; line-height: 1.45; }
+.cs-upd-link { align-self: flex-start; margin: 0 24px 12px; }
+.cs-upd-foot { align-items: center; border-top: 1px solid var(--ui-stroke-secondary); display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 24px; }
+.cs-upd-card .cs-upd-foot { padding: 12px 18px; }
 .cs-upd-fill { flex: 1; }
-.cs-upd-pop p.cs-upd-wait { align-items: flex-start; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); color: var(--ui-text-primary); display: flex; gap: 8px; padding: 7px 9px; }
+.cs-upd-note { color: var(--ui-text-tertiary); font-size: 12px; }
+.cs-upd-ok { align-items: center; color: var(--ui-green); display: flex; font: 700 11px ${MONO}; gap: 8px; letter-spacing: .12em; text-transform: uppercase; }
+.cs-upd-bar { background: var(--ui-bg-quaternary); height: 3px; overflow: hidden; }
+.cs-upd-bar i { background: var(--ui-accent); display: block; height: 100%; transition: width .3s; }
+.cs-upd-wait { align-items: flex-start; background: color-mix(in srgb, var(--ui-yellow) 10%, transparent); border-radius: 6px; color: var(--ui-text-primary); display: flex; font-size: 13px; gap: 8px; line-height: 1.45; margin: 0 24px 14px; padding: 9px 11px; }
+.cs-upd-card .cs-upd-wait { margin: 0 18px 12px; }
 .cs-upd-wait > :first-child { color: var(--ui-yellow); flex: none; margin-top: 2px; }
-.cs-upd-steps { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 2px 0; padding: 0; }
-.cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13px; gap: 9px; }
-.cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 12px; width: 12px; }
+.cs-upd-steps { border-top: 1px solid var(--ui-stroke-secondary); display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 16px 24px 18px; }
+.cs-upd-steps li { align-items: center; color: var(--ui-text-tertiary); display: flex; font-size: 13.5px; gap: 10px; }
+.cs-upd-steps li > i { box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); display: block; height: 13px; width: 13px; }
 .cs-upd-steps li[data-state=done] { color: var(--ui-text-secondary); }
 .cs-upd-steps li[data-state=done] > :first-child { color: var(--ui-green); }
 .cs-upd-steps li[data-state=now] { color: var(--ui-text-primary); font-weight: 600; }
-.cs-repair.bad { background: color-mix(in srgb, var(--ui-red) 10%, transparent); box-shadow: inset 2px 0 0 var(--ui-red); }
-.cs-repair.bad > i { color: var(--ui-red); }
-.cs-repair-wait { align-items: center; color: var(--ui-text-secondary); display: flex; gap: 6px; }
 .cs-upd-pre { background: var(--ui-bg-quaternary); font: 11.5px/1.5 ${MONO}; margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; white-space: pre-wrap; }
 `;
 
@@ -16262,7 +16290,7 @@ function pageProblems(pages) {
   const problems = [];
   const seen = /* @__PURE__ */ new Set();
   const declared = { events: /* @__PURE__ */ new Set(), slots: /* @__PURE__ */ new Set() };
-  const parts = [];
+  const parts2 = [];
   pages.forEach((page, index) => {
     const where = `page/pages/${page?.id ?? `<#${index}>`}/index.js`;
     if (!page || typeof page !== "object") {
@@ -16273,7 +16301,7 @@ function pageProblems(pages) {
       problems.push(`${where}: id must be a unique lowercase name, got ${JSON.stringify(page.id)}`);
     }
     seen.add(page.id);
-    parts.push(...describe(page, where, PAGE_FIELDS, problems).map((part) => ({ ...part, owner: page.id })));
+    parts2.push(...describe(page, where, PAGE_FIELDS, problems).map((part) => ({ ...part, owner: page.id })));
     if (!isFunction(page.Page) && !(Array.isArray(page.tabs) && page.tabs.length)) {
       problems.push(`${where}: give the page a Page component, or tabs`);
     }
@@ -16287,10 +16315,10 @@ function pageProblems(pages) {
         problems.push(`${at}: a tab needs a Page component`);
       }
       tabIds.add(tab?.id);
-      parts.push(...describe(tab ?? {}, at, TAB_FIELDS, problems).map((part) => ({ ...part, owner: page.id })));
+      parts2.push(...describe(tab ?? {}, at, TAB_FIELDS, problems).map((part) => ({ ...part, owner: page.id })));
     }
   });
-  for (const { kind, name, where, owner } of parts.filter((part) => part.kind === "events" || part.kind === "slots")) {
+  for (const { kind, name, where, owner } of parts2.filter((part) => part.kind === "events" || part.kind === "slots")) {
     if (!NAME.test(name) || !name.startsWith(`${owner}.`)) {
       problems.push(`${where}: ${kind} "${name}" must be named "${owner}.<name>" (the owning page's id, a dot, a camelCase name)`);
     } else if (declared[kind].has(name)) {
@@ -16298,7 +16326,7 @@ function pageProblems(pages) {
     }
     declared[kind].add(name);
   }
-  for (const { kind, name, where, value } of parts) {
+  for (const { kind, name, where, value } of parts2) {
     if (kind === "listens" && !declared.events.has(name)) {
       problems.push(`${where}: listens to "${name}", which no page declares in events`);
     } else if (kind === "listens" && !isFunction(value)) {
@@ -16328,16 +16356,16 @@ function describe(item, where, fields, problems) {
   if (item.css != null && !(Array.isArray(item.css) && item.css.every((chunk) => typeof chunk === "string"))) {
     problems.push(`${where}: css must be a list of stylesheet strings`);
   }
-  const parts = [];
+  const parts2 = [];
   for (const kind of ["events", "slots", "listens", "contributes"]) {
     for (const [name, value] of Object.entries(item[kind] ?? {})) {
       if ((kind === "events" || kind === "slots") && (typeof value !== "string" || !value)) {
         problems.push(`${where}: ${kind}["${name}"] needs a one-line description (what it is, the payload or props)`);
       }
-      parts.push({ kind, name, value, where });
+      parts2.push({ kind, name, value, where });
     }
   }
-  return parts;
+  return parts2;
 }
 function wirePages(pages, { events, slots }) {
   const problems = pageProblems(pages);
@@ -17539,6 +17567,357 @@ function useTitleScreen(ctx, frameRef, gameId, snap) {
   return () => setLoadedFrame(frameRef.current);
 }
 
+// page/app/update/chip.js
+var CHIP = {
+  idle: ["accent", "Update ready"],
+  updating: ["accent", "Updating"],
+  review: ["warn", "Needs a look"],
+  failed: ["bad", "Update failed"],
+  restart: ["warn", "Restart to finish"],
+  partial: ["bad", "Finish update"],
+  done: ["good", "Updated"]
+};
+function UpdateChip({ update }) {
+  if (!update.visible) {
+    return null;
+  }
+  const { open, phase, setOpen } = update;
+  const [tone, label] = CHIP[phase] ?? CHIP.idle;
+  return jsx("span", {
+    className: "cs-upd",
+    children: jsxs("button", {
+      "aria-expanded": open,
+      "aria-haspopup": "dialog",
+      "aria-label": `hermretro: ${label}`,
+      className: `cs-chip cs-upd-chip ${tone}`,
+      "data-phase": phase,
+      onClick: () => setOpen(true),
+      title: label,
+      type: "button",
+      children: [phase === "updating" ? jsx(Codicon, { name: "loading", size: 11, spinning: true }) : jsx("i", {}), jsx("span", { className: "cs-lbl", children: label })]
+    })
+  });
+}
+
+// page/app/nav.js
+function StudioNav({ pages, nav, onGo, viaProfile = null, update = null }) {
+  const page = nav.page;
+  return jsxs("header", {
+    className: "cs-top",
+    children: [
+      jsxs("div", {
+        className: "cs-top-start",
+        children: [
+          jsxs("button", {
+            "aria-label": "hermretro: Build",
+            className: "cs-brand",
+            onClick: () => onGo("build"),
+            type: "button",
+            children: ["herm", jsx("span", { children: "retro" })]
+          }),
+          // The profile the studio works in, when it is not the one the app is on: a quiet chip, the
+          // explanation in its tooltip.
+          viaProfile ? jsx(Tip, {
+            label: `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
+            children: jsxs("span", {
+              "aria-label": `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
+              className: "cs-top-profile",
+              children: [jsx(Codicon, { name: "account", size: 12 }), viaProfile]
+            })
+          }) : null
+        ]
+      }),
+      jsx("nav", {
+        "aria-label": "Studio pages",
+        className: "cs-seg",
+        children: pages.map(
+          ({ id, label, Badge }) => jsxs(
+            "button",
+            {
+              "aria-current": page === id ? "page" : void 0,
+              onClick: () => onGo(id),
+              type: "button",
+              children: [label, Badge ? jsx(Badge, { nav }) : null]
+            },
+            id
+          )
+        )
+      }),
+      jsx("div", {
+        className: "cs-top-end",
+        children: update ? jsx(UpdateChip, { update }) : null
+      })
+    ]
+  });
+}
+
+// page/app/not-running.js
+function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
+  const refresh = jsx("div", {
+    className: "cs-actions",
+    children: jsxs(Button, {
+      disabled: refreshing,
+      onClick: onRefresh,
+      size: "sm",
+      variant: "default",
+      children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), "Refresh"]
+    })
+  });
+  let title = "Checking hermretro…";
+  let body = jsx(Working, { children: "Asking the plugin for its status." });
+  if (backend === "offline") {
+    title = "Waiting for Hermes";
+    body = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
+  } else if (backend === "error") {
+    title = "hermretro reported a problem";
+    body = jsxs("div", {
+      className: "cs-content",
+      children: [jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" }), refresh]
+    });
+  } else if (backend === "failed") {
+    title = "Could not read hermretro's status";
+    body = jsxs("div", {
+      className: "cs-content",
+      children: [
+        jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
+        jsx("pre", { className: "cs-error", children: describeRequestError(status.error).message || "Unknown error" }),
+        refresh
+      ]
+    });
+  } else if (backend === "unavailable") {
+    const { message, notLoaded } = describeRequestError(status.error);
+    title = "hermretro is not switched on in any profile";
+    body = jsxs("div", {
+      className: "cs-content",
+      children: [
+        jsx(Lede, {
+          children: "This page is visible, but the part of the plugin that does the work is off. Switch hermretro on in Capabilities → Plugins for the profile you want to use it in. This page continues by itself once it is on."
+        }),
+        jsx("div", {
+          className: "cs-actions",
+          children: jsxs(Button, {
+            onClick: () => host.navigate(PLUGINS_HREF),
+            size: "sm",
+            variant: "default",
+            children: [jsx(Codicon, { name: "extensions", size: 14 }), "Open Capabilities → Plugins"]
+          })
+        }),
+        jsxs("div", {
+          className: "cs-col",
+          style: { gap: 6 },
+          children: [jsx("span", { className: "cs-faint", children: "Or, from a terminal:" }), jsx(CommandLine, { command: ENABLE_COMMAND })]
+        }),
+        !notLoaded && message ? jsx("span", { className: "cs-faint", children: `Details: ${message}` }) : null
+      ]
+    });
+  }
+  return jsx("section", {
+    "aria-live": "polite",
+    className: "cs-stage",
+    style: { maxWidth: 860 },
+    children: jsxs("div", {
+      className: "cs-stage",
+      style: { display: "contents" },
+      children: [
+        jsxs("div", {
+          className: "cs-stage-head",
+          children: [jsx("p", { className: "cs-eyebrow", children: "Status" }), jsx("h2", { className: "cs-word cs-title", children: title })]
+        }),
+        body
+      ]
+    })
+  });
+}
+
+// page/app/background-layer.js
+var byId = new Map(BACKGROUNDS.map((background) => [background.id, background]));
+function browserEnv(layer) {
+  const win = layer.ownerDocument.defaultView;
+  return {
+    raf: (callback) => win.requestAnimationFrame(callback),
+    caf: (id) => win.cancelAnimationFrame(id),
+    setTimer: (callback, ms) => win.setTimeout(callback, ms),
+    clearTimer: (id) => win.clearTimeout(id),
+    getStyle: (el) => win.getComputedStyle(el),
+    isHidden: () => win.document.hidden || layer.hidden,
+    motion: win.matchMedia?.("(prefers-reduced-motion: reduce)"),
+    observe: (els, onChange) => {
+      const watch = new win.ResizeObserver(onChange);
+      for (const el of els) watch.observe(el);
+      return () => watch.disconnect();
+    }
+  };
+}
+function BackgroundSlot({ background, shown }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const layer = ref.current;
+    return background.start({ host: layer.parentElement, layer, env: browserEnv(layer) });
+  }, []);
+  return jsx("div", { "aria-hidden": true, className: "cs-bg", "data-bg": background.id, hidden: !shown, ref });
+}
+function BackgroundLayer() {
+  const [wanted, setWanted] = useState(wantedBackground);
+  const [started2, setStarted] = useState([]);
+  useLayoutEffect(() => {
+    const update = () => setWanted(wantedBackground());
+    update();
+    return onBackgroundChange(update);
+  }, []);
+  if (wanted && !byId.has(wanted)) {
+    console.warn(`[hermretro] no background "${wanted}" (page/backgrounds/index.js lists them)`);
+  }
+  const live = wanted && byId.has(wanted) && !started2.includes(wanted) ? [...started2, wanted] : started2;
+  useLayoutEffect(() => {
+    if (live !== started2) setStarted(live);
+  });
+  return live.map((id) => jsx(BackgroundSlot, { background: byId.get(id), shown: id === wanted }, id));
+}
+
+// page/app/page-view.js
+function storedTab(ctx, page) {
+  try {
+    const id = ctx?.storage?.get?.(`tab:${page.id}`, null);
+    return page.tabs.some((tab) => tab.id === id) ? id : page.tabs[0].id;
+  } catch {
+    return page.tabs[0].id;
+  }
+}
+function TabbedPage({ page, shell }) {
+  const [chosen, setChosen] = useState(() => storedTab(shell.ctx, page));
+  const tab = page.tabs.find((item) => item.id === chosen) ?? page.tabs[0];
+  const pick = (id) => {
+    setChosen(id);
+    try {
+      shell.ctx?.storage?.set?.(`tab:${page.id}`, id);
+    } catch {
+    }
+  };
+  return [
+    jsx(
+      "div",
+      {
+        "aria-label": `${page.label} tabs`,
+        className: "cs-tabs",
+        role: "tablist",
+        children: page.tabs.map(
+          (item) => jsx("button", { "aria-selected": item.id === tab.id, className: item.id === tab.id ? "on" : "", onClick: () => pick(item.id), role: "tab", type: "button", children: item.label }, item.id)
+        )
+      },
+      "tabs"
+    ),
+    page.Page ? jsx(page.Page, { shell, tab: tab.id }, "page") : null,
+    jsxs("div", { className: "cs-tab-body", role: "tabpanel", children: [jsx(tab.Page, { shell }, tab.id)] }, "tab")
+  ];
+}
+function PageView({ page, shell }) {
+  return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell });
+}
+
+// page/app/update/release-notes.js
+var GROUPS = [
+  ["new", "New"],
+  ["fixed", "Fixed"]
+];
+function Release({ release, dated }) {
+  const groups = GROUPS.map(([kind, label]) => [kind, label, release.notes.filter((note) => note.kind === kind)]).filter(([, , notes]) => notes.length);
+  const date = release.date ? new Date(release.date).toLocaleDateString(void 0, { day: "numeric", month: "short" }) : "";
+  return jsxs("section", {
+    className: "cs-upd-rel",
+    children: [
+      dated ? jsxs("div", { className: "cs-upd-relh", children: [jsx("b", { children: `v${release.version}` }), date ? jsx("span", { children: date }) : null] }) : null,
+      ...groups.map(
+        ([kind, label, notes]) => jsxs(
+          "div",
+          {
+            className: "cs-upd-grp",
+            children: [jsx("span", { className: "cs-upd-tag", "data-kind": kind, children: label }), jsx("ul", { children: notes.map((note, i) => jsx("li", { children: note.text }, i)) })]
+          },
+          kind
+        )
+      )
+    ]
+  });
+}
+function ReleaseNotes({ releases }) {
+  const shown = (releases ?? []).filter((release) => release.notes?.length);
+  if (!shown.length) {
+    return null;
+  }
+  return jsx("div", {
+    className: "cs-upd-notes",
+    children: shown.map((release) => jsx(Release, { dated: shown.length > 1, release }, release.version))
+  });
+}
+
+// page/app/update/update-parts.js
+function UpdateHead({ title, accent = null, from = null, to = null, onClose = null }) {
+  return jsxs("div", {
+    className: "cs-upd-head",
+    children: [
+      jsx("p", { className: "cs-eyebrow", children: "hermretro" }),
+      jsxs("h2", { className: "cs-word", children: [title, accent ? jsx("span", { children: ` ${accent}` }) : null] }),
+      from && to ? jsxs("div", { className: "cs-upd-ver", children: [from, jsx(Codicon, { name: "arrow-right", size: 12 }), jsx("b", { children: to })] }) : null,
+      onClose ? jsx("button", { "aria-label": "Close", className: "cs-upd-x", onClick: onClose, type: "button", children: jsx(Codicon, { name: "close", size: 16 }) }) : null
+    ]
+  });
+}
+var UpdateFoot = ({ children }) => jsx("div", { className: "cs-upd-foot", children });
+var Fill = () => jsx("span", { className: "cs-upd-fill" });
+function WaitLine({ text: text2 }) {
+  return text2 ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 13 }), text2] }) : null;
+}
+function UpdateButton({ update }) {
+  return update.queued ? jsx(Button, { disabled: true, size: "sm", variant: "default", children: "Waiting…" }) : jsx(Button, { disabled: Boolean(update.blocked) && !update.queueable, onClick: update.start, size: "sm", variant: "default", children: "Update" });
+}
+
+// page/app/update/update-card.js
+function UpdateCard({ update }) {
+  const root = useRef(null);
+  const { card, later: later2 } = update;
+  const latestLater = useRef(later2);
+  latestLater.current = later2;
+  useEffect(() => {
+    if (!card) {
+      return void 0;
+    }
+    const away = (event) => {
+      if (!root.current?.contains(event.target)) {
+        latestLater.current();
+      }
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") {
+        latestLater.current();
+      }
+    };
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", escape, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      window.removeEventListener("keydown", escape, true);
+    };
+  }, [card]);
+  if (!card) {
+    return null;
+  }
+  return jsx("div", {
+    className: "cs-upd-card",
+    ref: root,
+    children: jsx("div", {
+      "aria-label": "hermretro update",
+      className: "cs-upd-dlg",
+      role: "dialog",
+      children: [
+        jsx(UpdateHead, { accent: "ready", from: update.version, onClose: later2, title: "Update", to: update.latest }, "h"),
+        jsx(ReleaseNotes, { releases: update.notes }, "n"),
+        jsx(WaitLine, { text: update.blocked }, "w"),
+        jsx(UpdateFoot, { children: [jsx(Button, { onClick: later2, size: "sm", variant: "ghost", children: "Later" }, "later"), jsx(Fill, {}, "fill"), jsx(UpdateButton, { update }, "go")] }, "f")
+      ]
+    })
+  });
+}
+
 // page/app/update/flow.js
 var UPDATE_STEPS = ["Downloading and checking the new version", "Loading it into the hermretro profile", "Refreshing this page"];
 var UPDATE_MARKER = "update";
@@ -17760,7 +18139,8 @@ async function runUpdate({
   remember3({ result: "updated", restart, at: Date.now() });
   return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
 }
-async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, onWaiting, waitMs, checkTries }) {
+async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, loadedNow = () => {
+}, onWaiting, waitMs, checkTries }) {
   let building;
   try {
     building = await busy();
@@ -17774,19 +18154,14 @@ async function runReload({ install, studio, busy = async () => [], confirmInstal
   if (!loaded.ok) {
     return { kind: "failed", error: loaded.error };
   }
-  return loaded.reloaded ? { kind: "reloaded", pageRefreshed: await refreshDesktopHalf() } : { kind: "restart" };
+  if (!loaded.reloaded) {
+    return { kind: "restart" };
+  }
+  loadedNow();
+  return { kind: "reloaded", pageRefreshed: await refreshDesktopHalf() };
 }
 
-// page/app/update/chip.js
-var CHIP = {
-  idle: ["accent", "Update ready"],
-  updating: ["accent", "Updating"],
-  review: ["warn", "Needs a look"],
-  failed: ["bad", "Update failed"],
-  restart: ["warn", "Restart to finish"],
-  partial: ["bad", "Finish update"],
-  done: ["good", "Updated"]
-};
+// page/app/update/update-dialog.js
 function Steps({ step, waiting }) {
   const labels = waiting?.length ? UPDATE_STEPS.map((label, index) => index === 1 ? `Waiting for "${waiting[0]}" to finish building` : label) : UPDATE_STEPS;
   return jsx("ol", {
@@ -17797,7 +18172,7 @@ function Steps({ step, waiting }) {
         {
           "data-state": index < step ? "done" : index === step ? "now" : "todo",
           children: [
-            index < step ? jsx(Codicon, { name: "check", size: 12 }) : index === step ? jsx(Codicon, { name: "loading", size: 12, spinning: true }) : jsx("i", {}),
+            index < step ? jsx(Codicon, { name: "check", size: 13 }) : index === step ? jsx(Codicon, { name: "loading", size: 13, spinning: true }) : jsx("i", {}),
             label
           ]
         },
@@ -17810,409 +18185,217 @@ function Findings({ review }) {
   const lines = review.findings.length ? review.findings.slice(0, 6).map((f) => `${String(f.severity ?? "").toUpperCase()}  ${f.file ?? ""}:${f.line ?? ""}  ${f.description || f.category || ""}`) : review.lines.slice(0, 8);
   return lines.length ? jsx("pre", { className: "cs-upd-pre", children: lines.join("\n") }) : null;
 }
-function body(update) {
-  const actions = (...children) => jsx("div", { className: "cs-upd-acts", children });
-  const whatsNew = jsxs(Button, { onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }, "new");
+var p = (text2, key = "p") => jsx("p", { className: "cs-upd-text", children: text2 }, key);
+function content(update, close) {
+  const versions = { from: update.version, to: update.latest };
+  const plugins = jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins");
   switch (update.phase) {
     case "updating":
-      return ["Updating…", jsx(Steps, { step: update.step, waiting: update.waiting }, "steps"), jsx("p", { children: "You can keep using Hermes. This page reloads by itself at the end." }, "p")];
+      return [
+        jsx(UpdateHead, { title: "Updating", ...versions }, "h"),
+        jsx("div", { className: "cs-upd-bar", children: jsx("i", { style: { width: `${(update.step + 1) / UPDATE_STEPS.length * 100}%` } }) }, "bar"),
+        jsx(Steps, { step: update.step, waiting: update.waiting }, "s"),
+        jsx(UpdateFoot, { children: jsx("span", { className: "cs-upd-note", children: "You can keep using Hermes." }) }, "f")
+      ];
     case "review":
       return [
-        "Review the new version",
-        jsx(
-          "p",
+        jsx(UpdateHead, { title: "Review the new version", onClose: close, ...versions }, "h"),
+        jsxs(
+          "div",
           {
-            children: update.review?.findings?.length ? "Hermes's security check found something to look at before installing it. Nothing has changed yet." : "The new version adds to what hermretro can do in Hermes. Nothing has changed yet."
+            className: "cs-upd-body",
+            children: [
+              p(
+                update.review?.findings?.length ? "Hermes's security check found something to look at before installing it. Nothing has changed yet." : "The new version adds to what hermretro can do in Hermes. Nothing has changed yet."
+              ),
+              update.review ? jsx(Findings, { review: update.review }, "f") : null
+            ]
           },
-          "p"
+          "b"
         ),
-        update.review ? jsx(Findings, { review: update.review }, "f") : null,
-        actions(
-          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes"),
-          jsx(Button, { onClick: update.cancel, size: "sm", variant: "ghost", children: "Cancel" }, "no")
+        jsx(
+          UpdateFoot,
+          {
+            children: [
+              jsx(Button, { onClick: update.cancel, size: "sm", variant: "ghost", children: "Cancel" }, "no"),
+              jsx(Fill, {}, "fill"),
+              jsx(Button, { disabled: Boolean(update.blocked), onClick: update.agree, size: "sm", variant: "default", children: "Install anyway" }, "yes")
+            ]
+          },
+          "f"
         )
       ];
     case "failed":
       return [
-        "Couldn't update",
-        jsx("p", { children: `${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.` }, "p"),
-        actions(
-          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again"),
-          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
-        )
+        jsx(UpdateHead, { title: "Couldn't update", onClose: close }, "h"),
+        jsx("div", { className: "cs-upd-body", children: p(`${update.error ?? "The update did not finish."} Nothing was changed${update.version ? `; you are still on ${update.version}` : ""}.`) }, "b"),
+        jsx(UpdateFoot, { children: [plugins, jsx(Fill, {}, "fill"), jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Try again" }, "again")] }, "f")
       ];
     case "partial":
       return [
-        "Almost there",
+        jsx(UpdateHead, { title: "Almost there", onClose: close }, "h"),
         jsx(
-          "p",
-          { children: `The new version is installed, but ${String(update.error ?? "its last steps did not finish").replace(/\.$/, "")}. Finish the update to load it everywhere.` },
-          "p"
+          "div",
+          {
+            className: "cs-upd-body",
+            children: p(`The new version is installed, but ${String(update.error ?? "its last steps did not finish").replace(/\.$/, "")}. Finish the update to load it everywhere.`)
+          },
+          "b"
         ),
-        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
-        actions(
-          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Finish update" }, "finish"),
-          jsx(Button, { onClick: update.openPlugins, size: "sm", variant: "link", children: "Open Capabilities → Plugins" }, "plugins")
-        )
+        jsx(WaitLine, { text: update.blocked }, "w"),
+        jsx(UpdateFoot, { children: [plugins, jsx(Fill, {}, "fill"), jsx(Button, { disabled: Boolean(update.blocked), onClick: update.finish, size: "sm", variant: "default", children: "Finish update" }, "finish")] }, "f")
       ];
     case "restart":
       return [
-        "Almost done",
-        jsx("p", { children: `The new version is installed. ${update.restartAdvice} to finish loading it; until then hermretro keeps working.` }, "p"),
-        actions(jsx(Button, { onClick: () => update.setOpen(false), size: "sm", variant: "outline", children: "Got it" }, "ok"))
+        jsx(UpdateHead, { title: "Almost done", onClose: close }, "h"),
+        jsx("div", { className: "cs-upd-body", children: p(`The new version is installed. ${update.restartAdvice} to finish loading it; until then hermretro keeps working.`) }, "b"),
+        jsx(UpdateFoot, { children: [jsx(Fill, {}, "fill"), jsx(Button, { onClick: close, size: "sm", variant: "default", children: "Got it" }, "ok")] }, "f")
       ];
     case "done":
-      return ["Up to date", jsx("p", { children: "Your games, library and chats are kept. New chats use the new version." }, "p"), actions(whatsNew)];
+      return [
+        jsx(UpdateHead, { title: "You’re on", accent: update.version, onClose: close }, "h"),
+        jsx(ReleaseNotes, { releases: update.installedNotes }, "n"),
+        jsx(
+          UpdateFoot,
+          {
+            children: [
+              jsxs("span", { className: "cs-upd-ok", children: [jsx(Codicon, { name: "check", size: 13 }), "Ready to use"] }, "ok"),
+              jsx(Fill, {}, "fill"),
+              jsx(Button, { onClick: close, size: "sm", variant: "default", children: "Done" }, "done")
+            ]
+          },
+          "f"
+        )
+      ];
     default:
       return [
-        "A new version is ready",
-        jsx("p", { children: "Your games, library and chats are kept. It takes about a minute." }, "p"),
-        update.version ? jsxs("p", { className: "cs-upd-kv", children: [jsx("b", { children: "Installed" }), update.version] }, "kv") : null,
-        update.blocked ? jsxs("p", { className: "cs-upd-wait", role: "status", children: [jsx(Codicon, { name: "clock", size: 12 }), update.blocked] }, "wait") : null,
-        actions(
-          jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: "sm", variant: "default", children: "Update now" }, "go"),
-          whatsNew,
-          jsx("span", { className: "cs-upd-fill" }, "fill"),
-          jsx(Button, { onClick: update.later, size: "sm", variant: "ghost", children: "Later" }, "later")
+        jsx(UpdateHead, { title: "A new version", accent: "is ready", onClose: close, ...versions }, "h"),
+        jsx(ReleaseNotes, { releases: update.notes }, "n"),
+        update.notes.length ? null : jsxs(Button, { className: "cs-upd-link", onClick: update.whatsNew, size: "sm", variant: "link", children: ["What's new", jsx(Codicon, { name: "link-external", size: 12 })] }, "new"),
+        jsx(WaitLine, { text: update.blocked }, "w"),
+        jsx(
+          UpdateFoot,
+          {
+            children: [
+              jsx(Button, { onClick: update.queued ? update.cancel : close, size: "sm", variant: "ghost", children: update.queued ? "Cancel" : "Later" }, "later"),
+              jsx(Fill, {}, "fill"),
+              jsx(UpdateButton, { update }, "go")
+            ]
+          },
+          "f"
         )
       ];
   }
 }
-function UpdateChip({ update }) {
-  const root = useRef(null);
+var FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+function UpdateDialog({ update }) {
   const { open, phase, setOpen } = update;
+  const closable = phase !== "updating";
+  const close = () => setOpen(false);
+  const box = useRef(null);
+  const shown = open && !(phase === "idle" && !update.ready);
   useEffect(() => {
-    if (!open || phase === "updating") {
+    if (!shown) {
       return void 0;
     }
-    const away = (event) => {
-      if (!root.current?.contains(event.target)) {
-        setOpen(false);
+    const before = document.activeElement;
+    const inside = () => [...box.current?.querySelectorAll(FOCUSABLE) ?? []];
+    (inside()[0] ?? box.current)?.focus();
+    const tab = (event) => {
+      if (event.key !== "Tab") {
+        return;
       }
+      const items = inside();
+      if (!items.length) {
+        event.preventDefault();
+        return;
+      }
+      const at = items.indexOf(document.activeElement);
+      const next = event.shiftKey ? at <= 0 ? items.length - 1 : at - 1 : at === -1 || at === items.length - 1 ? 0 : at + 1;
+      event.preventDefault();
+      items[next].focus();
     };
+    window.addEventListener("keydown", tab, true);
+    return () => {
+      window.removeEventListener("keydown", tab, true);
+      before?.focus?.();
+    };
+  }, [shown]);
+  useEffect(() => {
+    if (!shown || !closable) {
+      return void 0;
+    }
     const escape = (event) => {
       if (event.key === "Escape") {
         setOpen(false);
       }
     };
-    window.addEventListener("pointerdown", away, true);
     window.addEventListener("keydown", escape, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      window.removeEventListener("keydown", escape, true);
-    };
-  }, [open, phase]);
-  if (!update.visible) {
+    return () => window.removeEventListener("keydown", escape, true);
+  }, [shown, closable]);
+  if (!shown) {
     return null;
   }
-  const [tone, label] = CHIP[phase] ?? CHIP.idle;
-  const [title, ...rest] = body(update);
-  return jsxs("span", {
-    className: "cs-upd",
-    ref: root,
-    children: [
-      jsxs("button", {
-        "aria-expanded": open,
-        "aria-haspopup": "dialog",
-        "aria-label": `hermretro: ${label}`,
-        className: `cs-chip cs-upd-chip ${tone}`,
-        "data-phase": phase,
-        onClick: () => setOpen(!open),
-        title: label,
-        type: "button",
-        children: [phase === "updating" ? jsx(Codicon, { name: "loading", size: 11, spinning: true }) : jsx("i", {}), jsx("span", { className: "cs-lbl", children: label })]
-      }),
-      open ? jsxs("div", {
-        "aria-label": "hermretro update",
-        className: "cs-upd-pop",
-        role: "dialog",
-        children: [jsx("p", { className: "cs-eyebrow", children: "hermretro" }), jsx("h3", { className: "cs-word", children: title }), ...rest]
-      }) : null
-    ]
-  });
-}
-
-// page/app/nav.js
-function StudioNav({ pages, nav, onGo, viaProfile = null, update = null }) {
-  const page = nav.page;
-  return jsxs("header", {
-    className: "cs-top",
-    children: [
-      jsxs("div", {
-        className: "cs-top-start",
-        children: [
-          jsxs("button", {
-            "aria-label": "hermretro: Build",
-            className: "cs-brand",
-            onClick: () => onGo("build"),
-            type: "button",
-            children: ["herm", jsx("span", { children: "retro" })]
-          }),
-          // The profile the studio works in, when it is not the one the app is on: a quiet chip, the
-          // explanation in its tooltip.
-          viaProfile ? jsx(Tip, {
-            label: `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
-            children: jsxs("span", {
-              "aria-label": `Showing the "${viaProfile}" profile, where hermretro is switched on.`,
-              className: "cs-top-profile",
-              children: [jsx(Codicon, { name: "account", size: 12 }), viaProfile]
-            })
-          }) : null
-        ]
-      }),
-      jsx("nav", {
-        "aria-label": "Studio pages",
-        className: "cs-seg",
-        children: pages.map(
-          ({ id, label, Badge }) => jsxs(
-            "button",
-            {
-              "aria-current": page === id ? "page" : void 0,
-              onClick: () => onGo(id),
-              type: "button",
-              children: [label, Badge ? jsx(Badge, { nav }) : null]
-            },
-            id
-          )
-        )
-      }),
-      jsx("div", {
-        className: "cs-top-end",
-        children: update ? jsx(UpdateChip, { update }) : null
-      })
-    ]
-  });
-}
-
-// page/app/not-running.js
-function NotRunning({ backend, status, gateway, onRefresh, refreshing }) {
-  const refresh = jsx("div", {
-    className: "cs-actions",
-    children: jsxs(Button, {
-      disabled: refreshing,
-      onClick: onRefresh,
-      size: "sm",
-      variant: "default",
-      children: [jsx(Codicon, { name: "refresh", size: 14, spinning: refreshing }), "Refresh"]
-    })
-  });
-  let title = "Checking hermretro…";
-  let body2 = jsx(Working, { children: "Asking the plugin for its status." });
-  if (backend === "offline") {
-    title = "Waiting for Hermes";
-    body2 = jsx(Working, { children: `The connection to Hermes is ${gateway || "idle"}. This page continues by itself.` });
-  } else if (backend === "error") {
-    title = "hermretro reported a problem";
-    body2 = jsxs("div", {
-      className: "cs-content",
-      children: [jsx("pre", { className: "cs-error", children: status.data?.error || "Unknown error" }), refresh]
-    });
-  } else if (backend === "failed") {
-    title = "Could not read hermretro's status";
-    body2 = jsxs("div", {
-      className: "cs-content",
-      children: [
-        jsx(Lede, { children: "The plugin is on, but its status request failed. Press Refresh; if this stays, report the message below." }),
-        jsx("pre", { className: "cs-error", children: describeRequestError(status.error).message || "Unknown error" }),
-        refresh
-      ]
-    });
-  } else if (backend === "unavailable") {
-    const { message, notLoaded } = describeRequestError(status.error);
-    title = "hermretro is not switched on in any profile";
-    body2 = jsxs("div", {
-      className: "cs-content",
-      children: [
-        jsx(Lede, {
-          children: "This page is visible, but the part of the plugin that does the work is off. Switch hermretro on in Capabilities → Plugins for the profile you want to use it in. This page continues by itself once it is on."
-        }),
-        jsx("div", {
-          className: "cs-actions",
-          children: jsxs(Button, {
-            onClick: () => host.navigate(PLUGINS_HREF),
-            size: "sm",
-            variant: "default",
-            children: [jsx(Codicon, { name: "extensions", size: 14 }), "Open Capabilities → Plugins"]
-          })
-        }),
-        jsxs("div", {
-          className: "cs-col",
-          style: { gap: 6 },
-          children: [jsx("span", { className: "cs-faint", children: "Or, from a terminal:" }), jsx(CommandLine, { command: ENABLE_COMMAND })]
-        }),
-        !notLoaded && message ? jsx("span", { className: "cs-faint", children: `Details: ${message}` }) : null
-      ]
-    });
-  }
-  return jsx("section", {
-    "aria-live": "polite",
-    className: "cs-stage",
-    style: { maxWidth: 860 },
-    children: jsxs("div", {
-      className: "cs-stage",
-      style: { display: "contents" },
-      children: [
-        jsxs("div", {
-          className: "cs-stage-head",
-          children: [jsx("p", { className: "cs-eyebrow", children: "Status" }), jsx("h2", { className: "cs-word cs-title", children: title })]
-        }),
-        body2
-      ]
+  return jsx("div", {
+    className: "cs-upd-scrim",
+    onPointerDown: (event) => {
+      if (closable && event.target === event.currentTarget) {
+        close();
+      }
+    },
+    children: jsx("div", {
+      "aria-label": "hermretro update",
+      "aria-modal": "true",
+      className: "cs-upd-dlg",
+      ref: box,
+      role: "dialog",
+      tabIndex: -1,
+      children: content(update, closable ? close : null)
     })
   });
 }
 
-// page/app/background-layer.js
-var byId = new Map(BACKGROUNDS.map((background) => [background.id, background]));
-function browserEnv(layer) {
-  const win = layer.ownerDocument.defaultView;
-  return {
-    raf: (callback) => win.requestAnimationFrame(callback),
-    caf: (id) => win.cancelAnimationFrame(id),
-    setTimer: (callback, ms) => win.setTimeout(callback, ms),
-    clearTimer: (id) => win.clearTimeout(id),
-    getStyle: (el) => win.getComputedStyle(el),
-    isHidden: () => win.document.hidden || layer.hidden,
-    motion: win.matchMedia?.("(prefers-reduced-motion: reduce)"),
-    observe: (els, onChange) => {
-      const watch = new win.ResizeObserver(onChange);
-      for (const el of els) watch.observe(el);
-      return () => watch.disconnect();
-    }
-  };
+// page/app/update/versions.js
+function parts(version) {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(version ?? "").trim());
+  return match ? match.slice(1).map(Number) : null;
 }
-function BackgroundSlot({ background, shown }) {
-  const ref = useRef(null);
-  useLayoutEffect(() => {
-    const layer = ref.current;
-    return background.start({ host: layer.parentElement, layer, env: browserEnv(layer) });
-  }, []);
-  return jsx("div", { "aria-hidden": true, className: "cs-bg", "data-bg": background.id, hidden: !shown, ref });
-}
-function BackgroundLayer() {
-  const [wanted, setWanted] = useState(wantedBackground);
-  const [started2, setStarted] = useState([]);
-  useLayoutEffect(() => {
-    const update = () => setWanted(wantedBackground());
-    update();
-    return onBackgroundChange(update);
-  }, []);
-  if (wanted && !byId.has(wanted)) {
-    console.warn(`[hermretro] no background "${wanted}" (page/backgrounds/index.js lists them)`);
+function isNewer(a, b) {
+  const [x, y] = [parts(a), parts(b)];
+  if (!x || !y) {
+    return false;
   }
-  const live = wanted && byId.has(wanted) && !started2.includes(wanted) ? [...started2, wanted] : started2;
-  useLayoutEffect(() => {
-    if (live !== started2) setStarted(live);
-  });
-  return live.map((id) => jsx(BackgroundSlot, { background: byId.get(id), shown: id === wanted }, id));
+  const index = x.findIndex((n, i) => n !== y[i]);
+  return index !== -1 && x[index] > y[index];
 }
-
-// page/app/page-view.js
-function storedTab(ctx, page) {
-  try {
-    const id = ctx?.storage?.get?.(`tab:${page.id}`, null);
-    return page.tabs.some((tab) => tab.id === id) ? id : page.tabs[0].id;
-  } catch {
-    return page.tabs[0].id;
-  }
-}
-function TabbedPage({ page, shell }) {
-  const [chosen, setChosen] = useState(() => storedTab(shell.ctx, page));
-  const tab = page.tabs.find((item) => item.id === chosen) ?? page.tabs[0];
-  const pick = (id) => {
-    setChosen(id);
-    try {
-      shell.ctx?.storage?.set?.(`tab:${page.id}`, id);
-    } catch {
-    }
-  };
-  return [
-    jsx(
-      "div",
-      {
-        "aria-label": `${page.label} tabs`,
-        className: "cs-tabs",
-        role: "tablist",
-        children: page.tabs.map(
-          (item) => jsx("button", { "aria-selected": item.id === tab.id, className: item.id === tab.id ? "on" : "", onClick: () => pick(item.id), role: "tab", type: "button", children: item.label }, item.id)
-        )
-      },
-      "tabs"
-    ),
-    page.Page ? jsx(page.Page, { shell, tab: tab.id }, "page") : null,
-    jsxs("div", { className: "cs-tab-body", role: "tabpanel", children: [jsx(tab.Page, { shell }, tab.id)] }, "tab")
-  ];
-}
-function PageView({ page, shell }) {
-  return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell });
-}
-
-// page/app/update/reload-banner.js
-function banner(tone, icon, text2, ...actions) {
-  return jsxs("div", {
-    className: tone ? `cs-repair ${tone}` : "cs-repair",
-    role: "status",
-    children: [jsx(Codicon, { name: icon, size: 14 }), jsx("span", { children: text2 }), ...actions]
-  });
-}
-function ReloadBanner({ update }) {
-  const { reload } = update;
-  if (reload.phase === "failed") {
-    return banner(
-      "bad",
-      "warning",
-      `Reload did not finish: ${String(reload.error ?? "no answer").replace(/\.$/, "")}.`,
-      jsx(Button, { disabled: Boolean(reload.blocked), onClick: reload.start, size: "sm", variant: "outline", children: "Try again" }, "again")
-    );
-  }
-  if (reload.phase === "restart") {
-    return banner(null, "refresh", `hermretro was updated. ${reload.advice} to finish loading it.`);
-  }
-  const reloading = reload.phase === "reloading";
-  return banner(
-    null,
-    "refresh",
-    "hermretro was updated, but Hermes is still running the old version.",
-    reload.blocked && !reloading ? jsxs("span", { className: "cs-repair-wait", children: [jsx(Codicon, { name: "clock", size: 12 }), reload.blocked] }, "wait") : null,
-    jsxs(
-      Button,
-      {
-        disabled: reloading || Boolean(reload.blocked),
-        onClick: reload.start,
-        size: "sm",
-        variant: "outline",
-        children: [reloading ? jsx(Codicon, { name: "loading", size: 12, spinning: true }, "spin") : null, reloading ? "Reloading" : "Reload"]
-      },
-      "reload"
-    )
-  );
+function releasesBetween(releases, from, to = null) {
+  return (Array.isArray(releases) ? releases : []).filter((release) => isNewer(release.version, from) && (!to || !isNewer(release.version, to)));
 }
 
 // page/app/update/use-update.js
 var CHECK_EVERY_MS = 30 * 6e4;
 var MARKER_FRESH_MS = 15 * 6e4;
-var DONE_SHOWN_MS = 1e4;
 var BUSY_EVERY_MS = 5e3;
 var installingSentence = (verb) => `The game tools are being installed. You can ${verb} when that finishes.`;
+var SEEN = "updateLater";
 var PENDING = "updatePending";
-function pendingUpdate(ctx) {
+function stored(ctx, key) {
   try {
-    const pending = ctx.storage.get(PENDING, null);
-    return pending && typeof pending === "object" ? pending : null;
+    return ctx.storage.get(key, null);
   } catch {
     return null;
   }
 }
+function pendingUpdate(ctx) {
+  const pending = stored(ctx, PENDING);
+  return pending && typeof pending === "object" ? pending : null;
+}
 function takeMarker(ctx) {
-  try {
-    const marker = ctx.storage.get(UPDATE_MARKER, null);
-    if (marker) {
-      ctx.storage.set(UPDATE_MARKER, null);
-    }
-    return marker && Date.now() - Number(marker.at ?? 0) < MARKER_FRESH_MS ? marker : null;
-  } catch {
-    return null;
+  const marker = stored(ctx, UPDATE_MARKER);
+  if (marker) {
+    remember2(ctx, UPDATE_MARKER, null);
   }
+  return marker && Date.now() - Number(marker.at ?? 0) < MARKER_FRESH_MS ? marker : null;
 }
 function remember2(ctx, key, value) {
   try {
@@ -18220,11 +18403,18 @@ function remember2(ctx, key, value) {
   } catch {
   }
 }
+function queuedSentence(chats, installing) {
+  if (installing) {
+    return "The game tools are being installed. The update starts as soon as that finishes.";
+  }
+  return chats.length === 1 ? `"${chats[0]}" is building. The update starts as soon as it finishes.` : `Games are being built in ${chats.length} chats. The update starts as soon as they finish.`;
+}
 var RESTART_ADVICE = { hermes: "Restart Hermes", app: "Quit and reopen Hermes" };
 function usePluginUpdate({ ctx, status, running, installing = false, installError = null, confirmInstallIdle }) {
   const queryClient = useQueryClient();
   const installedIn = status.data?.plugin?.installed_in ?? null;
   const profile = installedIn && !installedIn.linked ? installedIn.profile ?? null : null;
+  const version = status.data?.plugin?.version ?? null;
   const check = useQuery({
     queryKey: [ID, "plugin-update", profile],
     queryFn: async () => {
@@ -18237,47 +18427,47 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
     refetchOnWindowFocus: false,
     retry: false
   });
+  const releases = useQuery({
+    queryKey: [ID, "releases"],
+    queryFn: async () => (await callBackend(RPC_RELEASES, {}, 3e4)).data,
+    enabled: running && Boolean(profile),
+    refetchInterval: CHECK_EVERY_MS,
+    staleTime: CHECK_EVERY_MS / 2,
+    refetchOnWindowFocus: false,
+    retry: false
+  });
   const [state, setState] = useState(() => {
     const marker = takeMarker(ctx);
     if (marker) {
-      return { phase: marker.restart ? "restart" : "done", step: 0, announce: true, restartFor: "hermes" };
+      return { phase: marker.restart ? "restart" : "done", step: 0, announce: Boolean(marker.restart), restartFor: "hermes", from: marker.from ?? null };
     }
     const pending = pendingUpdate(ctx);
     return pending ? { phase: "partial", step: 0, error: pending.error ?? null } : { phase: "idle", step: 0 };
   });
-  const [open, setOpen] = useState(false);
-  const [reloadState, setReloadState] = useState({ phase: "idle", error: null });
+  const [open, setOpen] = useState(() => state.phase === "done");
+  const [seen, setSeen] = useState(() => stored(ctx, SEEN));
   const stale = Boolean(status.data?.restart_needed);
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return ctx.storage.get("updateLater", null);
-    } catch {
-      return null;
-    }
-  });
   const busy = useRef(false);
+  const auto = useRef({ tried: false, after: -1 });
   const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
   useEffect(() => {
-    if (!state.announce) {
-      return void 0;
+    if (state.announce) {
+      host.notify({ kind: "warning", message: `hermretro was updated. ${RESTART_ADVICE.hermes} to finish loading it.` });
     }
-    host.notify(
-      state.phase === "restart" ? { kind: "warning", message: `hermretro was updated. ${RESTART_ADVICE.hermes} to finish loading it.` } : { kind: "success", message: "hermretro is up to date. Your games and chats are kept." }
-    );
-    if (state.phase !== "done") {
-      return void 0;
-    }
-    ctx.setTimeout?.(() => setState((current) => current.phase === "done" ? { phase: "idle", step: 0 } : current), DONE_SHOWN_MS);
-    return void 0;
   }, []);
   const row = check.data?.row ?? null;
   const target = check.data?.target ?? null;
-  const ready = row?.update_available === true && Boolean(target);
-  const later2 = ready && dismissed && dismissed === (row.update_target ?? "ready");
+  const published = releases.data?.ok ? releases.data.releases : [];
+  const notes = releasesBetween(published, version);
+  const latest = notes[0]?.version ?? null;
+  const ready = Boolean(target) && (row?.update_available === true || notes.length > 0 && Boolean(row) && !row.pinned_sha);
+  const updateTarget = row?.update_target ?? null;
+  const putAway = Boolean(seen && (latest && seen.version === latest || updateTarget && seen.target === updateTarget || !latest && !updateTarget && seen.version === null));
+  const outside = running && stale && Boolean(installedIn) && !installedIn.linked;
   const building = useQuery({
     queryKey: [ID, "update-busy"],
     queryFn: async () => busyChats(await studioReloadTarget(studioExists)),
-    enabled: running && (ready && state.phase === "idle" || state.phase === "partial" || stale),
+    enabled: running && (ready && state.phase === "idle" || state.phase === "partial" || outside),
     refetchInterval: BUSY_EVERY_MS,
     retry: false
   });
@@ -18290,17 +18480,24 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
   }, [fresher]);
   const blockedFor = (verb) => installing ? installingSentence(verb) : installError || (chats.length ? busySentence(chats, verb) : null);
   const blocked = blockedFor("update");
+  const later2 = () => {
+    const value = { version: latest, target: updateTarget };
+    setSeen(value);
+    remember2(ctx, SEEN, value);
+  };
   const start = async (options = {}) => {
     if (busy.current || !target) {
       return;
     }
+    setOpen(true);
     if (blocked) {
-      setOpen(true);
+      if (!installError) {
+        setState((current) => ({ ...current, queued: options }));
+      }
       return;
     }
     busy.current = true;
     setUpdating(true);
-    setOpen(true);
     setState({ phase: "updating", step: 0 });
     const resume = Boolean(pendingUpdate(ctx));
     let outcome;
@@ -18324,7 +18521,7 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
         refused: () => remember2(ctx, PENDING, null),
         remember: (marker) => {
           remember2(ctx, PENDING, null);
-          remember2(ctx, UPDATE_MARKER, marker);
+          remember2(ctx, UPDATE_MARKER, { ...marker, from: version });
         }
       });
     } finally {
@@ -18337,16 +18534,18 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
       remember2(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null });
       setState({ phase: "partial", step: 0, error: outcome.error ?? null });
     } else if (outcome.kind === "updated") {
-      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2, restartFor: outcome.restart ? "hermes" : "app" });
+      setState({ phase: outcome.restart || !outcome.pageRefreshed ? "restart" : "done", step: 2, restartFor: outcome.restart ? "hermes" : "app", from: version });
     } else if (outcome.kind === "current") {
       setState({ phase: "idle", step: 0 });
       setOpen(false);
+      later2();
       host.notify({ kind: "success", message: "hermretro is already up to date." });
     } else if (outcome.kind === "busy") {
       setState((current) => ({
         phase: resume ? "partial" : "idle",
         step: 0,
         error: resume ? current.error ?? null : null,
+        queued: resume ? false : options,
         raced: outcome.chats,
         racedAt: building.dataUpdatedAt ?? 0
       }));
@@ -18357,12 +18556,12 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
     }
   };
   const reload = async () => {
-    if (busy.current || blockedFor("reload")) {
+    if (busy.current) {
       return;
     }
     busy.current = true;
     setUpdating(true);
-    setReloadState({ phase: "reloading", error: null });
+    setState({ phase: "updating", step: 1 });
     let outcome;
     try {
       let studio = null;
@@ -18379,53 +18578,90 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
         install,
         studio,
         busy: () => busyChats(studio),
-        confirmInstallIdle
+        confirmInstallIdle,
+        // The app may reload this page before runReload answers.
+        loadedNow: () => remember2(ctx, UPDATE_MARKER, { result: "updated", restart: false, at: Date.now(), from: version })
       });
     } finally {
       busy.current = false;
       setUpdating(false);
     }
-    setReloadState(
-      outcome.kind === "failed" ? { phase: "failed", error: outcome.error } : outcome.kind === "restart" ? { phase: "restart", error: null, restartFor: "hermes" } : outcome.kind === "reloaded" && !outcome.pageRefreshed ? { phase: "restart", error: null, restartFor: "app" } : { phase: "idle", error: null }
-    );
+    if (outcome.kind !== "reloaded" || !outcome.pageRefreshed) {
+      remember2(ctx, UPDATE_MARKER, null);
+    }
+    if (outcome.kind === "busy") {
+      auto.current = { tried: false, after: Date.now() };
+      setState({ phase: "idle", step: 0 });
+    } else if (outcome.kind === "failed") {
+      setState({ phase: "partial", step: 0, error: outcome.error, reloadOnly: true });
+    } else {
+      setState({ phase: outcome.kind === "reloaded" && outcome.pageRefreshed ? "done" : "restart", step: 2, restartFor: outcome.kind === "restart" ? "hermes" : "app", from: version });
+    }
     void queryClient.invalidateQueries({ queryKey: [ID] });
   };
+  const canLoad = outside && ["idle", "failed"].includes(state.phase) && Array.isArray(building.data) && (building.dataUpdatedAt ?? 0) > auto.current.after && !blockedFor("reload");
+  useEffect(() => {
+    if (!stale) {
+      auto.current = { tried: false, after: -1 };
+    }
+  }, [stale]);
+  useEffect(() => {
+    if (canLoad && !auto.current.tried && !busy.current) {
+      auto.current = { ...auto.current, tried: true };
+      void reload();
+    }
+  }, [canLoad]);
+  useEffect(() => {
+    if (state.queued && state.phase === "idle" && !blocked && !busy.current) {
+      void start(state.queued);
+    }
+  }, [state.queued, state.phase, blocked]);
   const phase = state.phase;
-  const visible = phase !== "idle" || ready && !later2;
+  const finished = () => setState((current) => current.phase === "done" ? { phase: "idle", step: 0 } : current);
   return {
-    visible,
+    visible: phase !== "idle" || ready,
     ready,
+    // the corner card: a new version the user has not put away yet
+    card: ready && phase === "idle" && !state.queued && !open && !putAway,
     // Hermes answered for this install (so "up to date" can be said), and whether it is a linked checkout
     checked: Boolean(row),
     linked: Boolean(installedIn?.linked),
     phase,
     step: state.step,
-    // why Update is refused right now (a build under way, the toolchain installing), or null
-    blocked,
+    // why Update waits or is refused right now (a build under way, the toolchain installing), or null
+    blocked: state.queued && blocked && !installError ? queuedSentence(chats, installing) : blocked,
+    // the user asked for the update; it starts once nothing is being built
+    queued: Boolean(state.queued),
+    // whether what blocks it finishes by itself, so Update may wait for it
+    queueable: !installError,
     // the chats a running update waits for before it reloads the hermretro profile, or null
     waiting: state.waiting ?? null,
     error: state.error ?? null,
     review: state.review ?? null,
-    version: status.data?.plugin?.version ?? null,
+    version,
+    // the newest published version and what every release newer than the installed one changed (newest first)
+    latest,
+    notes,
+    // what the releases this update brought changed (the dialog after it)
+    installedNotes: state.from ? releasesBetween(published, state.from, version) : published.filter((release) => release.version === version),
     // what the 'restart' phase asks the user to do
     restartAdvice: RESTART_ADVICE[state.restartFor] ?? RESTART_ADVICE.hermes,
-    // Hermes runs older code than is on disk (status restart_needed), and the banner's Reload
-    stale,
-    reload: { ...reloadState, advice: RESTART_ADVICE[reloadState.restartFor] ?? RESTART_ADVICE.hermes, blocked: blockedFor("reload"), start: () => void reload() },
     open,
-    setOpen,
+    setOpen: (value) => {
+      setOpen(value);
+      if (!value) {
+        finished();
+      }
+    },
     start: () => void start(),
+    // Finish update: the rest of a half-done update, or the load of an outside one again
+    finish: () => void (state.reloadOnly ? reload() : start()),
     agree: () => void start(state.review?.retry ?? {}),
     cancel: () => {
       setState({ phase: "idle", step: 0 });
       setOpen(false);
     },
-    later: () => {
-      const key = row?.update_target ?? "ready";
-      setDismissed(key);
-      remember2(ctx, "updateLater", key);
-      setOpen(false);
-    },
+    later: later2,
     whatsNew: () => void ctx.os?.openExternal?.(LINKS.releases),
     openPlugins: () => host.navigate(PLUGINS_HREF)
   };
@@ -18455,12 +18691,12 @@ function StudioPage({ ctx }) {
   const queryClient = useQueryClient();
   const [memory, update] = useSetupMemory(ctx);
   const [{ page, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
-    let stored = "build";
+    let stored2 = "build";
     try {
-      stored = ctx.storage.get("page", "build");
+      stored2 = ctx.storage.get("page", "build");
     } catch {
     }
-    return pageVisit(pageById(stored) ? stored : "build", 0);
+    return pageVisit(pageById(stored2) ? stored2 : "build", 0);
   });
   const changeBuildVisit = useCallback((change) => {
     setNavigation((current2) => current2.page === "build" && current2.visit === visit ? change(current2) : current2);
@@ -18738,11 +18974,11 @@ function StudioPage({ ctx }) {
       toggleCaptures: () => setCapturesOpen((open) => !open)
     }
   };
-  let body2;
+  let body;
   if (!running) {
-    body2 = [jsx(NotRunning, { backend, gateway, onRefresh: refresh, refreshing, status }, "off")];
+    body = [jsx(NotRunning, { backend, gateway, onRefresh: refresh, refreshing, status }, "off")];
   } else if (onboardScreen) {
-    body2 = [
+    body = [
       jsx(
         Onboarding,
         { ctx, doctor, install, onDevice: setUpDevice, onFinish: finishOnboarding, screen: onboardScreen, status, steps, update },
@@ -18750,7 +18986,7 @@ function StudioPage({ ctx }) {
       )
     ];
   } else {
-    body2 = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
+    body = [jsx(PageView, { page: currentPage, shell }, currentPage.id)];
   }
   const pad = running && !onboardScreen ? currentPage.pad ?? null : null;
   const broken = running && settled && !onboardScreen && page !== "setup" ? steps.find((step) => !step.hardware && !step.complete) : null;
@@ -18769,6 +19005,8 @@ function StudioPage({ ctx }) {
       },
       children: [
         jsx(PageStyle, {}, "style"),
+        jsx(UpdateCard, { update: pluginUpdate }, "update-card"),
+        jsx(UpdateDialog, { update: pluginUpdate }, "update-dialog"),
         onboardScreen ? jsx(
           OnboardHeader,
           {
@@ -18793,9 +19031,6 @@ function StudioPage({ ctx }) {
             className: pad ? `cs-pad ${pad}` : "cs-pad",
             children: [
               jsx(BackgroundLayer, {}, "background"),
-              // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
-              // A reload under way or ended stays said even when hermretro stops answering (left switched off).
-              (running && pluginUpdate.stale || pluginUpdate.reload.phase !== "idle") && pluginUpdate.phase !== "restart" ? jsx(ReloadBanner, { update: pluginUpdate }, "restart") : null,
               broken ? jsxs(
                 "div",
                 {
@@ -18809,7 +19044,7 @@ function StudioPage({ ctx }) {
                 },
                 "repair"
               ) : null,
-              ...body2,
+              ...body,
               stage,
               pad && currentPage.BelowPlayer ? jsx(currentPage.BelowPlayer, { shell }, "side") : null,
               pad ? null : jsx(Footer, { ctx }, "foot")

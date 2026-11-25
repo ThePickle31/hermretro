@@ -232,6 +232,19 @@ can start meanwhile). Returns `{ ok, removed_bytes, left_bytes, root }` or `{ ok
 `CUSTOM_LOCATION` (`HERMRETRO_DEPS_ROOT` / `GB_STUDIO_SETUP_ROOT` set), `UNEXPECTED_LOCATION` or `PARTLY_REMOVED`
 (some files could not be deleted; a retry finishes them). Setup can then install again.
 
+### `releases` — no params
+
+hermretro's published releases, for the page's update card and dialog: GitHub's releases of the repository, stable and
+published ones only (no drafts, no `-rc` tags), newest first. Each one's `notes` come from its generated notes (the
+squash-merged pull request titles): `feat` lines are `new`, `fix` lines `fixed`, without the `type(scope): ` prefix
+and the author; other types and the `dev`, `ci`, `test`, `tests`, `docs` and `release` scopes are left out. An answer
+is kept for 10 minutes; a failure is not kept. Never raises.
+
+```
+{ ok: true, releases: [{ version: "0.0.13", date: "2026-11-24T04:00:00Z", url, notes: [{ kind: "new" | "fixed", text }] }] }
+{ ok: false, error }
+```
+
 ### `activity` — params `{ chat?: string, stored?: string, limit?: number }`
 
 Was for the panes beside the chat, which are gone (the Build page shows the agent's work); kept for older

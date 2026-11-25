@@ -10,7 +10,10 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const document = dom.window.document
   scenario.byMethod['plugin.hermretro.install'] = () => installAnswer({ state: 'idle' }).data
   const chip = () => document.querySelector('.cs-upd-chip')
-  const popover = () => document.querySelector('.cs-upd-pop')?.textContent.replace(/\s+/g, ' ') ?? ''
+  const scrim = () => document.querySelector('.cs-upd-scrim')
+  const popover = () => scrim()?.textContent.replace(/\s+/g, ' ') ?? ''
+  // The dialog's own buttons (the corner card and the Setup row have an Update too).
+  const inDialog = label => [...(scrim()?.querySelectorAll('button') ?? [])].find(node => node.textContent === label)
   const openChip = async () => { await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
   const log = []
   const updates = []
@@ -44,7 +47,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
       ? { ok: false, consent_required: true, delta_lines: ['+ tool chromatic_new'] }
       : { ok: true, unchanged: false, gateway_reloaded: true }
   await fresh()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   await click('Install anyway'); await settle(40)
   check('after the scan review, Hermes asks about the widened plugin', () => { assert.match(popover(), /adds to what hermretro can do/); assert.match(popover(), /\+ tool chromatic_new/) })
   await click('Install anyway'); await settle(40)
@@ -53,11 +56,26 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.equal(chip().textContent, 'Updated')
   })
 
+  // A build starts while Hermes's question is on screen (after the last cached check): Install anyway is caught by the
+  // live check, waits for the build, and keeps the yes.
+  updateAnswer = params => (params.force ? { ok: true, unchanged: false, gateway_reloaded: true } : { ok: false, scan_blocked: true, scan_verdict: 'caution', scan_findings: [] })
+  await fresh()
+  await openChip(); await click('Update', scrim()); await settle(40)
+  sessions = () => [{ title: 'Comet Drift', status: 'working' }]
+  await click('Install anyway'); await settle(40)
+  check('Install anyway while a game builds waits for it', () => { assert.equal(updates.length, 1); assert.ok(inDialog('Waiting…')) })
+  sessions = () => []
+  scenario['update-busy'] = { ...answered([]), dataUpdatedAt: Date.now() + 60_000 }
+  await render(); await settle(40)
+  check('and once it finishes, the update goes with the yes already given', () => {
+    assert.deepEqual(updates.map(params => Boolean(params.force)), [false, true]); assert.equal(chip().textContent, 'Updated')
+  })
+
   // Switching hermretro back on in the hermretro profile fails: installed, not finished.
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true })
   toggleOn = () => ({ ok: false })
   await fresh()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('an update that installed but could not finish says so, never "nothing was changed"', () => {
     assert.equal(chip().textContent, 'Finish update')
     assert.match(popover(), /The new version is installed, but hermretro could not be switched back on in the hermretro profile/)
@@ -68,7 +86,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   check('a reopened page still shows the unfinished update', () => { assert.equal(chip()?.textContent, 'Finish update') })
   updateAnswer = () => ({ ok: true, unchanged: true })
   toggleOn = () => ({ ok: true, gateway_reloaded: true })
-  await openChip(); await click('Finish update', document.querySelector('.cs-upd-pop')); await settle(40)
+  await openChip(); await click('Finish update', scrim()); await settle(40)
   check('Finish update runs the remaining steps although Hermes answers "unchanged"', () => {
     assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'toggle:false', 'toggle:true'])
     assert.equal(chip().textContent, 'Updated'); assert.equal(scenario.storage.updatePending, null)
@@ -79,7 +97,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   for (const [form, answer] of [['an error', () => { throw new Error('backend gone') }], ['ok: false', () => ({ ok: false, error: 'profile locked' })]]) {
     scenario.byMethod['plugin.hermretro.studio_profile'] = () => { log.push('finish'); return answer() }
     await fresh()
-    await openChip(); await click('Update now'); await settle(40)
+    await openChip(); await click('Update', scrim()); await settle(40)
     check(`a profile settings step that fails with ${form} leaves the update unfinished and reloads nothing`, () => {
       assert.equal(chip().textContent, 'Finish update'); assert.match(popover(), /the hermretro profile's settings were not updated/)
       assert.ok(!log.includes('toggle:false')); assert.ok(scenario.storage.updatePending)
@@ -87,9 +105,9 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => { log.push('finish'); return { ok: true } }
   updateAnswer = () => ({ ok: true, unchanged: true })
-  if (!document.querySelector('.cs-upd-pop')) await openChip()
+  if (!scrim()) await openChip()
   log.length = 0
-  await click('Finish update', document.querySelector('.cs-upd-pop')); await settle(40)
+  await click('Finish update', scrim()); await settle(40)
   check('Finish update redoes the profile settings step, then reloads', () => {
     assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'toggle:false', 'toggle:true']); assert.equal(chip().textContent, 'Updated')
   })
@@ -98,36 +116,36 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => { log.push('finish'); return { ok: true } }
   updateAnswer = () => { throw new Error('request timed out') }
   await fresh()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('a lost answer from Hermes leaves the update unfinished, never "nothing was changed"', () => {
     assert.equal(chip().textContent, 'Finish update'); assert.match(popover(), /Hermes's answer was lost \(request timed out\)/)
     assert.ok(scenario.storage.updatePending); assert.ok(!/Nothing was changed/.test(popover()))
   })
   updateAnswer = () => ({ ok: true, unchanged: true })
   log.length = 0
-  if (!document.querySelector('.cs-upd-pop')) await openChip()
-  await click('Finish update', document.querySelector('.cs-upd-pop')); await settle(40)
+  if (!scrim()) await openChip()
+  await click('Finish update', scrim()); await settle(40)
   check('the retry finds it installed ("unchanged") and still finishes every step', () => {
     assert.deepEqual(log, ['busy', 'update', 'finish', 'busy', 'toggle:false', 'toggle:true']); assert.equal(chip().textContent, 'Updated')
   })
   // A Hermes refusal (with a code) changed nothing: a plain failure that forgets the marker.
   updateAnswer = () => { throw Object.assign(new Error('Plugin is being updated by another process'), { code: 4021 }) }
   await fresh()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('a refusal from Hermes is a plain failure and leaves nothing pending', () => {
     assert.equal(chip().textContent, 'Update failed'); assert.equal(scenario.storage.updatePending, null)
   })
   // The Setup row says where the update stands, never "up to date" while one is outstanding.
   scenario.storage.page = 'setup'
   await act(async () => { root.render(null) }); scenario['plugin-update'] = row(true); await render()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('after a failed update the Setup row does not say "up to date"', () => {
     assert.match(document.querySelector('.cs-facts').textContent, /the update did not go through/)
     assert.ok(!/up to date/.test(document.querySelector('.cs-facts').textContent))
   })
   updateAnswer = () => ({ ok: false, scan_blocked: true, scan_verdict: 'caution', scan_findings: [] })
   await fresh({ page: 'setup' })
-  await openChip(); await click('Update now', document.querySelector('.cs-upd-pop')); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('while Hermes waits for an answer the Setup row says so', () => {
     assert.match(document.querySelector('.cs-facts').textContent, /the update waits for your answer in the header/)
   })
@@ -140,7 +158,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   scenario.ambient = null
   scenario.routesError = new Error('connection registry unavailable')
   await act(async () => { root.render(null) }); await render()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('a failed profile lookup stops the update before anything changes', () => {
     assert.ok(!log.includes('update'), log.join(', ')); assert.equal(chip().textContent, 'Update failed')
     assert.match(popover(), /Could not reach the hermretro profile \(connection registry unavailable\)/)
@@ -150,7 +168,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   scenario.routes = [{ profile: 'default', connectionId: 'local' }]
   log.length = 0
   await act(async () => { root.render(null) }); await render()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('a hermretro profile the status reports but the app does not list stops the update too', () => {
     assert.ok(!log.includes('update'), log.join(', ')); assert.match(popover(), /the hermretro profile is not reachable right now/)
   })
@@ -167,7 +185,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   }
   await fresh()
   const clock = holdTimers()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   for (let round = 0; round < 8 && log.filter(entry => entry === 'busy').length < 7; round++) await clock.fire()
   check('a failed check after a busy one never reloads the hermretro profile', () => {
     assert.ok(!log.includes('toggle:false'), `no reload: ${log.join(', ')}`)

@@ -1,5 +1,5 @@
 // No update while something is being built (app/update/): a chat in the hermretro profile with a turn under way, or the
-// page's toolchain install, refuses Update; a build that starts after the last check is caught right before anything
+// page's toolchain install, makes Update wait for it; a build that starts after the last check is caught right before anything
 // changes; one that starts while Hermes updates is waited for before the hermretro profile reloads; and nothing new is
 // sent from the Build page while an update runs.
 import assert from 'node:assert/strict'
@@ -10,7 +10,10 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const document = dom.window.document
   scenario.byMethod['plugin.hermretro.install'] = () => installAnswer({ state: 'idle' }).data
   const chip = () => document.querySelector('.cs-upd-chip')
-  const popover = () => document.querySelector('.cs-upd-pop')?.textContent.replace(/\s+/g, ' ') ?? ''
+  const scrim = () => document.querySelector('.cs-upd-scrim')
+  const popover = () => scrim()?.textContent.replace(/\s+/g, ' ') ?? ''
+  // The dialog's own buttons (the corner card and the Setup row have an Update too).
+  const inDialog = label => [...(scrim()?.querySelectorAll('button') ?? [])].find(node => node.textContent === label)
   const openChip = async () => { await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
   const base = () => ({ ...status(), plugin: { version: '1.2.3', installed_in: { profile: 'default', linked: false } } })
   // Everything the update asks Hermes, in order: 'busy' for each look at the hermretro profile's chats.
@@ -36,13 +39,29 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     await render()
   }
 
-  // A chat is building: Update is refused, and says where.
+  // A chat is building: Update waits for it, and says where.
   await fresh({ busy: ['Comet Drift'] })
   await openChip()
-  check('while a chat builds, the popover says which and Update now is disabled', () => {
+  check('while a chat builds, the dialog says which', () => {
     assert.match(popover(), /A game is being built in "Comet Drift"\. You can update when it finishes\./)
-    assert.equal(button('Update now').disabled, true)
   })
+  await click('Update', scrim()); await settle(40)
+  check('Update then waits for the build, changing nothing yet', () => {
+    assert.match(popover(), /"Comet Drift" is building\. The update starts as soon as it finishes\./)
+    assert.equal(inDialog('Waiting…').disabled, true); assert.ok(inDialog('Cancel'))
+    assert.ok(!log.includes('update'))
+  })
+  scenario['update-busy'] = answered([])
+  await render(); await settle(40)
+  check('once the build finishes, the update starts by itself', () => {
+    assert.ok(log.includes('update')); assert.equal(chip().textContent, 'Updated')
+  })
+  await fresh({ busy: ['Comet Drift'] })
+  await openChip(); await click('Update', scrim()); await click('Cancel', scrim())
+  scenario['update-busy'] = answered([])
+  await render(); await settle(40)
+  check('Cancel forgets the waiting update', () => { assert.ok(!log.includes('update')) })
+  await fresh({ busy: ['Comet Drift'] })
   check('the busy check runs every 5 seconds while an update is ready', () => {
     const query = scenario.queries.filter(entry => entry.key === 'update-busy').at(-1)
     assert.equal(query.enabled, true); assert.equal(query.refetchInterval, 5_000)
@@ -57,23 +76,23 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   // The toolchain install is running.
   await fresh({ install: 'running' })
   await openChip()
-  check('while the game tools install, Update now is disabled', () => {
-    assert.match(popover(), /The game tools are being installed/); assert.equal(button('Update now').disabled, true)
+  check('while the game tools install, the dialog says so and Update would wait for it', () => {
+    assert.match(popover(), /The game tools are being installed/); assert.equal(inDialog('Update').disabled, false)
   })
 
   // A build started after the last check: caught right before anything changes.
   sessions = () => [building()]
   await fresh()
-  await openChip(); await click('Update now'); await settle(40)
-  check('a build that started since the last check stops the update before Hermes changes anything', () => {
+  await openChip(); await click('Update', scrim()); await settle(40)
+  check('a build that started since the last check holds the update before Hermes changes anything', () => {
     assert.deepEqual(log, ['busy'])
-    assert.match(popover(), /A game is being built in "Comet Drift"/); assert.equal(button('Update now').disabled, true)
+    assert.match(popover(), /"Comet Drift" is building\. The update starts as soon as it finishes/); assert.equal(inDialog('Waiting…').disabled, true)
   })
 
   // The check itself fails: no update on a guess.
   scenario.byMethod['session.active_list'] = () => { log.push('busy'); throw new Error('profile not reachable') }
   await fresh()
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('when the chats cannot be checked, nothing is updated', () => {
     assert.deepEqual(log, ['busy']); assert.equal(chip().textContent, 'Update failed')
     assert.match(popover(), /Could not check whether a game is being built \(profile not reachable\)/)
@@ -85,7 +104,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   sessions = () => { looks += 1; return looks === 2 || looks === 3 ? [building('Moon Maze')] : [] }
   const clock = holdTimers()  // the update's wait for the build to finish, on the fake clock
   await fresh()
-  await openChip(); await click('Update now'); await settle(300)
+  await openChip(); await click('Update', scrim()); await settle(300)
   check('a build started during the update is waited for, and the popover says so', () => {
     assert.match(popover(), /Waiting for "Moon Maze" to finish building/)
     assert.ok(!log.includes('toggle:false'), 'not reloaded while it builds')
@@ -109,7 +128,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await render()
   const download = () => button('Download and install')
   check('the install screen offers Download and install before an update', () => { assert.ok(download()); assert.equal(download().disabled, false) })
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
   check('while the update runs, Download and install is disabled', () => { assert.equal(download().disabled, true) })
   download().click(); await settle(40)
   check('and pressing it starts no install', () => { assert.ok(!installs.includes('prepare_start')) })
@@ -126,7 +145,10 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const send = () => document.querySelector('.cs-b-new .cs-b-send')
   await typeInto(document.querySelector('.cs-b-new textarea'), 'A lighthouse game')
   check('with an idea typed, New Game can start', () => { assert.equal(send().disabled, false) })
-  await openChip(); await click('Update now'); await settle(40)
+  await openChip(); await click('Update', scrim()); await settle(40)
+  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+  await act(async () => { scrim().dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true })) })
+  check('while updating, neither Escape nor a click beside the dialog closes it', () => { assert.ok(scrim()); assert.match(popover(), /Updating/) })
   check('while updating, New Game cannot start a game', () => {
     assert.ok(send(), 'the New Game composer is shown'); assert.equal(send().disabled, true)
     assert.match(send().getAttribute('title'), /hermretro is updating/)

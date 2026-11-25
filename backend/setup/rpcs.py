@@ -1,4 +1,4 @@
-"""The Setup page's RPCs: status, doctor, activity, studio_profile, install and remove_tools. Declared with
+"""The Setup page's RPCs: status, doctor, activity, studio_profile, install, remove_tools and releases. Declared with
 @rpc; registered in this order (backend/hermes/declare.py)."""
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import host as host_os, paths
 from ..system.events import emit
-from . import claude_login, progress as onboarding, provision, recovery, studio_profile, studio_providers
+from . import claude_login, progress as onboarding, provision, recovery, releases, studio_profile, studio_providers
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -522,3 +522,13 @@ def rpc_remove_tools(ctx):
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
 
     return remove
+
+
+@rpc("releases")
+def rpc_releases(ctx):
+    """hermretro's published releases and what each changed, for the page's update card (releases.py)."""
+
+    def answer(params, **_kwargs):
+        return releases.latest()
+
+    return answer
