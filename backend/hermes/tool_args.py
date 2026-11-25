@@ -34,14 +34,26 @@ NEXT_STEPS = {
 }
 
 
+def _same_folder(one, other) -> bool:
+    try:
+        return os.path.samefile(one, other)
+    except (OSError, ValueError):
+        return False
+
+
 def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id: str) -> str | None:
     """The refusal when this chat may not act on ``folder``: a library game is acted on only from its own
     conversation. ``ONE_GAME_PER_CONVERSATION`` for a game's Build conversation and another folder, ``NEW_GAME_ONLY``
     for a New Game conversation and an existing library game, ``GAME_CHAT_ONLY`` for any other chat and a library
     game; None when the chat may act on it."""
-    kind, bound = host._chat_binding(conversation_id, session_id)
+    registry = host._registry()
+    data = registry.load()
+    ids = [value for value in (conversation_id, session_id) if value]
+    kind, bound = registry.binding_for(host._profile_identity(), ids, snapshot=data) if ids else (None, None)
+    # The game the folder is in: itself, or the deepest game whose folder holds it.
+    other = registry.owning_game(str(folder), snapshot=data)
     if kind == "game":
-        if os.path.realpath(folder) == os.path.realpath(bound["projectRoot"]):
+        if other is not None and other["id"] == bound.get("id") and _same_folder(folder, other["projectRoot"]):
             return None
         title = bound.get("title") or Path(bound["projectRoot"]).name
         return tool_error(
@@ -51,7 +63,6 @@ def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id
             f"Leave out project to act on \"{title}\". To work on another game, tell the user to open it on the "
             "hermretro Build page.",
         )
-    other = host._registry().game_for_root(str(folder))
     if other is None:
         return None
     title = other.get("title") or Path(other["projectRoot"]).name

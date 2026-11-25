@@ -74,9 +74,9 @@ for actual scene behavior. Distinguish source previews from verified gameplay.
 
 ## In hermretro
 
-- Call `chromatic_*` tools directly, never from `execute_code`. One chat works on one project folder
-  (`PATH_OUTSIDE_PROJECT` otherwise: use a new chat); `PROJECT_WRITER_BUSY` means another chat is editing
-  or building this project right now.
+- Call `chromatic_*` tools directly, never from `execute_code`. Each game is worked on only in its own
+  conversation (`GAME_CHAT_ONLY` otherwise: the user opens that game on the hermretro Build page);
+  `PROJECT_WRITER_BUSY` means the game is still busy with an earlier call.
 - To show art in the running game, build with `chromatic_rom_build`, playtest it, make sure the game card
   is complete (`chromatic_game_info`), then call `chromatic_present_game` with a `note` on what to look at.
 - `chromatic_asset_import` imports several PNGs at once (`assets`), sets the sprite palette slot

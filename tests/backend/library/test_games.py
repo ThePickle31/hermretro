@@ -105,15 +105,19 @@ class Registry(unittest.TestCase):
         )
         self.assertNotIn("session", self.registry.get(games.game_id(other)))
 
-    def test_selecting_a_project_new_to_the_library_makes_it_that_chats_game_but_a_known_one_stays_as_it_is(self):
-        known, fresh = make_project(self.base, "Known"), make_project(self.base, "Fresh")
-        self.registry.upsert(str(known))
-        for root in (known, fresh):
+    def test_the_chat_that_selects_a_project_claims_it_in_the_same_step_that_registers_it(self):
+        # The Games page may register a selected root first (seeding from the broker), without a conversation: the
+        # chat that selected it still becomes its conversation.
+        seeded, owned = make_project(self.base, "Seeded"), make_project(self.base, "Owned")
+        self.registry.upsert(str(seeded), only_if_missing=True)
+        self.registry.upsert(str(owned))
+        self.registry.bind(games.game_id(owned), "c-1", None)
+        for root in (seeded, owned):
             self.registry.observe(
                 "project_select", {}, {"projectRoot": str(root)}, False, lane_root=str(root), conversation_id="c-2"
             )
-        self.assertNotIn("session", self.registry.get(games.game_id(known)))
-        self.assertEqual(self.registry.get(games.game_id(fresh))["session"]["storedId"], "c-2")
+        self.assertEqual(self.registry.get(games.game_id(seeded))["session"]["storedId"], "c-2")
+        self.assertEqual(self.registry.get(games.game_id(owned))["session"]["storedId"], "c-1")  # never taken over
 
     def test_states_follow_builds_and_source_edits(self):
         root = make_project(self.base, web=False, built=False)

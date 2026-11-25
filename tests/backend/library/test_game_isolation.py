@@ -77,6 +77,16 @@ class TwoGamesAtOnce(unittest.TestCase):
         self.assertIsNone(shown[self.a]["chat"])
         self.assertEqual(shown[self.b]["chat"]["sessionId"], "chat-b")
 
+    def test_a_folder_inside_a_game_counts_as_that_game(self):
+        inside = self.root_a / "docs"
+        inside.mkdir(exist_ok=True)
+        self.assertEqual(self.present({"project": str(inside)}, "side-chat")["code"], "GAME_CHAT_ONLY")
+        self.assertEqual(self.present({"project": str(inside)}, "chat-b")["code"], "ONE_GAME_PER_CONVERSATION")
+        self.assertEqual(self.present({"project": str(inside)}, "chat-a")["code"], "ONE_GAME_PER_CONVERSATION")
+        inner = make_project(self.root_a, "Inner")
+        hermes_host._registry().upsert(str(inner))
+        self.assertEqual(self.info({"project": str(inner)}, "chat-a")["code"], "ONE_GAME_PER_CONVERSATION")
+
     def test_naming_its_own_game_is_fine(self):
         self.assertTrue(self.present({"project": str(self.root_b)}, "chat-b")["ok"])
 

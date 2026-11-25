@@ -18,9 +18,13 @@
   held to the game's test plan by `report_plan.py` and `plan_checks.py`, its finishable run's recording read by
   `finish_run.py`).
 - Hooks (`hooks.py`): `pre_llm_call` — tells a game's Build conversation which game it works on; `pre_tool_call` —
-  blocks Hermes's `write_file` and `patch` from writing into a game's `.hermretro/`, and into a library game's folder
-  from any chat but that game's own conversation (the deepest game folder holding the path; relative paths read against
-  `$TERMINAL_CWD` and the gateway's folder). A terminal command is not parsed, so a shell command is not checked.
+  blocks Hermes's `write_file` and `patch` (`file_guard.py`) from writing into a game's `.hermretro/` (wherever a link
+  takes it), into a library game's folder from any chat but that game's own conversation, and into a game without its
+  source (`ownership.editable`: an install without its source). The game is the deepest library folder holding the
+  path, matched by file-system identity (`ownership.py`); `..` is read both by spelling and through links; a patch is
+  read with Hermes's V4A grammar, a delete or move by its directory entry. Relative and `~` paths are refused (Hermes
+  reads them against the chat's own working folder, which is not plugin API), and so is every write while
+  `games.json` cannot be read. A terminal command is not parsed, so a shell command is not checked.
 - Events emitted: `library.build_reported` (`game`: the game's id, `None` when the chat has no project; `assets`: the images the card shows, which assets keeps), `library.game_presented`. Listens to: none.
 
 ## Front door

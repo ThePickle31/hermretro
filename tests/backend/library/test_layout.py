@@ -264,7 +264,8 @@ class Layout(unittest.TestCase):
             return (hooks.guard_game_record(tool_name=tool, args=args) or {}).get("action") == "block"
 
         notes = (
-            "*** Begin Patch\n*** Update File: docs/notes.md\n@@\n+ids live in .hermretro/identity.json\n*** End Patch"
+            f"*** Begin Patch\n*** Update File: {self.home.base / 'notes.md'}\n@@\n+ids live in .hermretro/identity.json\n"
+            "*** End Patch"
         )
         self.assertFalse(blocked("patch", {"mode": "patch", "patch": notes}))
         self.assertTrue(blocked("write_file", {"path": str(alias / "identity.json")}))

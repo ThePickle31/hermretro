@@ -20,6 +20,7 @@ from .games import (
 )
 from .games import _json as read_json
 from .freshness import plays_game_rom
+from .ownership import engine_path
 from .project import ROM_STEM, canonical_rom
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "Registry",
     "canonical_rom",
     "cover_path",
+    "engine_path",
     "file_sha256",
     "game_id",
     "has_web_export",

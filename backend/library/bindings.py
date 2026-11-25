@@ -62,11 +62,13 @@ def record_chat(entry: dict, chat: dict | None) -> None:
         entry["chat"] = chat
 
 
-def binding_for(registry, profile: str | None, ids) -> tuple[str | None, dict | None]:
+def binding_for(registry, profile: str | None, ids, snapshot: dict | None = None) -> tuple[str | None, dict | None]:
+    """What a chat is: ``("game", entry)``, ``("pending", record)`` or ``(None, None)``; read from ``snapshot`` when
+    given (one read serves a whole check)."""
     wanted = {value for value in ids if isinstance(value, str) and value}
     if not wanted:
         return None, None
-    kind, identifier, entry = _binding_in(registry.load(), profile, wanted)
+    kind, identifier, entry = _binding_in(registry.load() if snapshot is None else snapshot, profile, wanted)
     return kind, project.identified_game(identifier, entry) if kind == "game" else entry
 
 
@@ -193,29 +195,37 @@ def claim_pending(registry, identifier: str, profile: str | None, ids) -> dict |
         return project.identified_game(identifier, entry)
 
 
-def claim_new(registry, identifier: str, profile: str | None, conversation_id: str, sessions_seen=()) -> dict | None:
-    """Make a chat that belongs to no game the conversation of the game it just made (or the project it just brought
-    into the library), so every library game is edited from one chat. Nothing changes when the chat already belongs to
-    a game or is a New Game conversation (``claim_pending`` is that one's), or the game already has its conversation."""
+def claim_in(data: dict, identifier: str, profile: str | None, conversation_id, sessions_seen=()) -> bool:
+    """In a registry snapshot ``data`` held under its lock: make a chat that belongs to no game the conversation of
+    ``identifier`` (the game it just made, or the project it just brought into the library), so every library game is
+    edited from one chat. Nothing changes (False) when the chat already belongs to a game or is a New Game conversation
+    (``claim_pending`` is that one's), or the game already has its conversation."""
     if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 256:
-        return None
+        return False
     wanted = {conversation_id, *(value for value in sessions_seen if isinstance(value, str) and value)}
+    entry = data["games"].get(identifier)
+    kind, _, _ = _binding_in(data, profile, wanted)
+    if kind is not None or not isinstance(entry, dict) or isinstance(entry.get("session"), dict):
+        return False
+    aliases = [value for value in sessions_seen if isinstance(value, str) and value and value != conversation_id]
+    entry["session"] = {
+        "storedId": conversation_id,
+        "profile": profile,
+        "createdAt": time.time(),
+        "aliases": aliases[-16:],
+    }
+    _chat_follows_session(entry)
+    return True
+
+
+def claim_new(registry, identifier: str, profile: str | None, conversation_id: str, sessions_seen=()) -> dict | None:
+    """``claim_in`` under the registry lock; the claimed game, or None when nothing changed."""
     with registry._locked():
         data = registry.load()
-        entry = data["games"].get(identifier)
-        kind, _, _ = _binding_in(data, profile, wanted)
-        if kind is not None or not isinstance(entry, dict) or isinstance(entry.get("session"), dict):
+        if not claim_in(data, identifier, profile, conversation_id, sessions_seen):
             return None
-        aliases = [value for value in sessions_seen if isinstance(value, str) and value and value != conversation_id]
-        entry["session"] = {
-            "storedId": conversation_id,
-            "profile": profile,
-            "createdAt": time.time(),
-            "aliases": aliases[-16:],
-        }
-        _chat_follows_session(entry)
         registry._save(data)
-        return project.identified_game(identifier, entry)
+        return project.identified_game(identifier, data["games"][identifier])
 
 
 def note_alias(registry, profile: str | None, conversation_id: str, session_id: str) -> None:

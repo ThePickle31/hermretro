@@ -52,7 +52,7 @@ Work in the creator's genuine `.gbsproj` / `.gbsres` project so the result stays
 - For any helper code (drawing a PNG, computing collision rectangles, writing a `chromatic_scene_apply`
   operations file), write a script file in the game's own `scratch/` folder and run it; create the project first.
   `scratch/` stays on this machine and out of builds, publishes and build history. Give each file a name of its own
-  for the job (`scratch/door-collision.py`, not `scratch/script.py`): another chat on the same game uses the same
+  for the job (`scratch/door-collision.py`, not `scratch/script.py`): another conversation of the same game uses the same
   folder. One-shot chats refuse `python -c` and heredocs.
 
 If the plugin needs setup or its tools cannot start, use the [setup skill](../setup/SKILL.md) first. Creating or iterating a playable game needs `runtime,build`, including its browser preview. Use runtime alone only for source inspection or edits that do not require a build; add `emulator` for local stepped play. Carry necessary authorized setup through installation and callable tools, then return to the requested game. Do not stop at a passive doctor report or ask the user to install Node/npm manually.
@@ -76,7 +76,7 @@ unknown outcomes first. Do not arbitrarily reload or autoplay.
 
 ## Select the intended project
 
-`chromatic_session_status {}` reports the current selection without granting access. Confirm it is the project the user intends; if none is selected or a different one is active, use `chromatic_project_select` with the intended absolute `.gbsproj` path before reading or editing project resources. To start a game, use `chromatic_project_create` without `destinationPath` (it goes in the Studio's games folder; pass an absolute unused destination under an existing canonical parent only for a folder the user names) and `select:true` when continuing in it. `starter` is included. `wrecklight` creates an editable adventure copy; compact installations require its matching local `templateSourcePath`. Never edit the source template. Discovery grants no access and neither creation nor selection expands an existing authorization boundary. See [project selection](references/project-selection.md) for the authorization rules, or the [Wrecklight remix guide](references/wrecklight-remix.md) for that template.
+`chromatic_session_status {}` reports the current selection without granting access. A game's own conversation has its game selected for it. Each hermretro game is opened and edited only in its own conversation: when the user wants another existing game, tell them to open it on the hermretro Build page and continue there (selecting it here is refused with `GAME_CHAT_ONLY`). To start a game, use `chromatic_project_create` without `destinationPath` (it goes in the Studio's games folder; pass an absolute unused destination under an existing canonical parent only for a folder the user names) and `select:true` when continuing in it. `starter` is included. `wrecklight` creates an editable adventure copy; compact installations require its matching local `templateSourcePath`. Never edit the source template. Discovery grants no access and neither creation nor selection expands an existing authorization boundary. See [project selection](references/project-selection.md) for the authorization rules, or the [Wrecklight remix guide](references/wrecklight-remix.md) for that template.
 
 ## Author native resources
 
@@ -111,9 +111,9 @@ Verify the change at the level the request needs: reread the native resources, b
 - Call `chromatic_*` tools directly (or through `tool_call`), never from inside `execute_code` (refused with `IDENTITY_REQUIRED`).
   A delegated subagent can only inspect a project; selecting, creating, editing, building and emulator
   play run in the main conversation (`PARENT_ONLY`, `LEASE_REQUIRED`).
-- Each chat has its own engine worker bound to one project folder: once a project is selected, another
-  folder fails with `PATH_OUTSIDE_PROJECT`, so use a new chat for it. If another chat is editing or
-  building the same project, edits fail with `PROJECT_WRITER_BUSY`: wait, or continue in that chat.
+- Each game is worked on only in its own conversation: opening another game, or writing its files, is refused
+  (`GAME_CHAT_ONLY`, `ONE_GAME_PER_CONVERSATION`); tell the user to open that game on the hermretro Build page.
+  Write files with absolute paths. `PROJECT_WRITER_BUSY` means the game is still busy with an earlier call: wait.
 - `chromatic_project_create` and `chromatic_project_create_blank` without `destinationPath` create
   `<plugin>/games/<name>`. Created, selected and built projects appear on the Studio's Games page.
 - With the plugin setting "Keep the playable copy current" on (the default), each successful

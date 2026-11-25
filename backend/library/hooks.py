@@ -5,121 +5,24 @@ command can still write there: this guards the file tools, not the shell."""
 
 from __future__ import annotations
 
-import os
-import re
 import stat
-import sys
 from pathlib import Path
 
 from ..hermes import host, workflow
 from ..hermes.declare import hook
-from . import layout
-
-# Hermes's own file-writing tools (a terminal command is not parsed), and a V4A patch's file headers.
-FILE_WRITE_TOOLS = frozenset({"write_file", "patch"})
-PATCH_TARGET = re.compile(r"^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$", re.M)
-
-
-def _targets(args: dict) -> list[str]:
-    """The files a ``write_file`` or ``patch`` call would write: its ``path``, and a V4A patch's file headers."""
-    found = [args["path"]] if isinstance(args.get("path"), str) else []
-    if isinstance(args.get("patch"), str):
-        found += [match.strip() for match in PATCH_TARGET.findall(args["patch"])]
-    return found
-
-
-def _resolved(target: str, base: str | None = None) -> Path | None:
-    try:
-        path = os.path.expanduser(target)
-        return Path(os.path.realpath(os.path.join(base, path) if base and not os.path.isabs(path) else path))
-    except (TypeError, ValueError, OSError):
-        return None
-
-
-def _candidates(target: str) -> list[Path]:
-    """Where a file tool may write ``target``. A relative path is read against the configured terminal folder and this
-    process's folder: Hermes resolves it against the chat's own working folder, which a hook cannot see."""
-    if os.path.isabs(os.path.expanduser(target)):
-        bases = [None]
-    else:
-        configured = os.environ.get("TERMINAL_CWD")
-        bases = [configured if configured and os.path.isabs(configured) else None, None]
-    return [path for path in (_resolved(target, base) for base in bases) if path is not None]
-
-
-def _in_game_record(resolved: Path) -> bool:
-    """Whether ``resolved`` is in a ``.hermretro/`` folder (letter case aside)."""
-    return any(part.lower() == layout.STATE_DIR for part in resolved.parts)
-
-
-def _parts(path: Path) -> tuple[str, ...]:
-    """A real path's parts, compared without letter case on macOS (its file systems ignore it)."""
-    return tuple(part.lower() for part in path.parts) if sys.platform == "darwin" else path.parts
-
-
-def _owning_game(resolved: Path) -> tuple[dict, Path] | None:
-    """The library game whose folder is or holds ``resolved``: the deepest one, so a project inside another game's
-    folder is never taken for that game."""
-    wanted = _parts(resolved)
-    best = None
-    for entry in host._registry().load()["games"].values():
-        if not isinstance(entry, dict) or not isinstance(entry.get("projectRoot"), str):
-            continue
-        root = _resolved(entry["projectRoot"])
-        if root is None or not root.is_dir():
-            continue
-        parts = _parts(root)
-        if wanted[: len(parts)] == parts and (best is None or len(parts) > len(_parts(best[1]))):
-            best = (entry, root)
-    return best
-
-
-def _other_game(resolved: Path, conversation_id: str, session_id: str) -> str | None:
-    """The refusal when ``resolved`` is in a library game's folder and this chat is not that game's conversation."""
-    found = _owning_game(resolved)
-    if found is None:
-        return None
-    entry, root = found
-    kind, bound = host._chat_binding(conversation_id, session_id)
-    own = bound.get("projectRoot") if kind == "game" and isinstance(bound, dict) else None
-    mine = _resolved(own) if isinstance(own, str) and own else None
-    if mine is not None and _parts(mine) == _parts(root):
-        return None
-    title = entry.get("title") or root.name
-    if kind == "game":
-        mine = bound.get("title") or Path(str(bound.get("projectRoot") or "")).name
-        return (
-            f"{resolved} is in the game \"{title}\" ({root}), and this conversation belongs to \"{mine}\": each game's "
-            "files are written only from its own conversation. Write this game's files only. Nothing was changed."
-        )
-    return (
-        f"{resolved} is in the hermretro game \"{title}\" ({root}), whose files are written only from its own "
-        f"conversation. Tell the user to open \"{title}\" on the hermretro Build page and continue there. Nothing was "
-        "changed."
-    )
+from . import file_guard
 
 
 @hook("pre_tool_call")
 def guard_game_record(tool_name=None, args=None, conversation_id=None, session_id=None, **_kwargs):
-    """``pre_tool_call``: refuse a file-tool write into a game's ``.hermretro/`` (its id and publish record), and one
-    into a library game's folder from any chat but that game's own conversation."""
-    if tool_name not in FILE_WRITE_TOOLS or not isinstance(args, dict):
+    """``pre_tool_call``: refuse a file-tool write into a game's ``.hermretro/`` (its id and publish record), into a
+    library game's folder from any chat but that game's own conversation, or into a game without its source
+    (``file_guard``)."""
+    if tool_name not in file_guard.FILE_WRITE_TOOLS or not isinstance(args, dict):
         return None
-    resolved = [path for target in _targets(args) for path in _candidates(target)]
-    if any(_in_game_record(path) for path in resolved):
-        return {
-            "action": "block",
-            "message": f"{layout.STATE_DIR}/ is hermretro's record of the game (its id and publish record); it "
-            "cannot be edited. Leave it as it is.",
-        }
-    for path in resolved:
-        try:
-            refusal = _other_game(path, str(conversation_id or ""), str(session_id or ""))
-        except Exception:
-            continue  # an unreadable library never blocks a write outside any game
-        if refusal:
-            return {"action": "block", "message": refusal}
-    return None
+    ids = [str(value) for value in (conversation_id, session_id) if value]
+    message = file_guard.refusal(args, host._registry(), host._profile_identity(), ids)
+    return {"action": "block", "message": message} if message else None
 
 
 @hook("pre_llm_call")

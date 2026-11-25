@@ -92,6 +92,21 @@ def check_one_game_per_chat(suite, client_a, client_c):
         denial=sel_c.get("denied"),
         c_status=structured(status_c),
     )
+    # The engine's own revision check still guards the owning chat: an edit from a revision read before its last
+    # edit is refused (the second guard against stale writes, once the broker let the call through).
+    snap_a4 = snapshot(suite.project_a)
+    stale_write = client_a.call(
+        OWNER_A, "variable_set", {"name": "A stale", "expectedRevision": structured(inspect_a2).get("revision")}
+    )
+    suite.check(
+        "W2",
+        "In the game's own conversation, an edit from a stale revision is refused by the engine and changes nothing",
+        stale_write.get("ok")
+        and stale_write["result"].get("isError") is True
+        and structured(stale_write).get("code") == "STALE_RESOURCE"
+        and diff(snap_a4, snapshot(suite.project_a)) == [],
+        stale_engine_error=structured(stale_write),
+    )
 
 
 def check_hardware_policy(suite, client_a):

@@ -269,6 +269,8 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
         engine = self.ensure_engine(lane)
         if not delegated and kind in ("read", "project-write", "runtime"):
             self.select_bound_game(lane, engine)
+        if kind in ("project-write", "runtime"):
+            self.guard_ownership(lane, arguments)  # only a game's own conversation changes it or runs it
         if tool == "rom_build" and lane.selected_root:
             arguments = game_rom_arguments(lane.selected_root, arguments)
         if tool == "scene_apply":
@@ -367,6 +369,8 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
             lane.remember(tool, kind, result, time.time() - started, arguments)
         except Exception as error:  # display bookkeeping must never fail a call
             self.trace(event="activity_record_failed", error=str(error)[:200])
+        if kind == "select" and not result.get("isError"):
+            self.confirm_selection(lane)  # the root really opened is this chat's own game (or the library's none)
         player = None
         if (
             tool == "rom_build"

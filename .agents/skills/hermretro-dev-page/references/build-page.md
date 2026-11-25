@@ -31,7 +31,13 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
   (`ONE_GAME_PER_CONVERSATION`, "start a new game from Build"). Any other chat selecting a library game, or a project
   inside a game's folder, is refused (`GAME_CHAT_ONLY`), whether or not the game has a conversation yet: the user
   opens it on the Build page, which gives it one. Such a chat may still make a new project or open one the library
-  does not have, and becomes that game's conversation (`Registry.claim_new`, from the broker's `observe`). A New Game
+  does not have, and becomes that game's conversation in the same locked step that registers it (`upsert(claim=…)`,
+  from the broker's `observe`); one that lost that race to another chat has its worker closed again
+  (`confirm_selection`). Paths are read as the engine reads them (`library.engine_path`: `..` first, then links), and
+  the game is the deepest library folder holding the path. Every call that changes or runs a project
+  (`guard_ownership`) is refused unless the open project is this chat's own game, so a chat that stopped editing a
+  game (or whose worker restarted) cannot keep changing it, and a path argument (`WRITE_PATH_KEYS`) into a game inside
+  this one is refused (`INSIDE_ANOTHER_GAME`). A New Game
   conversation creates its project and opens no project (`NEW_GAME_ONLY`): what it opened would stay selected after
   its new project claims it; nor does it name one in the card, present or report tools. Hermes's file tools follow
   the same rule (the library's `pre_tool_call`). No chat creates a project inside another game's folder, a library game's or any folder

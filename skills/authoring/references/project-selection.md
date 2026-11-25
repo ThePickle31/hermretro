@@ -43,7 +43,9 @@ leaves selection unchanged unless `select: true` is explicit.
 ## One project per chat
 
 hermretro starts each chat's engine worker without a configured workspace
-and binds it to one project folder; for a sibling project, start a new chat.
+and binds it to one project folder. Each hermretro game is opened and edited only
+in its own conversation: for another game, tell the user to open it on the
+hermretro Build page and continue there.
 (With `GB_STUDIO_WORKSPACE_ROOT` set for the engine, creation, discovery, and
 selection could use paths relative to that fixed boundary:)
 
