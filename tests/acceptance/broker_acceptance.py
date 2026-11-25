@@ -4,9 +4,9 @@
 Covers election, identity, private workers, lossless results, art and audio import, source-mode live state,
 authoring (symbols, scene transactions and their operations files, script events), the event catalog and build
 warnings, the golden path (one game through the studio's whole workflow with the plugin's tools and hooks), writer
-handoff, delegated children, hardware gating, worker and broker crash recovery, the broker's replacement after an
-update and the upgrade from a broker from before it. It does not cover anything that needs Hermes itself
-(host-injected identity, real compaction, pixels reaching a model).
+handoff, delegated children, hardware gating, worker and broker crash recovery and replaced watched folders, the
+broker's replacement after an update and the upgrade from a broker from before it. It does not cover anything that
+needs Hermes itself (host-injected identity, real compaction, pixels reaching a model).
 
     python tests/acceptance/broker_acceptance.py
 """
@@ -136,6 +136,7 @@ def exercise(suite):
         debugging.check_live_state(suite, client_b)
         debugging.check_debug_defaults(suite, client_b)
         debugging.check_debug_fallbacks(suite, client_b)
+        recovery.check_watched_folder_replaced(suite, client_b)
         authoring.check_symbols_and_events(suite, client_b)
         audio.check_audio(suite, client_b)
         events.check_events(suite, client_b)

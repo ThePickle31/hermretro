@@ -37369,9 +37369,165 @@ import { realpathSync as realpathSync9, statSync as statSync3 } from "node:fs";
 import { lstat as lstat14, mkdir as mkdir6, open as open9, readdir as readdir8, readFile as readFile9, realpath as realpath15, rmdir as rmdir3, stat as stat6, unlink as unlink5 } from "node:fs/promises";
 import path27 from "node:path";
 
+// dist/project-tree-watcher.js
+import { EventEmitter as ProjectTreeEvents } from "node:events";
+import { lstatSync as lstatProjectTreeEntry, readdirSync as readProjectTreeFolder, watch as watchProjectTreePath } from "node:fs";
+import projectTreePath from "node:path";
+function vanishedProjectTreeEntry(error2) {
+  return typeof error2 === "object" && error2 !== null && (error2.code === "ENOENT" || error2.code === "ENOTDIR");
+}
+function sameProjectTreeFolder(watched, stats) {
+  return stats !== void 0 && watched.dev === stats.dev && watched.ino === stats.ino;
+}
+var ProjectTreeWatcher = class extends ProjectTreeEvents {
+  #root;
+  #persistent;
+  #folders = /* @__PURE__ */ new Map();
+  #closed = false;
+  constructor(root, options, listener) {
+    super();
+    this.#root = projectTreePath.resolve(root);
+    this.#persistent = options.persistent ?? true;
+    this.on("change", listener);
+    try {
+      this.#watchFolder(this.#root, false);
+    } catch (error2) {
+      this.close();
+      throw error2;
+    }
+  }
+  close() {
+    if (this.#closed)
+      return;
+    this.#closed = true;
+    for (const folder of this.#folders.values())
+      folder.watcher.close();
+    this.#folders.clear();
+    this.emit("close");
+  }
+  /**
+   * Watch `folder` and every folder below it; `report` names each entry found as new. A watch follows the folder it
+   * was added on, and fs.watch and readdirSync follow symbolic links, so the folder must be the same folder (not a
+   * link) before the watch and after its listing; one that changed in between is not watched.
+   */
+  #watchFolder(folder, report) {
+    if (this.#closed)
+      return;
+    let entries;
+    try {
+      const stats = this.#folderAt(folder);
+      if (!stats)
+        throw Object.assign(new Error(`The watched project path is not a folder: ${folder}`), { code: "ENOTDIR" });
+      const watched = { dev: stats.dev, ino: stats.ino };
+      watched.watcher = watchProjectTreePath(folder, { persistent: this.#persistent }, (eventType, name) => this.#onFolderEvent(folder, watched, eventType, name));
+      watched.watcher.on("error", (error2) => this.#fail(error2));
+      this.#folders.set(folder, watched);
+      entries = readProjectTreeFolder(folder, { withFileTypes: true });
+      if (!sameProjectTreeFolder(watched, this.#folderAt(folder)))
+        throw Object.assign(new Error(`The watched project folder changed while it was read: ${folder}`), { code: "ENOTDIR" });
+    } catch (error2) {
+      if (folder === this.#root || !vanishedProjectTreeEntry(error2))
+        throw error2;
+      this.#forget(folder);
+      return;
+    }
+    for (const entry of entries) {
+      const file = projectTreePath.join(folder, entry.name);
+      if (report)
+        this.#report("rename", file);
+      if (entry.isDirectory() && !this.#folders.has(file))
+        this.#watchFolder(file, report);
+    }
+  }
+  /**
+   * An event from the watch on `folder`. One about the folder itself (it was removed, moved, replaced or changed;
+   * Node names it by the folder's own name) or from a folder no longer at its path watches that path again.
+   */
+  #onFolderEvent(folder, watched, eventType, name) {
+    if (this.#closed || this.#folders.get(folder) !== watched)
+      return;
+    try {
+      if (name == null) {
+        this.emit("change", eventType, null);
+        return;
+      }
+      const file = projectTreePath.join(folder, name.toString());
+      const current = this.#folderAt(file);
+      const aboutItself = name.toString() === projectTreePath.basename(folder) && current === void 0 && !this.#exists(file);
+      if (aboutItself || !sameProjectTreeFolder(watched, this.#folderAt(folder))) {
+        this.#watchAgain(folder);
+        return;
+      }
+      const known = this.#folders.get(file);
+      if (known && !sameProjectTreeFolder(known, current))
+        this.#forget(file);
+      this.#report(eventType, file);
+      if (current && !this.#folders.has(file))
+        this.#watchFolder(file, true);
+    } catch (error2) {
+      this.#fail(error2);
+    }
+  }
+  #watchAgain(folder) {
+    this.#forget(folder);
+    if (folder === this.#root)
+      throw Object.assign(new Error(`The watched project folder was removed or replaced: ${folder}`), { code: "ENOENT" });
+    this.#report("rename", folder);
+    if (this.#folderAt(folder))
+      this.#watchFolder(folder, true);
+  }
+  /** The folder's lstat, or undefined when `file` is gone or is not a folder now. */
+  #folderAt(file) {
+    try {
+      const stats = lstatProjectTreeEntry(file);
+      return stats.isDirectory() ? stats : void 0;
+    } catch (error2) {
+      if (vanishedProjectTreeEntry(error2))
+        return void 0;
+      throw error2;
+    }
+  }
+  #exists(file) {
+    try {
+      lstatProjectTreeEntry(file);
+      return true;
+    } catch (error2) {
+      if (vanishedProjectTreeEntry(error2))
+        return false;
+      throw error2;
+    }
+  }
+  #forget(folder) {
+    const below = folder + projectTreePath.sep;
+    for (const [watched, { watcher }] of this.#folders) {
+      if (watched === folder || watched.startsWith(below)) {
+        watcher.close();
+        this.#folders.delete(watched);
+      }
+    }
+  }
+  #report(eventType, file) {
+    this.emit("change", eventType, projectTreePath.relative(this.#root, file));
+  }
+  #fail(error2) {
+    if (this.#closed)
+      return;
+    this.close();
+    this.emit("error", error2);
+  }
+};
+/**
+ * A recursive project watch whose every failure is an "error" event. Node's recursive fs.watch is native on macOS and
+ * Windows. On Linux, Node 24.22, 26.9 and newer keep one watch per folder whose handlers throw outside any "error"
+ * event (ENOTDIR when a watched folder becomes a file, or a watch that cannot be added), which ends the engine; there
+ * the engine keeps those per-folder watches itself, on every Node version.
+ */
+function watchProjectTree(root, options, listener) {
+  return process.platform === "linux" ? new ProjectTreeWatcher(root, options, listener) : watchProjectTreePath(root, options, listener);
+}
+
 // dist/project-world-index.js
 import { createHash as createHash21 } from "node:crypto";
-import { watch } from "node:fs";
 import { lstat as lstat12, readdir as readdir6, readFile as readFile8, realpath as realpath13, stat as stat5 } from "node:fs/promises";
 import path25 from "node:path";
 
@@ -50549,6 +50705,8 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
 var ASSET_EXTENSIONS2 = /* @__PURE__ */ new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
 var PNG_SIGNATURE3 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAXIMUM_DIRTY_PATHS = 2048;
+var WATCH_RETRY_MS = 1e3;
+var MAXIMUM_WATCH_RETRY_MS = 6e4;
 var EMPTY_COVERAGE = { complete: true, limitations: [] };
 var FrozenResourceMap = class {
   #entries;
@@ -50642,9 +50800,6 @@ function assetType2(folder, metadata2) {
   };
   return names[folder] ?? folder;
 }
-function isLegacyImagePath(relative6) {
-  return /^(?:assets\/(?:backgrounds|sprites)|plugins\/[^/]+\/(?:backgrounds|sprites))\/.+\.png$/iu.test(relative6);
-}
 function isPhysicalPng(file2) {
   return file2.pngHeader !== void 0 && file2.pngHeader.width > 0 && file2.pngHeader.height > 0;
 }
@@ -50701,11 +50856,13 @@ var ProjectWorldIndex = class {
   #kind = /* @__PURE__ */ new Map();
   #state = "initializing";
   #watcher;
+  #watchFailures = 0;
+  #watchRetryAt = 0;
+  #rootIdentity;
   #bootstrap;
   #refresh;
   #degraded = false;
   #watchUnavailable = false;
-  #watchUnsupported = false;
   #inAuthoritativeRebuild = false;
   #discovery;
   #inventory;
@@ -50727,7 +50884,7 @@ var ProjectWorldIndex = class {
   };
   constructor(projectPath, selectionGeneration = 0, options = {}) {
     this.#requestedPath = path25.resolve(projectPath);
-    this.#watcherFactory = options.watcherFactory ?? watch;
+    this.#watcherFactory = options.watcherFactory ?? watchProjectTree;
     this.#platform = options.platform ?? process.platform;
     this.#reviewedCustomEvents = options.reviewedCustomEvents ?? REVIEWED_CUSTOM_EVENTS;
     this.#toolchainRoot = options.toolchainRoot;
@@ -50747,6 +50904,8 @@ var ProjectWorldIndex = class {
       });
     }
     await this.#bootstrap;
+    if (await this.#rootReplaced())
+      this.invalidate("The project folder was moved or replaced");
     if (this.#degraded || this.#state === "invalidated") {
       await this.strongRefresh();
     } else if (this.#dirty.size > 0) {
@@ -51024,14 +51183,16 @@ var ProjectWorldIndex = class {
     }
     this.#discovery = discovery;
     this.projectPath = discovery.projectPath;
-    this.#startWatcher();
     await this.#rebuild(false);
     if (this.#dirty.size > 0)
       await this.#applyDirty([...this.#dirty]);
   }
+  /** Start the project watch, or after a failed one wait (doubling from 1 s to 1 min) before trying again. */
   #startWatcher() {
+    if (Date.now() < this.#watchRetryAt)
+      return;
     try {
-      this.#watcher = this.#watcherFactory(this.projectRoot, { recursive: true, persistent: false }, (_event, filename) => {
+      const watcher = this.#watcherFactory(this.projectRoot, { recursive: true, persistent: false }, (_event, filename) => {
         if (this.#state === "disposed")
           return;
         if (!filename) {
@@ -51050,18 +51211,32 @@ var ProjectWorldIndex = class {
         } else if (this.#state === "ready")
           this.#state = "dirty";
       });
-      this.#watcher.on("error", () => {
+      this.#watcher = watcher;
+      watcher.on("error", () => {
+        watcher.close();
+        if (this.#watcher === watcher)
+          this.#watcher = void 0;
         if (this.#state !== "disposed") {
-          this.#watchUnavailable = true;
-          this.#degraded = true;
+          this.#watchFailed();
           this.#state = "invalidated";
         }
       });
     } catch {
-      this.#watchUnavailable = true;
-      this.#watchUnsupported = true;
-      this.#degraded = true;
+      this.#watchFailed();
     }
+  }
+  #watchFailed() {
+    this.#watchUnavailable = true;
+    this.#degraded = true;
+    this.#watchFailures += 1;
+    this.#watchRetryAt = Date.now() + Math.min(WATCH_RETRY_MS * 2 ** (this.#watchFailures - 1), MAXIMUM_WATCH_RETRY_MS);
+  }
+  /** Whether the project folder is no longer the folder the last full read found (moved, removed or replaced). */
+  async #rootReplaced() {
+    if (!this.#rootIdentity || this.#state === "disposed")
+      return false;
+    const current = await lstat12(this.projectRoot, { bigint: true }).catch(() => void 0);
+    return current?.dev !== this.#rootIdentity.dev || current?.ino !== this.#rootIdentity.ino;
   }
   #isObserved(relative6) {
     if (!relative6 || relative6.includes("\0") || relative6 === ".")
@@ -51190,6 +51365,14 @@ var ProjectWorldIndex = class {
     if (!this.#pathsMatch(descriptor, this.projectPath)) {
       throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor changed", descriptor);
     }
+    const rootIdentity = await lstat12(root, { bigint: true });
+    if (this.#rootIdentity && (rootIdentity.dev !== this.#rootIdentity.dev || rootIdentity.ino !== this.#rootIdentity.ino)) {
+      this.#watcher?.close();
+      this.#watcher = void 0;
+    }
+    this.#rootIdentity = { dev: rootIdentity.dev, ino: rootIdentity.ino };
+    if (!this.#watcher && this.#state !== "disposed")
+      this.#startWatcher();
     const discovered = /* @__PURE__ */ new Map();
     const descriptorFile = await this.#readFile(descriptor);
     discovered.set(descriptorFile.relativePath, descriptorFile);
@@ -51219,7 +51402,9 @@ var ProjectWorldIndex = class {
     }
     if (this.#dirty.size > 0)
       await this.#applyDirty([...this.#dirty]);
-    this.#degraded = this.#watchUnsupported;
+    this.#degraded = !this.#watcher;
+    if (this.#watcher)
+      this.#watchFailures = 0;
     this.#state = this.#degraded ? "invalidated" : "ready";
   }
   async #refreshDirty() {
@@ -51255,17 +51440,8 @@ var ProjectWorldIndex = class {
       } catch (error2) {
         if (!systemError3(error2, "ENOENT") && !systemError3(error2, "ENOTDIR"))
           throw error2;
-        for (const existing of [...this.#files.keys()]) {
-          if (existing !== relative6 && !existing.startsWith(`${relative6}/`))
-            continue;
-          this.#deleteIndexedFile(existing);
-          if (isPublicProjectRevisionPath(existing, descriptorRelative))
-            this.#tree.remove(existing);
-          if (existing.startsWith("plugins/"))
-            semanticChange = true;
-          this.#counters.changedPaths += 1;
-          changedPaths.add(existing);
-        }
+        if (this.#dropIndexed(relative6, () => false, changedPaths))
+          semanticChange = true;
         if (relative6 === descriptorRelative)
           throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor was removed", absolute);
         continue;
@@ -51289,19 +51465,8 @@ var ProjectWorldIndex = class {
       if (entry.isDirectory()) {
         const descendants = /* @__PURE__ */ new Map();
         await this.#walk(absolute, descendants);
-        if (this.#discovery?.format === "legacy") {
-          for (const existing of this.#files.keys()) {
-            if (!existing.startsWith(`${relative6}/`) || !isLegacyImagePath(existing) || descendants.has(existing))
-              continue;
-            this.#deleteIndexedFile(existing);
-            if (isPublicProjectRevisionPath(existing, descriptorRelative))
-              this.#tree.remove(existing);
-            if (existing.startsWith("plugins/"))
-              semanticChange = true;
-            this.#counters.changedPaths += 1;
-            changedPaths.add(existing);
-          }
-        }
+        if (this.#dropIndexed(relative6, (existing) => descendants.has(existing), changedPaths))
+          semanticChange = true;
         for (const indexed2 of descendants.values()) {
           const previous2 = this.#files.get(indexed2.relativePath);
           if (previous2?.sha256 === indexed2.sha256)
@@ -51316,6 +51481,8 @@ var ProjectWorldIndex = class {
         }
         continue;
       }
+      if (this.#dropIndexed(relative6, (existing) => existing === relative6 && entry.isFile(), changedPaths))
+        semanticChange = true;
       if (!entry.isFile())
         continue;
       const previous = this.#files.get(relative6);
@@ -51345,6 +51512,26 @@ var ProjectWorldIndex = class {
     if (changedPaths.size > 0)
       await this.#publish([...changedPaths]);
     this.#state = "ready";
+  }
+  /**
+   * Drop the indexed files at `relative` and below it that `keep` does not name: a changed path that is now gone, a
+   * file or another folder leaves nothing of what was there before. Returns whether a plugin file went.
+   */
+  #dropIndexed(relative, keep, changedPaths) {
+    const descriptorRelative = path25.basename(this.projectPath);
+    let pluginChanged = false;
+    for (const existing of [...this.#files.keys()]) {
+      if (existing !== relative && !existing.startsWith(`${relative}/`) || keep(existing))
+        continue;
+      this.#deleteIndexedFile(existing);
+      if (isPublicProjectRevisionPath(existing, descriptorRelative))
+        this.#tree.remove(existing);
+      if (existing.startsWith("plugins/"))
+        pluginChanged = true;
+      this.#counters.changedPaths += 1;
+      changedPaths.add(existing);
+    }
+    return pluginChanged;
   }
   async #publish(changedPaths = []) {
     const discovery = this.#discovery;
