@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "engine"))
@@ -60,7 +61,18 @@ OLD_PICK = """
 const id = "EVENT_OLD_PICK";
 module.exports = { id, groups: [], fields: [], compile: () => {}, deprecated: true };
 """
-BUILDER = "class ScriptBuilder {\n  pickThings = () => {};\n  // weaponAttack was removed\n}\n"
+# Where GB Studio declares what a compile function's helpers hold, shaped like its own: class fields, a method that
+# stays on the prototype (resolveActor), a word only a comment and a body use (weaponAttack), the options interface and
+# the deprecated API's returned object.
+BUILDER = {
+    "scriptBuilderBase.ts": (
+        "abstract class ScriptBuilderBase {\n  output: string[];\n  resolveActor(id: string) {\n"
+        "    const weaponAttack = id;\n    return weaponAttack;\n  }\n}\n"
+    ),
+    "scriptBuilder.ts": "class ScriptBuilder extends ScriptBuilderBase {\n  pickThings = () => {};\n  // weaponAttack was removed\n}\n",
+    "types.ts": "export interface ScriptBuilderOptions {\n  scene: Scene;\n  entity?: Entity;\n}\n",
+    "deprecatedAPI.ts": "export function createDeprecatedMethods(sb) {\n  return {\n    oldPick: () => {},\n    oldThings,\n  };\n}\n",
+}
 
 
 def definition(event_id: str, fields: str, compile_body: str = "") -> str:
@@ -75,7 +87,8 @@ def gb_studio(folder: Path, events: dict[str, str]) -> Path:
     (folder / "src" / "lang").mkdir(parents=True)
     (folder / "src" / "lang" / "en.json").write_text(json.dumps(STRINGS))
     (folder / "src" / "lib" / "compiler" / "scriptBuilder").mkdir(parents=True)
-    (folder / "src" / "lib" / "compiler" / "scriptBuilder" / "scriptBuilder.ts").write_text(BUILDER)
+    for name, source in BUILDER.items():
+        (folder / "src" / "lib" / "compiler" / "scriptBuilder" / name).write_text(source)
     (folder / "src" / "lib" / "events").mkdir(parents=True)
     for name, source in events.items():
         (folder / "src" / "lib" / "events" / name).write_text(source)
@@ -86,7 +99,7 @@ def gb_studio(folder: Path, events: dict[str, str]) -> Path:
 def generator(guidance: dict | None = None, through_symlink: bool = False):
     """A copy of the generator with the test's own guidance tables (the real ones name GB Studio's events), reached
     through a symlinked folder when asked (macOS's /var and /tmp are symlinks)."""
-    tables = {"DEPRECATIONS": {}, "UNAVAILABLE": [], "EXAMPLES": {}, "EDITOR_DEFAULTS": {}, **(guidance or {})}
+    tables = {"DEPRECATIONS": {}, "EXAMPLES": {}, "EDITOR_DEFAULTS": {}, **(guidance or {})}
     saved = event_catalog.GENERATOR
     with tempfile.TemporaryDirectory() as folder:
         real = Path(folder) / "real"
@@ -207,14 +220,35 @@ class GeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "EVENT_ADD field amount: union field amount has no defaultType"):
             self.generate({"eventAdd.js": definition("EVENT_ADD", broken)})
 
-    def test_an_event_whose_compiler_helper_is_gone_must_be_listed_and_is_marked(self):
+    def test_a_deprecated_event_whose_compiler_helper_is_gone_is_marked_from_source(self):
         attack = definition("EVENT_ATTACK", "[]", "const { weaponAttack } = helpers; weaponAttack();")
-        with self.assertRaisesRegex(RuntimeError, "EVENT_ATTACK compiles with weaponAttack, which .* lacks"):
+        old = attack.replace("compile: (input", "deprecated: true, compile: (input")
+        guidance = {"DEPRECATIONS": {"EVENT_ATTACK": {"replacement": "EVENT_PICK", "migration": "Pick instead."}}}
+        events = self.generate({"eventAttack.js": old, "eventPick.js": PICK}, guidance)["events"]
+        self.assertIn("no weaponAttack", events["EVENT_ATTACK"]["unavailable"])
+        self.assertNotIn("unavailable", events["EVENT_PICK"])
+        with self.assertRaisesRegex(RuntimeError, "EVENT_ATTACK compiles with weaponAttack, .* does not deprecate it"):
             self.generate({"eventAttack.js": attack})
-        entry = self.generate({"eventAttack.js": attack}, {"UNAVAILABLE": ["EVENT_ATTACK"]})["events"]["EVENT_ATTACK"]
-        self.assertIn("no weaponAttack", entry["unavailable"])
-        with self.assertRaisesRegex(RuntimeError, "UNAVAILABLE names EVENT_PICK, whose helpers"):
-            self.generate({"eventPick.js": PICK}, {"UNAVAILABLE": ["EVENT_PICK"]})
+
+    def test_a_compile_function_gets_only_what_gb_studio_passes(self):
+        """The builder's fields, its options and its deprecated API reach a compile function; a method declared on the
+        prototype does not, nor does a name the builder's source only mentions."""
+        body = (
+            "const { output, scene, entity, oldPick, oldThings, pickThings, event, scriptSymbolName } = helpers;"
+            " helpers.LATEST_PROJECT_VERSION; helpers.resolveActor(); helpers.weaponAttack();"
+        )
+        old = definition("EVENT_OLD", "[]", body).replace("compile: (input", "deprecated: true, compile: (input")
+        guidance = {"DEPRECATIONS": {"EVENT_OLD": {"replacement": "EVENT_PICK", "migration": "Pick instead."}}}
+        events = self.generate({"eventOld.js": old, "eventPick.js": PICK}, guidance)["events"]
+        self.assertEqual(
+            events["EVENT_OLD"]["unavailable"],
+            "GB Studio's compiler has no resolveActor or weaponAttack: a script with this event does not build.",
+        )
+
+    def test_a_builder_whose_declarations_moved_stops_the_generator(self):
+        moved = {"types.ts": "export type ScriptBuilderOptions = { scene: Scene };\n"}
+        with mock.patch.dict(BUILDER, moved), self.assertRaisesRegex(RuntimeError, "types.ts no longer has"):
+            self.generate({"eventPick.js": PICK})
 
     def test_a_hand_written_example_replaces_the_default_and_must_fit(self):
         loop = {"command": "EVENT_PICK", "args": {"items": 3}, "children": {"true": []}}

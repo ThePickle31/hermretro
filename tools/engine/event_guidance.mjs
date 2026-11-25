@@ -92,10 +92,6 @@ export const DEPRECATIONS = {
   },
 };
 
-// Events whose compile function needs a ScriptBuilder helper this GB Studio no longer has: a script with one fails to
-// build. The generator finds them and stops on one not listed here.
-export const UNAVAILABLE = ["EVENT_WEAPON_ATTACK"];
-
 const wait = { command: "EVENT_WAIT", args: { frames: { type: "number", value: 1 }, units: "frames" } };
 
 // Examples for events whose editor default does nothing useful or freezes the game, and what an event needs first.

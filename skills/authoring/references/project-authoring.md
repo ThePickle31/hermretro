@@ -262,9 +262,14 @@ and a position `{"type":"number","value":3}` in `EVENT_ACTOR_SET_DIRECTION`,
 a variable or expression value is accepted, and a commented-out event is not
 checked. `EVENT_SWITCH_SCENE`'s own `direction` stays a plain string. A command
 that is not a GB Studio event is refused the same way, naming the nearest real
-events; GB Studio would build the game without it. A project with plugin events
+events; GB Studio would build the game without it. An event GB Studio lists but
+can no longer compile (`EVENT_WEAPON_ATTACK`) is refused too, also when an edit
+moves an old one or a patch's branches hold one, naming its replacement and how
+to convert; a single-file project from before GB Studio 2.0.0 r14 keeps it, since
+GB Studio converts it on load. A project with plugin events
 (`plugins/*/**/events/event*.js`) keeps any command, and its build fails with
-`UNKNOWN_EVENT_COMMAND` when GB Studio has no compiler for one.
+`UNKNOWN_EVENT_COMMAND` when GB Studio has no compiler for one, or
+`SCRIPT_EVENT_COMPILE_FAILED` when no plugin compiles `EVENT_WEAPON_ATTACK`.
 
 `chromatic_event_describe` answers what an event takes, from GB Studio's own event definitions: with no arguments
 its categories, with `query`, `category` or `includeDeprecated` matching events (40 at a time; `nextCursor` gives
@@ -277,7 +282,8 @@ play. `chromatic_rom_build` adds warnings for text in a `LOGO` scene (`TEXT_IN_L
 (`TEXT_VARIABLE_TOKEN`), actors or the player under a right-hand menu (`ACTORS_OVER_MENU`) and deprecated events
 (`DEPRECATED_EVENT`), following custom scripts and prefabs, and sprite palette slots no sprite tile uses
 (`UNUSED_SPRITE_PALETTE_SLOTS`); the ROM still builds. A build GB Studio compiled without an event it does not know
-fails with `UNKNOWN_EVENT_COMMAND`.
+fails with `UNKNOWN_EVENT_COMMAND`, and one that stops on an event's compile with
+`SCRIPT_EVENT_COMPILE_FAILED`.
 
 `chromatic_script_edit` also supports `update`, `delete`, and `move`, including
 `branchPath` segments identified by stable event ID and branch name. Preserve
