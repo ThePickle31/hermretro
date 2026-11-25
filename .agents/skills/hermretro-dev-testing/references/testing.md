@@ -11,15 +11,20 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 | lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
-| acceptance | `python tools/ci/prepare_toolchain.py && python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
+| acceptance | `python tools/check.py acceptance` | The real engine, compiler and emulator through the broker |
 | clean install | `python tools/ci/clean_install_check.py` | A throwaway Hermes home installs the commit; tools register only in `hermretro` |
 | update | `python tools/ci/clean_install_check.py --update-from [REF]` | A throwaway Hermes home installs a release (default: the newest `v*` tag on `origin/main`, what users have), uses it (studio profile, a library game, a New Game chat, a running broker), then `hermes plugins update`s it to the commit: no prompt, the agent side only in `hermretro`, the library read back, the old broker (held open until then, so it cannot idle out) replaced when its code changed and kept otherwise, each ignored leftover file judged on its own. Needs the tags (`git fetch --tags`) |
 
 Run the fast checks before opening a pull request; CI runs the slow ones its changes select
 (`tools/ci/changes.py`) on the exact head. Commit before `python tools/ci/clean_install_check.py`: the install checks
-install the committed tree. `python tools/check.py acceptance` needs the toolchain (`python tools/ci/prepare_toolchain.py`;
-without it the check is skipped and said as not proven here; PR CI runs it on Linux and macOS when the change touches
-what it covers). To use a toolchain somewhere else: `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance`.
+install the committed tree. `python tools/check.py acceptance` (part of `full`) needs the toolchain, by default the one
+the hermretro page installed (`<hermretro home>/.cache/toolchain`), which it only reads; without one the check is
+skipped and said as not proven here (PR CI runs it on Linux and macOS when the change touches what it covers). To make
+one, or use one somewhere else: `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py`, then
+`HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full`. Outside GitHub Actions `prepare_toolchain.py` refuses to run
+without `HERMRETRO_DEPS_ROOT`, so it never writes the installed plugin's cache. It installs through a broker of its own,
+started in a new folder under `/tmp` and stopped at the end (a failed run keeps that folder and names it), so a broker
+already running is never reused, replaced or stopped.
 
 One-time setup: `python tools/dev setup` (the Python lint and the npm tools for the page checks; Node 22 or newer). The checks never install anything themselves.
 

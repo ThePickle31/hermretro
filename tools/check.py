@@ -328,8 +328,8 @@ def check_acceptance(args) -> str:
 
     if not paths.setup_root().is_dir():
         raise Skip(
-            f"no toolchain at {paths.setup_root()}; run python tools/ci/prepare_toolchain.py (about a minute), "
-            "or point HERMRETRO_DEPS_ROOT at a folder that has one"
+            f"no toolchain at {paths.setup_root()}; install it from the hermretro page, or make one with "
+            "HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py and run this with the same HERMRETRO_DEPS_ROOT"
         )
     env = {**os.environ, "TMPDIR": short_tmp()}
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run

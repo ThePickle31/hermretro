@@ -10,7 +10,8 @@ request into `dev` and CI.
 2. Fork the repository, clone your fork and branch from `dev`: `feat/…`, `fix/…`, `docs/…` or `chore/…`.
 3. `python tools/dev setup` (ruff, the Python linter and formatter, and the page tools; development only).
 4. `python tools/check.py` must pass before you push. For backend or engine changes also run
-   `python tools/ci/prepare_toolchain.py` once, then `python tools/check.py full`.
+   `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py` once (the toolchain, into a folder of your
+   own), then `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full`.
 
 
 ## Trying a change in Hermes Desktop

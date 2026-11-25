@@ -1,7 +1,7 @@
 # The real engine, compiler and emulator: installs the game toolchain the way the hermretro page does (cached
 # between runs) and runs the broker acceptance suite. Called by ci.yml (pull requests that touch the backend or
 # the engine, every push to dev) and by nightly.yml. No hardware is ever touched. Locally:
-#   python tools/ci/prepare_toolchain.py && python tools/check.py acceptance
+#   HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py && HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance
 
 name: Integration
 
@@ -74,8 +74,8 @@ jobs:
           name: acceptance-${{ matrix.os }}
           path: |
             notes/evidence/
-            ~/.hermes/hermretro/run/*.jsonl
-            ~/.hermes/hermretro/run/*.log
+            /tmp/hermretro-prepare-*/*.jsonl
+            /tmp/hermretro-prepare-*/*.log
             ~/.hermes/hermretro/.cache/toolchain/last-run.json
           if-no-files-found: ignore
           retention-days: 14
