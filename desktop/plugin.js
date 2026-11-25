@@ -5,7 +5,7 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 d9c41690b3aa5cd50df644be4571f1e98321ea2c6d8de5da88252453999939ee
+ * sources: sha256 c4e3ffdef7f66a59723ba2bf30df87c5c82949b8b74e8815020dac53629dfdfb
  * body: sha256 ffba7d318f213f6bed5fda278b2cf1b973b0731377fbbfd9778fb2379fa05083
  */
 import{atom,Button,Codicon,CopyButton,host,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";
