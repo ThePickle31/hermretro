@@ -22,3 +22,13 @@ files, what changed and why.
   does not reuse a cached export holding another; a project with batteryless saves on keeps `make:web`'s ROM, which
   GB Studio compiles without them on purpose. GB Studio puts a per-compile save signature in every ROM, so the two
   compiles always differed: the game played, flashed and shared is now one file with one hash.
+- `dist/server.js` (`dist/emulator.js`, `dist/tool-domains/schemas.js`, `dist/contact-sheet.js` and the
+  `emulator_step`/`emulator_observe`/`emulator_checkpoint` tools), `scripts/emulator_worker.py` (`play_step`):
+  `emulator_step` also takes an ordered `inputs` list of `{buttons, frames, sample?}` run in one call (at most 64
+  inputs, 3,600 frames and 8 samples; the last input is always sampled), and the worker runs every step as such a
+  list. Step and observe results are compact by default (frame, buttons, sample hashes and one `recordingSpan`
+  without `fromPrefixPin`; `detail:"full"` keeps the whole result), a single held set samples only its last frame
+  unless `sampleCount` asks for more, and `scale` (1–4) enlarges the returned images. The checkpoint description
+  names what a save needs (an active recording, a sampled neutral frame). Hermes drops a tool call identical to
+  an earlier one in the same turn, so press-wait-press sequences sent as separate steps lost presses, and the
+  full result of every step (about 4 KB, with up to four images) filled the agent's context.

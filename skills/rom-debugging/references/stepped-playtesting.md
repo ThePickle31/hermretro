@@ -46,9 +46,7 @@ chromatic_rom_build {}
 chromatic_rom_inspect {"romPath":"<returned ROM outputPath>"}
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","restart":true,"initialFrames":120,"recording":{}}
 chromatic_emulator_observe {}
-chromatic_emulator_step {"buttons":["right"],"frames":12}
-chromatic_emulator_step {"buttons":["right","a"],"frames":8,"sampleCount":4}
-chromatic_emulator_step {"buttons":[],"frames":1}
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":12,"sample":true},{"buttons":["right","a"],"frames":8},{"buttons":[],"frames":1}]}
 ```
 
 Use the absolute paths returned by tools. Build output paths are relative to the
@@ -68,28 +66,48 @@ or pass `cgb:true` to request color hardware.
 
 ## Make each input explicit
 
-`chromatic_emulator_step` accepts these fields:
+`chromatic_emulator_step` takes either one held set (`buttons` and `frames`) or an
+ordered `inputs` list, never both:
 
 | Field | Meaning |
 | --- | --- |
-| `buttons` | Required complete held set: any of `a`, `b`, `up`, `down`, `left`, `right`, `start`, `select`. Use `[]` for no buttons. |
-| `frames` | Required positive frame count, 1–3,600. |
-| `sampleCount` | Optional, 1–8; default 4. Returns up to this many real samples evenly across positive frame offsets, including the endpoint. |
+| `inputs` | Ordered list of 1–64 `{buttons, frames, sample?}` run in this one call, at most 3,600 frames in all. Each input holds its complete set for its frames; `sample:true` also samples that input's last frame. The last input is always sampled. |
+| `buttons` | One held set instead of `inputs`: any of `a`, `b`, `up`, `down`, `left`, `right`, `start`, `select`. Use `[]` for no buttons. |
+| `frames` | With `buttons`: positive frame count, 1–3,600. |
+| `sampleCount` | With `buttons`: 1–8, default 1. Real samples evenly across positive frame offsets, including the endpoint. |
 | `includeImages` | Optional, default `true`. `false` omits inline images without changing input, frame advancement, or sampling. |
+| `scale` | Optional, 1–4. Enlarges the returned images with square pixels; sample hashes stay those of the native frames. |
 | `imageLayout` | Optional, `individual` (default) or `contact-sheet`. The sheet labels the same requested samples in memory; it adds no frames, captures, or file writes. |
+| `detail` | Optional, `compact` (default) or `full`. |
 
-The held set persists after the step. Sending the same set again does not
-release and re-press those buttons. To release a button, leave it out of the
-next step's set. A two-frame A press followed by one neutral frame is:
+A call returns at most 8 samples. The held set persists after the call. Sending
+the same set again does not release and re-press those buttons. To release a
+button, leave it out of the next input's set. A two-frame A press followed by
+one neutral frame is one call:
 
 ```text
-chromatic_emulator_step {"buttons":["a"],"frames":2,"sampleCount":2}
-chromatic_emulator_step {"buttons":[],"frames":1,"sampleCount":1}
+chromatic_emulator_step {"inputs":[{"buttons":["a"],"frames":2,"sample":true},{"buttons":[],"frames":1}]}
 ```
 
-The neutral step advances one frame; it is not a pause command. To stop and
+Send every sequence of presses and waits as one `inputs` list, never as repeated
+identical calls in one turn: Hermes silently drops a tool call identical to an
+earlier one in the same turn, so "press A, wait, press A, wait" sent as four
+calls loses presses. A menu or dialogue walk is one call:
+
+```text
+chromatic_emulator_step {"inputs":[{"buttons":["a"],"frames":2},{"buttons":[],"frames":30},{"buttons":["a"],"frames":2},{"buttons":[],"frames":30,"sample":true},{"buttons":["down"],"frames":2},{"buttons":[],"frames":10}]}
+```
+
+The neutral input advances frames; it is not a pause command. To stop and
 discuss the result, simply stop sending steps. Use `buttons:["right"]` after a
-right-and-A step when right should remain held and only A should be released.
+right-and-A input when right should remain held and only A should be released.
+
+The compact result holds `frame`, `startFrame`, `advancedFrames`,
+`activeButtons`, `sampledButtons`, `samples` (frame, SHA-256 and `inputIndex`),
+`recordingSpan` when recording, and `imageDelivery`; one image per sample
+follows. `detail:"full"` adds the ROM path and hash, runtime, clock, recording
+state, `execution` and the retained path of each sample. Ask for it only when
+you need one of those.
 
 Read the returned images and exact frame metadata before choosing the next
 input. Use shorter steps near a landing, transition, or uncertain interaction.
@@ -99,8 +117,9 @@ with `sampleCount:8`. Samples do not prove what happened in the gaps.
 `chromatic_emulator_observe {}` returns the current genuine 160 × 144 PNG without
 advancing a frame, delivering input, or changing the recording journal.
 `chromatic_emulator_observe {"includeImages":false}` returns metadata without the inline
-image. Optional `imageLayout:"contact-sheet"` labels the same current image in
-memory; the individual PNG remains the default. Observation accepts no actions
+image, and `{"scale":3}` returns it three times larger. Optional
+`imageLayout:"contact-sheet"` labels the same current image in memory; the
+individual PNG remains the default. Its result is compact unless `detail:"full"`. Observation accepts no actions
 or output path and writes no files.
 
 Read `execution` separately from `imageDelivery`. An image-delivery error can
@@ -130,9 +149,7 @@ chromatic_emulator_close {}
 chromatic_rom_build {}
 chromatic_rom_inspect {"romPath":"<new ROM outputPath>"}
 chromatic_emulator_run {"romPath":"<new ROM outputPath>","restart":true,"initialFrames":120,"recording":{}}
-chromatic_emulator_step {"buttons":["right"],"frames":12}
-chromatic_emulator_step {"buttons":["right","a"],"frames":8,"sampleCount":4}
-chromatic_emulator_step {"buttons":[],"frames":1}
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":12,"sample":true},{"buttons":["right","a"],"frames":8},{"buttons":[],"frames":1}]}
 chromatic_emulator_close {}
 ```
 
@@ -158,7 +175,8 @@ MCP path and report actual platform coverage.
 
 ## Migrating older callers
 
-`chromatic_emulator_step` takes an exact held-button set and returns sampled frames;
+`chromatic_emulator_step` takes exact held-button sets, alone or as an ordered `inputs`
+list, and returns sampled frames;
 `chromatic_emulator_observe` reads the current frame without advancing play. Migrate older
 callers to the direct loop above.
 

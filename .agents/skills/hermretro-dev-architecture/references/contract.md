@@ -254,7 +254,7 @@ match. Served from the broker's memory: no engine call, never starts the broker 
 ```
 { ok, running, matched: "chat" | null,
   lane: { project_root, project_name, alive, busy, current_tool, preview_url } | null,
-  frame: { t, tool, frame, src /* data URL */ } | null,
+  frame: { t, tool, frame, src /* data URL, or null when that image was too large to keep */ } | null,
   build: { t, ok, seconds, rom, sha256, error } | null,
   events: [{ t, tool, kind, ok, seconds, error? }] }
 ```

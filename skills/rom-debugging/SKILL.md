@@ -76,22 +76,34 @@ reload. An explicit access refusal must not be bypassed through another caller.
 
 ## Direct play and regression checks
 
-Example: hold right, add A for two frames, then release every button:
+Example: hold right, add A for two frames, then release every button, all in one call:
 
 ```text
 chromatic_emulator_run {"romPath":"<absolute ROM outputPath returned by the build>","restart":true,"initialFrames":120}
 chromatic_emulator_observe {}
-chromatic_emulator_step {"buttons":["right"],"frames":12,"sampleCount":4}
-chromatic_emulator_step {"buttons":["right","a"],"frames":2,"sampleCount":2}
-chromatic_emulator_step {"buttons":[],"frames":1,"sampleCount":1}
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":12,"sample":true},{"buttons":["right","a"],"frames":2},{"buttons":[],"frames":1}]}
 ```
 
-Every step supplies the **complete held-button set** and advances 1–3,600
-frames. The set persists: repeated buttons stay held without a new press; `[]`
-releases all buttons but still advances frames. `chromatic_emulator_observe {}` is inert:
-it reads the genuine 160 × 144 framebuffer without advancing frames, delivering
-input, or changing a recording. Use short steps near uncertain timings and
-consecutive samples for flicker; a sampled frame proves nothing about gaps.
+Every input supplies the **complete held-button set** for its frames; one call
+advances at most 3,600 frames over at most 64 inputs. The set persists: repeated
+buttons stay held without a new press; `[]` releases all buttons but still
+advances frames. A single held set can also be sent as
+`{"buttons":["right"],"frames":12}`.
+
+**Send a sequence as one `inputs` list, never as repeated identical calls in one
+turn.** Hermes drops a tool call identical to an earlier one in the same turn
+without saying so, so "press A, wait, press A, wait" as separate calls loses
+presses. Put the presses and waits in one list:
+`{"inputs":[{"buttons":["a"],"frames":2},{"buttons":[],"frames":30},{"buttons":["a"],"frames":2},{"buttons":[],"frames":30}]}`.
+
+The result is compact: frame, held and sampled buttons, sample hashes and
+`recordingSpan`, with the image of the last frame. Mark an input `sample:true`
+to also see its last frame (at most 8 samples a call), give `scale` 2–4 for
+larger images, and `detail:"full"` only when you need ROM, runtime, clock or
+recording state. `chromatic_emulator_observe {}` is inert: it reads the genuine
+160 × 144 framebuffer without advancing frames, delivering input, or changing a
+recording. Use short inputs near uncertain timings and consecutive samples for
+flicker; a sampled frame proves nothing about gaps.
 
 If images fail, check `execution` separately from `imageDelivery`. The input may
 have advanced even if no image arrived or transport left execution unknown. Do
@@ -106,8 +118,9 @@ An unchanged ROM reuses its session; use `restart:true` for an intentional fresh
 boot and `chromatic_emulator_close {}` before selecting another project. Enable
 `recording:{}` on a fresh boot when the input history matters. For branching an
 existing attempt, see [recordings and checkpoints](references/recorded-playtesting.md):
-first send a neutral frame, and restore only into the identical ROM and runtime,
-including the worker hash. A checkpoint from before a rebuild cannot be used for
+save only in a recorded session after a step that ends with `[]` for at least
+one frame, and restore only into the identical ROM and runtime, including the
+worker hash. A checkpoint from before a rebuild cannot be used for
 the regression run.
 
 ## Diagnose and report

@@ -69,15 +69,14 @@ and recording paths resolve from the authorized workspace.
 ```text
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","cgb":true,"initialFrames":120}
 chromatic_emulator_observe {}
-chromatic_emulator_step {"buttons":["right","a"],"frames":12,"sampleCount":4}
-chromatic_emulator_step {"buttons":["right"],"frames":8,"sampleCount":4}
-chromatic_emulator_step {"buttons":[],"frames":1,"sampleCount":1}
+chromatic_emulator_step {"inputs":[{"buttons":["right","a"],"frames":12,"sample":true},{"buttons":["right"],"frames":8,"sample":true},{"buttons":[],"frames":1}]}
 ```
 
-The first step holds right and A. The second releases only A; right stays held
-without another press edge. The last step releases all buttons. Frame counts
+The first input holds right and A. The second releases only A; right stays held
+without another press edge. The last input releases all buttons. Frame counts
 are explicit, positive, and bounded to 3,600 per call. A step returns up to eight
-evenly spaced genuine samples including its endpoint, four by default.
+genuine samples: the last frame, and the last frame of each input marked
+`sample:true`.
 
 Observe has zero frame, input, and recording-journal mutation. `includeImages`
 controls only inline image delivery on step or observe. Read the actual images

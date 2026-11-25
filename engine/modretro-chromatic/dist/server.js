@@ -32836,6 +32836,15 @@ function compositeFrame(canvas, source, previous, left, top, magnification, high
   }
   return changedPixels;
 }
+function magnifyPng(bytes2, magnification) {
+  if (!Number.isSafeInteger(magnification) || magnification < 1 || magnification > MAX_CONTACT_SHEET_MAGNIFICATION) {
+    throw new ContactSheetError(`Image magnification must be an integer between 1 and ${MAX_CONTACT_SHEET_MAGNIFICATION}`);
+  }
+  const source = import_pngjs.PNG.sync.read(bytes2, { checkCRC: true });
+  const canvas = new import_pngjs.PNG({ width: source.width * magnification, height: source.height * magnification });
+  compositeFrame(canvas, source, void 0, 0, 0, magnification, false);
+  return import_pngjs.PNG.sync.write(canvas, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
+}
 function renderContactSheetPng(options) {
   options.signal?.throwIfAborted();
   if (!Array.isArray(options.images) || options.images.length < 1 || options.images.length > MAX_CONTACT_SHEET_FRAMES) {
@@ -34786,6 +34795,7 @@ var MAX_EMULATOR_REVIEW_ACTIONS = 4096;
 var MAX_EMULATOR_REVIEW_IMAGES = 8;
 var MAX_EMULATOR_REVIEW_METADATA_BYTES = 2 * 1024 * 1024;
 var MAX_EMULATOR_STEP_SAMPLES = 8;
+var MAX_EMULATOR_STEP_INPUTS = 64;
 var MAX_EMULATOR_SAMPLE_BYTES = 128 * 1024;
 var EMULATOR_BUTTONS = [
   "a",
@@ -35220,6 +35230,7 @@ var EmulatorService = class {
   /** The sole interactive play primitive: exact inputs, exact frames, genuine samples. */
   async playStep(options, signal) {
     let execution = { status: "pre-execution-rejected" };
+    let step;
     let cancellation;
     let operationFailure;
     const cancel = () => {
@@ -35227,29 +35238,19 @@ var EmulatorService = class {
       void cancellation.catch(() => void 0);
     };
     try {
-      if (options === null || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["buttons", "frames", "sampleCount"].includes(key))) {
-        throw new EmulatorError("A stepped action requires only buttons, frames, and optional sampleCount");
-      }
-      this.#validateButtonSet(options.buttons);
-      this.#validateFrames(options.frames);
-      execution.requestedFrames = options.frames;
-      const sampleCount = options.sampleCount ?? 4;
-      this.#validateInteger(sampleCount, "Step sample count", 1, MAX_EMULATOR_STEP_SAMPLES);
+      step = this.#stepInputs(options);
+      execution.requestedFrames = step.frames;
       if (signal?.aborted)
         throw new EmulatorError("The stepped action was cancelled before execution");
       if (!this.active)
         throw new EmulatorError("No emulator session is running; run a ROM first");
       signal?.addEventListener("abort", cancel, { once: true });
-      execution = { status: "unknown", requestedFrames: options.frames };
-      const result = await this.#request("play_step", {
-        buttons: [...options.buttons],
-        frames: options.frames,
-        sampleCount
-      });
-      this.#validateObservationExecution(result, options);
+      execution = { status: "unknown", requestedFrames: step.frames };
+      const result = await this.#request("play_step", { inputs: step.inputs });
+      this.#validateObservationExecution(result, step);
       execution = {
         status: "completed",
-        requestedFrames: options.frames,
+        requestedFrames: step.frames,
         startFrame: result.startFrame,
         frame: result.frame,
         advancedFrames: result.advancedFrames,
@@ -35258,17 +35259,18 @@ var EmulatorService = class {
       };
       if (signal?.aborted)
         throw new EmulatorError("The stepped action completed before cancellation cleanup");
-      this.#validateObservation(result, { ...options, sampleCount });
+      this.#validateObservation(result, step);
       execution.sampledButtons = result.sampledButtons;
       return { ...result, execution };
     } catch (error2) {
       const failure = error2 instanceof EmulatorError ? error2 : new EmulatorError(error2 instanceof Error ? error2.message : String(error2), { cause: error2 });
       if (failure.execution?.status === "unknown") {
-        execution = { ...failure.execution, requestedFrames: options.frames };
-      } else if (error2 instanceof EmulatorTimelineError && Number.isSafeInteger(error2.startFrame) && error2.startFrame >= 0 && Number.isSafeInteger(error2.frame) && error2.frame >= error2.startFrame && error2.advancedFrames === error2.frame - error2.startFrame && Number.isSafeInteger(options?.frames) && error2.advancedFrames <= options.frames) {
+        execution = { ...failure.execution, requestedFrames: step?.frames };
+      } else if (error2 instanceof EmulatorTimelineError && Number.isSafeInteger(error2.startFrame) && error2.startFrame >= 0 && Number.isSafeInteger(error2.frame) && error2.frame >= error2.startFrame && error2.advancedFrames === error2.frame - error2.startFrame && Number.isSafeInteger(step?.frames) && error2.advancedFrames <= step.frames) {
         execution = {
-          status: error2.advancedFrames === options.frames ? "completed" : "known-partial",
-          requestedFrames: options.frames,
+          status: error2.advancedFrames === step.frames ? "completed" : "known-partial",
+          requestedFrames: step.frames,
+          ...step.inputs.length > 1 && Number.isSafeInteger(error2.failedActionIndex) ? { failedInputIndex: error2.failedActionIndex } : {},
           startFrame: error2.startFrame,
           frame: error2.frame,
           advancedFrames: error2.advancedFrames,
@@ -35277,7 +35279,7 @@ var EmulatorService = class {
           ...error2.recordingSpan === void 0 ? {} : { recordingSpan: error2.recordingSpan }
         };
       } else if (failure.execution?.status === "pre-execution-rejected") {
-        execution = { status: "pre-execution-rejected", requestedFrames: options.frames };
+        execution = { status: "pre-execution-rejected", requestedFrames: step?.frames };
       }
       failure.execution = execution;
       failure.imageDelivery = {
@@ -35306,6 +35308,61 @@ var EmulatorService = class {
     this.#validateObservation(result);
     return result;
   }
+  /** A step's ordered inputs as the worker runs them; the single buttons/frames form is one input. */
+  #stepInputs(options) {
+    if (options === null || typeof options !== "object" || Array.isArray(options)) {
+      throw new EmulatorError("A stepped action requires an options object");
+    }
+    let inputs;
+    if (options.inputs !== void 0) {
+      if (Object.keys(options).length !== 1) {
+        throw new EmulatorError("A stepped action takes an inputs list alone, without buttons, frames or sampleCount");
+      }
+      if (!Array.isArray(options.inputs) || options.inputs.length < 1 || options.inputs.length > MAX_EMULATOR_STEP_INPUTS) {
+        throw new EmulatorError(`A stepped action requires 1\u2013${MAX_EMULATOR_STEP_INPUTS} inputs`);
+      }
+      inputs = options.inputs.map((input, index) => {
+        if (input === null || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some((key) => !["buttons", "frames", "sample"].includes(key))) {
+          throw new EmulatorError(`Step input ${index} requires only buttons, frames, and optional sample`);
+        }
+        if (input.sample !== void 0 && typeof input.sample !== "boolean") {
+          throw new EmulatorError(`Step input ${index} sample must be a boolean`);
+        }
+        this.#validateButtonSet(input.buttons);
+        this.#validateFrames(input.frames);
+        return { buttons: [...input.buttons], frames: input.frames, samples: input.sample === true || index === options.inputs.length - 1 ? 1 : 0 };
+      });
+    } else {
+      if (Object.keys(options).some((key) => !["buttons", "frames", "sampleCount"].includes(key))) {
+        throw new EmulatorError("A stepped action requires buttons, frames, and optional sampleCount, or an inputs list");
+      }
+      this.#validateButtonSet(options.buttons);
+      this.#validateFrames(options.frames);
+      const sampleCount = options.sampleCount ?? 1;
+      this.#validateInteger(sampleCount, "Step sample count", 1, MAX_EMULATOR_STEP_SAMPLES);
+      inputs = [{ buttons: [...options.buttons], frames: options.frames, samples: Math.min(sampleCount, options.frames) }];
+    }
+    const frames = inputs.reduce((total, input) => total + input.frames, 0);
+    if (frames > MAX_EMULATOR_FRAMES) {
+      throw new EmulatorError(`One stepped action advances at most ${MAX_EMULATOR_FRAMES} frames in all; continue in another call`);
+    }
+    if (inputs.reduce((total, input) => total + input.samples, 0) > MAX_EMULATOR_STEP_SAMPLES) {
+      throw new EmulatorError(`One stepped action returns at most ${MAX_EMULATOR_STEP_SAMPLES} samples, the last frame included; mark fewer inputs with sample:true`);
+    }
+    return { inputs, frames };
+  }
+  /** Where each requested sample lands: evenly spaced within its input, ending on the input's last frame. */
+  #sampleFrames(startFrame, inputs) {
+    const frames = [];
+    let inputStart = startFrame;
+    for (const [inputIndex, input] of inputs.entries()) {
+      for (let index = 1; index <= input.samples; index += 1) {
+        frames.push({ frame: inputStart + Math.floor(index * input.frames / input.samples), inputIndex });
+      }
+      inputStart += input.frames;
+    }
+    return frames;
+  }
   #validateButtonSet(buttons) {
     if (!Array.isArray(buttons) || buttons.length > EMULATOR_BUTTONS.length || buttons.some((button) => !EMULATOR_BUTTONS.includes(button)) || new Set(buttons).size !== buttons.length) {
       throw new EmulatorError("Buttons must be a complete unique set of Game Boy buttons; use [] for neutral input");
@@ -35318,7 +35375,7 @@ var EmulatorService = class {
     }
     this.#validateButtonSet(result.activeButtons);
     this.#validateButtonSet(result.appliedButtons);
-    if (!sameButtons(result.appliedButtons, result.activeButtons) || step !== void 0 && !sameButtons(result.appliedButtons, step.buttons)) {
+    if (!sameButtons(result.appliedButtons, result.activeButtons) || step !== void 0 && !sameButtons(result.appliedButtons, step.inputs.at(-1).buttons)) {
       throw new EmulatorError("The stepped observation returned inconsistent applied controller input");
     }
   }
@@ -35329,20 +35386,20 @@ var EmulatorService = class {
       throw new EmulatorError("The stepped observation must contain native 160\xD7144 framebuffers");
     }
     const sameButtons = (left, right) => [...left].sort().join(",") === [...right].sort().join(",");
-    const count3 = step === void 0 ? 1 : Math.min(step.sampleCount ?? 4, step.frames);
+    const expected = step === void 0 ? [{ frame: result.startFrame }] : this.#sampleFrames(result.startFrame, step.inputs);
+    const count3 = expected.length;
     if (!Array.isArray(result.samples) || result.samples.length !== count3) {
       throw new EmulatorError("The stepped observation did not return the requested bounded samples");
     }
     for (const [index, sample] of result.samples.entries()) {
-      const frame3 = result.startFrame + (step === void 0 ? 0 : Math.floor((index + 1) * step.frames / count3));
-      if (sample === null || typeof sample !== "object" || sample.frame !== frame3 || sample.width !== 160 || sample.height !== 144 || typeof sample.pngBase64 !== "string" || sample.pngBase64.length > Math.ceil(MAX_EMULATOR_SAMPLE_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(sample.pngBase64) || typeof sample.sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sample.sha256) || typeof sample.rgbaSha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sample.rgbaSha256)) {
+      if (sample === null || typeof sample !== "object" || sample.frame !== expected[index].frame || sample.inputIndex !== expected[index].inputIndex || sample.width !== 160 || sample.height !== 144 || typeof sample.pngBase64 !== "string" || sample.pngBase64.length > Math.ceil(MAX_EMULATOR_SAMPLE_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(sample.pngBase64) || typeof sample.sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sample.sha256) || typeof sample.rgbaSha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sample.rgbaSha256)) {
         throw new EmulatorError("The stepped observation returned invalid sample metadata");
       }
       this.#validateButtonSet(sample.sampledButtons);
       if (index === count3 - 1 && !sameButtons(result.sampledButtons, sample.sampledButtons)) {
         throw new EmulatorError("The observation's sampled buttons disagree with its final framebuffer sample");
       }
-      if (step !== void 0 && !sameButtons(sample.sampledButtons, step.buttons)) {
+      if (step !== void 0 && !sameButtons(sample.sampledButtons, step.inputs[sample.inputIndex].buttons)) {
         throw new EmulatorError("The sampled framebuffer does not describe the requested controller input");
       }
       const bytes2 = Buffer.from(sample.pngBase64, "base64");
@@ -55783,6 +55840,13 @@ var paletteColor = external_exports.string().regex(/^#?[\da-fA-F]{6}$/u);
 var emulatorButton = external_exports.enum(["a", "b", "up", "down", "left", "right", "start", "select"]);
 var frameCount = external_exports.number().int().min(1).max(MAX_EMULATOR_FRAMES);
 var imageLayoutSchema = external_exports.enum(["individual", "contact-sheet"]);
+var emulatorButtonSet = external_exports.array(emulatorButton).max(8).refine((buttons) => new Set(buttons).size === buttons.length, "Buttons must be unique.");
+var emulatorImageOptions = {
+  includeImages: external_exports.boolean().optional(),
+  imageLayout: imageLayoutSchema.optional(),
+  scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels (contact sheets default to 2\xD7); sample hashes stay those of the native frames."),
+  detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default): frame, buttons, samples and recordingSpan. full returns every field the engine reports, such as the ROM, runtime, clock, recording state and retained sample paths.")
+};
 var scriptTarget = external_exports.object({
   sceneId: identifier,
   actorId: identifier.optional(),
@@ -56111,13 +56175,17 @@ var domainSchemas = {
     coverageCursor: external_exports.string().min(1).max(2048).optional()
   }).strict(),
   emulatorStep: external_exports.object({
-    buttons: external_exports.array(emulatorButton).max(8).refine((buttons) => new Set(buttons).size === buttons.length, "Buttons must be unique."),
-    frames: frameCount,
-    sampleCount: external_exports.number().int().min(1).max(MAX_EMULATOR_STEP_SAMPLES).optional(),
-    includeImages: external_exports.boolean().optional(),
-    imageLayout: imageLayoutSchema.optional()
+    buttons: emulatorButtonSet.optional().describe("With frames, for one held set: the complete set of held buttons; [] is neutral."),
+    frames: frameCount.optional().describe("With buttons: native frames to advance."),
+    sampleCount: external_exports.number().int().min(1).max(MAX_EMULATOR_STEP_SAMPLES).optional().describe("With buttons and frames: evenly spaced samples ending on the last frame; defaults to 1."),
+    inputs: external_exports.array(external_exports.object({
+      buttons: emulatorButtonSet.describe("The complete set of held buttons for this input; [] is neutral."),
+      frames: frameCount.describe("Native frames to hold this set."),
+      sample: external_exports.boolean().optional().describe("Also sample this input's last frame; the last input is always sampled.")
+    }).strict()).min(1).max(MAX_EMULATOR_STEP_INPUTS).optional().describe("Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."),
+    ...emulatorImageOptions
   }).strict(),
-  emulatorObserve: external_exports.object({ includeImages: external_exports.boolean().optional(), imageLayout: imageLayoutSchema.optional() }).strict(),
+  emulatorObserve: external_exports.object(emulatorImageOptions).strict(),
   emulatorInspect: external_exports.object({
     view: external_exports.enum(["oam", "memory", "vram"]).describe("oam reads hardware sprite objects; memory and vram read a bounded byte range."),
     visibleOnly: external_exports.boolean().optional().describe("oam only: filter out objects not visible on screen."),
@@ -57715,7 +57783,7 @@ function registerPlaytestTools(context) {
   });
   server.registerTool("emulator_checkpoint", {
     title: "Save or branch from an opaque checkpoint",
-    description: "Save a paused, neutral, sampled state or restore it into the exact same ROM/runtime. Use emulator_step with buttons:[] and frames:1 for a neutral sample. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
+    description: "Save a paused, neutral, sampled state or restore it into the exact same ROM/runtime. Saving needs an active recording (emulator_run with recording:{}, not yet stopped) and a sampled neutral frame: no held buttons, and the last emulator_step ended with buttons:[] for at least one frame, such as a final input {buttons:[],frames:1}. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
     inputSchema: external_exports.object({
       action: external_exports.enum(["save", "restore"]),
       checkpointId: identifier.optional().describe("Restore only; required checkpointId returned by save."),
@@ -67414,84 +67482,100 @@ function createGbStudioServer(options = {}) {
     }).strict(),
     annotations: { ...changeSession2, destructiveHint: true }
   }, async ({ romPath, debugMode, ...options2 }, extra) => safely(() => performEmulatorOperation((signal) => runEmulator(romPath, options2, debugMode, signal), extra.signal)));
-  function observationResult(observation, includeImages, imageLayout = "individual", signal) {
-    let sheet;
-    if (includeImages && imageLayout === "contact-sheet") {
-      try {
-        sheet = renderContactSheetPng({
-          signal,
-          title: "RUNTIME SAMPLES / GAPS NOT SHOWN",
-          subtitle: `FRAMES ${observation.startFrame}-${observation.frame} / ${observation.samples.length} SAMPLES / NO EXTRA STEPS`,
-          images: observation.samples.map((sample) => ({
-            png: Buffer.from(sample.pngBase64, "base64"),
-            sha256: sample.sha256,
-            label: `FRAME ${sample.frame}`,
-            caption: `INPUT ${sample.sampledButtons.length ? sample.sampledButtons.join(" + ") : "NONE"}`
-          }))
-        });
-      } catch (cause) {
-        const error2 = new EmulatorError(`Contact-sheet delivery failed: ${cause instanceof Error ? cause.message : "unknown composition failure"}. Recover with observe or recorded review, not another step.`, { cause });
-        error2.execution = observation.execution ?? {
-          status: "completed",
-          startFrame: observation.startFrame,
-          frame: observation.frame,
-          advancedFrames: observation.advancedFrames,
-          appliedButtons: observation.appliedButtons,
-          sampledButtons: observation.sampledButtons
-        };
-        error2.imageDelivery = { status: "failed", recovery: "Use emulator_observe or emulator_review with individual images. Do not repeat delivered input." };
-        throw error2;
+  function compactObservation(observation) {
+    const { fromPrefixPin: _fromPrefixPin, ...recordingSpan } = observation.recordingSpan ?? {};
+    return {
+      frame: observation.frame,
+      startFrame: observation.startFrame,
+      advancedFrames: observation.advancedFrames,
+      activeButtons: observation.activeButtons,
+      sampledButtons: observation.sampledButtons,
+      samples: observation.samples.map(({ frame: frame3, sha256, inputIndex }) => ({ frame: frame3, sha256, ...inputIndex === void 0 ? {} : { inputIndex } })),
+      ...observation.recordingSpan === void 0 ? {} : { recordingSpan }
+    };
+  }
+  function observationImages(observation, imageLayout, scale, signal) {
+    try {
+      if (imageLayout !== "contact-sheet") {
+        return { pngs: observation.samples.map((sample) => {
+          const png = Buffer.from(sample.pngBase64, "base64");
+          return scale === void 0 || scale === 1 ? png : magnifyPng(png, scale);
+        }) };
       }
+      const { png, ...sheet } = renderContactSheetPng({
+        signal,
+        ...scale === void 0 ? {} : { magnification: scale },
+        title: "RUNTIME SAMPLES / GAPS NOT SHOWN",
+        subtitle: `FRAMES ${observation.startFrame}-${observation.frame} / ${observation.samples.length} SAMPLES / NO EXTRA STEPS`,
+        images: observation.samples.map((sample) => ({
+          png: Buffer.from(sample.pngBase64, "base64"),
+          sha256: sample.sha256,
+          label: `FRAME ${sample.frame}`,
+          caption: `INPUT ${sample.sampledButtons.length ? sample.sampledButtons.join(" + ") : "NONE"}`
+        }))
+      });
+      return { pngs: [png], sheet };
+    } catch (cause) {
+      const error2 = new EmulatorError(`Image delivery failed: ${cause instanceof Error ? cause.message : "unknown composition failure"}. Recover with observe or recorded review, not another step.`, { cause });
+      error2.execution = observation.execution ?? {
+        status: "completed",
+        startFrame: observation.startFrame,
+        frame: observation.frame,
+        advancedFrames: observation.advancedFrames,
+        appliedButtons: observation.appliedButtons,
+        sampledButtons: observation.sampledButtons
+      };
+      error2.imageDelivery = { status: "failed", recovery: "Use emulator_observe or emulator_review with individual native images. Do not repeat delivered input." };
+      throw error2;
     }
-    let sheetMetadata;
-    if (sheet !== void 0) {
-      const { png: _sheetBytes, ...metadata2 } = sheet;
-      sheetMetadata = metadata2;
-    }
+  }
+  function observationResult(observation, { includeImages = true, imageLayout = "individual", scale, detail = "compact" }, signal) {
+    const images = includeImages ? observationImages(observation, imageLayout, scale, signal) : { pngs: [] };
     const result = toolResult({
-      ...observation,
-      samples: observation.samples.map(({ pngBase64: _bytes, ...sample }) => sample),
-      genuineEmulatorFrames: true,
-      imageDelivery: { status: includeImages ? "available" : "omitted", sampleCount: observation.samples.length },
+      ...detail === "full" ? {
+        ...observation,
+        samples: observation.samples.map(({ pngBase64: _bytes, ...sample }) => sample),
+        genuineEmulatorFrames: true
+      } : compactObservation(observation),
+      imageDelivery: {
+        status: includeImages ? "available" : "omitted",
+        sampleCount: observation.samples.length,
+        ...includeImages && imageLayout === "individual" && scale !== void 0 ? { scale } : {}
+      },
       ...imageLayout === "contact-sheet" ? {
-        contactSheet: sheet === void 0 ? { status: "omitted", reason: "includeImages:false" } : {
+        contactSheet: images.sheet === void 0 ? { status: "omitted", reason: "includeImages:false" } : {
           status: "available",
           provenance: "emulator-sample-contact-sheet",
-          ...sheetMetadata,
+          ...images.sheet,
           sampleIndices: observation.samples.map((_, index) => index),
           extraFramesAdvanced: 0
         }
       } : {}
     });
-    if (includeImages) {
-      if (sheet !== void 0)
-        result.content.push({ type: "image", data: sheet.png.toString("base64"), mimeType: "image/png" });
-      else
-        for (const sample of observation.samples)
-          result.content.push({ type: "image", data: sample.pngBase64, mimeType: "image/png" });
-    }
+    for (const png of images.pngs)
+      result.content.push({ type: "image", data: png.toString("base64"), mimeType: "image/png" });
     return result;
   }
   server.registerTool("emulator_step", {
     title: "Play exact frames and observe the result",
-    description: "Apply one complete held-button set, advance 1\u20133,600 exact native frames, and return up to eight genuine sampled PNGs (four by default). Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures; individual images remain the default. Buttons persist after the call; the same set does not release/repress them. Use [] for neutral input. Nothing advances between calls. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image.",
+    description: "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image.",
     inputSchema: domainSchemas.emulatorStep,
     annotations: changeSession2
-  }, async ({ includeImages = true, imageLayout = "individual", ...options2 }, extra) => {
+  }, async ({ includeImages, imageLayout, scale, detail, ...options2 }, extra) => {
     try {
-      return await performEmulatorOperation(async (signal) => observationResult(await emulator.playStep(options2, signal), includeImages, imageLayout, signal), extra.signal);
+      return await performEmulatorOperation(async (signal) => observationResult(await emulator.playStep(options2, signal), { includeImages, imageLayout, scale, detail }, signal), extra.signal);
     } catch (error2) {
       return errorResult(error2);
     }
   });
   server.registerTool("emulator_observe", {
     title: "Observe the current genuine framebuffer",
-    description: "Return the current real 160\xD7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. It accepts no actions. Applied input and last-sampled input are reported separately. Use emulator_step to play.",
+    description: "Return the current real 160\xD7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. Use emulator_step to play.",
     inputSchema: domainSchemas.emulatorObserve,
     annotations: readOnly3
-  }, async ({ includeImages = true, imageLayout = "individual" }, extra) => {
+  }, async (options2, extra) => {
     try {
-      return await performEmulatorOperation(async (signal) => observationResult(await emulator.observe(), includeImages, imageLayout, signal), extra.signal);
+      return await performEmulatorOperation(async (signal) => observationResult(await emulator.observe(), options2, signal), extra.signal);
     } catch (error2) {
       return errorResult(error2);
     }
