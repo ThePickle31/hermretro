@@ -23,6 +23,14 @@ USED = (
     ("hermes_cli.config", "read_user_config_raw"),
     ("hermes_cli.auth", "PROVIDER_REGISTRY"),
     ("agent.secret_scope", "load_env_file"),
+    # Private: Hermes's .env writer for an explicit path. Its public save_env_value also changes os.environ, which here
+    # would be the installing profile's process.
+    ("hermes_cli.config", "_env_write_lock"),
+    ("hermes_cli.config", "_read_env_lines"),
+    ("hermes_cli.config", "_write_env_lines"),
+    ("hermes_cli.config", "_quote_env_value"),
+    ("hermes_cli.config", "_env_line_defines_key"),
+    ("hermes_cli.config", "validate_env_var_name_for_write"),
     ("hermes_cli.default_soul", "DEFAULT_SOUL_MD"),
     ("hermes_cli.profiles", "_bootstrap_profile_dir"),
     ("hermes_cli.profiles", "seed_profile_skills"),
@@ -103,6 +111,30 @@ def read_profile_env(profile_home: Path) -> dict[str, str]:
     from agent.secret_scope import load_env_file
 
     return dict(load_env_file(profile_home / ".env"))
+
+
+def set_profile_env(profile_home: Path, name: str, value: str | None) -> None:
+    """Set (or with None remove) one name in a profile's .env, as Hermes writes it, without touching ``os.environ``."""
+    from hermes_cli.config import (
+        _env_line_defines_key,
+        _env_write_lock,
+        _quote_env_value,
+        _read_env_lines,
+        _write_env_lines,
+        validate_env_var_name_for_write,
+    )
+
+    validate_env_var_name_for_write(name)
+    path = profile_home / ".env"
+    with _env_write_lock(path):
+        existed = path.exists()
+        lines = [line for line in (_read_env_lines(path) if existed else []) if not _env_line_defines_key(line, name)]
+        if value is not None:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            single_line = value.replace("\n", "").replace("\r", "")
+            lines.append(f"{name}={_quote_env_value(single_line)}\n")
+        _write_env_lines(path, lines, preserve_mode=existed)
 
 
 def provider_env_keys() -> set[str]:

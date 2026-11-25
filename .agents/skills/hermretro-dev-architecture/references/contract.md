@@ -122,19 +122,23 @@ profile under the studio name. Returns
 `{ ok, profile, plugin, providers[], provider_sync, disabled_toolsets[], soul_written, workspace }` or
 `{ ok: false, code, error }` with `code` one of `NOT_CREATED`, `NAME_TAKEN`, `LINK_BLOCKED`, `LINK_FAILED`,
 `HERMES_COMMAND_FAILED`. A model-provider plugin Hermes installed into the studio profile on its own is removed and
-linked to the installing profile's copy. `provider_sync` is `{ changed[], kept[], claude_login }`
-(`backend/setup/provider_sync.py`): config keys and .env names copied from the installing profile (provider routes:
-`model`, `providers`, `custom_providers`, `fallback_providers`, `delegation`, each auxiliary task's route; the
-provider plugins' settings; the providers' keys), and those kept because they were changed in the studio profile
-itself. Names only, never values. `status` runs the same sync in the background whenever the installing profile's
-config or .env changed since the last one.
+linked to the installing profile's copy, keeping the studio's settings for it. `provider_sync` is
+`{ changed[], kept[], claude_login }` (`backend/setup/provider_sync.py`): the units copied from the installing profile
+and those kept because they were changed in the studio profile itself, by name only, never a value. Units: the
+sections `model`, `providers`, `custom_providers`, `fallback_providers` whole; the route fields of `delegation` and of
+each `auxiliary.<task>`; each provider plugin setting; `env:<NAME>` for the providers' .env keys and any key a copied
+unit names (`${NAME}`, `key_env`); `claude_config_dir`. A unit the studio still holds as last copied follows the
+installing profile, removals included. `status` runs the same sync in the background (linking and turning on a
+provider plugin turned on since) whenever the installing profile's config or .env changed since the last one, only
+for the profile that made the studio profile.
 Safe to call again, and single-flight: a call made while another runs in the same process waits for it and gets its
 answer (`shared: true`) or its error. `status` reports `profile: { name, is_studio, studio: { name, exists,
 installed, ours, conflict, claude_login } }`; `conflict` is a `hermretro` profile someone else made (finishing it is
 refused with `NAME_TAKEN`), so the page names it before any download. `claude_login` is null unless the finished
 studio profile uses the Claude Subscription DirectSDK provider, then `{ provider, signed_in, via }` with `via` one of
 `token` (`CLAUDE_CODE_OAUTH_TOKEN` in its .env), `folder` (its `claude_config_dir`) or null (none: the page offers
-`studio_claude_sign_in`).
+`studio_claude_sign_in`). `signed_in` is Claude Code's own answer (`claude auth status`, asked at most once a minute
+per login). While it is false the Setup wizard keeps the profile step open.
 
 ### `studio_claude_sign_in` — no params
 

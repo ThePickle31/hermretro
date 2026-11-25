@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 85881fbf30c381103fb7fbb2f939d5b361c7008a78477639064a67b386bcd23c
- * body: sha256 f0ec596d3bcb68ee7ebee9f2d28cb762bb65c30b75cba619067db970155878f6
+ * sources: sha256 9659a24f0fefa58d556bafd21baa95f7980e6c5c3bcf1e9f4e771b996b03e3c5
+ * body: sha256 72231a295f38db31d6da00207a3aa8f3e3495896ba68cd216a087368e23efa3f
  */
 // page/sdk.js
 import {
@@ -10183,8 +10183,9 @@ function computeSteps({ backend, status, doctor, memory }) {
   const data = backend === "ok" ? status.data : null;
   const cli = data?.deps?.device_cli;
   const states = {
-    // A backend that says nothing about profiles predates this step and cannot make one.
-    profile: !data ? "waiting" : !data.profile || data.profile.is_studio ? "done" : "todo",
+    // A backend that says nothing about profiles predates this step and cannot make one. A studio profile with no
+    // Claude login its provider can use is not done: the step offers the sign-in.
+    profile: !data ? "waiting" : !data.profile || data.profile.is_studio && data.profile.studio?.claude_login?.signed_in !== false ? "done" : "todo",
     toolchain: !data ? "waiting" : nodeState(data.node).ok ? toolchainState(data, doctor) : "blocked",
     firmware: memory.firmwareDone ? "done" : "todo",
     devmode: memory.devmodeDone ? "done" : "todo",

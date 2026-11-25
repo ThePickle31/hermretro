@@ -3,20 +3,23 @@
 DirectSDK runs Claude Code, which keeps its login in a config directory: ``<dir>/.credentials.json`` on Linux, a
 Keychain entry on macOS. The plugin refuses a profile other than the one Hermes was started for unless that profile
 names its own login (its ``claude_config_dir`` setting, or ``CLAUDE_CODE_OAUTH_TOKEN`` in its .env), so the studio
-profile is given the login of the profile hermretro was installed into.
+profile is given the login of the profile hermretro was installed into (``inherited_dir``).
 
-On macOS Claude Code names the Keychain entry after the directory whenever ``CLAUDE_CONFIG_DIR`` is set, even to
-``~/.claude``: a login made with it unset can only be reached with it unset, which the plugin never does for a second
-profile. That case needs a login of the studio's own (``sign_in``).
+On macOS Claude Code names the Keychain entry after the directory whenever ``CLAUDE_CONFIG_DIR`` is set
+(``Claude Code-credentials-<first 8 hex digits of its SHA-256>``), even to ``~/.claude``: a login made with it unset
+(``Claude Code-credentials``) can only be reached with it unset, which the plugin never does for a second profile.
+That case needs a login of the studio's own (``sign_in``). Whether a login works is asked of Claude Code itself
+(``claude auth status``), which reads the file or the Keychain as it will when the plugin runs it.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
-import unicodedata
+import time
 from pathlib import Path
 
 from ..hermes import api as hermes_api
@@ -27,10 +30,24 @@ SETTING = f"plugins.entries.{PLUGIN}.settings.claude_config_dir"
 TOKEN = "CLAUDE_CODE_OAUTH_TOKEN"
 # The environment the plugin falls back to, in its own order, when the setting is empty.
 _DIR_ENV = ("CLAUDE_SUBSCRIPTION_DIRECTSDK_CONFIG_DIR", "CLAUDE_CONFIG_DIR")
+# What would make Claude Code answer for a login other than the one asked about: an API key, another backend, another
+# folder. The plugin refuses or replaces the same ones.
+_NOT_THIS_LOGIN = (
+    *_DIR_ENV,
+    TOKEN,
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
 # The studio's own login folder, made by sign_in.
 OWN_DIR = "claude"
-_KEYCHAIN = "Claude Code-credentials"
 _SIGN_IN_SECONDS = 600
+# The Setup page asks for the status often; Claude Code is asked at most this often per login.
+_CHECK_SECONDS = 60
+_checked: dict = {}
 
 
 def uses_plugin(config: dict) -> bool:
@@ -43,67 +60,78 @@ def setting(config: dict) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-def selected_dir(config: dict, environ) -> str | None:
-    """The directory Claude Code would get for this profile, as the plugin picks it; None for Claude Code's default."""
-    chosen = setting(config) or next((environ[name] for name in _DIR_ENV if (environ.get(name) or "").strip()), "")
-    return os.path.expanduser(chosen) if chosen else None
+def inherited_dir(source_config: dict, environ, *, macos: bool | None = None) -> str | None:
+    """The login folder the studio profile can share with the installing profile, as the plugin would pick it there
+    (its setting, then the environment); with Claude Code's default login, ``~/.claude`` on Linux and None on macOS
+    (out of reach: the module's docstring)."""
+    chosen = setting(source_config) or next(
+        (environ[name].strip() for name in _DIR_ENV if (environ.get(name) or "").strip()), ""
+    )
+    if chosen:
+        return os.path.expanduser(chosen)
+    return None if (host.MACOS if macos is None else macos) else str(Path.home() / ".claude")
 
 
-def keychain_service(directory: str | None) -> str:
-    """Claude Code's Keychain entry for a config directory (``None``: ``CLAUDE_CONFIG_DIR`` unset)."""
-    if directory is None:
-        return _KEYCHAIN
-    digest = hashlib.sha256(unicodedata.normalize("NFC", directory).encode("utf-8")).hexdigest()
-    return f"{_KEYCHAIN}-{digest[:8]}"
+def claude_command() -> str | None:
+    """Claude Code, as the plugin finds it: its command variable, PATH, then the usual install folders (an app started
+    from the Dock or a desktop launcher gets a bare PATH)."""
+    chosen = os.environ.get("CLAUDE_SUBSCRIPTION_DIRECTSDK_COMMAND")
+    if chosen:
+        return chosen
+    found = shutil.which("claude")
+    if found:
+        return found
+    for folder in (Path.home() / ".local" / "bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")):
+        if (folder / "claude").is_file():
+            return str(folder / "claude")
+    return None
 
 
-def _keychain_has(service: str) -> bool:
-    """Whether the login Keychain has the entry. Asks for its attributes only, never the secret, so macOS shows no
-    prompt."""
-    try:
-        done = subprocess.run(
-            ["security", "find-generic-password", "-s", service],
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return done.returncode == 0
+def _environment(*, token: str | None = None, folder: str | None = None) -> dict:
+    environment = {name: value for name, value in os.environ.items() if name not in _NOT_THIS_LOGIN}
+    if token:
+        environment[TOKEN] = token
+    if folder:
+        environment["CLAUDE_CONFIG_DIR"] = folder
+    return environment
 
 
-def signed_in(directory: str | None, *, macos: bool | None = None, keychain=_keychain_has) -> bool:
-    """Whether Claude Code has a login for this config directory. On macOS it falls back to the file when the Keychain
-    cannot be used, so either counts there."""
-    folder = Path(directory) if directory else Path.home() / ".claude"
-    if (folder / ".credentials.json").is_file():
-        return True
-    return (host.MACOS if macos is None else macos) and keychain(keychain_service(directory))
+def logged_in(
+    *, token: str | None = None, folder: str | None = None, run=subprocess.run, command=claude_command
+) -> bool:
+    """Whether Claude Code has a subscription login with this token or in this folder (`claude auth status`)."""
+    key = (hashlib.sha256((token or "").encode("utf-8")).hexdigest(), folder)
+    cached = _checked.get(key)
+    if cached is not None and time.monotonic() - cached[0] < _CHECK_SECONDS:
+        return cached[1]
+    executable = command()
+    answer = False
+    if executable is not None:
+        try:
+            done = run(
+                [executable, "auth", "status", "--json"],
+                env=_environment(token=token, folder=folder),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            report = json.loads(done.stdout or "{}")
+            answer = bool(report.get("loggedIn")) and report.get("apiProvider", "firstParty") == "firstParty"
+        except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
+            answer = False
+    _checked[key] = (time.monotonic(), answer)
+    return answer
 
 
-def plan(source_config: dict, studio_config: dict, studio_env: dict, environ, *, macos: bool | None = None) -> dict:
-    """What the studio profile's login should become: ``{"set": dir}`` to point it at a directory, ``{"keep": how}``
-    when it already names its own, ``{"sign_in": True}`` when only a login of its own can work."""
-    if (studio_env.get(TOKEN) or "").strip():
-        return {"keep": "token"}
-    if setting(studio_config):
-        return {"keep": "folder"}
-    chosen = selected_dir(source_config, environ)
-    if chosen is not None:
-        return {"set": chosen}
-    if not (host.MACOS if macos is None else macos):
-        return {"set": str(Path.home() / ".claude")}
-    return {"sign_in": True}
-
-
-def status(studio_config: dict, studio_env: dict, **options) -> dict:
-    """For the page: whether the studio profile can sign in to Claude."""
-    if (studio_env.get(TOKEN) or "").strip():
-        return {"provider": PLUGIN, "signed_in": True, "via": "token"}
-    chosen = setting(studio_config)
-    if not chosen:
+def status(config: dict, env: dict, *, check=None) -> dict:
+    """For the page: whether the studio profile can sign in to Claude, and how."""
+    token = (env.get(TOKEN) or "").strip() or None
+    folder = setting(config)
+    if not token and not folder:
         return {"provider": PLUGIN, "signed_in": False, "via": None}
-    return {"provider": PLUGIN, "signed_in": signed_in(os.path.expanduser(chosen), **options), "via": "folder"}
+    asked = (check or logged_in)(token=token, folder=None if token else os.path.expanduser(folder))
+    return {"provider": PLUGIN, "signed_in": asked, "via": "token" if token else "folder"}
 
 
 def state(studio_home: Path) -> dict | None:
@@ -117,22 +145,7 @@ def state(studio_home: Path) -> dict | None:
         return None
 
 
-def claude_command() -> str | None:
-    """Claude Code, as the plugin finds it: its command setting's variable, PATH, then the usual install folders (an
-    app started from the Dock or a desktop launcher gets a bare PATH)."""
-    chosen = os.environ.get("CLAUDE_SUBSCRIPTION_DIRECTSDK_COMMAND")
-    if chosen:
-        return chosen
-    found = shutil.which("claude")
-    if found:
-        return found
-    for folder in (Path.home() / ".local" / "bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")):
-        if (folder / "claude").is_file():
-            return str(folder / "claude")
-    return None
-
-
-def sign_in(studio_home: Path, *, run=subprocess.run, command=claude_command) -> str:
+def sign_in(studio_home: Path, *, run=subprocess.run, command=claude_command, check=None) -> str:
     """Make the studio profile a Claude login of its own: Claude Code's sign-in, in the browser, into the studio's own
     folder. Answers the folder; raises ``SignInError`` when there is no login afterwards."""
     executable = command()
@@ -143,7 +156,7 @@ def sign_in(studio_home: Path, *, run=subprocess.run, command=claude_command) ->
     try:
         done = run(
             [executable, "auth", "login", "--claudeai"],
-            env={**os.environ, "CLAUDE_CONFIG_DIR": str(folder)},
+            env=_environment(folder=str(folder)),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
@@ -153,7 +166,8 @@ def sign_in(studio_home: Path, *, run=subprocess.run, command=claude_command) ->
         raise SignInError("SIGN_IN_TIMEOUT", "The Claude sign-in was not finished in time.") from error
     except OSError as error:
         raise SignInError("SIGN_IN_FAILED", f"Claude Code could not be started ({error.strerror or error}).") from error
-    if done.returncode != 0 or not signed_in(str(folder)):
+    _checked.clear()
+    if done.returncode != 0 or not (check or logged_in)(folder=str(folder)):
         tail = (done.stderr or done.stdout or "").strip().splitlines()[-1:]
         raise SignInError("SIGN_IN_FAILED", " ".join(["The Claude sign-in did not finish.", *tail]))
     return str(folder)

@@ -18,17 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 def sync_pair(home: Path) -> tuple[Path, Path] | None:
-    """``(installing profile, studio profile)`` from either side, once the studio profile is finished."""
-    if studio_profile.profile_name(home) == studio_profile.STUDIO_PROFILE:
-        studio = home
-        try:
-            marker = json.loads((home / studio_profile.MARKER).read_text(encoding="utf-8"))
-            source = hermes_api.profile_dir(marker["from_profile"])
-        except (OSError, ValueError, KeyError, TypeError):
-            return None
-    else:
-        source, studio = home, studio_profile.studio_dir()
-    return (source, studio) if source != studio and studio_profile.is_finished(studio) else None
+    """``(installing profile, studio profile)`` from either side: the profile that made the studio profile (its finish
+    marker's ``from_profile``), never another one the plugin is also installed in, and never a deleted studio."""
+    studio = home if studio_profile.profile_name(home) == studio_profile.STUDIO_PROFILE else studio_profile.studio_dir()
+    if not studio_profile.is_finished(studio) or hermes_api.profile_is_deleted(studio):
+        return None
+    try:
+        made_by = json.loads((studio / studio_profile.MARKER).read_text(encoding="utf-8"))["from_profile"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if studio != home and made_by != studio_profile.profile_name(home):
+        return None
+    source = home if studio != home else hermes_api.profile_dir(made_by)
+    return (source, studio) if source != studio else None
 
 
 def sync_soon(home: Path) -> None:
@@ -46,11 +48,20 @@ def _sync(source: Path, studio: Path) -> None:
     if not provider_sync.lock.acquire(blocking=False):
         return  # a sync or a finish is already running
     try:
-        enabled = ((hermes_api.read_profile_config(source).get("plugins") or {}).get("enabled")) or []
-        plugins = [folder.name for folder in studio_profile.provider_plugins(source, [str(name) for name in enabled])]
-        provider_sync.sync(
-            source, studio, lambda *arguments: studio_profile.run_hermes(studio, *arguments), plugins=plugins
-        )
+
+        def run(*arguments):
+            studio_profile.run_hermes(studio, *arguments)
+
+        enabled = [
+            str(name) for name in (hermes_api.read_profile_config(source).get("plugins") or {}).get("enabled") or []
+        ]
+        # A provider plugin turned on in the installing profile since setup: linked and on before its route is copied.
+        plugins = studio_profile.link_providers(source, studio, enabled, run)
+        on = (hermes_api.read_profile_config(studio).get("plugins") or {}).get("enabled") or []
+        for name in plugins:
+            if name not in on:
+                run("plugins", "enable", name)
+        provider_sync.sync(source, studio, run, plugins=plugins)
     except Exception:  # noqa: BLE001 - a failed sync leaves the profile as it was; setup's Repair runs it again
         logger.warning("hermretro could not bring the hermretro profile's providers up to date", exc_info=True)
     finally:

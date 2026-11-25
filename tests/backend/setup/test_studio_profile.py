@@ -192,6 +192,8 @@ class StudioProfile(unittest.TestCase):
     def test_setup_copies_the_provider_routes_and_links_a_provider_hermes_installed_there(self):
         (self.home / "config.yaml").write_text(json.dumps({"delegation": {"provider": "my-provider", "model": "m"}}))
         self.created()
+        own_settings = {"settings": {"region": "studio-only"}}
+        (self.target / "config.yaml").write_text(json.dumps({"plugins": {"entries": {"my-provider": own_settings}}}))
         installed = self.target / "plugins" / "my-provider"
         installed.mkdir(parents=True)
         (installed / "plugin.yaml").write_text("name: my-provider\nkind: model-provider\nversion: 2\n")
@@ -209,7 +211,10 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(installed.resolve(), (self.home / "plugins" / "my-provider").resolve())
         self.assertIn(("config", "set", "delegation.provider", "my-provider"), commands)
         self.assertIn(("config", "set", "delegation.model", "m"), commands)
-        self.assertEqual(result["provider_sync"]["changed"], ["delegation.provider", "delegation.model"])
+        # Removing the plugin drops its settings in Hermes: the studio's own are put back after the link.
+        restored = commands.index(("config", "set", "plugins.entries.my-provider", json.dumps(own_settings)))
+        self.assertLess(removed, restored)
+        self.assertEqual(result["provider_sync"]["changed"], ["delegation"])
 
     def test_a_provider_the_user_put_in_the_studio_profile_is_left_alone(self):
         self.created()

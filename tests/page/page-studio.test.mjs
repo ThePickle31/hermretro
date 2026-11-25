@@ -120,6 +120,16 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   check('a signed-in studio profile offers no sign-in', () => {
     assert.ok(![...dom.window.document.querySelectorAll('button')].some(node => node.textContent.includes('Sign in to Claude')))
   })
+  const signedOut = { ...complete, profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true,
+    installed: true, ours: true, claude_login: { provider: directsdk, signed_in: false, via: null } } } }
+  scenario.ambient = signedOut; scenario.status = answered(signedOut)
+  await studioPage.rerender()
+  check('in the studio profile, Setup stays on the profile step until it can sign in to Claude', () => {
+    assert.match(text(), /Step 1 of 6/)
+    assert.ok([...dom.window.document.querySelectorAll('button')].some(node => node.textContent.includes('Sign in to Claude')))
+  })
+  scenario.ambient = installer({ exists: true, installed: true, ours: true }); scenario.status = answered(scenario.ambient)
+  await studioPage.rerender()
   scenario.routes.push({ profile: 'hermretro', targetProfile: 'hermretro', connectionId: 'local' })
   scenario.byProfile = { 'hermretro': complete }
   const moved = await scenario.fns.status()

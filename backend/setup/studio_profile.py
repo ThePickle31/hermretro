@@ -240,6 +240,26 @@ def _link(source: Path, destination: Path) -> str:
     return "linked"
 
 
+def link_providers(home: Path, target: Path, enabled: list[str], run, *, check=lambda: None) -> list[str]:
+    """Link the installing profile's model-provider plugins into the studio profile; answers their names. A copy
+    Hermes installed into the studio profile on its own drifts from the installing profile's version, so it is replaced
+    by the link, keeping the studio's own settings for it (removing a plugin drops them)."""
+    providers = []
+    for folder in provider_plugins(home, enabled):
+        check()
+        destination = target / "plugins" / folder.name
+        if _link(folder, destination) == "own copy" and _installed_by_hermes(target, folder.name):
+            entry = ((hermes_api.read_profile_config(target).get("plugins") or {}).get("entries") or {}).get(
+                folder.name
+            )
+            run("plugins", "remove", folder.name)
+            _link(folder, destination)
+            if entry:
+                run("config", "set", f"plugins.entries.{folder.name}", json.dumps(entry))
+        providers.append(folder.name)
+    return providers
+
+
 def _installed_by_hermes(profile_home: Path, name: str) -> bool:
     try:
         installed = json.loads((profile_home / "plugins" / ".install-metadata.json").read_text(encoding="utf-8"))
@@ -417,16 +437,7 @@ def _configure(
 
     check()
     plugin = _link(paths.PLUGIN_ROOT, target / "plugins" / paths.PLUGIN_ID)
-    providers = []
-    for folder in provider_plugins(home, _enabled_plugins() if enabled is None else enabled):
-        check()
-        destination = target / "plugins" / folder.name
-        if _link(folder, destination) == "own copy" and _installed_by_hermes(target, folder.name):
-            # A copy Hermes installed there on its own drifts from the installing profile's version: link that one.
-            configure("plugins", "remove", folder.name)
-            _link(folder, destination)
-        providers.append(folder.name)
-
+    providers = link_providers(home, target, _enabled_plugins() if enabled is None else enabled, configure, check=check)
     for name in (paths.PLUGIN_ID, *providers):
         configure("plugins", "enable", name)
     with provider_sync.lock:
