@@ -541,7 +541,7 @@ class GamesRpc(unittest.TestCase):
         self.assertNotIn("present_game", {tool["name"] for tool in contracts.pinned_tools()})
         schema = library_tools.PRESENT_TOOL
         self.assertEqual(schema["name"], "chromatic_present_game")
-        self.assertEqual(set(schema["parameters"]["properties"]), {"note", "project"})
+        self.assertEqual(set(schema["parameters"]["properties"]), {"note", "unfinished", "project"})
         self.assertNotIn("required", schema["parameters"])
 
     def test_presentations_since(self):

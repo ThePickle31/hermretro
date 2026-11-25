@@ -10,7 +10,7 @@ from .. import player as player_server
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
-from . import game_card, layout, playtest_tools, report_tools
+from . import game_card, layout, pipeline, playtest_tools, report_tools
 from . import games as library
 from .tool_args import tool_error, tool_project
 
@@ -28,8 +28,10 @@ PRESENT_TOOL = {
         "Show the game to the user in the hermretro emulator beside the chat (ModRetro's player, served "
         "by the plugin). Call it once everything agreed with the user is built and you have tested it, and again after later "
         "changes the user should test; each call loads the newest build there. Nothing opens by itself after a "
-        "build. Needs a fresh playable copy (run chromatic_rom_build first) and a complete game card (cover art, "
-        "title, tagline, description, genres; set them with chromatic_game_info). Never touches a device. Do not open "
+        "build. Needs a fresh playable copy (run chromatic_rom_build first), for a game with a test plan its bound "
+        "checks and F1 passed on this build (chromatic_playtest after every rebuild; unfinished only when the user "
+        "asked to see it before that), and a complete game card (cover art, title, tagline, description, genres; "
+        "set them with chromatic_game_info). Never touches a device. Do not open "
         "the game with desktop_preview instead or reload it with drive_preview; only if the user says they cannot "
         "see the emulator, open the returned studio.playerUrl with desktop_preview (action \"open\"), and without "
         "desktop tools give the user that url."
@@ -41,6 +43,14 @@ PRESENT_TOOL = {
                 "type": "string",
                 "maxLength": library.MAX_NOTE_CHARS,
                 "description": "Optional short line shown to the user above the player, e.g. what to try.",
+            },
+            pipeline.OVERRIDE: {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": pipeline.MAX_OVERRIDE,
+                "description": "Only when the user asked to see the game before its bound test-plan checks and F1 "
+                "pass on this build: their request in a few words. The game is shown as it is, and the answer says "
+                "what is not verified.",
             },
             "project": {
                 "type": "string",
@@ -75,6 +85,12 @@ def present_game_handler(args: dict, **kwargs) -> str:
         )
         if not fresh:
             return tool_error(why or "The playable copy is not this build.", "BUILD_FIRST", next_step)
+        unfinished, why = pipeline.override(args.get(pipeline.OVERRIDE))
+        if why:
+            return tool_error(why, "INVALID_ARGUMENTS")
+        held = pipeline.gate("chromatic_present_game", Path(root), (entry or {}).get("lastBuild"))
+        if held and not unfinished:
+            return json.dumps(held)
         # Every game reaches the user in the game layout, with its card: cover art, title, tagline, description,
         # genres.
         try:
@@ -130,6 +146,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
                     == record["gameId"],
                 },
                 "message": "Shown to the user beside the chat.",
+                **({"unfinished": {"request": unfinished, "notVerified": held["error"]}} if held else {}),
             }
         )
     except Exception as error:  # a handler must never raise

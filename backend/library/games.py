@@ -350,7 +350,8 @@ class Registry:
             if "sourcePath" in arguments and project_file(Path(root)):
                 return None  # a standalone C experiment inside a GB Studio project, not the game's build
             rom = structured.get("outputPath") or structured.get("romPath")
-            sha = structured.get("romSha256") or structured.get("sha256")
+            built = structured.get("rom") if isinstance(structured.get("rom"), dict) else {}
+            sha = structured.get("romSha256") or structured.get("sha256") or built.get("sha256")
             build = {
                 "t": time.time(),
                 "ok": not failed,
@@ -361,6 +362,8 @@ class Registry:
             if failed:
                 message = structured.get("error") or structured.get("message") or "The build failed."
                 build["error"] = (message if isinstance(message, str) else json.dumps(message))[:ERROR_CHARS]
+            elif (sources := source_digest(Path(root))) is not None:
+                build["sources"] = sources  # what the ROM was built from (pipeline.rom_state)
             return self.upsert(root, chat=chat, build=build)
         if tool == "web_preview" and not failed and lane_root and arguments.get("action") in (None, "open"):
             # The engine reuses an export whose sources did not change without rewriting its files, so

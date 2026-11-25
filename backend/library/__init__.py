@@ -21,6 +21,7 @@ from .games import (
 from .games import _json as read_json
 from .freshness import plays_game_rom
 from .ownership import engine_path
+from .pipeline import after_build
 from .project import ROM_STEM, canonical_rom
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "ROM_STEM",
     "SELECTORS",
     "Registry",
+    "after_build",
     "canonical_rom",
     "cover_path",
     "engine_path",

@@ -320,12 +320,14 @@ Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbs
 (`engine/modretro-chromatic/dist/web-preview-states.js`), at most 8 kept per build; no RPC reads them
 (`backend/library/README.md`, "Save states", has the fields).
 
-`chromatic_present_game` `{ note?, project? }` is the agent's way to show a finished game: it needs a fresh
-web export the engine made of the current sources (else `BUILD_FIRST`) and a complete game card (else
+`chromatic_present_game` `{ note?, unfinished?, project? }` is the agent's way to show a finished game: it needs a
+fresh web export the engine made of the current sources (else `BUILD_FIRST`), the pipeline gate's go (below, "The
+pipeline gate"; `unfinished` passes it) and a complete game card (else
 `GAME_INFO_INCOMPLETE` with `missing`, `problems` and `nextStep`; before the card, a game folder out of its layout gets
 `LAYOUT` with `nextStep`: `layout.check`'s problems, `backend/library/README.md`, "The game folder"), records the presentation and returns `{ ok, studio: { gameId, playerUrl,
-title, note, presentedAt, buildConversation } }` (`buildConversation`: the game's own Build conversation presented
-it, so the Build page plays it); otherwise the desktop opens the emulator in a tab docked right of the chat. Builds
+title, note, presentedAt, buildConversation }, unfinished?: { request, notVerified } }` (`buildConversation`: the
+game's own Build conversation presented it, so the Build page plays it; `unfinished` when the gate held and the call
+gave `unfinished`, `notVerified` the gate's error); otherwise the desktop opens the emulator in a tab docked right of the chat. Builds
 open nothing. Setting `live_player` ("Keep the playable copy current", default on) makes every successful
 `rom_build` refresh that web export, so a presentation finds it fresh.
 
@@ -351,12 +353,14 @@ args   { title (1–48), summary (1–280), changes?: [{ kind: added|changed|rem
          tested?: [1–80] (≤6), untested?: [1–80] (≤6),
          checks?: [{ id (1–9), text (1–80), result: passed|failed|not run|blocked|needs review,
                      evidence? (1–4096) }] (≤100),
-         difficulty? (1–200), finishRun? (1–4096), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
+         difficulty? (1–200), finishRun? (1–4096), unfinished? (1–160), notes?: [1–160] (≤3),
+         suggestions?: [1–40] (≤4), project? }
 result { ok: true, report: { title, summary, changes[], tested[], untested[], checks[], difficulty /* or null */,
                              finishRun: { recordingPath, sessionId, status, frames, outcome? } /* or null */,
-                             notes[], suggestions[] },
+                             unfinished? /* when the gate held */, notes[], suggestions[] },
          reportedAt /* Unix time in ms, after image capture */, project /* root or null */, message, warnings? }
      | { ok: false, code: "INVALID_REPORT", problems[], error }
+     | GATE /* the pipeline gate's refusal, when it is the only problem */
 ```
 
 All or nothing: any invalid field (unknown keys included) refuses the whole report. Strings are trimmed and
@@ -392,6 +396,38 @@ check) `passed` or `failed` needs `finishRun`, and a `passed` one needs a record
 gave `passed` or `failed` cannot be reported `not run`; each reported check it ran gains `playtest: { result, ranAt }`
 in the answer's `report.checks` (the page keeps only `{ id, text, result }`). A bound check reported `passed` with no
 run on this ROM adds a warning.
+
+## The pipeline gate
+
+`chromatic_present_game` and `chromatic_build_report` wait until the game's ROM is the last build of its sources as
+they stand and its test plan's bound checks and F1 passed on that ROM (`backend/library/pipeline.py`). It keeps
+nothing of its own: it reads the library's `lastBuild` (a failed build, another ROM than its `sha256`, or sources
+whose `freshness.source_digest` is no longer its `sources`; a build recorded without `sources` is compared by file
+times) and the results `chromatic_playtest` keeps (`playtest.current`, below). A game without a test plan needs only
+the current ROM; the report holds nothing for a game with no ROM yet.
+
+```
+GATE { ok: false, code: "BUILD_FIRST" | "PLAYTEST_FIRST", error, nextStep,
+       pipeline: { rom: { path, sha256, problem /* or null */ },
+                   checks: { passed[], sampled[], verified[], failed[], error[], notRun[], unbound[], stale[],
+                             finish /* F1's id or null */, finishUnbound } /* or null without a plan */,
+                   ready } }
+```
+
+`BUILD_FIRST` comes first, while the ROM is not current (results on it would be of another game). `PLAYTEST_FIRST`
+holds while a bound check has no result on this ROM (`notRun`), `failed` or `error`, or F1 is open but not bound for
+its words (`finishUnbound`); `sampled` counts as passed, and an unbound check other than F1 holds nothing. For the
+report, its own evidence of this ROM counts as `verified`: an `error` check with `evidence` (its
+`playtest.verifiedBy`), and F1 reported `passed` with a `finishRun` that ended `passed`. `nextStep` names what to do
+and ends with the override: `unfinished` (1–160 characters), given only when the user asked for the game as it is
+(or, in a report, a failure the turn could not fix), passes the gate; the game is shown with `unfinished: { request,
+notVerified }`, the report with `report.unfinished` and a warning. In a report with other problems the gate's error
+and next step are one more problem (`INVALID_REPORT`).
+
+After a successful `chromatic_rom_build`, its result carries `testPlan: { staleResults[], notRun[], nextStep }`
+(`library.after_build`, added by the engine tool handler after `buildRef`) when bound checks have no result on the
+new ROM: those whose last result was on an earlier ROM, and those never replayed. A rebuild to the same bytes, or a
+game without a plan or bindings, has none.
 
 ## The test plan, replayed (`chromatic_playtest`)
 

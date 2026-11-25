@@ -10,7 +10,7 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import games as library
-from . import finish_run, plan_checks
+from . import finish_run, pipeline, plan_checks
 from .report_plan import plan_problems, playtest_problems
 from .tool_args import other_game_refusal, tool_error
 
@@ -41,7 +41,8 @@ REPORT_KINDS = ("added", "changed", "removed")
 CHECK_RESULTS = ("passed", "failed", "not run", "blocked", "needs review")
 REPORT_MESSAGE = (
     "The Build page shows this as the build card. Keep your written reply to one or two short "
-    "sentences; do not repeat the report."
+    "sentences; do not repeat the report. When nobody will answer (the user asked you to work on your own, or you "
+    "have no clarify tool), end with what you did and chose, never a question."
 )
 
 
@@ -62,11 +63,14 @@ BUILD_REPORT_TOOL = {
         "chromatic_present_game when you present. Never call it in a subagent. The page draws the title, summary, "
         "changes (with the images they made or edited), tested and untested checks, notes and suggestions as a "
         "build card, so the written reply after it should be one or two short sentences (for example a "
-        "question about a note), not a recap. When the game has a test plan (docs/game/TEST-PLAN.md), checks and "
-        "difficulty are required: a result for every check it lists (a bound check's must agree with "
+        "question about a note, when someone will answer it), not a recap. When the game has a test plan "
+        "(docs/game/TEST-PLAN.md), checks and difficulty are required: a result for every check it lists (a bound "
+        "check's must agree with "
         "chromatic_playtest's results on this ROM; one it could not judge is passed only with evidence), and "
-        "finishRun when its F1 (the run from power-on to the ending) passed or failed. Reads the test plan and the "
-        "recording and writes nothing in the project; never touches a device."
+        "finishRun when its F1 (the run from power-on to the ending) passed or failed. It waits until the game's ROM "
+        "is its latest build and that plan's bound checks and F1 passed on it (unfinished says why a turn ends "
+        "before that). Reads the test plan and the recording and writes nothing in the project; never touches a "
+        "device."
     ),
     "parameters": {
         "type": "object",
@@ -163,6 +167,14 @@ BUILD_REPORT_TOOL = {
                 "restores, then stopped (outcome 'passed' when it reached the ending). Checked against the game's "
                 "ROM.",
             },
+            pipeline.OVERRIDE: {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": pipeline.MAX_OVERRIDE,
+                "description": "Only when this turn ends before the game's bound test-plan checks and F1 pass on its "
+                "latest build (the user asked for it as it is, or a failure you could not fix): why, in a few words. "
+                "The report is taken with what is not verified in its warnings.",
+            },
             "notes": _report_list("notes", REPORT_LIMITS["notes"], "One note.", "Things the user might notice."),
             "suggestions": _report_list(
                 "suggestions",
@@ -254,6 +266,23 @@ def _report_checks(values, problems: list) -> list[dict]:
                 problems.append(f"{where}.evidence must be a recording's path or session id.")
         checks.append(item)
     return checks
+
+
+def _held(root: Path | None, report: dict) -> dict | None:
+    """The pipeline gate's refusal for the report's game (``pipeline.gate``), None when it may be reported or the chat
+    has no project. The report's own evidence of this ROM counts: a check ``chromatic_playtest`` could not judge,
+    verified with a recording (its ``playtest.verifiedBy``), and F1 reported passed with a finish run that ended
+    passed. A game with no ROM yet holds nothing: there is no build to verify."""
+    if root is None or finish_run.current_rom(root)[0] is None:
+        return None
+    entry = host._registry().get(library.game_id(str(root))) or {}
+    shown = [check["id"] for check in report["checks"] if (check.get("playtest") or {}).get("verifiedBy")]
+    finish = plan_checks.check_key(plan_checks.FINISH_CHECK)
+    if (report["finishRun"] or {}).get("outcome") == "passed" and any(
+        plan_checks.check_key(check["id"] or "") == finish and check["result"] == "passed" for check in report["checks"]
+    ):
+        shown.append(plan_checks.FINISH_CHECK)
+    return pipeline.gate("chromatic_build_report", root, entry.get("lastBuild"), shown)
 
 
 def build_report_handler(args: dict, **kwargs) -> str:
@@ -380,6 +409,17 @@ def build_report_handler(args: dict, **kwargs) -> str:
             refuted, unplayed = playtest_problems(root, report["checks"])
             problems += refuted
             warnings += unplayed
+        unfinished, why = pipeline.override(args.get(pipeline.OVERRIDE))
+        if why:
+            problems.append(why)
+        held = _held(root, report)
+        if held and unfinished:
+            report[pipeline.OVERRIDE] = unfinished
+            warnings.append(f"Reported unfinished ({unfinished}): {held['error']}")
+        elif held and not problems:
+            return json.dumps(held)
+        elif held:
+            problems.append(f"{held['error']} {held['nextStep']}")
         if problems:
             return json.dumps(
                 {

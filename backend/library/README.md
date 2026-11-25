@@ -11,7 +11,9 @@
 - `layout.py` keeps every game folder in the game layout (below); `release.py` says what a publish holds and records.
 - `playtest.py` keeps the test plan's checks bound to recorded attempts and the last run's results
   (`.hermretro/playtest.json`), each result tied to its ROM, binding and check words; `playtest_run.py` replays them
-  on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine.
+  on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine. `pipeline.py` is
+  the gate `chromatic_present_game` and `chromatic_build_report` hold a game to (its ROM the last build of its
+  sources, its bound checks and F1 passed on it) and what a build left to replay (`after_build`).
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
@@ -33,7 +35,7 @@
 
 ## Front door
 
-`backend.library`: `Registry`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
+`backend.library`: `Registry`, `after_build`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
 
 ## Tests
 
@@ -52,7 +54,7 @@ Read-only paths use `host.try_connect` to reach an already running broker. The t
   - `addedAt`: when the library first recorded the game. Never changes.
   - `updatedAt`: the last time the library recorded something about the game: the broker saw it created or selected (`project_create`, `project_create_blank`, `project_select`), built (`rom_build`) or exported (`web_preview` open), or `chromatic_present_game` showed it (`Registry.upsert` and `Registry.present`; each `games` RPC also adds projects the running broker has selected that the library lacks, setting it only for those). Binding a conversation, editing the game card or a thumbnail does not change it. The Games page lists games newest `updatedAt` first: this is what "recent" means. Nothing records when the user opened a game.
   - `chat`: `{conversationId, sessionId, profile}` of the chat that last selected, created (with `select`), built, exported or presented it (the seeded entries carry only `sessionId`).
-  - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null)}`.
+  - `lastBuild`: the last `rom_build` the broker saw: `{t, ok, rom (path or null), sha256 (or null), error (`games.ERROR_CHARS`, 240, characters at most, or null), sources?}` (`sources`: after a successful build, `freshness.source_digest` of the sources it was built from, which `pipeline.rom_state` compares with the current one).
   - `lastWebExport`: `{t, sources}` of the last successful `web_preview` open into the game's own `build/web` (the engine may reuse an export without rewriting it); `sources` is `freshness.source_digest` of the `.gbsproj`, `project/`, `assets/` and `plugins/` at that moment, which `export_freshness` compares with the current one.
   - `presented`: `{t, note}` of the last `chromatic_present_game` (`note` may be null).
   - `initialPlan`: the mode recorded when New Game first bound the project. True for Plan first, false for Build it.

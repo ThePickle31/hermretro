@@ -321,6 +321,7 @@ class BuildReport(unittest.TestCase):
                 "checks",
                 "difficulty",
                 "finishRun",
+                "unfinished",
                 "notes",
                 "suggestions",
                 "project",

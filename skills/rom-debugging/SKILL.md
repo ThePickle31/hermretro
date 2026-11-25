@@ -130,6 +130,9 @@ after every rebuild run `chromatic_playtest {}`** instead of choosing what to
 replay yourself: it replays every bound check on the new ROM and answers
 `passed`, `sampled`, `failed` or `error` for each
 ([the test plan, replayed](references/recorded-playtesting.md#the-test-plan-replayed)).
+`chromatic_present_game` and `chromatic_build_report` are refused until every
+bound check and F1 pass on the latest build; a build's `testPlan` names the
+checks it left to replay.
 
 ```text
 chromatic_playtest {"action":"bind","check":"T3","recording":"<recordingPath>","toActionIndex":<recordingSpan.toActionIndex>}

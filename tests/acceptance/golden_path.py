@@ -35,6 +35,20 @@ PLAN = """# Test plan
 # Frames from power-on before the route starts, as the route was measured (emulator_run's default, given so the route
 # does not move with it).
 BOOT_FRAMES = 120
+# The build report of the rebuild, as the agent gives it.
+CARD = {
+    "title": "Golden Path",
+    "summary": "A door that leads to the goal scene.",
+    "changes": [{"kind": "added", "text": "The door and the goal scene.", "asset": "assets/sprites/door.png"}],
+    "tested": ["Walked into the door from power-on."],
+    "checks": [
+        {"id": "T1", "text": "Walking into the door shows the goal scene.", "result": "passed"},
+        {"id": "F1", "text": "Played from power-on to the goal scene.", "result": "passed"},
+    ],
+    "difficulty": "Under a second of walking right; nothing to tune.",
+}
+# The user's request to see the game before its checks pass (chromatic_present_game's unfinished).
+UNFINISHED = "Show me the door now."
 # Walk right from the start tile into the door two tiles away, then wait out the fade into the goal scene.
 ROUTE = [{"buttons": ["right"], "frames": 40}, {"buttons": [], "frames": 90}]
 
@@ -50,8 +64,11 @@ def check_golden_path(suite):
             author(suite, studio, root, sprite, song, chime)
             first = build(suite, studio, root)
             played = play(suite, studio, first)
+            bind_plan(suite, studio, first, played)
             finish = replay_on_rebuild(suite, studio, root, first, played)
             check_audio(suite, studio)
+            present_unfinished(suite, studio, root, finish)
+            replay_plan(suite, studio, root)
             present(suite, studio, root)
             report(suite, studio, root, played, finish)
         except Stopped:
@@ -262,16 +279,39 @@ def scene_name(debugged: dict):
 
 
 @step(
+    "GP11",
+    "Golden path, bind: the test plan's checks are bound to the run as it passed, and chromatic_playtest replays them "
+    "on its ROM: both pass",
+)
+def bind_plan(check, studio, rom, played):
+    """T1 (the walk into the goal scene, every frame as recorded) and F1 (the whole run, stopped as passed) bound to
+    the one recorded run, then replayed on the ROM it played."""
+    bound = [
+        studio.call("chromatic_playtest", {"action": "bind", "check": check_id, "recording": played["recording"]})
+        for check_id in ("T1", "F1")
+    ]
+    ran = studio.call("chromatic_playtest")
+    check(
+        all(answer.get("ok") is True for answer in bound)
+        and (ran.get("rom") or {}).get("sha256") == rom["sha256"]
+        and ran.get("counts") == {"passed": 2, "sampled": 0, "failed": 0, "error": 0, "stale": 0, "unbound": 0},
+        bound=[answer.get("problems") or answer.get("bound") for answer in bound],
+        ran=ran.get("error") or ran.get("counts"),
+    )
+
+
+@step(
     "GP7",
-    "Golden path, rebuild: after a fix that changes nothing on screen, the recorded run replays onto the new ROM "
-    "frame for frame and is recorded again there",
+    "Golden path, rebuild: after a fix that changes nothing on screen, the build names the checks whose results it "
+    "left on the earlier ROM, and the recorded run replays onto the new ROM frame for frame and is recorded again there",
 )
 def replay_on_rebuild(check, studio, root, first, played):
     """A fix that changes nothing on screen (the door's name), a rebuild, and the recorded run replayed onto it:
     the replay is recorded as a run of its own, from power-on of the new ROM."""
     start = studio.engine("chromatic_project_inspect")["settings"]["startSceneId"]
     renamed = apply(studio, root, start, [{"type": "trigger.update", "triggerId": DOOR, "name": "Goal Door"}])
-    rebuilt = studio.engine("chromatic_rom_build")
+    answer = studio.call("chromatic_rom_build")
+    rebuilt = answer.get("structuredContent") or {}
     rom = {"path": rebuilt.get("outputPath"), "sha256": (rebuilt.get("rom") or {}).get("sha256")}
     replayed = studio.engine(
         "chromatic_emulator_replay", {"romPath": rom["path"], "recordingPath": played["recording"]}
@@ -280,6 +320,7 @@ def replay_on_rebuild(check, studio, root, first, played):
     check(
         not renamed.get("isError")
         and rebuilt.get("success") is True
+        and (answer.get("testPlan") or {}).get("staleResults") == ["T1", "F1"]
         and rom["sha256"] not in (None, first["sha256"])
         and replayed.get("romSha256") == rom["sha256"]
         and replay.get("status") == "matched"
@@ -288,6 +329,7 @@ def replay_on_rebuild(check, studio, root, first, played):
         and replayed.get("frame") == played["frame"]
         and (replayed.get("recording") or {}).get("recordingPath") not in (None, played["recording"]),
         renamed=renamed.get("error"),
+        test_plan=answer.get("testPlan") or answer.get("error"),
         roms=[first["sha256"], rom["sha256"]],
         replay=replay,
     )
@@ -316,10 +358,11 @@ def check_audio(check, studio):
 
 
 @step(
-    "GP9",
-    "Golden path, present: with the game card filled in, the fresh playable copy is shown to the user",
+    "GP12",
+    "Golden path, gates: with the game card filled in, presenting and reporting the rebuild wait until its checks "
+    "pass on it, naming them; the user's request to see it as it is shows it unfinished",
 )
-def present(check, studio, root):
+def present_unfinished(check, studio, root, finish):
     (root / "art" / "cover.png").write_bytes(encode_png(160, 144, cover))
     card = studio.call(
         "chromatic_game_info",
@@ -331,14 +374,51 @@ def present(check, studio, root):
             "cover": "art/cover.png",
         },
     )
-    shown = studio.call("chromatic_present_game", {"note": "Walk right."})
+    held = studio.call("chromatic_present_game", {"note": "Walk right."})
+    unreported = studio.call("chromatic_build_report", {**CARD, "finishRun": finish})
+    shown = studio.call("chromatic_present_game", {"note": "Walk right.", "unfinished": UNFINISHED})
     entry = host._registry().get(library.game_id(root)) or {}
     check(
         card.get("ok") is True
-        and shown.get("ok") is True
-        and (shown.get("studio") or {}).get("playerUrl", "").endswith("/index.html")
+        and held.get("code") == unreported.get("code") == "PLAYTEST_FIRST"
+        and "T1, F1 have no result on this ROM." in held.get("error", "")
+        and "T1 has no result on this ROM." in unreported.get("error", "")  # F1 shown by the report's finish run
+        and "chromatic_playtest {}" in held.get("nextStep", "")
+        and (shown.get("unfinished") or {}).get("request") == UNFINISHED
         and (entry.get("presented") or {}).get("note") == "Walk right.",
         card=card.get("problems") or card.get("missing") or card.get("error"),
+        held=held.get("error"),
+        unreported=unreported.get("error"),
+        shown=shown.get("error") or shown.get("unfinished"),
+    )
+
+
+@step(
+    "GP13",
+    "Golden path, replay the plan: chromatic_playtest replays the bound checks on the rebuild, and both pass",
+)
+def replay_plan(check, studio, root):
+    ran = studio.call("chromatic_playtest")
+    check(
+        (ran.get("rom") or {}).get("sha256") == library.file_sha256(root / library.canonical_rom(root))
+        and ran.get("counts") == {"passed": 2, "sampled": 0, "failed": 0, "error": 0, "stale": 0, "unbound": 0},
+        ran=ran.get("error") or ran.get("counts"),
+        checks=[(entry.get("id"), entry.get("result"), entry.get("problems")) for entry in ran.get("checks") or []],
+    )
+
+
+@step(
+    "GP9",
+    "Golden path, present: once its checks pass on the rebuild, the fresh playable copy is shown to the user",
+)
+def present(check, studio, root):
+    shown = studio.call("chromatic_present_game", {"note": "Walk right."})
+    entry = host._registry().get(library.game_id(root)) or {}
+    check(
+        shown.get("ok") is True
+        and "unfinished" not in shown
+        and (shown.get("studio") or {}).get("playerUrl", "").endswith("/index.html")
+        and (entry.get("presented") or {}).get("note") == "Walk right.",
         shown=shown.get("error") or shown.get("studio"),
     )
 
@@ -355,19 +435,8 @@ def cover(x, y):
 def report(check, studio, root, played, finish):
     """The report names the replay's recording as its finish run; the first run, made on the earlier ROM, is no
     finish run of this build."""
-    card = {
-        "title": "Golden Path",
-        "summary": "A door that leads to the goal scene.",
-        "changes": [{"kind": "added", "text": "The door and the goal scene.", "asset": "assets/sprites/door.png"}],
-        "tested": ["Walked into the door from power-on."],
-        "checks": [
-            {"id": "T1", "text": "Walking into the door shows the goal scene.", "result": "passed"},
-            {"id": "F1", "text": "Played from power-on to the goal scene.", "result": "passed"},
-        ],
-        "difficulty": "Under a second of walking right; nothing to tune.",
-    }
-    earlier = studio.call("chromatic_build_report", {**card, "finishRun": played["recording"]})
-    reported = studio.call("chromatic_build_report", {**card, "finishRun": finish})
+    earlier = studio.call("chromatic_build_report", {**CARD, "finishRun": played["recording"]})
+    reported = studio.call("chromatic_build_report", {**CARD, "finishRun": finish})
     run = (reported.get("report") or {}).get("finishRun") or {}
     check(
         earlier.get("code") == "INVALID_REPORT"
