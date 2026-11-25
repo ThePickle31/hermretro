@@ -386,7 +386,8 @@ Existing templates use these identifiers:
 - `PLATFORM`: side-view jumping, ladders, and platforming behaviors. New projects start with GB Studio's
   defaults: coyote time (`FEAT_PLATFORM_COYOTE_TIME`) and dropping through one-way platforms
   (`FEAT_PLATFORM_DROP_THROUGH`) on.
-- `SHMUP`: horizontal or vertical scrolling shooters, depending on settings.
+- `SHMUP`: horizontal or vertical scrolling shooters; the player's starting direction sets which
+  ([scene types](scene-types.md#shoot-em-up)).
 - `POINTNCLICK`: cursor-driven scenes and object interactions.
 - `LOGO`: a still full-screen picture (a splash or logo). Text there draws with glitches, so a title, menu or
   ending with words is another type, such as `TOPDOWN` with the player hidden.

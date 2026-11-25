@@ -170,8 +170,17 @@ class CookbookTests(unittest.TestCase):
             {"command": "EVENT_SET_VALUE", "args": {"variable": "1", "value": {"type": "number", "value": 3}}}, start
         )
 
+    def test_the_hud_is_always_drawn_whole(self):
+        """Redrawing part of the HUD wraps GB Studio's text tile ring over letters still on screen."""
+        text = (SKILL / "event-cookbook.md").read_text()
+        events = [
+            event for recipe in re.findall(r"```json\n(.*?)```", text, re.S) for event in nested(json.loads(recipe))
+        ]
+        drawn = {event["args"]["text"] for event in events if event["command"] == "EVENT_TEXT_DRAW"}
+        self.assertEqual(drawn, {"COINS $00$ LIVES $01$  "})
+
     def test_the_pages_name_only_real_events(self):
-        for page in ("event-cookbook.md", "gb-studio-behaviours.md", "project-authoring.md"):
+        for page in ("event-cookbook.md", "gb-studio-behaviours.md", "project-authoring.md", "scene-types.md"):
             for command in set(re.findall(r"\bEVENT_[A-Z0-9_]*[A-Z0-9]", (SKILL / page).read_text())):
                 with self.subTest(page=page, command=command):
                     self.assertIn(command, self.events)
