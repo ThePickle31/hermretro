@@ -21,6 +21,10 @@ The default output is a unique directory under the authorized workspace's
 authorized directory. Retain the returned absolute `recordingPath`.
 All boots, including unrecorded boots, preserve adjacent cartridge save files.
 
+While recording, the last frame of every input in an `inputs` list is kept as evidence, sampled or not: a
+64-input list keeps up to 64 frames plus the periodic ones, even though only the sampled frames come back in
+the result. Size recording limits for that.
+
 Export reports bounded pages of normalized input history and retained evidence.
 By default it returns up to 64 actions. Use `nextActionOffset` for the next
 action page. Evidence always contains the latest `min(limit, 32)` samples;

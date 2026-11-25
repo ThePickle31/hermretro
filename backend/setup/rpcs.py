@@ -227,7 +227,7 @@ def rpc_activity(ctx):
                     "t": frame["t"],
                     "tool": frame["tool"],
                     "frame": frame.get("frame"),
-                    "src": f"data:{frame['mimeType']};base64,{frame['data']}",
+                    "src": f"data:{frame['mimeType']};base64,{frame['data']}" if frame.get("data") else None,
                 }
             answer["running"] = True
             return answer

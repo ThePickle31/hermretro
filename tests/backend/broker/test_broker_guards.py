@@ -192,3 +192,18 @@ class LivePlayer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ActivityFrame(unittest.TestCase):
+    def remember(self, made, frame, data):
+        result = {
+            "structuredContent": {"frame": frame},
+            "content": [{"type": "image", "mimeType": "image/png", "data": data}],
+        }
+        made.remember("emulator_step", "tool", result, 0.1)
+
+    def test_an_image_too_large_to_keep_moves_the_frame_on_without_a_picture(self):
+        made = Lane(("profile", "chat"))
+        self.remember(made, 10, "small")
+        self.remember(made, 20, "x" * 400_000)  # a scaled contact sheet
+        self.assertEqual((made.last_frame["frame"], made.last_frame["data"]), (20, None))

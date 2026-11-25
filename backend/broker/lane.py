@@ -83,13 +83,16 @@ class Lane:
         self.activity.append(entry)
         self.last_activity = now
         images = [b for b in result.get("content") or [] if b.get("type") == "image" and b.get("data")]
-        if images and len(images[-1]["data"]) < 400_000:
+        if images:
+            # A scaled contact sheet can be too large to keep: the frame moves on without a picture rather than
+            # showing the previous one as current.
+            image = images[-1]
             self.last_frame = {
                 "t": now,
                 "tool": tool,
                 "frame": structured.get("frame"),
-                "mimeType": images[-1].get("mimeType") or "image/png",
-                "data": images[-1]["data"],
+                "mimeType": image.get("mimeType") or "image/png",
+                "data": image["data"] if len(image["data"]) < 400_000 else None,
             }
         if tool == "rom_build":
             rom = structured.get("romPath") or structured.get("outputPath")
