@@ -9,6 +9,14 @@ How GB Studio's compiler and engine behave in ways that build without an error b
 - **Sprite palettes show three colours.** GB Studio compiles a sprite palette as `[c0, c0, c1, c3]`: hardware
   entry 0 is transparent, so the colours on screen are the palette's entries 0, 1 and 3, and entry 2 never shows.
   Give `chromatic_palette_create` three colours for a sprite palette (lightest, middle, darkest).
+- **A sprite's colours come from its tiles, not its actor** *(build warning)*. In colour, each sprite tile's
+  `paletteIndex` picks one of the scene's eight sprite palette slots (default 0); GB Studio never reads an actor's
+  `paletteId`, so the actor tools refuse one (`ACTOR_PALETTE_UNSUPPORTED`). Choose the slot with
+  `chromatic_asset_import`'s `sprite.paletteIndex`, then `chromatic_palette_assign` the palette to that slot.
+  Actors sharing a sprite share its slot: for another colour, import the art again to a new path with another slot.
+  A scene that assigns a sprite slot 0-6 none of its sprite tiles use warns (`UNUSED_SPRITE_PALETTE_SLOTS`), in
+  `chromatic_graphics_analyze_scene` too. Slot 7 is never reported (it also colours emote bubbles), nor is a scene
+  whose sprites cannot all be known (a plugin event, a missing custom script or prefab, no player sprite set).
 - **LOGO scenes cannot show text** *(build warning)*. Text in a `LOGO` scene (`EVENT_TEXT`, `EVENT_MENU`,
   `EVENT_CHOICE`, `EVENT_TEXT_DRAW`) draws with glitches. Use `LOGO` for a still picture only; a title or ending with
   words is a `TOPDOWN` scene with the player hidden (`EVENT_ACTOR_HIDE` with `actorId: "player"`).

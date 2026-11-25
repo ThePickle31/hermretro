@@ -103,7 +103,9 @@ they are stored as entries 0, 1 and 3, with a blend in the unused entry 2 (three
 `chromatic_palette_assign` to a sprite slot returns the three colors sprites show
 and warns when entry 2 holds a color you may have expected to see. Choose the
 slot at import with `sprite.paletteIndex` (0–7, every tile; default 0), then
-assign the palette to that slot in each scene where the sprite appears.
+assign the palette to that slot in each scene where the sprite appears. An actor
+has no palette of its own: GB Studio never reads an actor's `paletteId`, and the
+actor tools refuse one.
 
 Import profiles (`chromatic_asset_import` `sprite.profile`):
 

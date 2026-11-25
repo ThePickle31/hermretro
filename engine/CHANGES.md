@@ -185,3 +185,23 @@ files, what changed and why.
   and a `native_metadata` import leaves out its ID map and pattern notes unless `detail:"full"` (about 6 KB to 1.5 KB).
   In the benchmark rerun four of five games spent a second build only to turn source debugging on, a blank shoot-'em-up
   could not move its player up, and imports and debug reads repeated kilobytes on every call.
+- `dist/server.js` (`actors.js`, `native-script-events.js` and every script writer, `project.js`, `event-catalog.js`,
+  `build.js`, `scene-graphics.js`, `rom_build`): writes that GB Studio would silently ignore are refused, and builds
+  that drop part of a game fail and keep the last good ROM. An actor `paletteId` (GB Studio never reads it: a sprite
+  tile's `paletteIndex` picks the scene's sprite palette slot) is refused when a request gives or changes one,
+  including actors given in a scene update's properties (`ACTOR_PALETTE_UNSUPPORTED`, naming `asset_import`
+  `sprite.paletteIndex` and `palette_assign`); one already stored is kept through unrelated edits. The scene analysis
+  no longer counts it as a used slot, and it and `rom_build` warn when a color scene assigns sprite palette slots 0-6
+  that none of the sprite tiles it can draw use (`UNUSED_SPRITE_PALETTE_SLOTS`; slot 7 also colours emotes): its
+  actors' sprites, a prefab's for an actor made from one, and the sprite fields of the events its scripts and called
+  custom scripts run, commented-out events skipped; no warning when one cannot be known (a plugin event, a missing
+  prefab or custom script, no player sprite set). A script event the request writes (new, changed, or named by the
+  edit) whose command is neither in the event catalog nor one the compiler handles itself is refused with
+  `INVALID_EVENT` and the three nearest current events, in a scene's own scripts and in the actors and triggers a
+  scene update gives; a project with any `plugins/*/**/events/event*.js` keeps every command, since GB Studio
+  registers the id the plugin's code returns. A GB Studio build whose output has GB Studio's `No compiler for command
+  "…". Are you missing a plugin?` line (it leaves the event out and still writes the ROM) fails with
+  `UNKNOWN_EVENT_COMMAND`. Every build now compiles into a `.rom-build-*` folder beside the ROM and replaces the ROM
+  only when it succeeds; a failed build returns `rom: null`. In the benchmark rerun an actor `paletteId` drew every
+  sprite in one palette, found only while making the cover, and an invented `EVENT_INPUT_AWAIT` built with
+  `success: true`.

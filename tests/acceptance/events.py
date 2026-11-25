@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 
+from tests.acceptance import unknown_events
 from tests.acceptance.fixture import OWNER_E, structured
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +59,7 @@ def check_events(suite, client):
     clean = check_recipes(suite, client, start, sprite)
     logo = check_warnings(suite, client, start, sprite, clean)
     check_warning_paths(suite, client, root, start, sprite, logo)
+    unknown_events.check(suite, client, root, start)
 
 
 def check_catalog(suite):

@@ -10442,20 +10442,15 @@ function indexScriptEvents(resource, strict = false) {
   }
   return { events: indexed, orderedEvents, ...error2 ? { error: error2 } : {} };
 }
+// The events a request writes, each with the arguments it gives: they are checked again even when unchanged.
 function explicitlyPatchedNativeScriptValues(patch) {
   const patched = /* @__PURE__ */ new Map();
   for (const event of indexScriptEvents(patch).orderedEvents) {
-    const keys = TYPED_EVENT_ARGUMENTS.get(event.command);
-    if (!keys || !isObject2(event.args))
-      continue;
     const eventId = typeof event.id === "string" && event.id ? event.id : "unknown";
     const values = patched.get(eventId) ?? /* @__PURE__ */ new Set();
-    for (const key of keys) {
-      if (Object.prototype.hasOwnProperty.call(event.args, key))
-        values.add(key);
-    }
-    if (values.size > 0)
-      patched.set(eventId, values);
+    for (const key of isObject2(event.args) ? Object.keys(event.args) : [])
+      values.add(key);
+    patched.set(eventId, values);
   }
   return patched;
 }
@@ -10546,14 +10541,19 @@ function findInvalidNativeScriptEvent(proposed, previous, options = {}) {
   if (proposedEvents.error)
     return proposedEvents.error;
   for (const event of proposedEvents.orderedEvents) {
-    const keys = TYPED_EVENT_ARGUMENTS.get(event.command);
     const args = isObject2(event.args) ? event.args : {};
-    if (!keys || args.__comment)
+    if (args.__comment)
       continue;
     const eventId = typeof event.id === "string" && event.id ? event.id : "unknown";
     const prior = (eventId === "unknown" ? void 0 : existingEvents.get(eventId)) ?? historicalMatch(event);
     const priorArguments = isObject2(prior?.args) ? prior.args : {};
     const revalidate = !prior || prior.command !== event.command || Boolean(priorArguments.__comment);
+    const edited = options.explicitlyPatchedValues?.has(eventId) === true || !equivalentJson(priorArguments, args);
+    if ((revalidate || edited) && !knownEventCommand(event.command, options.projectRoot))
+      return { eventId, message: `${unknownEventMessage(event.command, `Event ${eventId}`)} GB Studio would build the game without it.` };
+    const keys = TYPED_EVENT_ARGUMENTS.get(event.command);
+    if (!keys)
+      continue;
     for (const key of keys) {
       const present = Object.prototype.hasOwnProperty.call(args, key);
       if (!present && !REQUIRED_EVENT_ARGUMENTS.has(key))
@@ -11678,6 +11678,14 @@ function mergeActorChanges(existing, input) {
   }
   return withNativeScriptEventIds(mergeResourceObjects(existing, updates));
 }
+// GB Studio never reads an actor's paletteId. One kept from before is left alone; a request that gives one (properties)
+// or changes it is refused.
+function assertNoActorPalette(actor, previous, properties) {
+  const given = (value) => value !== void 0 && value !== "";
+  if (given(actor.paletteId) && (actor.paletteId !== previous?.paletteId || given(properties?.paletteId))) {
+    throw new GameStudioProjectError("ACTOR_PALETTE_UNSUPPORTED", "GB Studio never reads an actor's paletteId, so it would change nothing. In color, each sprite tile's paletteIndex picks one of the scene's eight sprite palette slots: import the sprite with asset_import sprite.paletteIndex (0-7), then put the palette in that slot with palette_assign target sprite. Actors that share one sprite share its slot.");
+  }
+}
 function validateActorResource(inventory, scene, actor, previous, options = {}) {
   validateResourceName(actor.name, "Actor name");
   const direction3 = actor.direction;
@@ -11707,6 +11715,7 @@ function validateActorResource(inventory, scene, actor, previous, options = {}) 
   if (spriteSheetId !== "" && !sprite) {
     throw new GameStudioProjectError("SPRITE_NOT_FOUND", `Actor ${String(actor.id ?? actor.name)} references missing sprite ${spriteSheetId}`);
   }
+  assertNoActorPalette(actor, previous, options.properties);
   const unit = coordinateType === "pixels" ? 8 : 1;
   const boundsWidth = typeof sprite?.boundsWidth === "number" && sprite.boundsWidth > 0 ? Math.ceil(sprite.boundsWidth / 8) * unit : unit;
   if (typeof x !== "number" || typeof y !== "number" || x < 0 || y < 0 || x + boundsWidth > sceneWidth * unit || y >= sceneHeight * unit) {
@@ -11717,7 +11726,7 @@ function validateActorResource(inventory, scene, actor, previous, options = {}) 
       throw new GameStudioProjectError("INVALID_INPUT", `Actor ${key} must be an event array`);
     }
   }
-  const invalid4 = findInvalidNativeScriptEvent(actor, previous, options);
+  const invalid4 = findInvalidNativeScriptEvent(actor, previous, { ...options, projectRoot: inventory.projectRoot });
   if (invalid4)
     throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
 }
@@ -11883,7 +11892,8 @@ async function updateActor(projectPath, input, access4) {
       actor = { ...actor, symbol: renamedResourceSymbol("actor", original, actor, takenResourceSymbols(await inventoryProject(projectPath, access4), input.actorId)) };
     const validationContext = format === "legacy" ? access4 ?? await inventoryProject(projectPath) : context;
     validateActorResource(validationContext, ownerScene, actor, original, {
-      explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties)
+      explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties),
+      properties: input.properties
     });
     const updated = format === "distributed" ? actor : rewriteLegacySceneCollection({ descriptor: loaded.json }, scene.id, "actors", (resources) => resources.map((resource) => resource.id === input.actorId ? actor : resource));
     await assertExpectedResourceRevision(context.projectRoot, target, loaded.revision);
@@ -12712,7 +12722,7 @@ function validateDimensions(input) {
     }
   }
 }
-function validateNativeSceneUpdate(previous, updated, changes, backgroundExists) {
+function validateNativeSceneUpdate(previous, updated, changes, backgroundExists, projectRoot) {
   if (updated.name !== void 0)
     validateName(updated.name, "Scene name");
   for (const key of ["width", "height"]) {
@@ -12735,10 +12745,21 @@ function validateNativeSceneUpdate(previous, updated, changes, backgroundExists)
     }
   }
   const invalid4 = findInvalidNativeScriptEvent(updated, previous, {
-    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(changes)
+    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(changes),
+    projectRoot
   });
   if (invalid4)
     throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
+  // Actors and triggers given in the scene's own properties (a legacy scene holds them) are written as given.
+  for (const kind of ["actors", "triggers"]) {
+    for (const resource of Array.isArray(changes[kind]) ? changes[kind].filter(isObject4) : []) {
+      if (kind === "actors")
+        assertNoActorPalette(resource, void 0, resource);
+      const invalid5 = findInvalidNativeScriptEvent(resource, void 0, { projectRoot });
+      if (invalid5)
+        throw new GameStudioProjectError("INVALID_EVENT", invalid5.message);
+    }
+  }
 }
 function nextIndex(resources) {
   return resources.reduce((highest, resource) => Math.max(highest, asNumber(resource._index) ?? -1), -1) + 1;
@@ -12781,7 +12802,7 @@ async function createScene(projectPath, input, indexedAccess) {
         throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A scene with id ${id4} already exists`);
       }
       const scene2 = withNativeScriptEventIds(mergeObjects(sceneDefaults({ settings }, input, id4, nextIndex(scenes), slug2), input.properties ?? {}));
-      const invalid5 = findInvalidNativeScriptEvent(scene2);
+      const invalid5 = findInvalidNativeScriptEvent(scene2, void 0, { projectRoot: inventory.projectRoot });
       if (invalid5)
         throw new GameStudioProjectError("INVALID_EVENT", invalid5.message);
       if (await resourceRevision(inventory.projectRoot, target2) !== loaded.revision) {
@@ -12803,7 +12824,7 @@ async function createScene(projectPath, input, indexedAccess) {
     throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A scene with id ${id3} already exists`);
   }
   const scene = withNativeScriptEventIds(mergeObjects(sceneDefaults(inventory, input, id3, nextIndex(inventory.scenes), slug), input.properties ?? {}));
-  const invalid4 = findInvalidNativeScriptEvent(scene);
+  const invalid4 = findInvalidNativeScriptEvent(scene, void 0, { projectRoot: inventory.projectRoot });
   if (invalid4)
     throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
   await writeJsonAtomic(inventory.projectRoot, target, scene);
@@ -12831,7 +12852,7 @@ async function updateScene(projectPath, input, indexedAccess) {
     let owner3;
     if (inventory.format === "distributed") {
       scene = withNativeScriptEventIds(mergeObjects(loaded.json, updates));
-      validateNativeSceneUpdate(loaded.json, scene, updates, backgroundExists);
+      validateNativeSceneUpdate(loaded.json, scene, updates, backgroundExists, inventory.projectRoot);
       owner3 = scene;
     } else {
       const originalScenes = Array.isArray(loaded.json.scenes) ? loaded.json.scenes : [];
@@ -12839,7 +12860,7 @@ async function updateScene(projectPath, input, indexedAccess) {
       if (!isObject4(original))
         throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${input.sceneId} disappeared during update`);
       const updated = withNativeScriptEventIds(mergeObjects(original, updates));
-      validateNativeSceneUpdate(original, updated, updates, backgroundExists);
+      validateNativeSceneUpdate(original, updated, updates, backgroundExists, inventory.projectRoot);
       scene = resourceWithoutInventoryFields(updated);
       owner3 = { ...loaded.json, scenes: originalScenes.map((value) => value === original ? updated : value) };
     }
@@ -13872,9 +13893,9 @@ function applyScriptEdit(resource, input, options = {}) {
   assignNativeScriptEventIds(cloned);
   validateEventTree(cloned, options);
   const explicitlyPatchedValues = /* @__PURE__ */ new Map();
-  if (input.action === "update" && input.eventId && isObject6(input.patch?.args))
-    explicitlyPatchedValues.set(input.eventId, new Set(Object.keys(input.patch.args)));
-  const invalid4 = findInvalidNativeScriptEvent(cloned, resource, { explicitlyPatchedValues });
+  if (input.action === "update" && input.eventId)
+    explicitlyPatchedValues.set(input.eventId, new Set(isObject6(input.patch.args) ? Object.keys(input.patch.args) : []));
+  const invalid4 = findInvalidNativeScriptEvent(cloned, resource, { explicitlyPatchedValues, projectRoot: options.projectRoot });
   if (invalid4)
     throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
   return { resource: cloned, event, action: input.action, index, scriptKey };
@@ -13979,6 +14000,7 @@ async function editSelectedScript(projectPath, input, access4, inventory) {
     await assertRevision(location.projectRoot, location.filename, input.expectedRevision, beforeRevision);
     const selection = await readSelectedResource(location, input.target, loaded.json);
     const applied = applyScriptEdit(selection.resource, input, {
+      projectRoot: location.projectRoot,
       ...access4 ? { sceneExists: (sceneId) => access4.scene(sceneId) !== void 0 } : { knownSceneIds: new Set(selection.inventory.scenes.map((scene) => scene.id)) }
     });
     let updated = applied.resource;
@@ -14434,7 +14456,7 @@ async function createTrigger(projectPath, input, access4) {
     }
     const symbol = uniqueResourceSymbol("trigger", input.name, takenResourceSymbols(await inventoryProject(projectPath, access4)));
     const trigger = mergeTriggerChanges(createTriggerResource(input, id3, nextResourceIndex(ownerScene.triggers), symbol), { properties: input.properties });
-    validateTriggerResource(ownerScene, trigger);
+    validateTriggerResource(ownerScene, trigger, void 0, { projectRoot: context.projectRoot });
     const updated = format === "distributed" ? trigger : rewriteLegacySceneCollection({ descriptor: loaded.json }, ownerScene.id, "triggers", (resources) => [...resources, trigger]);
     await assertExpectedResourceRevision(context.projectRoot, sceneTarget, loaded.revision);
     await writeProjectJsonAtomic(context.projectRoot, target, updated);
@@ -14471,7 +14493,8 @@ async function updateTrigger(projectPath, input, access4) {
     if (trigger.name !== original.name)
       trigger = { ...trigger, symbol: renamedResourceSymbol("trigger", original, trigger, takenResourceSymbols(await inventoryProject(projectPath, access4), input.triggerId)) };
     validateTriggerResource(ownerScene, trigger, original, {
-      explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties)
+      explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties),
+      projectRoot: context.projectRoot
     });
     const updated = format === "distributed" ? trigger : rewriteLegacySceneCollection({ descriptor: loaded.json }, scene.id, "triggers", (resources) => resources.map((resource) => resource.id === input.triggerId ? trigger : resource));
     await assertExpectedResourceRevision(context.projectRoot, target, loaded.revision);
@@ -15028,7 +15051,8 @@ async function applyActorOperation(overlay, type, fields2) {
   if (merged.name !== resource.value.name)
     merged = { ...merged, symbol: renamedResourceSymbol("actor", resource.value, merged, overlaySymbols(overlay, actorId)) };
   validateActorResource(overlay.inventory, sceneResource(overlay), merged, resource.value, {
-    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0)
+    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0),
+    properties: isObject8(fields2.properties) ? fields2.properties : void 0
   });
   resource.value = merged;
   replaceLegacyResource(overlay, "actors", actorId, merged);
@@ -15044,7 +15068,7 @@ async function applyTriggerOperation(overlay, type, fields2) {
     const input = { ...fields2, sceneId: overlay.scene.id, name: name3 };
     const created = createTriggerResource(input, id3, nextOverlayIndex(overlay.triggers), uniqueResourceSymbol("trigger", name3, overlaySymbols(overlay)));
     const value = fields2.properties === void 0 ? created : mergeTriggerChanges(created, { sceneId: overlay.scene.id, triggerId: id3, properties: fields2.properties });
-    validateTriggerResource(sceneResource(overlay), value);
+    validateTriggerResource(sceneResource(overlay), value, void 0, { projectRoot: overlay.inventory.projectRoot });
     const resource2 = { id: id3, relativePath: chosen.relativePath, value };
     overlay.triggers.set(id3, resource2);
     pushLegacyResource(overlay, "triggers", value);
@@ -15067,7 +15091,8 @@ async function applyTriggerOperation(overlay, type, fields2) {
   if (merged.name !== resource.value.name)
     merged = { ...merged, symbol: renamedResourceSymbol("trigger", resource.value, merged, overlaySymbols(overlay, triggerId)) };
   validateTriggerResource(sceneResource(overlay), merged, resource.value, {
-    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0)
+    explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject8(fields2.properties) ? fields2.properties : void 0),
+    projectRoot: overlay.inventory.projectRoot
   });
   resource.value = merged;
   replaceLegacyResource(overlay, "triggers", triggerId, merged);
@@ -15098,7 +15123,7 @@ function resolveScriptOwner(overlay, fields2) {
 async function applyEventOperation(overlay, fields2) {
   const { owner: owner3, target } = resolveScriptOwner(overlay, fields2);
   const input = { ...fields2, ...target, target: { ...target, sceneId: overlay.scene.id } };
-  const edited = applyScriptEdit(owner3.value, input);
+  const edited = applyScriptEdit(owner3.value, input, { projectRoot: overlay.inventory.projectRoot });
   owner3.value = edited.resource;
   if (owner3.id === overlay.scene.id) {
     if (overlay.format === "legacy" && overlay.descriptor) {
@@ -15188,7 +15213,7 @@ async function applySceneUpdateOperation(overlay, fields2) {
   assertSafeValue(typed, "Scene updates", true);
   const updates = { ...isObject8(properties) ? properties : {}, ...typed };
   const updated = withNativeScriptEventIds({ ...overlay.scene.value, ...updates });
-  validateNativeSceneUpdate(overlay.scene.value, updated, updates, (id3) => resolveNativeAssetIdentity(overlay.inventory, id3)?.type === "background");
+  validateNativeSceneUpdate(overlay.scene.value, updated, updates, (id3) => resolveNativeAssetIdentity(overlay.inventory, id3)?.type === "background", overlay.inventory.projectRoot);
   if (overlay.format === "legacy" && overlay.descriptor) {
     const scenes = Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : [];
     const index = scenes.findIndex((scene) => isObject8(scene) && scene.id === overlay.scene.id);
@@ -15247,7 +15272,7 @@ async function applyOperation(overlay, operation, index) {
 function validateFinalGraph(overlay, indexedAccess) {
   const selected = sceneResource(overlay);
   const originalScene = overlay.snapshot.scenesById.get(overlay.scene.id);
-  const invalidScene = findInvalidNativeScriptEvent(overlay.scene.value, originalScene);
+  const invalidScene = findInvalidNativeScriptEvent(overlay.scene.value, originalScene, { projectRoot: overlay.inventory.projectRoot });
   if (invalidScene)
     projectError("INVALID_EVENT", invalidScene.message);
   for (const actor of overlay.actors.values()) {
@@ -15256,7 +15281,7 @@ function validateFinalGraph(overlay, indexedAccess) {
   }
   for (const trigger of overlay.triggers.values()) {
     const original = originalScene?.triggers.find((candidate) => candidate.id === trigger.id);
-    validateTriggerResource(selected, trigger.value, original);
+    validateTriggerResource(selected, trigger.value, original, { projectRoot: overlay.inventory.projectRoot });
   }
   const deletedResources = overlay.deletedActorIds.size > 0 || overlay.deletedTriggerIds.size > 0 || overlay.deletedVariableIds.size > 0;
   if (deletedResources)
@@ -30948,6 +30973,13 @@ function readCommandFailure(error2) {
     compilerStderr
   };
 }
+// GB Studio's warning for an event it has no definition for (compileEntityEvents.ts): it leaves the event out and still
+// writes the ROM.
+var GB_STUDIO_UNKNOWN_EVENT = /^No compiler for command "([^"]*)"\. Are you missing a plugin\? /;
+function droppedGbStudioEvent(builder, stdout, stderr) {
+  return builder === "gb-studio-cli" && `${stdout}
+${stderr}`.split(/\r?\n/).some((line) => GB_STUDIO_UNKNOWN_EVENT.test(line.trim()));
+}
 var GB_STUDIO_DEPRECATION = /^"([^"]+)" is deprecated and will be removed in a future release\.(?: Use "([^"]+)" instead\.)?.*\(([A-Z][A-Z0-9_]*)\)$/;
 function withoutNodeDeprecationNotice(text) {
   const kept = [];
@@ -31036,6 +31068,17 @@ ${input.stdout}`.split(/\r?\n/)) {
         message: line,
         event,
         suggestedAction: `The ROM is fine. GB Studio compiles ${event} with ${helper}, which a future release removes${replacement ? ` for ${replacement}` : ""}: replace this project's ${event} events with a current event.`
+      });
+      continue;
+    }
+    const unknownEvent = input.builder === "gb-studio-cli" ? GB_STUDIO_UNKNOWN_EVENT.exec(line) : null;
+    if (unknownEvent) {
+      add({
+        severity: "error",
+        code: "UNKNOWN_EVENT_COMMAND",
+        message: line,
+        event: unknownEvent[1],
+        suggestedAction: `${unknownEventMessage(unknownEvent[1], "The project")} The ROM was built without it: replace it with a real event and rebuild.`
       });
       continue;
     }
@@ -31472,7 +31515,7 @@ async function sameBuildLiveStateLayout(buildRoot) {
     return void 0;
   }
 }
-async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath) {
+async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath, builtRom = outputPath) {
   const directory = path16.join(temporaryDirectory, "_gbsbuild", "build", "rom");
   let metadata2;
   try {
@@ -31494,7 +31537,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
   const stem = path16.basename(internalRomFilename, path16.extname(internalRomFilename));
   const [internalRom, finalRom, noi, globals] = await Promise.all([
     secureInternalBuildFile(directory, internalRomFilename),
-    readFile5(outputPath),
+    readFile5(builtRom),
     secureInternalBuildFile(directory, `${stem}.noi`),
     secureInternalBuildFile(directory, "globals.i")
   ]);
@@ -31589,7 +31632,7 @@ async function buildRom(options) {
     throw new Error("ROM output cannot overwrite its input.");
   }
   let command;
-  let args;
+  let romArguments;
   let builder;
   const toolchainRoot = await resolveToolchainRoot(root, options.toolchainRoot);
   if (options.projectPath) {
@@ -31598,7 +31641,7 @@ async function buildRom(options) {
       throw new Error('The official GB Studio CLI is unavailable in the selected toolchain. Use the packaged setup skill to prepare runtime,build and bind the resulting toolchain before building. toolchain_doctor with tasks:["projectBuild"] checks readiness; it does not install dependencies.');
     }
     command = process.execPath;
-    args = [cli, "make:rom", source, outputPath, "--verbose"];
+    romArguments = (rom) => [cli, "make:rom", source, rom, "--verbose"];
     builder = "gb-studio-cli";
   } else {
     const compiler = runtimeExecutablePaths(toolchainRoot).gbdkCompiler;
@@ -31607,7 +31650,7 @@ async function buildRom(options) {
     }
     command = await resolveExistingWithinRoot2(toolchainRoot, compiler);
     const colorFlags = colorMode === "gbc-only" ? ["-Wm-yC"] : colorMode === "gbc" ? ["-Wm-yc"] : [];
-    args = [...colorFlags, "-o", outputPath, source];
+    romArguments = (rom) => [...colorFlags, "-o", rom, source];
     builder = "gbdk";
   }
   await mkdir4(path16.dirname(outputPath), { recursive: true });
@@ -31632,7 +31675,12 @@ async function buildRom(options) {
   let sourceProvenance;
   let debugSkipped;
   const debugOptional = () => options.debugArtifactsOptional === true && options.signal?.aborted !== true;
+  let stagingDirectory;
   try {
+    // The compiler writes into a folder beside the ROM; only a build that succeeds replaces the ROM.
+    stagingDirectory = await mkdtemp2(path16.join(path16.dirname(outputPath), ".rom-build-"));
+    const builtRom = path16.join(stagingDirectory, path16.basename(outputPath));
+    const args = romArguments(builtRom);
     try {
       if (options.captureDebugArtifacts) {
         try {
@@ -31672,6 +31720,7 @@ async function buildRom(options) {
         ...cancelled2 ? { cancelled: true } : {},
         ...failure.buildOutputLimit ? { outputTruncated: true } : {},
         ...summarizeBuildDiagnostics({
+          builder,
           stdout,
           stderr,
           success: false,
@@ -31689,15 +31738,15 @@ async function buildRom(options) {
     }
     let rom = null;
     try {
-      rom = await inspectRom(outputPath, root);
+      rom = await inspectRom(builtRom, root);
     } catch (error2) {
       stderr = [stderr, error2 instanceof Error ? error2.message : String(error2)].filter(Boolean).join("\n");
     }
     let debugArtifacts;
-    buildFailed = rom?.valid !== true;
+    buildFailed = rom?.valid !== true || droppedGbStudioEvent(builder, stdout, stderr);
     if (!buildFailed && options.captureDebugArtifacts && debugSkipped === void 0 && temporaryDirectory) {
       try {
-        debugArtifacts = await captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath);
+        debugArtifacts = await captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath, builtRom);
         const after = await captureBuildSourceProvenance(source, args[0], options.signal);
         if (!sourceProvenance || !sameBuildSourceObservation(sourceProvenance, after)) {
           throw new Error("game compiler source changed during the build; source-debug artifacts are stale. Rebuild after finishing external edits.");
@@ -31720,6 +31769,12 @@ async function buildRom(options) {
       debugArtifacts = void 0;
       stderr = [stderr, "The build was cancelled."].filter(Boolean).join("\n");
     }
+    if (buildFailed) {
+      rom = null;
+    } else {
+      await rename4(builtRom, outputPath);
+      rom = { ...rom, path: await realpath7(outputPath) };
+    }
     const log = await writeBuildLog(root, outputPath, { command, args, exitCode, stdout, stderr });
     const result = {
       success: !buildFailed,
@@ -31730,7 +31785,7 @@ async function buildRom(options) {
       ...buildFailed ? { stdout, stderr } : successfulBuildOutput(stdout, stderr, log.logPath !== void 0),
       ...compilerStderr === stderr ? {} : { compilerStderr },
       ...cancelled ? { cancelled: true } : {},
-      ...summarizeBuildDiagnostics({ stdout, stderr, success: !buildFailed, exitCode, cancelled, authoring: options.authoringWarnings }),
+      ...summarizeBuildDiagnostics({ builder, stdout, stderr, success: !buildFailed, exitCode, cancelled, authoring: options.authoringWarnings }),
       durationMs: Math.round(performance.now() - startedAt),
       outputPath,
       ...log,
@@ -31745,6 +31800,9 @@ async function buildRom(options) {
     buildFailed = true;
     throw error2;
   } finally {
+    if (stagingDirectory)
+      await rm3(stagingDirectory, { recursive: true, force: true }).catch(() => {
+      });
     if (temporaryDirectory) {
       try {
         await removeIsolatedBuildDirectory(temporaryDirectory, root);
@@ -57134,28 +57192,76 @@ function paletteHistogram(values) {
 function configuredOverrideCount(value) {
   return Array.isArray(value) ? value.filter((entry) => typeof entry === "string" && entry.length > 0).length : 0;
 }
-function scriptSpriteReferences(scene) {
-  const references = /* @__PURE__ */ new Set();
-  const pending = [{ value: scene, depth: 0 }];
-  let visited2 = 0;
-  while (pending.length > 0 && visited2 < 2e4) {
-    const current = pending.pop();
-    visited2 += 1;
-    if (current.depth >= 32)
-      continue;
-    if (Array.isArray(current.value)) {
-      for (const value of current.value)
-        pending.push({ value, depth: current.depth + 1 });
-    } else if (typeof current.value === "object" && current.value !== null) {
-      for (const [key, value] of Object.entries(current.value)) {
-        if ((key === "spriteSheetId" || key === "spriteId") && typeof value === "string" && value.length > 0) {
-          references.add(value);
-        }
-        pending.push({ value, depth: current.depth + 1 });
+// GB Studio follows custom script calls this deep (MAX_NESTED_SCRIPT_DEPTH, then one more).
+var SPRITE_SCRIPT_CALL_DEPTH = 6;
+// The actors GB Studio builds a scene with (an actor made from a prefab takes the prefab's sprite and scripts, its
+// overrides applied: applyPrefabs.ts) and the sprites its events use (compileData.ts): the sprite fields of every event
+// its scripts and the custom scripts they call run, commented-out events skipped. `certain` is false when a sprite may
+// be missing: a prefab or custom script that is not in `shared`, a call deeper than GB Studio follows, or an event the
+// catalog does not describe (a plugin's).
+function sceneSpriteReferences(scene, shared) {
+  const { events: catalog } = eventCatalog();
+  const eventSprites = /* @__PURE__ */ new Set();
+  let certain = true;
+  function walk(events, overrides, callStack) {
+    if (!Array.isArray(events))
+      return;
+    for (const event of events) {
+      if (!isObject2(event) || typeof event.command !== "string")
+        continue;
+      const override = overrides?.[event.id];
+      const args = { ...isObject2(event.args) ? event.args : {}, ...isObject2(override?.args) ? override.args : {} };
+      if (args.__comment)
+        continue;
+      const entry = catalog[event.command];
+      if (!entry && !COMPILER_EVENT_COMMANDS.has(event.command))
+        certain = false;
+      for (const field of entry?.fields ?? []) {
+        if (field.type === "sprite" && typeof args[field.key] === "string" && args[field.key].length > 0)
+          eventSprites.add(args[field.key]);
       }
+      if (event.command === "EVENT_CALL_CUSTOM_EVENT") {
+        const scriptId = typeof args.customEventId === "string" ? args.customEventId : "";
+        const script = shared?.scripts.get(scriptId);
+        if (scriptId && (!script || callStack.length >= SPRITE_SCRIPT_CALL_DEPTH))
+          certain = false;
+        else if (script && !callStack.includes(script.id))
+          walk(script.resource.script, void 0, [...callStack, script.id]);
+        continue;
+      }
+      for (const branch of isObject2(event.children) ? Object.values(event.children) : [])
+        walk(branch, overrides, callStack);
     }
   }
-  return references;
+  function owner(resource, prefabType) {
+    if (typeof resource.prefabId !== "string" || resource.prefabId === "")
+      return { resource };
+    const prefab = shared?.prefabs.get(resource.prefabId);
+    if (prefab?.type !== prefabType) {
+      certain = false;
+      return { resource };
+    }
+    return {
+      resource: { ...resource, ...prefab.resource, _resourceType: resource._resourceType, id: resource.id },
+      overrides: isObject2(resource.prefabScriptOverrides) ? resource.prefabScriptOverrides : void 0
+    };
+  }
+  const actors = [];
+  const owners = [{ resource: scene }];
+  for (const actor of scene.actors ?? []) {
+    const effective = owner(actor, "actorPrefab");
+    actors.push(effective.resource);
+    owners.push(effective);
+  }
+  for (const trigger of scene.triggers ?? [])
+    owners.push(owner(trigger, "triggerPrefab"));
+  for (const { resource, overrides } of owners) {
+    for (const [key, events] of Object.entries(resource)) {
+      if (SCRIPT_KEYS.test(key))
+        walk(events, overrides, []);
+    }
+  }
+  return { actors, eventSprites, certain };
 }
 async function analyzeSprites(context) {
   const defaults = context.inventory.settings.defaultPlayerSprites;
@@ -57176,8 +57282,9 @@ async function analyzeSprites(context) {
   const firstPlayerCandidate = scenePlayerSpriteId ?? defaultPlayerSpriteId;
   const playerSpriteId = firstPlayerCandidate !== null && spriteAsset(firstPlayerCandidate) !== null ? firstPlayerCandidate : context.scene.type !== "LOGO" && defaultPlayerSpriteId !== null && spriteAsset(defaultPlayerSpriteId) !== null ? defaultPlayerSpriteId : null;
   const playerGeometryStatus = playerSpriteId !== null ? "authored-frame-count" : firstPlayerCandidate === null && context.scene.type === "LOGO" ? "not-configured" : "unresolved";
-  const scriptReferences = scriptSpriteReferences(context.scene);
-  const actorSpriteIds = context.scene.actors.map((actor) => typeof actor.spriteSheetId === "string" ? actor.spriteSheetId : "").filter(Boolean);
+  const references = sceneSpriteReferences(context.scene, context.shared);
+  const scriptReferences = references.eventSprites;
+  const actorSpriteIds = references.actors.map((actor) => typeof actor.spriteSheetId === "string" ? actor.spriteSheetId : "").filter(Boolean);
   const uniqueSpriteIds = /* @__PURE__ */ new Set([...actorSpriteIds, ...scriptReferences]);
   if (playerSpriteId !== null)
     uniqueSpriteIds.add(playerSpriteId);
@@ -57282,7 +57389,7 @@ async function analyzeSprites(context) {
   let pinnedActorInstances = 0;
   let actorInstancesWithIncompleteScanlineGeometry = 0;
   let actorInstancesWithMismatchedSpriteMode = 0;
-  for (const actor of context.scene.actors) {
+  for (const actor of references.actors) {
     const spriteId = typeof actor.spriteSheetId === "string" ? actor.spriteSheetId : "";
     const sprite = byId.get(spriteId);
     staticOamObjects += sprite?.summary.maximumFrameObjects ?? 0;
@@ -57317,11 +57424,6 @@ async function analyzeSprites(context) {
     }
     if (!geometryComplete)
       actorInstancesWithIncompleteScanlineGeometry += 1;
-    if (typeof actor.paletteId === "string" && actor.paletteId.length > 0) {
-      const slot2 = context.objectPalettes.findIndex((palette) => palette?.id === actor.paletteId);
-      if (slot2 >= 0)
-        referencedSlots.add(slot2);
-    }
   }
   return {
     sprites,
@@ -57339,8 +57441,43 @@ async function analyzeSprites(context) {
     spriteMode,
     actorInstancesWithIncompleteScanlineGeometry,
     actorInstancesWithMismatchedSpriteMode,
-    referencedSlots
+    referencedSlots,
+    unreadableSpriteCount: summaries.length - spriteGeometries.length,
+    // GB Studio draws a scene's player with the first sprite it finds when none is set; which one is not known here.
+    spriteReferencesCertain: references.certain && (playerSpriteId !== null || context.scene.type === "LOGO")
   };
+}
+// GB Studio colours a sprite tile from its own paletteIndex (actors have no palette of their own). Slot 7 also colours
+// emote bubbles, so only slots 0-6 can be shown to be unused, and only when every sprite the scene can draw is known.
+var EMOTE_SPRITE_PALETTE_SLOT = 7;
+function unusedSpritePaletteSlots(scene, colorMode, spriteAnalysis) {
+  if (colorMode === "mono" || spriteAnalysis.sprites.length === 0 || spriteAnalysis.unreadableSpriteCount > 0 || !spriteAnalysis.spriteReferencesCertain)
+    return [];
+  const assigned = Array.isArray(scene.spritePaletteIds) ? scene.spritePaletteIds.slice(0, EMOTE_SPRITE_PALETTE_SLOT) : [];
+  return assigned.flatMap((paletteId, slot2) => typeof paletteId === "string" && paletteId.length > 0 && !spriteAnalysis.referencedSlots.has(slot2) ? [slot2] : []);
+}
+function unusedSpritePaletteDiagnostic(scene, unused, spriteAnalysis) {
+  const used = Array.from(spriteAnalysis.referencedSlots).sort((left, right) => left - right);
+  return {
+    severity: "warning",
+    code: "UNUSED_SPRITE_PALETTE_SLOTS",
+    message: `Scene ${scene.name || scene.id} assigns sprite palette slot${unused.length === 1 ? "" : "s"} ${unused.join(", ")}, but no sprite tile in it uses ${unused.length === 1 ? "that slot" : "them"}; its sprites use slot${used.length === 1 ? "" : "s"} ${used.join(", ")}.`,
+    suggestedAction: "Each sprite tile's paletteIndex picks its slot (an actor has no palette of its own). Import the sprite with asset_import sprite.paletteIndex set to the slot, or assign the palette to a slot the sprites use with palette_assign target sprite.",
+    ...typeof scene.resourcePath === "string" ? { resourcePath: scene.resourcePath } : {}
+  };
+}
+async function spritePaletteWarnings(inventory, shared) {
+  const colorMode = projectColorMode(inventory.settings);
+  const warnings = [];
+  for (const scene of inventory.scenes) {
+    if (colorMode === "mono" || configuredOverrideCount(scene.spritePaletteIds) === 0)
+      continue;
+    const spriteAnalysis = await analyzeSprites({ inventory, scene, shared });
+    const unused = unusedSpritePaletteSlots(scene, colorMode, spriteAnalysis);
+    if (unused.length > 0)
+      warnings.push(unusedSpritePaletteDiagnostic(scene, unused, spriteAnalysis));
+  }
+  return warnings;
 }
 async function analyzeSceneGraphics(projectPath, input, access4) {
   if (input.detail !== void 0 && input.detail !== "summary" && input.detail !== "tiles") {
@@ -57366,13 +57503,16 @@ async function analyzeSceneGraphics(projectPath, input, access4) {
   const effectiveUniqueTiles = metricsStatus === "unknown" ? null : allowFlips ? uniqueTilesWithFlips : uniqueTiles;
   const backgroundLimit = context.colorMode === "color" ? 384 : 192;
   const spriteAvailability = context.colorMode === "color" ? { minimum: 128, maximum: 192 } : { minimum: 64, maximum: 96 };
-  const spriteAnalysis = await analyzeSprites(context);
+  const spriteAnalysis = await analyzeSprites({ ...context, shared: await authoringScripts(context.inventory) });
   const spriteTileUsageUnknown = spriteAnalysis.sprites.some((sprite) => sprite.tileCount === null);
   const spriteTileUsage = spriteTileUsageUnknown ? null : spriteAnalysis.sprites.reduce((total, sprite) => total + (sprite.tileCount ?? 0), 0);
   const histogram = paletteHistogram(context.tileColors);
   const usedTileSlots = Object.keys(histogram).map(Number).filter((slot2) => slot2 < HARDWARE_PALETTE_SLOTS);
   const uiPalette = resolveUiPalette(context.inventory, access4);
   const diagnostics = analysis.violations.map(({ severity, code, message: message2 }) => ({ severity, code, message: message2 }));
+  const unusedSpriteSlots = unusedSpritePaletteSlots(context.scene, context.colorMode, spriteAnalysis);
+  if (unusedSpriteSlots.length > 0)
+    diagnostics.push(unusedSpritePaletteDiagnostic(context.scene, unusedSpriteSlots, spriteAnalysis));
   if (context.metadata.autoColor === true) {
     diagnostics.push({
       severity: "warning",
@@ -59215,7 +59355,7 @@ function registerTilemapTools(server, context) {
 }
 
 // dist/event-catalog.js
-import { readFileSync as readEventCatalogFile } from "node:fs";
+import { readdirSync as readEventPluginDirectory, readFileSync as readEventCatalogFile, realpathSync as realpathEventPluginPath, statSync as statEventPluginPath } from "node:fs";
 var EVENT_CATALOG_URL = new URL("./gb-studio-events.json", import.meta.url);
 var EVENT_LIST_LIMIT = 40;
 var EVENT_UNCATEGORIZED = "Uncategorized";
@@ -59252,6 +59392,81 @@ var eventCatalogCache;
 function eventCatalog() {
   eventCatalogCache ??= JSON.parse(readEventCatalogFile(EVENT_CATALOG_URL, "utf8"));
   return eventCatalogCache;
+}
+// Commands GB Studio's compiler handles itself, without an event definition.
+var COMPILER_EVENT_COMMANDS = /* @__PURE__ */ new Set(["EVENT_END", "INTERNAL_SET_CONTEXT", "INTERNAL_IF_PARAM", "INTERNAL_SET_SPRITE_MODE"]);
+var PLUGIN_EVENT_DIRECTORY = /^events$/i;
+var PLUGIN_EVENT_FILE = /^event.*\.js$/i;
+// GB Studio loads a plugin's events from plugins/*/**/events/event*.js and registers the id each one's code returns
+// when run, which reading the source cannot tell. A project with any such file (looked for more widely than GB Studio
+// does: hidden folders, symbolic links, any letter case) keeps every command on write; its build reports one GB Studio
+// has no compiler for.
+function projectHasPluginEvents(projectRoot) {
+  const visited2 = /* @__PURE__ */ new Set();
+  const visit = (directory) => {
+    let real;
+    let entries;
+    try {
+      real = realpathEventPluginPath(directory);
+      if (visited2.has(real))
+        return false;
+      visited2.add(real);
+      entries = readEventPluginDirectory(directory, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+    const events = PLUGIN_EVENT_DIRECTORY.test(path.basename(directory));
+    for (const entry of entries) {
+      const child = path.join(directory, entry.name);
+      if (events && PLUGIN_EVENT_FILE.test(entry.name))
+        return true;
+      let folder = entry.isDirectory();
+      if (entry.isSymbolicLink()) {
+        try {
+          folder = statEventPluginPath(child).isDirectory();
+        } catch {
+          folder = false;
+        }
+      }
+      if (folder && visit(child))
+        return true;
+    }
+    return false;
+  };
+  return visit(path.join(projectRoot, "plugins"));
+}
+function knownEventCommand(command, projectRoot) {
+  if (typeof command !== "string")
+    return false;
+  if (Object.hasOwn(eventCatalog().events, command) || COMPILER_EVENT_COMMANDS.has(command))
+    return true;
+  return projectRoot !== void 0 && projectHasPluginEvents(projectRoot);
+}
+function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      current[column] = Math.min(previous[column] + 1, current[column - 1] + 1, previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1));
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+// The current events closest to an unknown command: the most shared words, then the fewest edits.
+function nearestEvents(command, limit = 3) {
+  const words = (value) => value.toLowerCase().replace(/^event_/, "").split("_").filter(Boolean);
+  const wanted = new Set(words(command));
+  return Object.entries(eventCatalog().events).filter(([, entry]) => !entry.deprecated && !entry.unavailable).map(([id]) => ({
+    id,
+    shared: words(id).filter((word) => wanted.has(word)).length,
+    distance: editDistance(command.toUpperCase(), id)
+  })).sort((left, right) => right.shared - left.shared || left.distance - right.distance || left.id.localeCompare(right.id)).slice(0, limit).map(({ id }) => id);
+}
+function unknownEventMessage(command, where) {
+  if (typeof command !== "string" || command.length === 0)
+    return `${where} has no command.`;
+  return `${where} uses ${command}, which is not a GB Studio ${eventCatalog().gbStudioVersion} event or one of the project's plugin events. Nearest events: ${nearestEvents(command).join(", ")} (event_describe describes them).`;
 }
 function eventCategories(entry) {
   return entry.groups.length > 0 ? entry.groups : [EVENT_UNCATEGORIZED];
@@ -69344,7 +69559,8 @@ function createGbStudioServer(options = {}) {
       const duplicates = inventory.diagnostics.filter((diagnostic) => diagnostic.code === "DUPLICATE_SYMBOL");
       if (duplicates.length > 0)
         throw new GameStudioProjectError("DUPLICATE_SYMBOL", duplicates.map((diagnostic) => diagnostic.message).join(". "), duplicates[0].resourcePath);
-      const result = await buildRom({ ...input, captureDebugArtifacts: input.captureDebugArtifacts ?? true, debugArtifactsOptional: input.captureDebugArtifacts === void 0, projectRoot: project2.projectRoot, projectPath, authoringWarnings: authoringWarnings(inventory, await authoringScripts(inventory)) });
+      const shared = await authoringScripts(inventory);
+      const result = await buildRom({ ...input, captureDebugArtifacts: input.captureDebugArtifacts ?? true, debugArtifactsOptional: input.captureDebugArtifacts === void 0, projectRoot: project2.projectRoot, projectPath, authoringWarnings: [...authoringWarnings(inventory, shared), ...await spritePaletteWarnings(inventory, shared)] });
       if (before && result.success !== false && typeof result.outputPath === "string" && result.rom)
         await rememberNativeRom(before, project2.projectPath, { path: result.outputPath, sha256: result.rom.sha256 }, configuredToolchain).catch(() => {
         });
