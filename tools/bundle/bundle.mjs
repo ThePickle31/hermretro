@@ -10,8 +10,9 @@
  *   node tools/bundle/bundle.mjs --check --same-esbuild   also fail when the byte comparison cannot run (releases)
  *   node tools/bundle/bundle.mjs --report         lines per source file
  *
- * Both outputs are plain, readable code: the page bundle is ESM that imports only the three
- * specifiers the app's loader allows, the frame script a self-contained IIFE. Each banner records the
+ * The page bundle is ESM that imports only the three specifiers the app's loader allows, with its whitespace
+ * and comments removed (every name kept) to stay inside its size limit; the frame script is a plain, readable
+ * self-contained IIFE. Each banner records the
  * esbuild version and two hashes (sources: only the folders that output bundles, and body), so a stale or
  * hand-edited output is detected without esbuild.
  * esbuild and TypeScript come from the first place tools/bundle/node-modules.mjs finds them (the pinned
@@ -61,7 +62,30 @@ const BANNER = /^\/\*\*\n(?: \*[^\n]*\n)*? \* build: esbuild (\S+)\n \* sources:
 
 const sha256 = data => createHash('sha256').update(data).digest('hex')
 const abs = relative => path.join(ROOT, relative)
-const importsOf = text => [...text.matchAll(/^import\s(?:[^;]*?\sfrom\s+)?"([^"]+)";$/gm)].map(match => match[1]).sort()
+// Hermes Desktop's loader (apps/desktop/src/contrib/runtime-loader.ts, importSpecifierRe) maps a specifier only
+// when `from` (any spacing) or `import` and whitespace come right before it; any other import reaches the browser
+// unmapped and the page does not load.
+const LOADER_LEAD = /(?:from\s*|import\s+)$/
+
+/** The module declarations of an output, read by TypeScript's parser (text in a string or comment is never one):
+ *  each one's specifier, where its quote opens, and whether the app's loader rewrites it as written. */
+export function importsOf(ts, text) {
+  const file = ts.createSourceFile('output.js', text, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS)
+
+  return file.statements
+    .filter(statement => (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) && statement.moduleSpecifier)
+    .map(statement => {
+      const quote = statement.moduleSpecifier.getStart(file)
+
+      return { specifier: statement.moduleSpecifier.text, at: quote, rewritten: LOADER_LEAD.test(text.slice(statement.getStart(file), quote)) }
+    })
+}
+
+/** Without whitespace esbuild prints a side-effect import as `import"x"`: put back the space the loader needs. */
+export const loaderImports = (ts, text) =>
+  importsOf(ts, text)
+    .filter(declaration => !declaration.rewritten)
+    .reduceRight((out, { at }) => `${out.slice(0, at)} ${out.slice(at)}`, text)
 
 /** The outputs: where each comes from, what its banner says, and what must hold for it whatever built it.
  *  `sources` are the folders its banner hashes: everything it bundles must lie in them (checked on each build),
@@ -75,20 +99,24 @@ const TARGETS = [
     about: [
       'hermretro \u2014 Hermes Desktop half. GENERATED FILE, do not edit.',
       `Source: ${SOURCE}/ (one folder per page). Rebuild: node tools/bundle/bundle.mjs`,
-      'Plain ESM; imports only @hermes/plugin-sdk, react and react/jsx-runtime.',
+      'ESM without whitespace or comments (names kept); imports only @hermes/plugin-sdk, react and react/jsx-runtime.',
       'Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its',
       'provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.'
     ],
-    esbuild: { format: 'esm', external: EXTERNAL },
-    // Hermes's install scanner notes any single file over 1024 KB.
+    // Whitespace only: names and code stay as written. The line limit keeps lines short for the install
+    // scanner, which reads line by line, and for anyone reading the installed file.
+    esbuild: { format: 'esm', external: EXTERNAL, minifyWhitespace: true, lineLimit: 200 },
+    // Hermes's install scanner notes any single file over 1024 KB (MAX_PLUGIN_SINGLE_FILE_KB).
     maxBytes: 1_000_000,
     warnBytes: 900_000,
-    problems(text) {
-      const imported = importsOf(text)
+    problems(text, imports) {
+      const imported = imports?.map(declaration => declaration.specifier).sort()
+      const unmapped = imports?.filter(declaration => !declaration.rewritten).map(declaration => declaration.specifier) ?? []
       const strays = readdirSync(abs('desktop')).filter(name => name !== 'plugin.js')
 
       return [
-        imported.join() === [...EXTERNAL].sort().join() ? null : `the bundle must import exactly ${EXTERNAL.join(', ')} (one statement each); it imports ${imported.join(', ') || 'nothing'}`,
+        !imported || imported.join() === [...EXTERNAL].sort().join() ? null : `the bundle must import exactly ${EXTERNAL.join(', ')} (one statement each); it imports ${imported.join(', ') || 'nothing'}`,
+        unmapped.length ? `the bundle imports ${unmapped.join(', ')} in a form Hermes Desktop's loader does not rewrite (it needs from, or import and a space, right before the specifier)` : null,
         strays.length ? `desktop/ is published as it stands and must hold only plugin.js; it also holds ${strays.join(', ')}` : null,
         existsSync(abs('desktop/plugin.js')) && lstatSync(abs('desktop/plugin.js')).isSymbolicLink() ? 'desktop/plugin.js must be the generated file itself, not a symlink: the app copies desktop/ as it stands' : null,
         existsSync(abs('plugin.js')) ? 'a plugin.js at the repository root would replace desktop/plugin.js as the desktop half' : null,
@@ -109,9 +137,9 @@ const TARGETS = [
     esbuild: { format: 'iife', external: [] },
     maxBytes: 100_000,
     warnBytes: 80_000,
-    problems(text) {
+    problems(text, imports) {
       return [
-        importsOf(text).length ? 'the frame shim must import nothing (it runs as an inline classic script)' : null,
+        imports?.length ? 'the frame shim must import nothing (it runs as an inline classic script)' : null,
         ['__DEFAULT_COLOR__', '__COLOR_KEY__'].every(marker => text.includes(marker)) ? null : 'the frame shim lost a placeholder that the player backend (backend/player/) fills in'
       ]
     }
@@ -200,8 +228,8 @@ const unhashed = (target, result) =>
     .filter(file => !target.sources.some(folder => file.startsWith(`${folder}/`)))
     .map(file => `${target.output} bundles ${file}, outside the folders its banner hashes (${target.sources.join(', ')})\nFIX: add the folder to that target's sources in tools/bundle/bundle.mjs`)
 
-/** What must hold for an output, whatever built it. */
-function outputProblems(target, text) {
+/** What must hold for an output, whatever built it. The import checks need TypeScript (`ts`). */
+function outputProblems(target, text, ts) {
   const bytes = Buffer.byteLength(text)
   const longest = Math.max(...text.split('\n').map(line => line.length))
 
@@ -214,14 +242,14 @@ function outputProblems(target, text) {
     longest > MAX_LINE ? `${target.output} has a line of ${longest} characters; the limit is ${MAX_LINE}` : null,
     INVISIBLE.test(text) ? `${target.output} holds an invisible unicode character (write it as a visible alternative in the source)` : null,
     text.includes(CLIMBS_TWICE) ? `${target.output} holds a relative path that climbs two folders` : null,
-    ...target.problems(text)
+    ...target.problems(text, ts ? importsOf(ts, text) : null)
   ].filter(Boolean)
 }
 
 /** The finished outputs for one esbuild result per target, and everything wrong with them or the sources. */
 function finish(results, tools) {
   const texts = TARGETS.map((target, index) => {
-    const body = results[index].outputFiles[0].text
+    const body = loaderImports(tools.ts, results[index].outputFiles[0].text)
 
     return banner(target, { esbuild: tools.esbuild.version, sources: sourcesHash(target), body: sha256(body) }) + body
   })
@@ -230,7 +258,7 @@ function finish(results, tools) {
 
   return {
     texts,
-    problems: [...lintSources({ root: ROOT, source: SOURCE, aliases: ALIASES, inputs, ts: tools.ts }), ...TARGETS.flatMap((target, index) => [...unhashed(target, results[index]), ...outputProblems(target, texts[index])])]
+    problems: [...lintSources({ root: ROOT, source: SOURCE, aliases: ALIASES, inputs, ts: tools.ts }), ...TARGETS.flatMap((target, index) => [...unhashed(target, results[index]), ...outputProblems(target, texts[index], tools.ts)])]
   }
 }
 
@@ -276,19 +304,19 @@ async function check(tools, strict) {
     return problems
   }
 
-  TARGETS.forEach((target, index) => problems.push(...outputProblems(target, texts[index])))
+  TARGETS.forEach((target, index) => problems.push(...outputProblems(target, texts[index], tools.ts)))
 
   const versions = [...new Set(stamps.map(stamp => stamp.esbuild))]
   const skipped = tools.missing
-    ? tools.missing
+    ? `${tools.missing}: the import check and the byte comparison`
     : versions.some(version => version !== tools.esbuild.version)
-      ? `built with esbuild ${versions.join(', ')}, this machine has ${tools.esbuild.version}`
+      ? `built with esbuild ${versions.join(', ')}, this machine has ${tools.esbuild.version}: the byte comparison`
       : null
 
   if (skipped && strict) {
-    problems.push(`${skipped}: the byte comparison could not run`)
+    problems.push(`${skipped} could not run`)
   } else if (skipped) {
-    console.log(`${skipped}: byte comparison skipped`)
+    console.log(`${skipped} skipped`)
   } else {
     const built = finish(await buildAll(tools), tools)
 
