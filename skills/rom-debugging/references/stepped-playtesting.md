@@ -152,7 +152,7 @@ chromatic_emulator_step {"inputs":[{"buttons":["right","a"],"frames":8,"sample":
 ```
 
 The replay boots the new ROM as the attempt booted and plays its recorded inputs
-in one call, comparing every frame the attempt kept, then leaves the session at
+in one call, comparing every frame with the attempt's, then leaves the session at
 the end of the route for the next step. A frame that differs stops it with the
 recorded and new images: decide whether the change was intended. Inspect the
 functional result yourself: a changed animation hash is not automatically a

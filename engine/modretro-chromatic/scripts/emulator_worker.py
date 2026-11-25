@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import queue
+import re
 import signal
 import stat
 import sys
@@ -57,6 +58,11 @@ RECORDING_RESERVE_BYTES = 16 * 1024
 MAX_SIBLING_RECORDINGS = 64
 MAX_SIBLING_RESERVED_BYTES = 1024 * 1024 * 1024
 MAX_RECORDING_BRANCHES = 64
+# Each played frame is kept as the first 16 hex digits of its RGBA SHA-256 (8 bytes), so a replay can compare
+# every frame, not only the retained images. A 36,000-frame attempt keeps 576 KB of them.
+FRAME_HASH_CHARS = 16
+FRAME_HASHES = re.compile("(?:[0-9a-f]{16})*")
+UNKNOWN_FRAME_HASH = "-" * FRAME_HASH_CHARS
 DEFAULT_RECORDING_LIMITS = {
     "sampleEveryFrames": 4,
     "recentFrameCount": 12,
@@ -96,6 +102,34 @@ def bounded_recording_metadata(path: Path, maximum: int) -> bytes:
 # A persistent worker must identify the implementation it actually loaded, not
 # replacement source bytes that happen to appear at the same path later.
 WORKER_SHA256 = digest(Path(__file__).read_bytes())
+
+
+def rgba_digest(image: Any) -> str:
+    """The SHA-256 of a frame's RGBA pixels: a retained image's rgbaSha256, and each frame's compact hash."""
+    return digest(image.convert("RGBA").tobytes())
+
+
+def recorded_frame_hashes(value: object, frames: int) -> str | None:
+    """A recording's compact hashes of `frames` played frames, or None when it kept none (an older recording)."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or len(value) != frames * FRAME_HASH_CHARS or not FRAME_HASHES.fullmatch(value):
+        raise ValueError("Recording contains invalid per-frame hashes")
+    return value
+
+
+def recorded_action_hashes(value: object, action: dict[str, Any]) -> str | None:
+    """The compact hashes of the frames one normalized action played: none for a button change."""
+    if action["type"] == "set_buttons":
+        if value is not None:
+            raise ValueError("A recorded button change plays no frames to hash")
+        return ""
+    return recorded_frame_hashes(value, action["frames"])
+
+
+def host_clock_rtc(rom: bytes) -> bool:
+    """Whether the cartridge has a real-time clock, which PyBoy reads from the host's clock."""
+    return len(rom) > 0x147 and rom[0x147] in {0x0F, 0x10}
 
 
 def bounded_integer(value: object, name: str, minimum: int, maximum: int) -> int:
@@ -377,6 +411,26 @@ def artifact_usage(root: Path, resolve_path: Any) -> int:
     return total
 
 
+def check_recording_quota(parent: Path, max_bytes: int) -> None:
+    """Bound the retained attempts in one folder, without silently deleting someone else's evidence."""
+    if not parent.is_dir():
+        return
+    reservations = 0
+    siblings = 0
+    for entry in parent.iterdir():
+        manifest = entry / "recording.json"
+        if entry.is_dir() and not entry.is_symlink() and manifest.is_file() and not manifest.is_symlink():
+            try:
+                body = json.loads(manifest.read_bytes())
+                if body.get("kind") == "gb-studio-playtest":
+                    siblings += 1
+                    reservations += bounded_integer(body.get("limits", {}).get("maxBytes"), "recording reservation", 64 * 1024, MAX_RECORDING_BYTES)
+            except (ValueError, OSError, TypeError):
+                raise RecordingLimitError("A neighboring recording has invalid quota metadata")
+    if siblings >= MAX_SIBLING_RECORDINGS or reservations + max_bytes > MAX_SIBLING_RESERVED_BYTES:
+        raise RecordingLimitError("Retained recording quota reached; explicitly archive or remove an old recording")
+
+
 class Recording:
     """A small append-only journal. No ROM, source, or user save is copied here."""
 
@@ -406,32 +460,21 @@ class Recording:
         self.pending_frames = 0
         self.pending_start = 0
         self.pending_source = "manual"
+        self.pending_hashes: list[str] = []
+        self.boot_hashes: list[str] = []
+        self.replay_of: dict[str, Any] | None = None
         self.initial_frames = 0
         self.boot_finished = False
         self.rom = rom
         self.runtime = runtime
         self.branches: dict[str, dict[str, Any]] = {
-            self.branch_id: {"actions": [], "evidence": [], "frame": 0,
+            self.branch_id: {"actions": [], "evidence": [], "frame": 0, "bootHashes": None, "frameHashes": [],
                              "startingCondition": {"type": "clean-boot", "initialFrames": initial_frames, "cgb": rom["cgb"]}}
         }
         self.checkpoints: dict[str, dict[str, Any]] = {}
         self.recent: deque[dict[str, Any]] = deque(maxlen=limits["recentFrameCount"])
         self.root.parent.mkdir(parents=True, exist_ok=True)
-        # Bounded retained attempts, without silently deleting someone else's evidence.
-        reservations = 0
-        siblings = 0
-        for entry in self.root.parent.iterdir():
-            manifest = entry / "recording.json"
-            if entry.is_dir() and not entry.is_symlink() and manifest.is_file() and not manifest.is_symlink():
-                try:
-                    body = json.loads(manifest.read_bytes())
-                    if body.get("kind") == "gb-studio-playtest":
-                        siblings += 1
-                        reservations += bounded_integer(body.get("limits", {}).get("maxBytes"), "recording reservation", 64 * 1024, MAX_RECORDING_BYTES)
-                except (ValueError, OSError, TypeError):
-                    raise RecordingLimitError("A neighboring recording has invalid quota metadata")
-        if siblings >= MAX_SIBLING_RECORDINGS or reservations + limits["maxBytes"] > MAX_SIBLING_RESERVED_BYTES:
-            raise RecordingLimitError("Retained recording quota reached; explicitly archive or remove an old recording")
+        check_recording_quota(self.root.parent, limits["maxBytes"])
         self.root.mkdir(mode=0o700, exist_ok=False)
         (self.root / "frames").mkdir(mode=0o700)
         (self.root / "checkpoints").mkdir(mode=0o700)
@@ -551,21 +594,27 @@ class Recording:
             result["reason"] = self.reason
         return result
 
-    def action(self, action: dict[str, Any], *, start_frame: int | None = None, source: str = "manual", emergency: bool = False) -> None:
+    def action(self, action: dict[str, Any], *, start_frame: int | None = None, source: str = "manual",
+               emergency: bool = False, frame_hashes: str | None = None) -> None:
         branch = self.branches[self.branch_id]
         index = len(branch["actions"]) + 1
         self.append("action", action=action, actionIndex=index, source=source, emergency=emergency,
-                    **({"startFrame": start_frame} if start_frame is not None else {}))
+                    **({"startFrame": start_frame} if start_frame is not None else {}),
+                    **({"frameHashes": frame_hashes} if frame_hashes is not None else {}))
         branch["actions"].append(action)
+        branch["frameHashes"].append("" if action["type"] == "set_buttons" else frame_hashes)
         branch["frame"] = self.frame
 
     def flush_steps(self, *, emergency: bool = False) -> None:
         if self.pending_frames:
             frames, start, source = self.pending_frames, self.pending_start, self.pending_source
-            self.action({"type": "step", "frames": frames}, start_frame=start, source=source, emergency=emergency)
+            self.action({"type": "step", "frames": frames}, start_frame=start, source=source, emergency=emergency,
+                        frame_hashes="".join(self.pending_hashes))
             self.pending_frames = 0
+            self.pending_hashes.clear()
 
-    def advanced(self, frame: int, *, source: str, initial: bool) -> None:
+    def advanced(self, frame: int, *, source: str, initial: bool, pixels: str) -> None:
+        """Account one played frame, keeping the compact hash of its RGBA pixels (`pixels`, their SHA-256)."""
         if not initial and self.pending_frames and (source != self.pending_source or self.pending_frames >= MAX_FRAMES):
             self.flush_steps()
         self.total_frames += 1
@@ -573,11 +622,13 @@ class Recording:
         self.branches[self.branch_id]["frame"] = frame
         if initial:
             self.initial_frames = frame
+            self.boot_hashes.append(pixels[:FRAME_HASH_CHARS])
             return
         if not self.pending_frames:
             self.pending_start = frame - 1
             self.pending_source = source
         self.pending_frames += 1
+        self.pending_hashes.append(pixels[:FRAME_HASH_CHARS])
 
     def record_frame(self, image: Any, *, reason: str, emergency: bool = False) -> dict[str, Any]:
         self.flush_steps(emergency=emergency)
@@ -617,9 +668,17 @@ class Recording:
         if self.boot_finished:
             return
         condition = {"type": "clean-boot", "initialFrames": self.initial_frames, "cgb": self.rom["cgb"]}
+        hashes = "".join(self.boot_hashes)
+        complete = len(hashes) == self.initial_frames * FRAME_HASH_CHARS
         self.branches[self.branch_id]["startingCondition"] = condition
-        self.append("boot_complete", startingCondition=condition)
+        self.branches[self.branch_id]["bootHashes"] = hashes if complete else None
+        self.append("boot_complete", startingCondition=condition, **({"frameHashes": hashes} if complete else {}))
         self.boot_finished = True
+
+    def replayed(self, provenance: dict[str, Any]) -> None:
+        """Keep which attempt, branch, ROM and action boundary this attempt replayed."""
+        self.append("replay", **provenance)
+        self.replay_of = provenance
 
     def failure_event(self, message: str, *, method: str = "runtime") -> None:
         if self.status == "recording":
@@ -887,6 +946,7 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
     truncated_tail = False
     boot_finished = False
     final: dict[str, Any] = {}
+    replay_of: dict[str, Any] | None = None
     total_frames = 0
     event_hasher = hashlib.sha256()
     event_bytes = 0
@@ -928,10 +988,12 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
                     raise ValueError("Recording header identity differs")
                 if any(row.get(key) != manifest.get(key) for key in ("rom", "runtime", "limits", "startingCondition")):
                     raise ValueError("Recording manifest differs from its authenticated header")
-                branches[current] = {"actions": [], "evidence": [], "frame": 0,
+                branches[current] = {"actions": [], "evidence": [], "frame": 0, "bootHashes": None, "frameHashes": [],
                                      "startingCondition": row["startingCondition"]}
             elif kind == "boot_complete":
                 branches[current]["startingCondition"] = row["startingCondition"]
+                branches[current]["bootHashes"] = recorded_frame_hashes(
+                    row.get("frameHashes"), bounded_integer(row["startingCondition"].get("initialFrames"), "recorded boot frames", 0, MAX_FRAMES))
                 branches[current]["frame"] = row["frame"]
                 total_frames = max(total_frames, row["frame"])
                 boot_finished = True
@@ -947,7 +1009,15 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
                         raise ValueError("Imported recorded frames must remain inside their recording")
                     copy["path"] = str(path)
                     evidence.append(copy)
-                branches[current] = {"actions": row["prefixActions"], "evidence": evidence,
+                prefix_actions = [normalized_recorded_action(action) for action in row["prefixActions"]]
+                prefix_hashes = row.get("prefixFrameHashes", [None] * len(prefix_actions))
+                if not isinstance(prefix_hashes, list) or len(prefix_hashes) != len(prefix_actions):
+                    raise ValueError("Recording branch per-frame hashes differ from its action prefix")
+                boot_frames = bounded_integer(row["startingCondition"].get("initialFrames"), "recorded boot frames", 0, MAX_FRAMES)
+                branches[current] = {"actions": prefix_actions, "evidence": evidence,
+                                     "bootHashes": recorded_frame_hashes(row.get("bootHashes"), boot_frames),
+                                     "frameHashes": [recorded_action_hashes(hashes, action)
+                                                     for hashes, action in zip(prefix_hashes, prefix_actions)],
                                      "frame": row["frame"], "parentBranchId": row["parentBranchId"],
                                      "sourceSessionId": row["sourceSessionId"],
                                      "checkpointId": row["checkpointId"], "startingCondition": row["startingCondition"]}
@@ -962,6 +1032,7 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
                 if action.get("type") == "step":
                     total_frames += bounded_integer(action.get("frames"), "recorded step", 1, MAX_FRAMES)
                 branch["actions"].append(action)
+                branch["frameHashes"].append(recorded_action_hashes(row.get("frameHashes"), action))
                 branch["frame"] = row["frame"]
             elif kind == "frame":
                 branch = branches[row["branchId"]]
@@ -988,6 +1059,8 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
                 if row.get("checkpointId") in checkpoints:
                     raise ValueError("Checkpoint identity is duplicated in the recording")
                 checkpoints[row["checkpointId"]] = row
+            elif kind == "replay":
+                replay_of = {key: row[key] for key in ("source", "toActionIndex", "replayedActions", "status")}
             elif kind not in {"controller", "pause", "resume", "failure", "capture", "outcome"}:
                 raise ValueError("Unsupported recording event kind")
             if review is not None and (prefix_pin is None or sequence <= prefix_pin["eventCount"]):
@@ -1038,6 +1111,8 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
     for key in ("failure", "outcome", "reason"):
         if key in final:
             result[key] = final[key]
+    if replay_of is not None:
+        result["replayOf"] = replay_of
     failures = root / "worker-failures.jsonl"
     if failures.exists() and status == "interrupted":
         if failures.is_symlink() or failures.stat().st_size > RECORDING_RESERVE_BYTES:
@@ -1054,9 +1129,15 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
 
 
 class ReplayComparison:
-    """The frames a recorded attempt retained, compared in order with the same moments of a replay of its inputs."""
+    """A recorded attempt's frames, compared in order with the same moments of a replay of its inputs.
 
-    def __init__(self, evidence: list[dict[str, Any]], actions: list[dict[str, Any]], initial_frames: int) -> None:
+    Every frame is compared by the compact hash the attempt kept of it. An older recording kept none, so there only
+    the frames it retained as images (every few frames and each step's end) are compared: `coverage` says which."""
+
+    def __init__(self, branch: dict[str, Any], end: int) -> None:
+        initial_frames = branch["startingCondition"]["initialFrames"]
+        actions = branch["actions"][:end]
+        evidence = [dict(item) for item in branch["evidence"] if item["actionIndex"] <= end]
         # Every retained frame lies on an action boundary (recording flushes steps before it keeps a frame),
         # except the boot's, which lie within the initial frames before the first action.
         boundaries = [initial_frames]
@@ -1070,36 +1151,50 @@ class ReplayComparison:
                         else item["frame"] != boundaries[item["actionIndex"]])):
                 raise ValueError("The recording's retained frames do not line up with its inputs")
             previous = moment
-        self.boot_frames = sorted({item["frame"] for item in evidence if item["actionIndex"] == 0} | {initial_frames})
+        # The hash of frame n (1 onward) is at (n - 1) * FRAME_HASH_CHARS; a frame the attempt kept none of is unknown.
+        self.hashes = "".join([branch["bootHashes"] or UNKNOWN_FRAME_HASH * initial_frames] + [
+            hashes or UNKNOWN_FRAME_HASH * action["frames"]
+            for action, hashes in zip(actions, branch["frameHashes"]) if action["type"] == "step"])
+        frames = len(self.hashes) // FRAME_HASH_CHARS
+        unknown = self.hashes.count(UNKNOWN_FRAME_HASH)
+        self.coverage = "every-frame" if unknown == 0 else "retained-frames" if unknown == frames else "partial"
         self.pending = deque(evidence)
         self.compared = 0
         self.differing = 0
+        self.last_frame: int | None = None
         self.last_matched_frame: int | None = None
         self.divergence: dict[str, Any] | None = None
         self.expected: dict[str, Any] | None = None
         self.actual: Any | None = None
 
-    def check(self, action_index: int, frame: int, image: Any) -> bool:
-        """Compare every retained frame due at this moment; True when the first difference is found here."""
-        first = False
-        actual = None
+    def compare(self, action_index: int, frame: int, image: Any, pixels: str | None = None) -> bool:
+        """Compare the replay's frame (its RGBA SHA-256 `pixels`, worked out when not given) with the attempt's at
+        this moment: the kept hash of that frame and any image retained there. True when it is the first difference."""
+        kept = self.hashes[(frame - 1) * FRAME_HASH_CHARS:frame * FRAME_HASH_CHARS] if frame else UNKNOWN_FRAME_HASH
+        retained = []
         while self.pending and (self.pending[0]["actionIndex"], self.pending[0]["frame"]) == (action_index, frame):
-            item = self.pending.popleft()
+            retained.append(self.pending.popleft())
+        if kept == UNKNOWN_FRAME_HASH and not retained:
+            return False
+        pixels = pixels or rgba_digest(image)
+        differs = (kept != UNKNOWN_FRAME_HASH and kept != pixels[:FRAME_HASH_CHARS]) or any(
+            item["rgbaSha256"] != pixels for item in retained)
+        if frame != self.last_frame:
+            # A button change compares the frame a step before it already played: count each frame once.
+            self.last_frame = frame
             self.compared += 1
-            if actual is None:
-                rgba = image().convert("RGBA")
-                actual = (rgba, digest(rgba.tobytes()))
-            if actual[1] == item["rgbaSha256"]:
-                if self.divergence is None:
-                    self.last_matched_frame = frame
-                continue
-            self.differing += 1
+            if differs:
+                self.differing += 1
+        if not differs:
             if self.divergence is None:
-                self.divergence = {"frame": frame, "actionIndex": action_index,
-                                   "lastMatchedFrame": self.last_matched_frame}
-                self.expected, self.actual = item, actual[0]
-                first = True
-        return first
+                self.last_matched_frame = frame
+            return False
+        if self.divergence is not None:
+            return False
+        self.divergence = {"frame": frame, "actionIndex": action_index, "lastMatchedFrame": self.last_matched_frame}
+        self.expected = retained[0] if retained else None
+        self.actual = image.convert("RGBA")
+        return True
 
 
 class TimelineExecutionError(RuntimeError):
@@ -1265,7 +1360,9 @@ class EmulatorWorker:
             raise ValueError(f"Frame counts must be between {minimum} and {MAX_FRAMES}")
         return value
 
-    def advance(self, frames: int, *, source: str = "manual", initial: bool = False) -> None:
+    def advance(self, frames: int, *, source: str = "manual", initial: bool = False,
+                on_frame: Any = None) -> None:
+        """Play frames. `on_frame(frame, pixels)` sees each one with its RGBA SHA-256; True stops after it."""
         if frames == 0:
             return
         self.require_mutable()
@@ -1307,12 +1404,15 @@ class EmulatorWorker:
                 self.sampled_buttons = set(self.active_buttons)
                 self.controller_dirty = False
                 self.restored_image = None
+                pixels = rgba_digest(self.current_image()) if recording is not None or on_frame is not None else None
                 if recording is not None:
-                    recording.advanced(self.frame, source=source, initial=initial)
+                    recording.advanced(self.frame, source=source, initial=initial, pixels=pixels)
                     if recording.total_frames % recording.limits["sampleEveryFrames"] == 0:
                         recording.record_frame(self.current_image(), reason="boot-periodic" if initial else "periodic")
                 if not alive:
                     raise RuntimeError("The emulator stopped while advancing frames")
+                if on_frame is not None and on_frame(self.frame, pixels):
+                    break
             # The historical clock-source helper may leave an uncommitted
             # prefix in archive regressions. No live request schedules it.
             if recording is not None and not initial and source != "clock":
@@ -1341,11 +1441,13 @@ class EmulatorWorker:
         }
 
     def open(self, params: dict[str, Any]) -> dict[str, Any]:
-        self.boot(self.load(params))
+        self.boot(self.load(self.session_plan(params)))
         return self.state()
 
-    def load(self, params: dict[str, Any]) -> int:
-        """Start a clean session for a ROM, recorded when asked, before its boot frames; returns those frames."""
+    def session_plan(self, params: dict[str, Any], *, frames: int = 0) -> dict[str, Any]:
+        """Check a new session's ROM, boot, hardware and recording without touching the current session.
+
+        `frames` are the frames the session is about to play after its boot, held to the recording's limit too."""
         rom_path = self.resolve_project_path(params.get("romPath"), existing=True)
         if not rom_path.is_file() or rom_path.suffix.lower() not in {".gb", ".gbc"}:
             raise ValueError("The ROM must be an existing .gb or .gbc file")
@@ -1359,12 +1461,22 @@ class EmulatorWorker:
         limits = recording_limits(recording_option) if recording_option is not False else None
         if limits is not None and initial_frames > limits["maxFrames"]:
             raise ValueError("Initial frames exceed the recording frame limit")
+        if limits is not None and initial_frames + frames > limits["maxFrames"]:
+            raise ValueError(f"The replay plays {initial_frames + frames} frames, more than the recording's maxFrames "
+                             f"({limits['maxFrames']}); raise recording.maxFrames or pass recording:false")
         recording_path = None
         if limits is not None:
             recording_path = self.resolve_project_path(recording_option.get("outputPath", f"artifacts/playtests/session-{uuid.uuid4().hex}"), existing=False)
             if recording_path.exists():
                 raise ValueError("A recording output directory must be new; existing attempts are never overwritten")
-        raw = rom_path.read_bytes()
+            check_recording_quota(recording_path.parent, limits["maxBytes"])
+        return {"romPath": rom_path, "rom": rom_path.read_bytes(), "initialFrames": initial_frames, "cgb": cgb,
+                "limits": limits, "recordingPath": recording_path}
+
+    def load(self, plan: dict[str, Any]) -> int:
+        """End the current session and start a clean one from a session plan, recorded when asked, before its
+        boot frames; returns those frames."""
+        raw, cgb, limits, initial_frames = plan["rom"], plan["cgb"], plan["limits"], plan["initialFrames"]
         rom_sha256 = digest(raw)
         self.stop()
         if self.cancel_event.is_set():
@@ -1374,7 +1486,7 @@ class EmulatorWorker:
         # discovers adjacent battery RAM or RTC files, even without recording.
         self.emulator = create_pyboy(raw, cgb)
         self.emulator.set_emulation_speed(0)
-        self.rom_path = rom_path
+        self.rom_path = plan["romPath"]
         self.rom_bytes = raw
         self.rom_sha256 = rom_sha256
         self.runtime = {"name": "PyBoy", "version": importlib.metadata.version("pyboy"),
@@ -1390,14 +1502,13 @@ class EmulatorWorker:
         self.clock_run_started_ns = None
         self.recording = None
         if limits is not None:
-            cartridge_type = raw[0x147] if len(raw) > 0x147 else None
-            host_clock_rtc = cartridge_type in {0x0F, 0x10}
-            self.recording = Recording(recording_path, limits=limits,
-                                       rom={"sha256": rom_sha256, "cgb": self.cgb, "cartridgeType": cartridge_type,
-                                            "deterministicReplaySupported": not host_clock_rtc,
-                                            "knownNondeterminism": ["host-clock-rtc"] if host_clock_rtc else []}, runtime=self.runtime,
+            rtc = host_clock_rtc(raw)
+            self.recording = Recording(plan["recordingPath"], limits=limits,
+                                       rom={"sha256": rom_sha256, "cgb": self.cgb, "cartridgeType": raw[0x147] if len(raw) > 0x147 else None,
+                                            "deterministicReplaySupported": not rtc,
+                                            "knownNondeterminism": ["host-clock-rtc"] if rtc else []}, runtime=self.runtime,
                                        initial_frames=initial_frames, resolve_path=self.resolve_project_path)
-            self.last_recording_path = recording_path
+            self.last_recording_path = plan["recordingPath"]
             self.record_current("boot")
         return initial_frames
 
@@ -1409,10 +1520,10 @@ class EmulatorWorker:
             self.record_current("boot-complete")
 
     def replay(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Boot a ROM as a recorded attempt booted and play its inputs again, comparing each frame it retained.
+        """Boot a ROM as a recorded attempt booted and play its inputs again, comparing every frame with the attempt's.
 
-        Stops at the first retained frame that differs unless asked to continue; the session stays open where the
-        replay ended, recorded as a new attempt unless recording is false."""
+        Stops at the first frame that differs unless asked to continue; the session stays open where the replay
+        ended, recorded as a new attempt unless recording is false."""
         if not isinstance(params, dict) or not {"romPath", "recordingPath"} <= set(params) or set(params) - {
                 "romPath", "recordingPath", "branchId", "toActionIndex", "onDivergence", "recording"}:
             raise RequestValidationError("Replay requires romPath and recordingPath, with optional branchId, "
@@ -1437,53 +1548,69 @@ class EmulatorWorker:
             end = bounded_integer(params.get("toActionIndex", count), "toActionIndex", 0, count)
             # Copies: loading the ROM finishes an active source recording, which appends to its live branch.
             actions = [dict(action) for action in branch["actions"][:end]]
-            comparison = ReplayComparison([dict(item) for item in branch["evidence"] if item["actionIndex"] <= end],
-                                          actions, condition["initialFrames"])
+            comparison = ReplayComparison(branch, end)
             rom = self.resolve_project_path(params["romPath"], existing=True).read_bytes()
+            plan = self.session_plan({
+                "romPath": params["romPath"], "initialFrames": condition["initialFrames"],
+                "recording": False if recording is False else {**source["limits"], **recording},
+                # The cartridge default unless the attempt chose other hardware, as its own boot did.
+                **({} if condition["cgb"] == cartridge_cgb(rom) else {"cgb": condition["cgb"]}),
+            }, frames=sum(action["frames"] for action in actions if action["type"] == "step"))
         except (OSError, ValueError, RuntimeError) as error:
             raise RequestValidationError(str(error)) from error
-        if recording is not False:
-            recording = {**source["limits"], **recording}
-        self.load({"romPath": params["romPath"], "initialFrames": condition["initialFrames"], "recording": recording,
-                   # The cartridge default unless the attempt chose other hardware, as its own boot did.
-                   **({} if condition["cgb"] == cartridge_cgb(rom) else {"cgb": condition["cgb"]})})
+        self.load(plan)
         stop = on_divergence == "stop"
-        recorded = self.recording is not None
+
+        def compare(index: int) -> Any:
+            return lambda frame, pixels: comparison.compare(index, frame, self.current_image(), pixels) and stop
+
+        stopped = comparison.compare(0, 0, self.current_image()) and stop
+        if not stopped:
+            self.advance(condition["initialFrames"], initial=self.recording is not None, on_frame=compare(0))
+            stopped = stop and comparison.divergence is not None
+        self.boot(self.frame)
         replayed = 0
-        for frame in comparison.boot_frames:
-            self.advance(frame - self.frame, initial=recorded)
-            if comparison.check(0, self.frame, self.current_image) and stop:
+        for index, action in enumerate(actions, 1):
+            if stopped:
                 break
-        self.boot(self.frame if stop and comparison.divergence else condition["initialFrames"])
-        if not (stop and comparison.divergence):
-            for index, action in enumerate(actions, 1):
-                if action["type"] == "step":
-                    self.advance(action["frames"])
-                else:
-                    self.set_buttons(set(action["buttons"]))
+            if action["type"] == "step":
+                target = self.frame + action["frames"]
+                self.advance(action["frames"], on_frame=compare(index))
+                if self.frame == target:
+                    replayed = index
+            else:
+                self.set_buttons(set(action["buttons"]))
                 replayed = index
-                if comparison.check(index, self.frame, self.current_image) and stop:
-                    break
+                comparison.compare(index, self.frame, self.current_image())
+            stopped = stop and comparison.divergence is not None
+        nondeterminism = sorted(set(source["rom"].get("knownNondeterminism", []))
+                                | ({"host-clock-rtc"} if host_clock_rtc(rom) else set()))
         report: dict[str, Any] = {
             "status": "diverged" if comparison.divergence else "matched",
             "source": {"recordingPath": source["recordingPath"], "sessionId": source["sessionId"],
                        "branchId": branch_id, "romSha256": source["rom"]["sha256"],
                        "actionCount": len(branch["actions"]), "sameRuntime": source["runtime"] == self.runtime},
             "toActionIndex": end, "replayedActions": replayed, "comparedFrames": comparison.compared,
+            "coverage": comparison.coverage, "deterministic": not nondeterminism,
+            **({"knownNondeterminism": nondeterminism} if nondeterminism else {}),
         }
+        if self.recording is not None and self.recording.status == "recording":
+            self.recording.replayed({"source": {key: report["source"][key] for key in ("recordingPath", "sessionId", "branchId", "romSha256")},
+                                     "toActionIndex": end, "replayedActions": replayed, "status": report["status"]})
         samples = []
         if comparison.divergence is not None:
-            report["divergence"] = {**comparison.divergence, "differingFrames": comparison.differing,
-                                    "expectedSha256": comparison.expected["sha256"]}
+            report["divergence"] = {**comparison.divergence, "differingFrames": comparison.differing}
             expected = comparison.expected
-            try:
-                data = self.verified_evidence_bytes(expected)[1]
-                samples.append({"role": "expected", "frame": expected["frame"], "width": expected["width"],
-                                "height": expected["height"], "sha256": expected["sha256"],
-                                "rgbaSha256": expected["rgbaSha256"], "pngBase64": base64.b64encode(data).decode("ascii")})
-            except (OSError, ValueError):
-                # The source's retained file is supporting evidence; the comparison used its recorded hash.
-                pass
+            if expected is not None:
+                report["divergence"]["expectedSha256"] = expected["sha256"]
+                try:
+                    data = self.verified_evidence_bytes(expected)[1]
+                    samples.append({"role": "expected", "frame": expected["frame"], "width": expected["width"],
+                                    "height": expected["height"], "sha256": expected["sha256"],
+                                    "rgbaSha256": expected["rgbaSha256"], "pngBase64": base64.b64encode(data).decode("ascii")})
+                except (OSError, ValueError):
+                    # The source's retained file is supporting evidence; the comparison used its recorded hash.
+                    pass
             samples.append({**png_sample(comparison.actual), "role": "actual", "frame": comparison.divergence["frame"]})
             report["divergence"]["actualSha256"] = samples[-1]["sha256"]
         if comparison.divergence is None or self.frame != comparison.divergence["frame"]:
@@ -1858,12 +1985,13 @@ class EmulatorWorker:
         if recording is not None and recording.root == path and recording.status == "recording":
             recording.flush_steps()
             return {**recording.header, **recording.snapshot(), "branchesById": recording.branches,
-                    "checkpointsById": recording.checkpoints}
+                    "checkpointsById": recording.checkpoints,
+                    **({"replayOf": recording.replay_of} if recording.replay_of is not None else {})}
         return read_recording(path, self.resolve_project_path)
 
     def recording_status(self, params: dict[str, Any]) -> dict[str, Any]:
         data = self.recording_data(params)
-        return {key: data[key] for key in ("recordingPath", "sessionId", "status", "branchId", "frame", "totalFrames", "bytesUsed", "limits", "branches", "eventCount", "eventDigest", "failure", "outcome", "reason", "truncatedTail") if key in data}
+        return {key: data[key] for key in ("recordingPath", "sessionId", "status", "branchId", "frame", "totalFrames", "bytesUsed", "limits", "branches", "eventCount", "eventDigest", "failure", "outcome", "reason", "truncatedTail", "replayOf") if key in data}
 
     def committed_recording_cursor(self) -> dict[str, Any] | None:
         recording = self.recording
@@ -2171,6 +2299,7 @@ class EmulatorWorker:
         action_count = bounded_integer(metadata.get("actionCount"), "checkpoint action count", 0, len(parent["actions"]))
         evidence_count = bounded_integer(metadata.get("evidenceCount"), "checkpoint evidence count", 1, len(parent["evidence"]))
         prefix_actions = [dict(action) for action in parent["actions"][:action_count]]
+        prefix_hashes = parent["frameHashes"][:action_count]
         prefix_evidence = [self.verified_evidence(item) for item in parent["evidence"][:evidence_count]]
         if prefix_evidence[-1]["frame"] != metadata.get("frame") or prefix_evidence[-1]["actionIndex"] != action_count or prefix_evidence[-1]["sha256"] != metadata.get("entrySha256"):
             raise ValueError("Checkpoint entry evidence differs from its source timeline")
@@ -2205,7 +2334,9 @@ class EmulatorWorker:
             payload = {"parentBranchId": metadata["branchId"], "checkpointId": checkpoint_id,
                        "sourceSessionId": metadata["sessionId"], "prefixActions": prefix_actions,
                        "prefixEvidence": imported, "startingCondition": parent["startingCondition"],
-                       "frame": metadata["frame"]}
+                       "frame": metadata["frame"], "bootHashes": parent["bootHashes"],
+                       # A button change keeps no hashes: null, as in its own action event.
+                       "prefixFrameHashes": [hashes or None for hashes in prefix_hashes]}
             if len(encoded(payload)) > 16 * 1024 * 1024:
                 raise RecordingLimitError("The checkpoint branch prefix exceeds its supported metadata limit")
             recording.check_budget(sum(len(value) for value in files.values()) + len(encoded(payload)) + 2048)
@@ -2219,6 +2350,7 @@ class EmulatorWorker:
             for item in copied_evidence:
                 item.pop("file", None)
             recording.branches[branch_id] = {"actions": prefix_actions, "evidence": copied_evidence,
+                                             "bootHashes": parent["bootHashes"], "frameHashes": prefix_hashes,
                                              "frame": metadata["frame"], "parentBranchId": metadata["branchId"],
                                              "sourceSessionId": metadata["sessionId"],
                                              "checkpointId": checkpoint_id, "startingCondition": parent["startingCondition"]}

@@ -111,37 +111,55 @@ chromatic_emulator_replay {"romPath":"<new ROM outputPath>","onDivergence":"cont
 
 It boots the ROM with the attempt's boot frames and hardware mode, then plays
 its normalized inputs (button sets and frame counts) and compares every frame
-the attempt retained (by default every fourth) with the same moment of the
-replay. The result's `replay` reports:
+with the same moment of the attempt: a recording keeps a short hash of each
+frame it plays, besides the images it retains. The result's `replay` reports:
 
 - `status`: `matched`, or `diverged` with `divergence`: the first differing
-  `frame` and `actionIndex`, `lastMatchedFrame`, the two hashes and, with
-  `continue`, how many compared frames differed (`differingFrames`).
+  `frame`, the `actionIndex` that played it (0 for the boot),
+  `lastMatchedFrame`, the hashes of the images and, with `continue`, how many
+  compared frames differed (`differingFrames`).
+- `coverage`: `every-frame`; `retained-frames` for an attempt recorded before
+  per-frame hashes, where only its retained images (by default every fourth
+  frame and each step's end) were compared, so a difference between them can
+  go unseen; `partial` for a branch whose checkpoint came from such an attempt.
 - `source`: the replayed recording, branch, ROM hash and action count, and
   `sameRuntime` (false after a PyBoy or worker update; frames normally still match).
 - `replayedActions` up to `toActionIndex`, and `comparedFrames`.
+- `deterministic`: false, with `knownNondeterminism:["host-clock-rtc"]`, when
+  the attempt's or the new cartridge has a real-time clock. PyBoy reads that
+  clock from the computer's, so a game that reads it can differ on an
+  unchanged ROM: the comparison is best effort.
 
-Images, in order: `expected` (the attempt's retained frame) and `actual` (the
-replay's frame there) when they differ, then `end`, the frame the session is
-at now. `scale` enlarges them and `includeImages:false` omits them.
+Images, in order: `expected` (the attempt's retained image of that frame, when
+it kept one) and `actual` (the replay's frame there) when they differ, then
+`end`, the frame the session is at now. `scale` enlarges them and
+`includeImages:false` omits them.
 
-By default a difference stops the replay at that frame. A change you made on
-purpose (new art, text, a moved actor) also differs: look at the two images,
-then replay with `onDivergence:"continue"` to reach the end of the route, or
-with `toActionIndex` to stop before the changed part. A replay only presses the
-recorded buttons; when the new ROM behaves differently (a door now opens one
-frame later), later inputs can land differently, so check the `end` frame
+By default a difference stops the replay at that frame, even inside a step. A
+change you made on purpose (new art, text, a moved actor) also differs: look at
+the images, then replay the same attempt with `onDivergence:"continue"` to
+reach the end of the route, naming it from the result's `replay.source`
+(`{"romPath":…,"recordingPath":"<replay.source.recordingPath>","branchId":"<replay.source.branchId>","onDivergence":"continue"}`),
+or with `toActionIndex` to stop before the changed part. A replay only presses
+the recorded buttons; when the new ROM behaves differently (a door now opens
+one frame later), later inputs can land differently, so check the `end` frame
 before continuing.
 
 A replay that starts ends the current session; a refused one (a wrong
-`toActionIndex` or branch) leaves it running. The new session stays open where
-the replay ended, with the last recorded buttons still held, and is recorded as a new
-attempt with the source's limits (pass a `recording` object to change them or
-`false` to record nothing). Its `recording.recordingPath` becomes the default
-source of the next replay; pass `recordingPath` to replay an older attempt, and
-`branchId` for a branch other than its current one. Step, save checkpoints and
-review there as usual: a checkpoint saved after the replay belongs to the new
-ROM.
+`toActionIndex` or branch, a `recording.maxFrames` shorter than the route, an
+`outputPath` inside another recording or the archives) leaves it running. A
+replay needs no open session: after `chromatic_emulator_close` or a restart,
+name the attempt with `recordingPath`. The new session stays open where the
+replay ended, with the last recorded buttons still held, and is recorded as a
+new attempt with the source's limits (pass a `recording` object to change them
+or `false` to record nothing); that attempt notes which recording, branch, ROM
+and action boundary it replayed. Until a replay has played its source's whole
+route, that source stays the default of the next replay, so a replay stopped
+by a difference is never what the next one plays. After a whole route, the
+replay's own `recording.recordingPath` becomes the default. Pass `recordingPath`
+to replay another attempt, and `branchId` for a branch other than its current
+one. Step, save checkpoints and review there as usual: a checkpoint saved after
+the replay belongs to the new ROM.
 
 ## Checkpoints are for the same build
 

@@ -1489,7 +1489,7 @@
     {
       "name": "emulator_replay",
       "title": "Replay a recorded attempt on a ROM",
-      "description": "Boot a ROM, usually one rom_build just rebuilt, the way a recorded attempt booted and play that attempt's inputs again in one call, comparing every frame it retained. Use it after each rebuild instead of replaying a route by hand. By default the replay stops at the first retained frame that differs and returns the recorded and replayed images; onDivergence:'continue' plays every input and reports the first difference; toActionIndex replays only up to that action (a recordingSpan's toActionIndex). A replay that starts ends the current session (a refused one leaves it running); the new session stays open where the replay ended, with the last recorded buttons still held, and is recorded as a new attempt (recording:false records nothing), so emulator_step, checkpoints and review continue from there. Images are the source's retained frame (expected), the replay's frame at the difference (actual) and the final frame (end).",
+      "description": "Boot a ROM, usually one rom_build just rebuilt, the way a recorded attempt booted and play that attempt's inputs again in one call, comparing every frame with the attempt's (coverage:'retained-frames' when an older recording kept only its sampled images). Use it after each rebuild instead of replaying a route by hand. By default the replay stops at the first frame that differs and returns the recorded and replayed images; onDivergence:'continue' plays every input and reports the first difference; toActionIndex replays only up to that action (a recordingSpan's toActionIndex). A replay that starts ends the current session (a refused one leaves it running); the new session stays open where the replay ended, with the last recorded buttons still held, and is recorded as a new attempt (recording:false records nothing), so emulator_step, checkpoints and review continue from there. A cartridge with a real-time clock replays best effort (deterministic:false). Images are the source's retained frame (expected, when it kept one there), the replay's frame at the difference (actual) and the final frame (end).",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1501,7 +1501,7 @@
           },
           "recordingPath": {
             "$ref": "#/properties/romPath",
-            "description": "The recorded attempt to replay; defaults to the current or most recent recording, which after a replay is the replay's own."
+            "description": "The recorded attempt to replay; defaults to the source of a replay that stopped before the end of its route, else the current or most recent recording."
           },
           "branchId": {
             "type": "string",
@@ -1521,7 +1521,7 @@
               "stop",
               "continue"
             ],
-            "description": "stop (default) ends the replay at the first retained frame that differs; continue plays every input anyway."
+            "description": "stop (default) ends the replay at the first frame that differs; continue plays every input anyway."
           },
           "recording": {
             "anyOf": [

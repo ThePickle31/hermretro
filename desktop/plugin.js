@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 b86f31839c16b8417469a575a440b5e28614b95ddd2a5bcd2c4c38a207204809
- * body: sha256 79c8f194cefbe498114929b39da60dfea8f7b6e9d2f449f127e5b7bf6665986a
+ * sources: sha256 70b27a1c8215f12600c5497353dc6106c4e8ce84c93c3a7d8ff4742c21e73b89
+ * body: sha256 c8516444f63eab51846c2427ea9b0abbaa6904fb8b7b072a2587566917418ae9
  */
 // page/sdk.js
 import {
@@ -5548,7 +5548,7 @@ function BuildStatus({ chat, onStop }) {
   const running = [...chat.items].reverse().find((item) => item.kind === "tools" && item.tools.some((tool2) => tool2.state === "running"));
   const tool = running ? [...running.tools].reverse().find((entry) => entry.state === "running") : null;
   const waiting = chat.waiting || chat.items.some((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered);
-  const slow = tool && /rom_build|web_build|toolchain_prepare|emulator_step|flash/.test(tool.name);
+  const slow = tool && /rom_build|web_build|toolchain_prepare|emulator_step|emulator_replay|flash/.test(tool.name);
   let tone = "";
   let headline;
   let detail = null;

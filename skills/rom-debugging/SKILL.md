@@ -120,15 +120,24 @@ chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}
 ```
 
 It boots the new ROM as the attempt booted, plays every recorded input in one
-call and compares each frame the attempt kept. `status:"matched"` means the new
-ROM showed the same frames all the way. `status:"diverged"` stops at the first
-frame that differs and returns the recorded (`expected`) and new (`actual`)
-images: a difference you made on purpose, or a regression. Pass
-`onDivergence:"continue"` to play the remaining inputs anyway, or
-`toActionIndex` (a `recordingSpan`'s `toActionIndex`) to stop where the fix is
-to be checked. The session stays open where the replay ended, recorded as a new
-attempt, so keep playing, save checkpoints or replay again from there. See
-[replay after a rebuild](references/recorded-playtesting.md#replay-after-a-rebuild).
+call and compares each frame with the attempt's. `status:"matched"` with
+`coverage:"every-frame"` means the new ROM showed the same frames all the way;
+an attempt recorded before replay existed kept only every few frames
+(`coverage:"retained-frames"`), and only those were compared. `status:"diverged"`
+stops at the first frame that differs and returns the new (`actual`) image, with
+the recorded one (`expected`) when the attempt kept it: a difference you made on
+purpose, or a regression. To play the rest of the route anyway, replay the same
+attempt again with `onDivergence:"continue"`, naming it from `replay.source`:
+
+```text
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>","recordingPath":"<replay.source.recordingPath>","branchId":"<replay.source.branchId>","onDivergence":"continue"}
+```
+
+`toActionIndex` (a `recordingSpan`'s `toActionIndex`) stops where the fix is to
+be checked. The session stays open where the replay ended, recorded as a new
+attempt, so keep playing, save checkpoints or replay again from there. A
+cartridge with a real-time clock replays best effort (`deterministic:false`).
+See [replay after a rebuild](references/recorded-playtesting.md#replay-after-a-rebuild).
 
 An unchanged ROM reuses its session; use `restart:true` for an intentional fresh
 boot and `chromatic_emulator_close {}` before selecting another project. For
