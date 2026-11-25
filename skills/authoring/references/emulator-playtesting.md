@@ -20,10 +20,12 @@ chromatic_emulator_audio {}
 chromatic_emulator_close {}
 ```
 
-Start every run with `recording:{}`. Checkpoints need an active recording, a
-recorded attempt can be replayed onto a rebuild, and the one run from power-on
-to the ending must be recorded from its first frame: the build report names it
-([finishable](../../rom-debugging/SKILL.md#finishable)).
+Record (`recording:{}`) only the runs that need it: the one run from power-on
+to the ending, recorded from its first frame because the build report names it
+([finishable](../../rom-debugging/SKILL.md#finishable)), and an attempt you
+will save checkpoints in or replay onto a rebuild. `recording:{}` always boots
+fresh, and a project's recordings folder holds about 16 at the default 64 MiB
+before new ones are refused, so leave it off for quick looks.
 
 ## Steps and observations
 

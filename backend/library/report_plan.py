@@ -7,16 +7,19 @@ from pathlib import Path
 
 from . import finish_run, plan_checks
 
+NO_RUN = "finishRun names no recording: this report shows no recorded run from power-on of this ROM."
+
 
 def plan_problems(
     root: Path, checks: list[dict], has_difficulty: bool, run: dict | None, names_run: bool
 ) -> tuple[list[str], list[str]]:
-    """What the report lacks by the game's test plan (problems), and what the plan itself lacks (warnings). A game
-    without a test plan asks for nothing. ``run`` is the checked finishable run (None when the report names none,
-    ``names_run``, or names one that is no finishable run of this build)."""
+    """What the report lacks by the game's test plan (problems), and what the plan or the report leaves unshown
+    (warnings). A game without a test plan asks for nothing, but is still told when no recorded run is named.
+    ``run`` is the checked finishable run (None when the report names none, ``names_run``, or names one that is no
+    finishable run of this build)."""
     plan = plan_checks.read_plan(root)
     if plan is None:
-        return [], []
+        return [], [] if names_run else [NO_RUN]
     where = plan_checks.PLAN_FILE.as_posix()
     key = plan_checks.check_key
     problems = [] if has_difficulty else [f"difficulty is required: this game has a test plan ({where})."]
@@ -53,11 +56,13 @@ def plan_problems(
             f"checks gives {finish} a result but finishRun names no recording of that run: {finish_run.NEW_RUN} and "
             f"give its recordingPath as finishRun, or report {finish} as not run."
         )
-    elif result == "passed" and run is not None and run["status"] != "stopped":
+    elif result == "passed" and run is not None and run.get("outcome") != "passed":
+        ended = run["status"] + (f" with outcome {run['outcome']}" if run.get("outcome") else " with no outcome")
         problems.append(
-            f"checks gives {finish} passed but its recording ended {run['status']}: {finish_run.NEW_RUN} and name "
-            f"that recording, or report {finish} as failed."
+            f"checks gives {finish} passed but its recording ended {ended}: {finish_run.NEW_RUN}, stop it with "
+            f'chromatic_emulator_recording {{"action":"stop","outcome":"passed"}} once the ending shows, and name '
+            f"that recording, or report {finish} as failed or needs review."
         )
     elif not names_run:
-        warnings.append("finishRun names no recording: this report shows no recorded run from power-on of this ROM.")
+        warnings.append(NO_RUN)
     return problems, warnings

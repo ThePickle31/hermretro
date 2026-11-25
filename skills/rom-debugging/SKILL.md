@@ -174,10 +174,10 @@ the project, made on the game's ROM as it is now, stopped, and free of
 checkpoint restores. For a game with a test plan, the report gives each open
 check its result on this ROM (`not run` for any you did not play on it) and the
 run is the plan's finishable check (F1): an F1 `passed` or `failed` with no
-`finishRun` is refused, and so is a `passed` one whose recording ended `failed`
-or `cancelled`. With no such run on this ROM (the ending unreachable, the run
-skipped, a game with no ending), report what happened instead, as
-`hermretro:game-planning` step 6 says.
+`finishRun` is refused, and so is a `passed` one whose recording was not stopped
+with `outcome:"passed"` (closing the emulator records no outcome). With no such
+run on this ROM (the ending unreachable, the run skipped, a game with no
+ending), report what happened instead, as `hermretro:game-planning` step 6 says.
 
 ## Diagnose and report
 

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import plan_checks, report_tools  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import plan_checks, report_plan, report_tools  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 REPORT = {"title": "Burrow Run", "summary": "Three mazes to the den."}
@@ -37,8 +37,9 @@ class FinishRun(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-    def recording(self, name="session-1", *, rom=ROM, status="stopped", branches=None, **extra):
-        """A recording folder as the engine's emulator worker leaves it (only what the report reads)."""
+    def recording(self, name="session-1", *, rom=ROM, status="stopped", branches=None, journal=True, **extra):
+        """A recording folder as the engine's emulator worker leaves it (only what the report reads): its manifest
+        and, with ``journal``, an ``events.jsonl`` that agrees with it (a list of rows to write instead)."""
         folder = self.root / "artifacts" / "playtests" / name
         folder.mkdir(parents=True)
         manifest = {
@@ -52,6 +53,14 @@ class FinishRun(unittest.TestCase):
             **extra,
         }
         (folder / "recording.json").write_text(json.dumps(manifest))
+        if journal is True:
+            journal = [{"sequence": 1, "kind": "header", "sessionId": SESSION, "rom": manifest["rom"]}]
+            journal.append({"sequence": 2, "kind": "action", "frameHashes": "0" * 16 * 3600})
+            if status != "recording":
+                finish = {"status": status, **({"outcome": extra["outcome"]} if "outcome" in extra else {})}
+                journal.append({"sequence": 3, "kind": "finish", "totalFrames": 5504, **finish})
+        if journal:
+            (folder / "events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in journal))
         return folder
 
     def plan(self, *rows):
@@ -99,13 +108,48 @@ class FinishRun(unittest.TestCase):
         self.assertIsNone(answer["report"]["finishRun"])
         self.assertIn("finishRun names no recording", answer["warnings"][0])
 
-    def test_a_passed_run_needs_a_recording_that_ended_well(self):
+    def test_a_passed_run_needs_a_recording_stopped_as_passed(self):
         self.recording(status="failed", outcome="failed")
         answer = self.planned("passed", finishRun=SESSION)
-        self.assertIn("checks gives F1 passed but its recording ended failed", answer["error"])
+        self.assertIn("checks gives F1 passed but its recording ended failed with outcome failed", answer["error"])
         answer = self.planned("failed", finishRun=SESSION)
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(answer["report"]["finishRun"]["outcome"], "failed")
+        # Closing the emulator, or stopping without a pass, ends a recording "stopped" too.
+        for name, extra, ended in (
+            ("closed", {}, "stopped with no outcome"),
+            ("review", {"outcome": "needs-review"}, "stopped with outcome needs-review"),
+        ):
+            folder = self.recording(name, **extra)
+            answer = self.planned("passed", finishRun=str(folder))
+            self.assertEqual(answer["code"], "INVALID_REPORT", name)
+            self.assertIn(f"checks gives F1 passed but its recording ended {ended}", answer["error"])
+            self.assertIn('"outcome":"passed"', answer["error"])
+            self.assertTrue(self.planned("failed", finishRun=str(folder))["ok"], name)
+
+    def test_the_journal_must_be_there_and_tell_the_same_run(self):
+        header = {"sequence": 1, "kind": "header", "sessionId": SESSION}
+        rom = {"sha256": hashlib.sha256(ROM).hexdigest(), "cgb": True}
+        finish = {"sequence": 2, "kind": "finish", "status": "stopped", "outcome": "passed"}
+        for name, journal in (
+            ("no-journal", False),
+            ("empty", []),
+            ("other-rom", [{**header, "rom": {**rom, "sha256": "0" * 64}}, finish]),
+            ("other-session", [{**header, "sessionId": "f" * 32, "rom": rom}, finish]),
+            ("no-header", [finish]),
+            ("unfinished", [{**header, "rom": rom}]),
+            ("other-status", [{**header, "rom": rom}, {**finish, "status": "failed"}]),
+            ("other-outcome", [{**header, "rom": rom}, {**finish, "outcome": "needs-review"}]),
+        ):
+            folder = self.recording(name, journal=journal, outcome="passed")
+            answer = self.planned("passed", finishRun=str(folder))
+            self.assertEqual(answer["code"], "INVALID_REPORT", name)
+            self.assertIn("has no events.jsonl, or one that does not match its recording.json", answer["error"])
+        # An attempt still recording has no finish row yet, and its last row may be half written.
+        folder = self.recording("active", status="recording", journal=[{**header, "rom": rom}])
+        with (folder / "events.jsonl").open("a") as journal:
+            journal.write('{"sequence": 2, "kind": "act')
+        self.assertIn("is still recording", self.report(finishRun=str(folder))["error"])
 
     def test_a_recording_that_is_no_finishable_run_of_this_build_is_refused(self):
         self.recording("other-rom", rom=b"an earlier build")
@@ -129,6 +173,7 @@ class FinishRun(unittest.TestCase):
             (str(outside), "outside the project"),
             ("../outside", "outside the project"),
             ("f" * 32, "no recording in artifacts/playtests/ has the session id"),
+            ("~no-such-user-hermretro/run", "is not a usable path"),
         ):
             answer = self.report(finishRun=named)
             self.assertEqual(answer["code"], "INVALID_REPORT", named)
@@ -143,12 +188,29 @@ class FinishRun(unittest.TestCase):
         (self.root / "build" / "game.gbc").unlink()
         self.assertIn("has no ROM in build/", self.report(finishRun=str(folder))["error"])
 
+    def test_a_recording_the_lookup_cannot_find_is_named_by_its_path(self):
+        archive = self.root / "artifacts" / "recording-archives" / "c0ffee" / "recording"
+        archive.parent.mkdir(parents=True)
+        self.recording(outcome="passed").rename(archive)
+        # Archiving leaves only a pointer at the original path.
+        original = self.root / "artifacts" / "playtests" / "session-1"
+        original.mkdir()
+        (original / ".recording-archive.json").write_text("{}")
+        for named in (SESSION, str(original)):
+            error = self.planned("passed", finishRun=named)["error"]
+            self.assertIn("give the recordingPath chromatic_emulator_run returned", error)
+            self.assertIn("the archivePath chromatic_emulator_recording retrieve returned", error)
+        self.assertTrue(self.planned("passed", finishRun=str(archive))["ok"])
+
     def test_without_a_plan_the_run_is_optional_but_still_checked(self):
         answer = self.report()
         self.assertTrue(answer["ok"], answer)
-        self.assertNotIn("warnings", answer)
+        self.assertEqual(answer["warnings"], [report_plan.NO_RUN])
         self.assertIsNone(answer["report"]["finishRun"])
-        self.assertTrue(self.report(finishRun=str(self.recording()))["ok"])
+        answer = self.report(finishRun=str(self.recording()))
+        self.assertTrue(answer["ok"], answer)
+        self.assertNotIn("warnings", answer)
+        self.assertIn("has no events.jsonl", self.report(finishRun=str(self.recording("bare", journal=False)))["error"])
         with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
             answer = self.report(finishRun=SESSION)
         self.assertIn("this chat has no game project", answer["error"])

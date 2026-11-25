@@ -1,11 +1,13 @@
 """The finishable run's recording: the one run from power-on to the ending that a build report names
 (``chromatic_build_report``'s ``finishRun``, ``report_tools.py``). The engine's emulator worker keeps each recorded
-attempt as a folder holding ``recording.json`` (``Recording`` in engine/modretro-chromatic/scripts/emulator_worker.py),
-rewritten when the attempt is created and when it ends. Standard library only."""
+attempt as a folder holding ``recording.json``, rewritten when the attempt is created and when it ends, and the
+append-only journal ``events.jsonl``, which opens with a ``header`` row and closes with a ``finish`` row (``Recording``
+in engine/modretro-chromatic/scripts/emulator_worker.py). Standard library only."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -16,8 +18,16 @@ RECORDINGS = Path("artifacts", "playtests")
 MANIFEST = "recording.json"
 MANIFEST_KIND = "gb-studio-playtest"
 MAX_MANIFEST_BYTES = 1024 * 1024
+JOURNAL = "events.jsonl"
+# The finish row is short; the rows before it can hold a step's frame hashes, so only the tail is read.
+MAX_FINISH_ROW_BYTES = 64 * 1024
 SESSION_ID = re.compile(r"^[0-9a-f]{32}$")
 NEW_RUN = "boot this build's ROM with chromatic_emulator_run restart:true and recording:{}, play it to the ending"
+# Where a recording the lookup cannot find lives instead.
+ELSEWHERE = (
+    "give the recordingPath chromatic_emulator_run returned (a recording with its own outputPath), or for an "
+    "archived recording the archivePath chromatic_emulator_recording retrieve returned"
+)
 
 
 def _manifest(folder: Path) -> dict | None:
@@ -32,18 +42,43 @@ def _manifest(folder: Path) -> dict | None:
     return body if isinstance(body, dict) and body.get("kind") == MANIFEST_KIND else None
 
 
+def _journal_agrees(folder: Path, manifest: dict) -> bool:
+    """Whether the folder's ``events.jsonl`` is there and tells the same run as its ``recording.json``: its header
+    names the same session and ROM and, once the attempt has ended, its finish row the same status and outcome."""
+    path = folder / JOURNAL
+    try:
+        if path.is_symlink() or not path.is_file():
+            return False
+        with path.open("rb") as journal:
+            header = json.loads(journal.readline(MAX_MANIFEST_BYTES))
+            if not isinstance(header, dict) or header.get("kind") != "header":
+                return False
+            if header.get("sessionId") != manifest.get("sessionId") or header.get("rom") != manifest.get("rom"):
+                return False
+            if manifest.get("status") == "recording":  # no finish row yet, and the last row may be mid-append
+                return True
+            journal.seek(max(0, journal.seek(0, os.SEEK_END) - MAX_FINISH_ROW_BYTES))
+            last = json.loads(journal.read().rstrip(b"\n").rsplit(b"\n", 1)[-1])
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(last, dict)
+        and last.get("kind") == "finish"
+        and all(last.get(key) == manifest.get(key) for key in ("status", "outcome"))
+    )
+
+
 def _folder(root: Path, value: str) -> Path | None:
     """The folder ``value`` names: a path to a recording (absolute or relative to the project, the folder or its
-    ``recording.json``), or a recording's session id, looked up in the project's ``artifacts/playtests/``."""
+    ``recording.json``), or a recording's session id, looked up in the project's ``artifacts/playtests/``. Raises
+    RuntimeError for a ``~user`` no account has."""
     if SESSION_ID.match(value):
         try:
             entries = sorted((root / RECORDINGS).iterdir())
         except OSError:
             return None
         return next((entry for entry in entries if (_manifest(entry) or {}).get("sessionId") == value), None)
-    candidate = Path(value).expanduser()
-    if not candidate.is_absolute():
-        candidate = root / candidate
+    candidate = root / Path(value).expanduser()  # an absolute value replaces root
     return candidate.parent if candidate.name == MANIFEST else candidate
 
 
@@ -52,19 +87,27 @@ def read_run(root: Path, value: str) -> tuple[dict | None, str | None]:
     ``frames``, ``outcome`` when it was stopped with one), or (None, why it is no finishable run of this build):
     it must be a recording inside the project, of the game's ROM as it is now, that restored no checkpoint and
     has ended."""
-    folder = _folder(root, value)
-    if folder is None:
-        return None, f"finishRun: no recording in {RECORDINGS.as_posix()}/ has the session id {value}."
     try:
-        real = folder.resolve()
-        inside = real.is_relative_to(root.resolve())
+        folder = _folder(root, value)
+        real = folder.resolve() if folder is not None else None
+        inside = real is not None and real.is_relative_to(root.resolve())
     except (OSError, RuntimeError):
         return None, f"finishRun: {value} is not a usable path."
+    if real is None:
+        return None, f"finishRun: no recording in {RECORDINGS.as_posix()}/ has the session id {value}: {ELSEWHERE}."
     if not inside:
         return None, f"finishRun: {value} is outside the project."
     manifest = _manifest(real)
     if manifest is None:
-        return None, f"finishRun: {value} is no recording (the folder chromatic_emulator_run's recording:{{}} made)."
+        return None, (
+            f"finishRun: {value} is no recording (the folder chromatic_emulator_run's recording:{{}} made): "
+            f"{ELSEWHERE}."
+        )
+    if not _journal_agrees(real, manifest):
+        return None, (
+            f"finishRun: {value} has no {JOURNAL}, or one that does not match its {MANIFEST}, so it shows no run: "
+            f"{NEW_RUN}, and name that recording."
+        )
     game = _game_rom(root) or _legacy_rom(root)
     if game is None:
         return None, "finishRun: this game has no ROM in build/ to check the recording against."

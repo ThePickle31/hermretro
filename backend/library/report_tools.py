@@ -152,7 +152,8 @@ BUILD_REPORT_TOOL = {
                 "maxLength": 4096,
                 "description": "The recordingPath (or session id) of your one run from power-on to the ending on this "
                 "build's ROM: started with chromatic_emulator_run restart:true and recording:{}, no checkpoint "
-                "restores, then stopped. Checked against the game's ROM.",
+                "restores, then stopped (outcome 'passed' when it reached the ending). Checked against the game's "
+                "ROM.",
             },
             "notes": _report_list("notes", REPORT_LIMITS["notes"], "One note.", "Things the user might notice."),
             "suggestions": _report_list(

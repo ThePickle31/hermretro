@@ -121,6 +121,14 @@ class SkillsTest(unittest.TestCase):
             self.assertNotIn("built-in browser", path.read_text(), path)
             self.assertNotIn("modretro-chromatic-", path.read_text(), path)
 
+    def test_recording_is_asked_only_for_the_runs_that_need_it(self):
+        # recording:{} always boots fresh and every attempt counts against the recordings folder's quota.
+        for path in markdown_files():
+            self.assertNotRegex(path.read_text(), r"(?i)\b(start|record|play) every run\b", path)
+        page = (SKILLS / "authoring" / "references" / "emulator-playtesting.md").read_text()
+        self.assertIn("Record (`recording:{}`) only the runs that need it", page)
+        self.assertIn("will save checkpoints in", page)
+
     def test_relative_links_resolve(self):
         problems = []
         for path in markdown_files():
