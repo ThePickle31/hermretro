@@ -320,14 +320,18 @@ class EngineEntries(unittest.TestCase):
 
     def test_bytecode_is_left_out_and_never_stated(self):
         # A running script renames its bytecode into place: a .pyc listed and then stat'ed could be gone.
-        real_lstat = Path.lstat
+        def refusing_bytecode(real):
+            def call(path, *args, **kwargs):
+                if "__pycache__" in path.parts or path.name.endswith(".pyc"):
+                    raise FileNotFoundError(path)
+                return real(path, *args, **kwargs)
 
-        def lstat(path):
-            if "__pycache__" in path.parts or path.name.endswith(".pyc"):
-                raise FileNotFoundError(path)
-            return real_lstat(path)
+            return call
 
-        with mock.patch.object(Path, "lstat", lstat), mock.patch.object(Path, "stat", lstat):
+        with (
+            mock.patch.object(Path, "lstat", refusing_bytecode(Path.lstat)),
+            mock.patch.object(Path, "stat", refusing_bytecode(Path.stat)),
+        ):
             self.assertEqual(self.listed(), ["package.json", "scripts/worker.py"])
             self.assertEqual(paths._compare_tree(self.root, self.expected), [])
 
