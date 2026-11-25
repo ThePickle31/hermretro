@@ -79,7 +79,7 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
   await tab('Setup')
   check('a plugin installed into an ordinary profile starts with creating the studio profile', () => {
     assert.equal(heading(), 'Create the hermretro profile'); assert.match(text(), /Step 1 of 6/)
-    assert.match(text(), /starts with the sign-ins and keys Hermes can share/); assert.match(text(), /Some accounts may not carry over/)
+    assert.match(text(), /uses the sign-ins, keys and model choices of the profile the plugin is installed in/); assert.match(text(), /Some accounts may not carry over/)
     assert.ok(!/nothing to log in to again/.test(text()), 'no promise that every sign-in is shared')
     assert.match(text(), /The "default" profile, where the plugin is installed, is not changed/)
   })
@@ -100,6 +100,25 @@ await runScenario(async ({ act, dom, scenario, registrations, page, text, headin
     assert.match(text(), /Waiting for Hermes to start it/)
     assert.match(text(), /Set it up again/)
     assert.ok(![...dom.window.document.querySelectorAll('button')].some(node => node.textContent.includes('Create the hermretro profile')))
+  })
+  const directsdk = 'claude-subscription-directsdk-experimental'
+  scenario.ambient = installer({ exists: true, installed: true, ours: true, claude_login: { provider: directsdk, signed_in: false, via: null } })
+  scenario.status = answered(scenario.ambient)
+  await studioPage.rerender()
+  scenario.calls.length = 0; scenario.notices.length = 0
+  scenario.byMethod['plugin.hermretro.studio_claude_sign_in'] = { ok: true, claude_login: { provider: directsdk, signed_in: true, via: 'folder' } }
+  await click('Sign in to Claude')
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+  check('a studio profile with no Claude login offers the sign-in, which asks its RPC', () => {
+    assert.deepEqual(scenario.calls.filter(call => call[0] === 'request').map(call => call[1]),
+      ['plugin.hermretro.studio_claude_sign_in'])
+    assert.ok(scenario.notices.some(notice => /Signed in to Claude/.test(notice.message)))
+  })
+  scenario.ambient = installer({ exists: true, installed: true, ours: true, claude_login: { provider: directsdk, signed_in: true, via: 'folder' } })
+  scenario.status = answered(scenario.ambient)
+  await studioPage.rerender()
+  check('a signed-in studio profile offers no sign-in', () => {
+    assert.ok(![...dom.window.document.querySelectorAll('button')].some(node => node.textContent.includes('Sign in to Claude')))
   })
   scenario.routes.push({ profile: 'hermretro', targetProfile: 'hermretro', connectionId: 'local' })
   scenario.byProfile = { 'hermretro': complete }

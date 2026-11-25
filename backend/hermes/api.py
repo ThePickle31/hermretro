@@ -20,6 +20,9 @@ USED = (
     ("hermes_constants", "get_default_hermes_root"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
+    ("hermes_cli.config", "read_user_config_raw"),
+    ("hermes_cli.auth", "PROVIDER_REGISTRY"),
+    ("agent.secret_scope", "load_env_file"),
     ("hermes_cli.default_soul", "DEFAULT_SOUL_MD"),
     ("hermes_cli.profiles", "_bootstrap_profile_dir"),
     ("hermes_cli.profiles", "seed_profile_skills"),
@@ -86,6 +89,33 @@ def enabled_plugins() -> list[str]:
         return [str(name) for name in enabled]
     except Exception:  # noqa: BLE001 - an unreadable config means no plugins are on
         return []
+
+
+def read_profile_config(profile_home: Path) -> dict:
+    """A profile's config.yaml exactly as written: no defaults filled in (empty when it has none)."""
+    from hermes_cli.config import read_user_config_raw
+
+    return read_user_config_raw(profile_home / "config.yaml")
+
+
+def read_profile_env(profile_home: Path) -> dict[str, str]:
+    """A profile's .env as Hermes reads it (empty when it has none). Never touches ``os.environ``."""
+    from agent.secret_scope import load_env_file
+
+    return dict(load_env_file(profile_home / ".env"))
+
+
+def provider_env_keys() -> set[str]:
+    """The .env names Hermes's model providers read their API key and endpoint from (``OPENROUTER_API_KEY``...).
+    Messaging bot tokens are not among them."""
+    from hermes_cli.auth import PROVIDER_REGISTRY
+
+    names = {"OPENROUTER_API_KEY"}  # OpenRouter, Hermes's built-in default route, is not in the registry
+    for provider in PROVIDER_REGISTRY.values():
+        names.update(name for name in getattr(provider, "api_key_env_vars", ()) or () if name)
+        if base_url := getattr(provider, "base_url_env_var", None):
+            names.add(base_url)
+    return names
 
 
 def prepare_profile(staging: Path, *, description: str, soul: str) -> None:

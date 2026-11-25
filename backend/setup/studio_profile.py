@@ -23,7 +23,7 @@ from pathlib import Path
 
 from ..hermes import api as hermes_api
 from ..system import paths
-from . import profile_publication
+from . import claude_login, profile_publication, provider_sync
 
 STUDIO_PROFILE = "hermretro"
 DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"
@@ -147,7 +147,7 @@ def _has_plugin(target: Path) -> bool:
     return (target / "plugins" / paths.PLUGIN_ID / "plugin.yaml").is_file()
 
 
-def _ready(target: Path) -> bool:
+def is_finished(target: Path) -> bool:
     """Finished, not merely linked: the marker is written last, after every command succeeded."""
     return _has_plugin(target) and (target / MARKER).is_file()
 
@@ -159,7 +159,7 @@ def _can_resume(target: Path) -> bool:
             return (
                 entry is not None
                 and stat.S_ISDIR(entry.st_mode)
-                and _ready(target)
+                and is_finished(target)
                 and profile_publication.Tombstone(target, profiles).matches_receipt(entry)
             )
     except OSError:
@@ -173,7 +173,13 @@ def describe(home: Path, target: Path | None = None) -> dict:
         return {
             "name": name,
             "is_studio": True,
-            "studio": {"name": STUDIO_PROFILE, "exists": True, "installed": True, "ours": True},
+            "studio": {
+                "name": STUDIO_PROFILE,
+                "exists": True,
+                "installed": True,
+                "ours": True,
+                "claude_login": claude_login.state(home),
+            },
         }
     target = target or studio_dir()
     exists = _exists(target)
@@ -186,16 +192,17 @@ def describe(home: Path, target: Path | None = None) -> dict:
         "studio": {
             "name": STUDIO_PROFILE,
             "exists": exists,
-            "installed": exists and not deleted and _ready(target),
+            "installed": exists and not deleted and is_finished(target),
             "ours": ours,
             # Someone else's profile has the name: finishing it would be refused (NAME_TAKEN), so the page says so
             # before it downloads anything.
             "conflict": exists and not resumable and (deleted or (not ours and not _has_plugin(target))),
+            "claude_login": claude_login.state(target) if exists and not deleted and is_finished(target) else None,
         },
     }
 
 
-def _provider_plugins(home: Path, enabled: list[str]) -> list[Path]:
+def provider_plugins(home: Path, enabled: list[str]) -> list[Path]:
     """Model-provider plugins that are on in the profile the plugin was installed into. Without
     them the new profile could not use the model the user works with."""
     found = []
@@ -233,12 +240,20 @@ def _link(source: Path, destination: Path) -> str:
     return "linked"
 
 
+def _installed_by_hermes(profile_home: Path, name: str) -> bool:
+    try:
+        installed = json.loads((profile_home / "plugins" / ".install-metadata.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(installed, dict) and name in installed
+
+
 def _hermes_command() -> list[str]:
     found = shutil.which("hermes")
     return [found] if found else [sys.executable, "-m", "hermes_cli.main"]
 
 
-def _run_hermes(target: Path, *arguments: str) -> None:
+def run_hermes(target: Path, *arguments: str) -> None:
     environment = {**os.environ, "HERMES_HOME": str(target)}
     try:
         done = subprocess.run(
@@ -293,7 +308,7 @@ def finish(home: Path, **options) -> dict:
 
 
 def _finish(
-    home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=_run_hermes, create: bool = False
+    home: Path, *, target: Path | None = None, enabled: list[str] | None = None, run=run_hermes, create: bool = False
 ) -> dict:
     if profile_name(home) == STUDIO_PROFILE:
         return {"ok": True, "profile": STUDIO_PROFILE, "already": True}
@@ -331,7 +346,7 @@ def _finish_locked(home: Path, target: Path, enabled: list[str] | None, run, cre
             raise _not_created()
         return _create(home, target, enabled, run, profiles, deleted)
 
-    ready = _ready(target)
+    ready = is_finished(target)
     if deleted.identity is not None:
         if not ready or not deleted.matches_receipt(expected):
             raise _name_taken()
@@ -403,13 +418,19 @@ def _configure(
     check()
     plugin = _link(paths.PLUGIN_ROOT, target / "plugins" / paths.PLUGIN_ID)
     providers = []
-    for folder in _provider_plugins(home, _enabled_plugins() if enabled is None else enabled):
+    for folder in provider_plugins(home, _enabled_plugins() if enabled is None else enabled):
         check()
-        _link(folder, target / "plugins" / folder.name)
+        destination = target / "plugins" / folder.name
+        if _link(folder, destination) == "own copy" and _installed_by_hermes(target, folder.name):
+            # A copy Hermes installed there on its own drifts from the installing profile's version: link that one.
+            configure("plugins", "remove", folder.name)
+            _link(folder, destination)
         providers.append(folder.name)
 
     for name in (paths.PLUGIN_ID, *providers):
         configure("plugins", "enable", name)
+    with provider_sync.lock:
+        synced = provider_sync.sync(home, target, configure, plugins=providers)
     configure("config", "set", "agent.disabled_toolsets", json.dumps(list(DISABLED_TOOLSETS)))
     # No Hermes default skills, only the essential hermes-agent one (Hermes always keeps it) and the
     # plugin's own. The profile is created with no_skills; this keeps `hermes update` from seeding
@@ -449,6 +470,7 @@ def _configure(
         "profile": STUDIO_PROFILE,
         "plugin": plugin,
         "providers": providers,
+        "provider_sync": synced,
         "disabled_toolsets": list(DISABLED_TOOLSETS),
         "soul_written": write_soul,
         "workspace": str(workspace),

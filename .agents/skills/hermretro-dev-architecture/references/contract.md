@@ -119,12 +119,30 @@ Finishes an existing `hermretro` profile, or with `create: true` prepares a new 
 initial preferences and finish marker have been written. If a deleted profile left a directory with no identity
 and no gateway owner, creation keeps that directory under a hidden sibling in `profiles/` and publishes the new
 profile under the studio name. Returns
-`{ ok, profile, plugin, providers[], disabled_toolsets[], soul_written, workspace }` or `{ ok: false, code, error }`
-with `code` one of `NOT_CREATED`, `NAME_TAKEN`, `LINK_BLOCKED`, `LINK_FAILED`, `HERMES_COMMAND_FAILED`.
+`{ ok, profile, plugin, providers[], provider_sync, disabled_toolsets[], soul_written, workspace }` or
+`{ ok: false, code, error }` with `code` one of `NOT_CREATED`, `NAME_TAKEN`, `LINK_BLOCKED`, `LINK_FAILED`,
+`HERMES_COMMAND_FAILED`. A model-provider plugin Hermes installed into the studio profile on its own is removed and
+linked to the installing profile's copy. `provider_sync` is `{ changed[], kept[], claude_login }`
+(`backend/setup/provider_sync.py`): config keys and .env names copied from the installing profile (provider routes:
+`model`, `providers`, `custom_providers`, `fallback_providers`, `delegation`, each auxiliary task's route; the
+provider plugins' settings; the providers' keys), and those kept because they were changed in the studio profile
+itself. Names only, never values. `status` runs the same sync in the background whenever the installing profile's
+config or .env changed since the last one.
 Safe to call again, and single-flight: a call made while another runs in the same process waits for it and gets its
 answer (`shared: true`) or its error. `status` reports `profile: { name, is_studio, studio: { name, exists,
-installed, ours, conflict } }`; `conflict` is a `hermretro` profile someone else made (finishing it is
-refused with `NAME_TAKEN`), so the page names it before any download.
+installed, ours, conflict, claude_login } }`; `conflict` is a `hermretro` profile someone else made (finishing it is
+refused with `NAME_TAKEN`), so the page names it before any download. `claude_login` is null unless the finished
+studio profile uses the Claude Subscription DirectSDK provider, then `{ provider, signed_in, via }` with `via` one of
+`token` (`CLAUDE_CODE_OAUTH_TOKEN` in its .env), `folder` (its `claude_config_dir`) or null (none: the page offers
+`studio_claude_sign_in`).
+
+### `studio_claude_sign_in` — no params
+
+Gives the studio profile a Claude login of its own: Claude Code's browser sign-in (`claude auth login --claudeai`)
+into `<studio profile>/claude`, then selects that folder as its `claude_config_dir`. Needed on macOS when the
+installing profile uses Claude Code's default login, whose Keychain entry a second profile cannot reach
+(`backend/setup/claude_login.py`). Waits up to ten minutes for the browser. Returns `{ ok, claude_login }` or
+`{ ok: false, code, error }` with `code` one of `NOT_CREATED`, `CLAUDE_NOT_FOUND`, `SIGN_IN_TIMEOUT`, `SIGN_IN_FAILED`.
 
 ### `install` — params `{ action, admission?, run_id?, retire_legacy? }`
 

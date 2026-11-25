@@ -3,6 +3,7 @@
 import tempfile
 import threading
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from backend.setup import studio_profile as sp
@@ -17,6 +18,11 @@ class SingleFlight(unittest.TestCase):
         self.home.mkdir(parents=True)
         self.target.mkdir(parents=True)
         (self.target / "profile.yaml").write_text(f"description: '{sp.DESCRIPTION}'\n")
+        # Profiles with no providers to sync (the sync itself: test_provider_sync.py).
+        for name, value in (("read_profile_config", {}), ("read_profile_env", {}), ("provider_env_keys", set())):
+            patch = unittest.mock.patch.object(sp.hermes_api, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def test_a_second_finish_waits_for_the_first_and_shares_its_answer(self):
         gate, started, commands = threading.Event(), threading.Event(), []

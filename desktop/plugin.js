@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 13546a73d401bde672447f78fb25b90c5e737d54418cb51a9439671248a7955a
- * body: sha256 b72677aac36ffeca6499a66b146fd5a4e0e647101ce48ed2495c3b8529842c62
+ * sources: sha256 85881fbf30c381103fb7fbb2f939d5b361c7008a78477639064a67b386bcd23c
+ * body: sha256 f0ec596d3bcb68ee7ebee9f2d28cb762bb65c30b75cba619067db970155878f6
  */
 // page/sdk.js
 import {
@@ -199,6 +199,7 @@ var RPC_NAMES = Object.freeze({
   presentations: `plugin.${ID}.presentations`,
   remove_tools: `plugin.${ID}.remove_tools`,
   status: `plugin.${ID}.status`,
+  studio_claude_sign_in: `plugin.${ID}.studio_claude_sign_in`,
   studio_profile: `plugin.${ID}.studio_profile`
 });
 var RPC_ACTIVITY = RPC_NAMES.activity;
@@ -220,6 +221,7 @@ var RPC_PLAYER = RPC_NAMES.player;
 var RPC_PRESENTATIONS = RPC_NAMES.presentations;
 var RPC_REMOVE_TOOLS = RPC_NAMES.remove_tools;
 var RPC_STATUS = RPC_NAMES.status;
+var RPC_STUDIO_CLAUDE_SIGN_IN = RPC_NAMES.studio_claude_sign_in;
 var RPC_STUDIO_PROFILE = RPC_NAMES.studio_profile;
 
 // page/app/routing.js
@@ -10685,6 +10687,12 @@ async function createStudioProfile(profile) {
     throw new Error(data?.error || "The profile could not be set up.");
   }
 }
+async function signInToClaude() {
+  const { data } = await callBackend(RPC_STUDIO_CLAUDE_SIGN_IN, {}, 66e4);
+  if (!data?.ok) {
+    throw new Error(data?.error || "The Claude sign-in did not finish.");
+  }
+}
 var profileCreation = null;
 function createStudioProfileOnce(profile) {
   profileCreation ??= createStudioProfile(profile).finally(() => {
@@ -10848,7 +10856,7 @@ ${failure ?? data?.install?.error ?? "unknown error"}`,
 var PROFILE_FACTS = [
   [
     "Sign-in",
-    "It starts with the sign-ins and keys Hermes can share from the profile the plugin is installed in. Some accounts may not carry over: Build says so if no model provider is ready there, and where to connect one."
+    "It uses the sign-ins, keys and model choices of the profile the plugin is installed in, and follows later changes there. Some accounts may not carry over: Build says so if no model provider is ready there, and where to connect one."
   ],
   ["Skills", "hermretro and its six skills are turned on there, with a game-developer persona."],
   ["Tools", "Text-to-speech, app connections, computer use and scheduled jobs are turned off there. Everything else keeps the Hermes defaults."],
@@ -10863,7 +10871,13 @@ function ProfileBody({ status }) {
     return jsx(Small, { children: "Checked once the plugin is on." });
   }
   if (profile.is_studio) {
-    return jsx(Lede, { children: `hermretro has its own profile, "${profile.name}". Its chats open there.` });
+    return jsxs("div", {
+      className: "cs-content",
+      children: [
+        jsx(Lede, { children: `hermretro has its own profile, "${profile.name}". Its chats open there.` }),
+        jsx(ClaudeSignIn, { login: profile.studio?.claude_login, status })
+      ]
+    });
   }
   const create = async () => {
     if (working) {
@@ -10904,6 +10918,34 @@ function ProfileBody({ status }) {
           jsx("span", { className: "cs-faint", children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
         ]
       }),
+      profile.studio?.installed ? jsx(ClaudeSignIn, { login: profile.studio.claude_login, status }) : null,
+      failure ? jsx("p", { className: "cs-error", children: failure }) : null
+    ]
+  });
+}
+function ClaudeSignIn({ login, status }) {
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState(null);
+  if (!login || login.signed_in) {
+    return null;
+  }
+  const signIn = async () => {
+    setWorking(true);
+    setFailure(null);
+    try {
+      await signInToClaude();
+      host.notify({ kind: "success", message: "Signed in to Claude" });
+      status.refetch?.();
+    } catch (error) {
+      setFailure(String(error?.message ?? error));
+    } finally {
+      setWorking(false);
+    }
+  };
+  return jsxs("div", {
+    className: "cs-col",
+    children: [
+      working ? jsx(Working, { children: "Waiting for the Claude sign-in in your browser…" }) : jsx("div", { children: jsx(Button, { onClick: signIn, size: "sm", variant: "default", children: "Sign in to Claude" }) }),
       failure ? jsx("p", { className: "cs-error", children: failure }) : null
     ]
   });

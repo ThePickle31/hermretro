@@ -1,6 +1,6 @@
 // Setup step: the dedicated hermretro profile.
 import { Button, host, jsx, jsxs, useState } from '#sdk'
-import { createStudioProfileOnce } from './install/installer.js'
+import { createStudioProfileOnce, signInToClaude } from './install/installer.js'
 import { Facts, Lede, Small } from '#shared/ui/text.js'
 import { Working } from '#shared/ui/working.js'
 import { useUpdating } from '#app/update/lock.js'
@@ -8,7 +8,7 @@ import { useUpdating } from '#app/update/lock.js'
 const PROFILE_FACTS = [
   [
     'Sign-in',
-    'It starts with the sign-ins and keys Hermes can share from the profile the plugin is installed in. Some accounts may not carry over: Build says so if no model provider is ready there, and where to connect one.'
+    'It uses the sign-ins, keys and model choices of the profile the plugin is installed in, and follows later changes there. Some accounts may not carry over: Build says so if no model provider is ready there, and where to connect one.'
   ],
   ['Skills', 'hermretro and its six skills are turned on there, with a game-developer persona.'],
   ['Tools', 'Text-to-speech, app connections, computer use and scheduled jobs are turned off there. Everything else keeps the Hermes defaults.'],
@@ -26,7 +26,13 @@ export function ProfileBody({ status }) {
   }
 
   if (profile.is_studio) {
-    return jsx(Lede, { children: `hermretro has its own profile, "${profile.name}". Its chats open there.` })
+    return jsxs('div', {
+      className: 'cs-content',
+      children: [
+        jsx(Lede, { children: `hermretro has its own profile, "${profile.name}". Its chats open there.` }),
+        jsx(ClaudeSignIn, { login: profile.studio?.claude_login, status })
+      ]
+    })
   }
 
   const create = async () => {
@@ -77,6 +83,42 @@ export function ProfileBody({ status }) {
                 jsx('span', { className: 'cs-faint', children: `The "${profile.name}" profile, where the plugin is installed, is not changed.` })
               ]
             }),
+      profile.studio?.installed ? jsx(ClaudeSignIn, { login: profile.studio.claude_login, status }) : null,
+      failure ? jsx('p', { className: 'cs-error', children: failure }) : null
+    ]
+  })
+}
+
+/** The studio profile uses Claude through DirectSDK and has no Claude login it can use: sign it in, in the browser. */
+function ClaudeSignIn({ login, status }) {
+  const [working, setWorking] = useState(false)
+  const [failure, setFailure] = useState(null)
+
+  if (!login || login.signed_in) {
+    return null
+  }
+
+  const signIn = async () => {
+    setWorking(true)
+    setFailure(null)
+
+    try {
+      await signInToClaude()
+      host.notify({ kind: 'success', message: 'Signed in to Claude' })
+      status.refetch?.()
+    } catch (error) {
+      setFailure(String(error?.message ?? error))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return jsxs('div', {
+    className: 'cs-col',
+    children: [
+      working
+        ? jsx(Working, { children: 'Waiting for the Claude sign-in in your browser…' })
+        : jsx('div', { children: jsx(Button, { onClick: signIn, size: 'sm', variant: 'default', children: 'Sign in to Claude' }) }),
       failure ? jsx('p', { className: 'cs-error', children: failure }) : null
     ]
   })

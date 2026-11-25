@@ -16,6 +16,22 @@ from backend.setup import studio_profile as sp  # noqa: E402 - the repository ro
 from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 
+def read_profile_config(home):
+    """The tests' profiles write config.yaml as JSON (YAML reads it the same)."""
+    try:
+        return json.loads((home / "config.yaml").read_text())
+    except FileNotFoundError:
+        return {}
+
+
+def read_profile_env(home):
+    try:
+        lines = (home / ".env").read_text().splitlines()
+    except FileNotFoundError:
+        return {}
+    return dict(line.split("=", 1) for line in lines if "=" in line)
+
+
 class StudioProfile(unittest.TestCase):
     def setUp(self):
         root = self.base = isolated_home(self).base
@@ -30,6 +46,9 @@ class StudioProfile(unittest.TestCase):
         for name, effect in (
             ("prepare_profile", self.prepare_profile),
             ("notify_profile_created", self.notifications.append),
+            ("read_profile_config", read_profile_config),
+            ("read_profile_env", read_profile_env),
+            ("provider_env_keys", lambda: {"MY_PROVIDER_API_KEY"}),
         ):
             patch = unittest.mock.patch.object(sp.hermes_api, name, side_effect=effect)
             patch.start()
@@ -72,7 +91,15 @@ class StudioProfile(unittest.TestCase):
         told = sp.describe(self.home, self.target)
         self.assertEqual((told["name"], told["is_studio"]), ("work", False))
         self.assertEqual(
-            told["studio"], {"name": "hermretro", "exists": False, "installed": False, "ours": False, "conflict": False}
+            told["studio"],
+            {
+                "name": "hermretro",
+                "exists": False,
+                "installed": False,
+                "ours": False,
+                "conflict": False,
+                "claude_login": None,
+            },
         )
         self.assertTrue(sp.describe(self.target)["is_studio"])
         self.assertEqual(sp.profile_name(self.base), "default")
@@ -150,10 +177,48 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(json.loads((self.target / sp.MARKER).read_text())["from_profile"], "work")
         self.assertEqual(
             sp.describe(self.home, self.target)["studio"],
-            {"name": "hermretro", "exists": True, "installed": True, "ours": True, "conflict": False},
+            {
+                "name": "hermretro",
+                "exists": True,
+                "installed": True,
+                "ours": True,
+                "conflict": False,
+                "claude_login": None,
+            },
         )
         # Nothing in the profile the plugin was installed into was touched.
         self.assertEqual(sorted(p.name for p in (self.home / "plugins").iterdir()), ["my-provider", "other"])
+
+    def test_setup_copies_the_provider_routes_and_links_a_provider_hermes_installed_there(self):
+        (self.home / "config.yaml").write_text(json.dumps({"delegation": {"provider": "my-provider", "model": "m"}}))
+        self.created()
+        installed = self.target / "plugins" / "my-provider"
+        installed.mkdir(parents=True)
+        (installed / "plugin.yaml").write_text("name: my-provider\nkind: model-provider\nversion: 2\n")
+        (self.target / "plugins" / ".install-metadata.json").write_text(json.dumps({"my-provider": {"pinned": True}}))
+
+        def run(target, *args):
+            self.run_command(target, *args)
+            if args[:2] == ("plugins", "remove"):
+                shutil.rmtree(target / "plugins" / args[2])
+
+        result = self.finish(run=run)
+        commands = [args for _target, args in self.commands]
+        removed = commands.index(("plugins", "remove", "my-provider"))
+        self.assertLess(removed, commands.index(("plugins", "enable", "my-provider")))
+        self.assertEqual(installed.resolve(), (self.home / "plugins" / "my-provider").resolve())
+        self.assertIn(("config", "set", "delegation.provider", "my-provider"), commands)
+        self.assertIn(("config", "set", "delegation.model", "m"), commands)
+        self.assertEqual(result["provider_sync"]["changed"], ["delegation.provider", "delegation.model"])
+
+    def test_a_provider_the_user_put_in_the_studio_profile_is_left_alone(self):
+        self.created()
+        own = self.target / "plugins" / "my-provider"
+        own.mkdir(parents=True)
+        (own / "plugin.yaml").write_text("name: my-provider\nkind: model-provider\n")
+        self.finish()
+        self.assertNotIn(("plugins", "remove", "my-provider"), [args for _target, args in self.commands])
+        self.assertFalse(own.is_symlink())
 
     def test_running_it_again_is_safe_and_keeps_an_edited_soul(self):
         self.created()
@@ -481,7 +546,7 @@ class StudioProfile(unittest.TestCase):
         for failure in (FileNotFoundError("hermes"), subprocess.TimeoutExpired("hermes", 180)):
             with mock.patch.object(sp.subprocess, "run", side_effect=failure):
                 with self.assertRaises(sp.StudioProfileError) as raised:
-                    sp._run_hermes(self.target, "plugins", "enable", "x")
+                    sp.run_hermes(self.target, "plugins", "enable", "x")
             self.assertEqual(raised.exception.code, "HERMES_COMMAND_FAILED")
 
     def test_a_profile_that_only_resembles_ours_keeps_its_soul(self):
