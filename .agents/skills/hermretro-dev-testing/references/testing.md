@@ -130,7 +130,7 @@ is refused.
 each) goes at the same time to its own one-shot chat in the `hermretro` profile (`hermes -p hermretro chat
 --query-file <prompt> --oneshot -Q --reasoning high`), on the checkout that profile loads (`python tools/dev live`).
 It spends real model calls, so run it on purpose and in the background: it waits for every chat, keeps each one's
-output and `run.json` (process, start, exit, session, checkout and commit) in `notes/bench/<time>/`, then prints
+output and `run.json` (process, start, exit, session, profile home, checkout and commit) in `notes/bench/<time>/`, then prints
 the report (if that fails, the run stays there for `report`). `run bolt tide` runs only the games whose names contain
 those words. The chats and the report use the same Hermes root: `HERMES_HOME`'s, by Hermes's own rule.
 
@@ -143,11 +143,14 @@ the page's update banner shows). When the gateway runs other code it reloads eve
 code is still old (restart Hermes then).
 
 `python tools/dev bench report` prints the newest run's report again; `--run <folder>` reports another run,
-`--sessions <id> ...` any sessions. It reads the profile's `state.db` (read-only) and `logs/errors.log*`, and gives
+`--sessions <id> ...` any sessions. It reads a copy of the profile's `state.db` and its `-wal`, taken while neither
+changed (SQLite writes a `-shm`, and makes a `-wal`, beside a WAL database it opens even read-only, so nothing in the
+profile is opened), and `logs/errors.log*`, and gives
 each game: wall time, estimated cost and model calls (auxiliary ones such as compaction summaries included, and
 counted apart), tool calls (counted from the stored results: the session's own count leaves out what a compaction
 removed), `chromatic_emulator_step` calls, builds and failed builds (`success: false` from the compiler counts),
-compactions, the identical tool calls Hermes dropped (`Removed duplicate tool call`, one log line each), terminal
+compactions, the identical tool calls Hermes dropped (`Removed duplicate tool call`, one log line each; `unknown` when
+the retained logs begin after the session started, as its first lines may have rotated out), terminal
 commands and file reads into GB Studio's or the engine's source (apart), checkpoint restores, whether the chat ended
 with a final answer, and the tool errors by code. Every compaction stores copies of the messages before it (the same
 `message_uid`, `compacted` 1, a tool result's copy often Hermes's `[tool] ...` summary of it) and a prune leaves such a
@@ -160,29 +163,36 @@ fixture database (`tests/dev/test_bench.py`) and, for `run`, a stand-in gateway 
 (`tests/dev/test_bench_run.py`): no test reloads or reaches the real gateway.
 
 `python tools/dev bench compare` sets a run (`--run <folder>`, default the newest) beside an earlier one
-(`--against <folder>`, default the newest run before it in the same folder that made every one of its games): for
-each game both made, every measure of the report in each run and its change, then the games that got clearly worse.
-It exits 1 when one did. A game got clearly worse when it no longer ended normally or, when both chats ended normally,
-when a measure rose by at least its floor and by more than its share of the earlier value:
+(`--against <folder>`, default the newest finished run that started before it in the same folder, by `run.json`'s
+start, and made exactly its games): for each game both made, every measure of the report in each run and its
+change, both sessions and the error codes whose count changed, then the games that got clearly worse. With no such
+run it says so; name one with `--against`. A named run of other games is compared too, with `workload differs`: the
+games of a run share the machine and the subscription, so another set changes every chat's time and errors. It exits
+1 when a game got clearly worse: when it no longer ended normally or, when both chats ended normally, when a measure
+rose by at least its floor and by more than its share of the earlier value:
 
 | Measure | Floor | Share |
 |---|---|---|
 | wall time | 5 minutes | 25% |
-| estimated cost | $2 | 25% |
+| estimated cost (in whole cents) | $2 | 25% |
 | model calls | 20 | 25% |
 | tool calls | 40 | 25% |
 | failed builds, compactions | 2 | 50% |
-| duplicate drops | 5 | 50% |
+| duplicate drops (when known in both) | 5 | 50% |
 | source commands, source file reads, tool errors | 3 | 50% |
 
 Step calls, builds and checkpoint restores move with how a game was made more than with how well, so they are shown,
 not judged. The thresholds are `MEASURES` in `tools/dev/bench_compare.py`; the floors leave room for one chat running
-differently from the next, so a game called worse is a session to read, not proof. It reads what `report` reads,
-read-only. Its tests use fixture runs and a fixture database (`tests/dev/test_bench_compare.py`).
+differently from the next, so a game called worse is a session to read, not proof. A game either run cannot speak for
+is `not judged`, and with no game worse the exit is 2: the run was made in another profile home than the one read
+(`run.json`'s `home`, else its profile's name), its chat had not exited when the run was last recorded (the run is
+still going, or was stopped), or its session is not in the profile's `state.db`. It reads what `report` reads, the
+same way. Its tests use fixture runs and a fixture database (`tests/dev/test_bench_compare.py`).
 
 Run Bolt and Starling on each release candidate: `python tools/dev bench run bolt starling` (in the background) on
-the candidate, then `python tools/dev bench compare`, and read the session of any game it calls clearly worse before
-releasing.
+the candidate, then `python tools/dev bench compare --against <folder>`, naming the last release's Bolt and Starling
+run (without `--against`, the newest earlier run of exactly those two), and read the session of any game it calls
+clearly worse, and of any it could not judge, before releasing.
 
 ## Where tests live
 

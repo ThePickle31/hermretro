@@ -14,7 +14,7 @@
                     FOLDER/gallery.html
   bench VERB        the benchmark: every game in tools/dev/bench_games/ made at once by a one-shot chat in the
                     studio profile (run, which waits for them all), what each cost (report), and each game against
-                    an earlier run's, non-zero when one got clearly worse (compare)
+                    an earlier run's (compare: exit 1 when one got clearly worse, 2 when one could not be judged)
 
 Standard library only; Linux and macOS.
 """
@@ -319,9 +319,9 @@ def cmd_bench(args) -> int:
             raise bench.BenchError("bench compare takes no games or sessions (--run FOLDER, --against FOLDER)")
         folder = Path(args.folder).resolve() if args.folder else bench.latest_run(bench.RUNS)
         against = Path(args.against).resolve() if args.against else bench_compare.previous_run(folder)
-        text, worse = bench_compare.compare(profile, folder, against)
+        text, code = bench_compare.compare(profile, folder, against)
         print(text)
-        return 1 if worse else 0
+        return code
     if args.folder or args.sessions or args.against:
         raise bench.BenchError("--run and --sessions are for bench report, --run and --against for bench compare")
     prompts = bench.games(args.games)  # a bad name ends it before the gateway is asked or reloaded
@@ -329,7 +329,7 @@ def cmd_bench(args) -> int:
         if shutil.which(needed) is None:
             raise bench.BenchError(f"needs {needed} on PATH")
     bench.current_gateway(root, hermes.STUDIO, TOP, lambda: reload_profiles(root, hermes.loading_profiles(root)))
-    folder = bench.run(prompts, hermes.STUDIO, bench.RUNS, TOP)
+    folder = bench.run(prompts, hermes.STUDIO, profile, bench.RUNS, TOP)
     try:
         print(bench.table(bench.reports(profile, folder)))
     except (bench.BenchError, sqlite3.Error) as error:
@@ -399,7 +399,8 @@ def parser() -> argparse.ArgumentParser:
     )
     which.add_argument("--sessions", nargs="+", help="report: these session ids instead of a run")
     benchmark.add_argument(
-        "--against", help="compare: this earlier run (default: the newest before it that made all its games)"
+        "--against",
+        help="compare: this earlier run (default: the newest finished one before it with exactly its games)",
     )
     benchmark.set_defaults(run=cmd_bench)
     return top

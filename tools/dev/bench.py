@@ -3,9 +3,10 @@ of what each chat cost and where its time went, read from Hermes's own records.
 
 `run` starts every game at once (`hermes -p hermretro chat --query-file <prompt> --oneshot -Q --reasoning high`),
 each with its log in a run folder under `notes/bench/`, and waits for them all; `run.json` there records each game's
-process, start, exit and session. The running gateway serves those chats with the plugin code it loaded, so `run`
-first makes sure that is the code the profile loads now (`current_gateway`). `report` reads the studio profile's
-`state.db` (read-only) and `logs/errors.log`; `compare` (bench_compare.py) sets two runs' reports side by side.
+process, start, exit and session, and the profile home the chats ran in. The running gateway serves those chats with
+the plugin code it loaded, so `run` first makes sure that is the code the profile loads now (`current_gateway`).
+`report` reads a copy of the studio profile's `state.db` (`snapshot`: nothing in the profile is opened for writing)
+and its `logs/errors.log`; `compare` (bench_compare.py) sets two runs' reports side by side.
 Standard library only; development only; Linux and macOS.
 """
 
@@ -14,15 +15,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import signal
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import Counter
-from collections.abc import Callable
-from contextlib import closing
+from collections.abc import Callable, Iterator
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
@@ -39,6 +42,9 @@ SOURCE_READERS = {"read_file", "search_files"}
 NORMAL_ENDS = {"cli_close", "agent_close"}
 DUPLICATE_DROP = "Removed duplicate tool call"
 SESSION_LINE = re.compile(r"^session_id: (\S+)\s*$", re.MULTILINE)
+# How Hermes's logs start each line (hermes_logging.py: logging's `asctime`, local time).
+LOG_TIME = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ ", re.MULTILINE)
+SNAPSHOT_TRIES = 5
 # Set, `hermes chat` talks to the gateway it names instead of this machine's (Hermes's hermes_cli/gateway_client.py).
 REMOTE_GATEWAY = "HERMES_TUI_GATEWAY_URL"
 
@@ -99,13 +105,15 @@ def current_gateway(root: Path, profile: str, checkout: Path, reload: Callable[[
         raise BenchError(f"after a reload the gateway still runs older hermretro code ({stale}): restart Hermes")
 
 
-def run(prompts: list[Path], profile: str, runs: Path, checkout: Path | None) -> Path:
-    """Start every prompt's chat at once, wait for them all and return the run folder."""
+def run(prompts: list[Path], profile: str, home: Path, runs: Path, checkout: Path | None) -> Path:
+    """Start every prompt's chat at once in ``profile`` (whose home is ``home``), wait for them all and return the
+    run folder."""
     folder = runs / time.strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True)
     record = {
         "started": time.time(),
         "profile": profile,
+        "home": str(home.resolve()),
         "checkout": str(checkout) if checkout else None,
         "commit": commit_of(checkout),
         "reasoning": REASONING,
@@ -172,12 +180,39 @@ def latest_run(runs: Path) -> Path:
     return folders[-1]
 
 
-def connect(db: Path) -> sqlite3.Connection:
+@contextmanager
+def snapshot(db: Path) -> Iterator[sqlite3.Connection]:
+    """A connection to a copy of ``db`` and its write-ahead log, taken while neither changed, in a temporary folder.
+    SQLite writes beside any database it opens in WAL mode, even read-only: the `-shm` index, and a `-wal` and `-shm`
+    when there are none; `immutable` would miss what the log holds."""
     if not db.is_file():
         raise BenchError(f"no state.db at {db}")
-    connection = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
-    connection.row_factory = sqlite3.Row
-    return connection
+    sources = (db, db.with_name(f"{db.name}-wal"))
+    with tempfile.TemporaryDirectory() as temp:
+        copies = [Path(temp) / source.name for source in sources]
+        for _ in range(SNAPSHOT_TRIES):
+            before = [stamp(source) for source in sources]
+            for source, copy in zip(sources, copies, strict=True):
+                if source.is_file():
+                    shutil.copyfile(source, copy)
+                else:
+                    copy.unlink(missing_ok=True)
+            if [stamp(source) for source in sources] == before:
+                break
+        else:
+            raise BenchError(f"{db} changed each time it was copied: run again when Hermes is quieter")
+        with closing(sqlite3.connect(copies[0])) as connection:
+            connection.row_factory = sqlite3.Row
+            yield connection
+
+
+def stamp(path: Path) -> tuple[int, int] | None:
+    """A file's size and change time, None when there is none."""
+    try:
+        found = path.stat()
+    except FileNotFoundError:
+        return None
+    return found.st_size, found.st_mtime_ns
 
 
 class Game(NamedTuple):
@@ -238,7 +273,7 @@ class Report:
     builds: int = 0
     failed_builds: int = 0
     compactions: int = 0
-    duplicate_drops: int = 0
+    duplicate_drops: int | None = 0  # None: the retained logs begin after the session started
     source_commands: int = 0
     source_reads: int = 0
     restores: int = 0
@@ -287,13 +322,14 @@ def error_code(tool: str, content: str | None) -> str | None:
     return result.get("code") or structured.get("code") or f"{tool} (no code)"
 
 
-def report(db: sqlite3.Connection, session: str, drops: Counter, exited: float | None = None) -> Report:
+def report(db: sqlite3.Connection, session: str, drops: Drops, exited: float | None = None) -> Report:
     """One session's report; ``exited`` is when its chat exited, the end of a session a stopped chat left open."""
-    found = Report(session=session, duplicate_drops=drops[session])
+    found = Report(session=session)
     row = db.execute("SELECT * FROM sessions WHERE id = ?", (session,)).fetchone()
     if row is None:
         found.ended = "no such session"
         return found
+    found.duplicate_drops = drops.of(session, row["started_at"])
     last = db.execute("SELECT MAX(timestamp) FROM messages WHERE session_id = ?", (session,)).fetchone()[0]
     found.running = row["ended_at"] is None and exited is None
     found.wall = (row["ended_at"] or exited or last or row["started_at"]) - row["started_at"]
@@ -362,14 +398,34 @@ def ending(db: sqlite3.Connection, session: str, reason: str | None, running: bo
     return f"no ({reason}{'' if answered else ', no final answer'})"
 
 
-def duplicate_drops(logs: Path) -> Counter:
-    """How many identical tool calls Hermes dropped in each session (`[<session>] ... Removed duplicate tool call`)."""
-    drops = Counter()
+class Drops(NamedTuple):
+    """The identical tool calls Hermes dropped in each session, as far as the retained logs go back: ``since`` is the
+    time of their first line (None when they hold none, so none rotated out)."""
+
+    counts: Counter
+    since: float | None
+
+    def of(self, session: str, started: float) -> int | None:
+        """``session``'s drops; None when the logs begin after it started (its first lines may have rotated out)."""
+        return self.counts[session] if self.since is None or self.since <= started else None
+
+
+def duplicate_drops(logs: Path) -> Drops:
+    """How many identical tool calls Hermes dropped in each session (`[<session>] ... Removed duplicate tool call`)
+    in `errors.log` and the copies it rotated into, and when the oldest of those begins."""
+    drops, firsts = Counter(), []
     for log in sorted(logs.glob("errors.log*")):
-        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+        text = log.read_text(encoding="utf-8", errors="replace")
+        if first := LOG_TIME.search(text):
+            firsts.append(time.mktime(time.strptime(first.group(1), "%Y-%m-%d %H:%M:%S")))
+        for line in text.splitlines():
             if DUPLICATE_DROP in line and (match := re.search(r"\[([^\]\s]+)\]", line)):
                 drops[match.group(1)] += 1
-    return drops
+    return Drops(drops, min(firsts, default=None))
+
+
+def shown(value: int | None) -> str:
+    return "unknown" if value is None else str(value)
 
 
 def minutes(seconds: float) -> str:
@@ -387,7 +443,7 @@ ROWS = (
     ("step calls", lambda r: str(r.steps)),
     ("builds", lambda r: f"{r.builds} ({r.failed_builds} failed)" if r.failed_builds else str(r.builds)),
     ("compactions", lambda r: str(r.compactions)),
-    ("duplicate drops", lambda r: str(r.duplicate_drops)),
+    ("duplicate drops", lambda r: shown(r.duplicate_drops)),
     ("source commands", lambda r: str(r.source_commands)),
     ("source file reads", lambda r: str(r.source_reads)),
     ("checkpoint restores", lambda r: str(r.restores)),
@@ -413,7 +469,7 @@ def table(reports: dict[str, Report]) -> str:
 def reports(profile_home: Path, folder: Path | None = None, ids: list[str] | None = None) -> dict[str, Report]:
     """The report of each game of the run in ``folder``, or of each session in ``ids``."""
     drops = duplicate_drops(profile_home / "logs")
-    with closing(connect(profile_home / "state.db")) as db:
+    with snapshot(profile_home / "state.db") as db:
         found = {session[:14]: Game(session) for session in ids} if ids else run_sessions(folder, db)
         return {
             name: report(db, game.session, drops, game.exited)
