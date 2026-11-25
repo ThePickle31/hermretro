@@ -17,19 +17,22 @@ their ids here; these recipes use `"0"` coins, `"1"` lives, `"2"` menu choice, `
 ## HUD text on the overlay
 
 Scene `script` (runs when the scene starts). The overlay (GB Studio's window layer) is shown from row 17, one row
-at the bottom of the screen, and the text is drawn into it; `$00$` prints variable 0:
+at the bottom of the screen, and the whole HUD line is drawn into it with one event; `$00$` prints variable 0 and
+`$01$` variable 1:
 
 ```json
 [
   {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ ", "x": 1, "y": 0, "location": "overlay"}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "LIVES $01$ ", "x": 11, "y": 0, "location": "overlay"}}
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}}
 ]
 ```
 
-- Draw the value again whenever it changes (the pickup below does). The trailing space clears a digit when the
-  number gets shorter.
-- A text box or menu uses the same window: after one, run these three events again.
+- Whenever a value changes, run both events again (the pickup and hazard below do). `EVENT_OVERLAY_SHOW` blanks
+  the row first: GB Studio draws text into a ring of 116 tiles in a colour game (52 in a mono one) and starts again
+  from its first tile when it is full, so any letter not drawn again, such as the last digit left over when a
+  number gets shorter, is later overwritten by other text (a HUD that reads `SS 5`). For the same reason never
+  redraw one part of the HUD on its own. See [the text tile ring](gb-studio-behaviours.md#graphics).
+- A text box or menu uses the same window: after one, run these two events again.
 - The overlay stays up in the next scene: start a scene without a HUD with
   `{"command": "EVENT_OVERLAY_HIDE", "args": {}}`.
 
@@ -46,7 +49,8 @@ Its `script` then runs when the player touches it (an actor in a collision group
   {"command": "EVENT_SET_VALUE", "args": {"variable": "4", "value": {"type": "number", "value": 1}}},
   {"command": "EVENT_INC_VALUE", "args": {"variable": "0"}},
   {"command": "EVENT_SOUND_PLAY_EFFECT", "args": {"type": "beep", "priority": "medium", "pitch": 6, "duration": 0.2, "wait": false}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ ", "x": 1, "y": 0, "location": "overlay"}}
+  {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}}
 ]
 ```
 
@@ -75,7 +79,8 @@ scene's start script, which runs again on every respawn.
   {"command": "EVENT_SOUND_PLAY_EFFECT", "args": {"type": "crash", "priority": "high", "duration": 0.4, "wait": false}},
   {"command": "EVENT_CAMERA_SHAKE", "args": {"time": 0.3, "units": "time", "shakeDirection": "horizontal", "magnitude": {"type": "number", "value": 3}}},
   {"command": "EVENT_DEC_VALUE", "args": {"variable": "1"}},
-  {"command": "EVENT_TEXT_DRAW", "args": {"text": "LIVES $01$ ", "x": 11, "y": 0, "location": "overlay"}},
+  {"command": "EVENT_OVERLAY_SHOW", "args": {"color": "white", "x": 0, "y": 17}},
+  {"command": "EVENT_TEXT_DRAW", "args": {"text": "COINS $00$ LIVES $01$", "x": 1, "y": 0, "location": "overlay"}},
   {"command": "EVENT_IF", "args": {"condition": {"type": "lte", "valueA": {"type": "variable", "value": "1"}, "valueB": {"type": "number", "value": 0}}}, "children": {"true": [], "false": []}}
 ]
 ```
@@ -84,6 +89,28 @@ Then fill the branches with scene switches (below), into the `EVENT_IF` by its i
 `false` back into this same scene at the respawn tile. Switching scene starts the player still on that tile;
 `EVENT_ACTOR_SET_POSITION` on a walking top-down player can carry its move on past the tile (see
 [GB Studio behaviours](gb-studio-behaviours.md)).
+
+## Patrolling enemy
+
+A top-down enemy that walks back and forth: put it in collision group 2 (a hazard, above) and give it this
+`updateScript`, which GB Studio runs again from the top each time it ends while the actor is active. It walks
+between two tile positions on its row (here x 2 and x 6 on row 9, where it starts), and each move waits until it
+arrives:
+
+```json
+[
+  {"command": "EVENT_ACTOR_MOVE_TO", "args": {"actorId": "$self$", "x": {"type": "number", "value": 6}, "units": "tiles", "y": {"type": "number", "value": 9}, "collideWith": ["walls"], "lockDirection": [], "moveType": "horizontal"}},
+  {"command": "EVENT_ACTOR_MOVE_TO", "args": {"actorId": "$self$", "x": {"type": "number", "value": 2}, "units": "tiles", "y": {"type": "number", "value": 9}, "collideWith": ["walls"], "lockDirection": [], "moveType": "horizontal"}}
+]
+```
+
+Keep the path between the two ends clear of walls. Use fixed ends, not `EVENT_ACTOR_MOVE_RELATIVE`: a relative move
+starts from wherever the last one ended, so a move cut short by a wall, or by the actor going inactive off screen,
+shifts the whole patrol. On a 16 px grid, put both ends on cells (even x, odd y) so it stays lined up with the
+player ([top-down grid](scene-types.md#top-down-grid)). Its speed is the actor's `moveSpeed` property in pixels per
+frame (`chromatic_actor_update` with `properties`). It walks through the player: the touch counts while the player
+stands on a cell or steps into the enemy, not while the player is between cells. Enemies that shoot:
+[shooting](scene-types.md#shooting).
 
 ## Gated exit with a counter
 

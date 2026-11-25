@@ -10,7 +10,7 @@ from pathlib import Path
 from tests.acceptance.fixture import OWNER_E, structured
 
 ROOT = Path(__file__).resolve().parents[2]
-COOKBOOK = ROOT / "skills" / "authoring" / "references" / "event-cookbook.md"
+RECIPE_PAGES = [ROOT / "skills" / "authoring" / "references" / page for page in ("event-cookbook.md", "scene-types.md")]
 WARNINGS = {"TEXT_IN_LOGO_SCENE", "TEXT_VARIABLE_TOKEN", "ACTORS_OVER_MENU", "DEPRECATED_EVENT"}
 
 
@@ -28,8 +28,8 @@ def catalog_module():
 
 
 def recipes() -> dict[str, list[list[dict]]]:
-    """The cookbook's event lists by section heading, in order."""
-    sections = re.split(r"^## ", COOKBOOK.read_text(), flags=re.M)[1:]
+    """The event lists of the cookbook and the scene types page by section heading, in order."""
+    sections = [section for page in RECIPE_PAGES for section in re.split(r"^## ", page.read_text(), flags=re.M)[1:]]
     return {
         section.splitlines()[0]: [json.loads(block) for block in re.findall(r"```json\n(.*?)```", section, re.S)]
         for section in sections
@@ -139,32 +139,38 @@ def insert(client, target: dict, events: list[dict]) -> list[dict]:
 
 def check_recipes(suite, client, start, sprite) -> dict:
     """Every cookbook recipe in its place: the pickup in a collision-group actor, the hazard in the scene's hit script,
-    the gated exit in a trigger with a scene switch in its branch, the rest in the scene's start script."""
+    the enemy's shots in its hit and update scripts, the patrol in an actor's update script, the gated exit in a
+    trigger with a scene switch in its branch, the rest in the scene's start script. Shots use the project's sprite."""
     book = recipes()
     scene = {"sceneId": start["id"]}
-    coin = call(
-        client,
-        "actor_create",
-        {
-            "sceneId": start["id"],
-            "name": "Coin",
-            "x": 4,
-            "y": 4,
-            "spriteSheetId": sprite,
-            "properties": {"collisionGroup": "1"},
-        },
-    )["actor"]
+
+    def actor(name: str, x: int, y: int, group: str) -> str:
+        properties = {"collisionGroup": group}
+        created = call(
+            client,
+            "actor_create",
+            {"sceneId": start["id"], "name": name, "x": x, "y": y, "spriteSheetId": sprite, "properties": properties},
+        )
+        return created["actor"]["id"]
+
+    coin, enemy, beetle = actor("Coin", 4, 4, "1"), actor("Enemy", 12, 6, "2"), actor("Beetle", 2, 9, "2")
     gate = call(client, "trigger_create", {"sceneId": start["id"], "name": "Gate", "x": 8, "y": 2})["trigger"]
     placed = {
-        "Pickup": [{**scene, "actorId": coin["id"]}, {**scene, "actorId": coin["id"], "scriptKey": "startScript"}],
+        "Pickup": [{**scene, "actorId": coin}, {**scene, "actorId": coin, "scriptKey": "startScript"}],
         "Hazard": [{**scene, "scriptKey": "playerHit2Script"}],
+        "Shooting": [
+            scene,
+            {**scene, "actorId": enemy, "scriptKey": "hit1Script"},
+            {**scene, "actorId": enemy, "scriptKey": "updateScript"},
+        ],
+        "Patrolling enemy": [{**scene, "actorId": beetle, "scriptKey": "updateScript"}],
         "Gated exit with a counter": [{**scene, "triggerId": gate["id"]}],
     }
     results = []
     for heading, lists in book.items():
         targets = placed.get(heading, [scene] * len(lists))
         for target, events in zip(targets, lists, strict=True):
-            results += insert(client, target, events)
+            results += insert(client, target, json.loads(json.dumps(events).replace("<shot sprite id>", sprite)))
     gate_if = next(
         result["event"]["id"]
         for result in results

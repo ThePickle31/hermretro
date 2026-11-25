@@ -18,6 +18,23 @@ def example_events(entry: dict) -> list[dict]:
     return entry["example"] if isinstance(entry["example"], list) else [entry["example"]]
 
 
+def recipe_lists(*pages: str) -> list[list[dict]]:
+    """The JSON event lists on the given authoring pages."""
+    return [
+        json.loads(recipe)
+        for page in pages
+        for recipe in re.findall(r"```json\n(.*?)```", (SKILL / page).read_text(), re.S)
+    ]
+
+
+def event_lists(events: list[dict]):
+    """A list of events and every list of children under it."""
+    yield events
+    for event in events:
+        for children in event.get("children", {}).values():
+            yield from event_lists(children)
+
+
 def nested(events: list[dict]):
     for event in events:
         yield event
@@ -147,11 +164,9 @@ class CookbookTests(unittest.TestCase):
                 self.check_event(child, f"{where} > {command}.{branch}[{index}]")
 
     def test_every_recipe_is_current_events_with_their_declared_args(self):
-        text = (SKILL / "event-cookbook.md").read_text()
-        recipes = re.findall(r"```json\n(.*?)```", text, re.S)
+        recipes = recipe_lists("event-cookbook.md", "scene-types.md")
         self.assertGreaterEqual(len(recipes), 10)
-        for number, recipe in enumerate(recipes, 1):
-            events = json.loads(recipe)
+        for number, events in enumerate(recipes, 1):
             self.assertIsInstance(events, list)
             for index, event in enumerate(events):
                 self.check_event(event, f"recipe {number}[{index}]")
@@ -170,8 +185,24 @@ class CookbookTests(unittest.TestCase):
             {"command": "EVENT_SET_VALUE", "args": {"variable": "1", "value": {"type": "number", "value": 3}}}, start
         )
 
+    def test_the_hud_is_always_drawn_whole_on_a_blank_row(self):
+        """A part of the HUD left from an older draw points at text tiles GB Studio's ring later draws over."""
+        lists = [
+            found for recipe in recipe_lists("event-cookbook.md", "scene-types.md") for found in event_lists(recipe)
+        ]
+        draws = [
+            (events, index)
+            for events in lists
+            for index, event in enumerate(events)
+            if event["command"] == "EVENT_TEXT_DRAW"
+        ]
+        self.assertEqual({events[index]["args"]["text"] for events, index in draws}, {"COINS $00$ LIVES $01$"})
+        for events, index in draws:
+            self.assertGreater(index, 0)
+            self.assertEqual(events[index - 1]["command"], "EVENT_OVERLAY_SHOW")
+
     def test_the_pages_name_only_real_events(self):
-        for page in ("event-cookbook.md", "gb-studio-behaviours.md", "project-authoring.md"):
+        for page in ("event-cookbook.md", "gb-studio-behaviours.md", "project-authoring.md", "scene-types.md"):
             for command in set(re.findall(r"\bEVENT_[A-Z0-9_]*[A-Z0-9]", (SKILL / page).read_text())):
                 with self.subTest(page=page, command=command):
                     self.assertIn(command, self.events)

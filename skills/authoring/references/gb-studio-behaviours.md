@@ -23,12 +23,26 @@ How GB Studio's compiler and engine behave in ways that build without an error b
 - **The overlay stays across scenes.** `EVENT_OVERLAY_SHOW` (a HUD, a black screen) stays on after a scene change
   until `EVENT_OVERLAY_HIDE`. A text box or menu uses the same window and leaves it closed, so draw a HUD again after
   one.
+- **Text tiles are reused in a ring.** Every `EVENT_TEXT_DRAW`, text box and menu draws its letters into new tiles
+  from one ring, 116 tiles when the game runs in colour and 52 in a mono game (up to one tile per character), and
+  when the ring is full GB Studio starts again from its first tile, whatever still shows it. Text left on screen is
+  overwritten once that much newer text has been drawn: a HUD whose parts are redrawn separately, or a line redrawn
+  shorter over the old one, turns to garbage (`SS 5`). Keep all text that stays up together in one draw, and blank
+  its row (`EVENT_OVERLAY_SHOW` on the overlay) before drawing it again whole (the
+  [event cookbook's HUD](event-cookbook.md#hud-text-on-the-overlay) does).
 
 ## Scripts
 
 - **A scene's start script runs locked.** The scene's `script` runs to its end before the player can move or other
   scripts run, so an endless `EVENT_LOOP` there freezes the game. Loop in a thread (`EVENT_THREAD_START`) or in an
   actor's `updateScript`, and wait in every pass (`EVENT_WAIT`): a loop that never waits stops everything else.
+- **A sound that waits before the first wait leaves the scene blank.** GB Studio inserts a scene's automatic
+  fade-in just before the first event of its start scripts (the actors', then the scene's) that waits on screen
+  (`EVENT_WAIT`, text, a move, a fade), or at their end if none does, and runs everything before it on a blank
+  screen. `EVENT_SOUND_PLAY_EFFECT` with `wait: true` is not such an event, so a jingle of waiting sounds at the top
+  of a title or ending script keeps the screen white until it ends. Put an `EVENT_FADE_IN` first, or play the sounds
+  with `wait: false`. A scene whose `autoFadeSpeed` is `null` gets no automatic fade-in and needs its own
+  `EVENT_FADE_IN`.
 - **`$0$` is not global variable 0** *(build warning)*. The compiler drops one leading zero from a text token's
   number: `$00$` prints global variable 0, `$01$` and `$1$` both print variable 1, `$12$` variable 12. `$0$` becomes
   an empty name, which GB Studio fills with the script's default variable: the local `L0` in a scene, actor or
@@ -57,6 +71,24 @@ How GB Studio's compiler and engine behave in ways that build without an error b
   `playerHit2Script` or `playerHit3Script` and the actor's own `script`, then the player cannot be hit for 20
   frames. Such an actor cannot be talked to with A; in a top-down scene an actor without a group runs its `script` when
   the player faces it and presses A.
+- **Projectile hits.** A projectile takes the first actor with collisions on that it overlaps (the player
+  included) and hits it only if that actor's group is in its `collisionMask`, so an overlapping actor outside the
+  mask (a pickup, a prop) shields an enemy behind it. A hit runs the actor's `hit1Script`, `hit2Script` or
+  `hit3Script` for the projectile's own `collisionGroup` (1, 2, 3), never its `script`; an actor with no group is
+  never hit. A projectile whose mask is `player` runs the scene's `playerHit1Script` to `playerHit3Script` for its
+  group instead, even during the 20 frames after a touch. A hit is ignored only while the actor's hit script from
+  an earlier one is still running, and a script that never waits ends in the same frame (the projectile still
+  vanishes unless `destroyOnHit` is false). Recipes: [shooting](scene-types.md#shooting).
+- **Script keys.** GB Studio compiles only these: an actor's `script`, `startScript`, `updateScript`,
+  `hit1Script`, `hit2Script`, `hit3Script`; a scene's `script`, `playerHit1Script`, `playerHit2Script`,
+  `playerHit3Script`; a trigger's `script` (on enter) and `leaveScript`. The script tools answer `SCRIPT_NOT_FOUND`
+  for a `scriptKey` the actor, scene or trigger has no script under.
+- **Actors off screen are inactive.** The engine stops each actor that is more than about 48 px (three 16 px cells)
+  outside the screen: its `updateScript` ends, and it touches nothing and cannot be hit. It starts again, with its
+  `updateScript` from the top, when scrolling brings its tile column or row into the strip a tile or so beyond the
+  screen's edge, so in a scrolling scene enemies wake just before they come into view. A hit script already running
+  carries on. The player and an actor with `persistent: true` (`chromatic_actor_update` `properties`) stay active
+  off screen.
 
 ## Dialogue
 

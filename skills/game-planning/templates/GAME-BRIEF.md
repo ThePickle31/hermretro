@@ -52,15 +52,16 @@
 - **Explicitly out of scope:**
 
 ## Solvability
-Every hazard lane, timer and gate, checked with the game-planning solvability
-checklist; confirm each on the built ROM.
+Every hazard, timer and gate as placed, one row each (not one per kind),
+checked with the game-planning solvability checklist; confirm each on the built
+ROM.
 
-| Hazard / gate | Lane or cells | Period / need | Player crossing time | Safe window | Respawn point |
-|---|---|---|---|---|---|
-| | | | | | |
+| Scene and cell | Hazard / gate | Lane or cells | Period / need | Crossing time or jump needed | Safe window or jump margin | Respawn point |
+|---|---|---|---|---|---|---|
+| | | | | | | |
 
 - Difficulty intent (target time to finish, expected deaths, what gets harder):
-- Tuning values (speeds, timings, counts):
+- Tuning values (speeds, timings, counts, the player's jump height and length):
 
 ## Hardware budget assumptions
 Assumptions until confirmed by graphics analysis, a real build and emulator runs.

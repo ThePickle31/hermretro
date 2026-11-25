@@ -78,8 +78,8 @@ approved by the user, that the build and test work follows.
      changes, with status (proposed / approved / superseded).
 
    Before review, go through the [solvability checklist](#solvability-checklist)
-   for every room and hazard, and write what it finds into the brief's
-   Solvability table and the test plan.
+   for every room and every placed hazard, and write what it finds into the
+   brief's Solvability table and the test plan.
 4. **Review with the user.** Summarize the brief in a few lines, list open
    questions, and ask for approval. Do not author scenes, art or scripts, or
    build, on silence: until approval the project holds only its starter and
@@ -112,11 +112,25 @@ Check each item on paper while planning, then on the built ROM:
 
 - **Every goal is reachable.** Each required item, switch and exit can be
   reached from the start; a gate never needs more items than the game holds.
+- **One row per placed hazard.** The Solvability table has a row for each
+  hazard and gate where it is placed (scene and cell), not one per kind: three
+  sparks are three rows. Hazards close together are checked together: the
+  space between them must hold the player, with a way out on the far side.
 - **Hazard lanes leave a way through.** For each moving hazard, write its lane
   (cells it covers), its period and the player's time to cross the lane at
   their move speed. The safe window must be longer than the crossing, with
   margin for a human; a required item or exit inside a lane needs a window to
   reach it and to leave.
+- **Jumps fit the player's jump.** In a platformer, check every gap, ledge
+  and hazard the player must jump against the jump's height and length.
+  GB Studio's defaults (a held jump rises 66 px and carries about 80 px at
+  walking speed) are in the authoring skill's
+  [scene types](../authoring/references/scene-types.md#platformer); if the
+  project changes the jump's engine fields, measure it once on a build and
+  write the numbers in the brief. Leave a human margin: a required jump
+  should not need the longest jump at full speed. A landing higher than the
+  take-off shortens the jump, since the player lands on it on the way down: a
+  ledge near the top of the jump is reached only from close in.
 - **Respawn is safe.** Start and respawn points sit outside every lane and
   hazard, and a respawn mid-move lands on a whole cell.
 - **No dead ends.** No item is used up where another goal still needs it, no
