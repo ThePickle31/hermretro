@@ -244,7 +244,9 @@ def check_rom_after_restart(suite, client_b):
 
 def check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b):
     client_a.call(OWNER_A, "emulator_run", {"romPath": rom_a})
-    step_a = client_a.call(OWNER_A, "emulator_step", {"buttons": ["right"], "frames": 45, "sampleCount": 3})
+    step_a = client_a.call(
+        OWNER_A, "emulator_step", {"buttons": ["right"], "frames": 45, "sampleCount": 3, "detail": "full"}
+    )
     blocks = [b for b in step_a["result"].get("content", []) if b.get("type") == "image"]
     infos = [png_info(b) for b in blocks]
     samples = structured(step_a).get("samples", [])
@@ -264,7 +266,7 @@ def check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b):
     frame_dir.mkdir()
     for index, block in enumerate(blocks):
         (frame_dir / f"A-step-{index}.png").write_bytes(base64.b64decode(block["data"]))
-    last_frame = structured(step_a).get("frame")
+    last_frame = check_input_list(suite, client_a, structured(step_a).get("frame"))
 
     status_b0 = client_b.call(OWNER_B, "session_status")
     run_b = client_b.call(OWNER_B, "emulator_run", {"romPath": rom_b})
@@ -294,6 +296,35 @@ def check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b):
         "engine refused" if cross.get("ok") and cross["result"].get("isError") else "see O4 detail"
     )
     return last_frame
+
+
+def check_input_list(suite, client_a, start):
+    """Press, wait and press again in one call: a compact result, samples where asked, enlarged images."""
+    inputs = [
+        {"buttons": ["a"], "frames": 2},
+        {"buttons": [], "frames": 10, "sample": True},
+        {"buttons": ["a"], "frames": 2},
+        {"buttons": ["right"], "frames": 3},
+    ]
+    step = client_a.call(OWNER_A, "emulator_step", {"inputs": inputs, "scale": 2})
+    result = structured(step)
+    infos = [png_info(b) for b in step["result"].get("content", []) if b.get("type") == "image"]
+    samples = result.get("samples", [])
+    suite.check(
+        "M4",
+        "One inputs list plays every input in order and returns a compact result with enlarged samples",
+        not step["result"].get("isError")
+        and result.get("frame") == start + 17
+        and result.get("activeButtons") == ["right"]
+        and [(s.get("frame"), s.get("inputIndex")) for s in samples] == [(start + 12, 1), (start + 17, 3)]
+        and [(i["width"], i["height"]) for i in infos] == [(320, 288), (320, 288)]
+        and not {"romSha256", "runtime", "execution", "recording"} & set(result),
+        frame=result.get("frame"),
+        samples=samples,
+        images=infos,
+        keys=sorted(result),
+    )
+    return result.get("frame")
 
 
 def check_result_fidelity(suite, client_a, rom_a):

@@ -1483,7 +1483,7 @@
     {
       "name": "emulator_step",
       "title": "Play exact frames and observe the result",
-      "description": "Apply one complete held-button set, advance 1\u20133,600 exact native frames, and return up to eight genuine sampled PNGs (four by default). Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures; individual images remain the default. Buttons persist after the call; the same set does not release/repress them. Use [] for neutral input. Nothing advances between calls. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image.",
+      "description": "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1502,17 +1502,50 @@
                 "select"
               ]
             },
-            "maxItems": 8
+            "maxItems": 8,
+            "description": "With frames, for one held set: the complete set of held buttons; [] is neutral."
           },
           "frames": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 3600
+            "maximum": 3600,
+            "description": "With buttons: native frames to advance."
           },
           "sampleCount": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 8
+            "maximum": 8,
+            "description": "With buttons and frames: evenly spaced samples ending on the last frame; defaults to 1."
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "buttons": {
+                  "$ref": "#/properties/buttons",
+                  "description": "The complete set of held buttons for this input; [] is neutral."
+                },
+                "frames": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3600,
+                  "description": "Native frames to hold this set."
+                },
+                "sample": {
+                  "type": "boolean",
+                  "description": "Also sample this input's last frame; the last input is always sampled."
+                }
+              },
+              "required": [
+                "buttons",
+                "frames"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 64,
+            "description": "Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."
           },
           "includeImages": {
             "type": "boolean"
@@ -1523,12 +1556,22 @@
               "individual",
               "contact-sheet"
             ]
+          },
+          "scale": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4,
+            "description": "Enlarge returned images 1\u20134\u00d7 with square pixels (contact sheets default to 2\u00d7); sample hashes stay those of the native frames."
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ],
+            "description": "compact (default): frame, buttons, samples and recordingSpan. full returns every field the engine reports, such as the ROM, runtime, clock, recording state and retained sample paths."
           }
         },
-        "required": [
-          "buttons",
-          "frames"
-        ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       },
@@ -1545,7 +1588,7 @@
     {
       "name": "emulator_observe",
       "title": "Observe the current genuine framebuffer",
-      "description": "Return the current real 160\u00d7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. It accepts no actions. Applied input and last-sampled input are reported separately. Use emulator_step to play.",
+      "description": "Return the current real 160\u00d7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. Use emulator_step to play.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1558,6 +1601,20 @@
               "individual",
               "contact-sheet"
             ]
+          },
+          "scale": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4,
+            "description": "Enlarge returned images 1\u20134\u00d7 with square pixels (contact sheets default to 2\u00d7); sample hashes stay those of the native frames."
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ],
+            "description": "compact (default): frame, buttons, samples and recordingSpan. full returns every field the engine reports, such as the ROM, runtime, clock, recording state and retained sample paths."
           }
         },
         "additionalProperties": false,
@@ -1808,7 +1865,7 @@
     {
       "name": "emulator_checkpoint",
       "title": "Save or branch from an opaque checkpoint",
-      "description": "Save a paused, neutral, sampled state or restore it into the exact same ROM/runtime. Use emulator_step with buttons:[] and frames:1 for a neutral sample. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
+      "description": "Save a paused, neutral, sampled state or restore it into the exact same ROM/runtime. Saving needs an active recording (emulator_run with recording:{}, not yet stopped) and a sampled neutral frame: no held buttons, and the last emulator_step ended with buttons:[] for at least one frame, such as a final input {buttons:[],frames:1}. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
       "inputSchema": {
         "type": "object",
         "properties": {

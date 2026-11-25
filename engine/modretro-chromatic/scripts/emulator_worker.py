@@ -34,6 +34,7 @@ MAX_FRAMES = 3_600
 MAX_TIMELINE_ACTIONS = 128
 MAX_TIMELINE_CHECKPOINTS = 64
 MAX_STEP_SAMPLES = 8
+MAX_STEP_INPUTS = 64
 MAX_INSPECTION_BYTES = 256
 MAX_OAM_OBJECTS = 40
 PROTOCOL_VERSION = 1
@@ -1366,21 +1367,40 @@ class EmulatorWorker:
                         pass
         return result
 
+    @staticmethod
+    def step_inputs(params: object) -> list[dict[str, Any]]:
+        """The validated ordered inputs of one play step: each a full held-button set, its frames and samples."""
+        if not isinstance(params, dict) or set(params) != {"inputs"}:
+            raise RequestValidationError("A play step accepts only an ordered inputs list")
+        inputs = params["inputs"]
+        if not isinstance(inputs, list) or not 1 <= len(inputs) <= MAX_STEP_INPUTS:
+            raise RequestValidationError(f"A play step requires 1 to {MAX_STEP_INPUTS} inputs")
+        validated = []
+        for index, item in enumerate(inputs):
+            if not isinstance(item, dict) or set(item) != {"buttons", "frames", "samples"}:
+                raise RequestValidationError(f"Play step input {index} requires buttons, frames, and samples")
+            buttons = item["buttons"]
+            if (not isinstance(buttons, list) or len(buttons) > len(BUTTONS)
+                    or any(not isinstance(button, str) or button not in BUTTONS for button in buttons)
+                    or len(set(buttons)) != len(buttons)):
+                raise RequestValidationError(f"Play step input {index} requires a full unique set of Game Boy buttons")
+            try:
+                frames = bounded_integer(item["frames"], f"play step input {index} frames", 1, MAX_FRAMES)
+                samples = bounded_integer(item["samples"], f"play step input {index} samples", 0, MAX_STEP_SAMPLES)
+            except ValueError as error:
+                raise RequestValidationError(str(error)) from error
+            validated.append({"buttons": set(buttons), "frames": frames, "samples": min(samples, frames)})
+        if sum(item["frames"] for item in validated) > MAX_FRAMES:
+            raise RequestValidationError(f"A play step may advance at most {MAX_FRAMES} frames in all")
+        if validated[-1]["samples"] < 1 or sum(item["samples"] for item in validated) > MAX_STEP_SAMPLES:
+            raise RequestValidationError(f"A play step samples its last frame and at most {MAX_STEP_SAMPLES} frames in all")
+        return validated
+
     def play_step(self, params: dict[str, Any]) -> dict[str, Any]:
         # Validate the entire request before controller events, ticks, encoding,
         # or journal effects. Unknown/legacy fields never silently change play.
-        if not isinstance(params, dict) or set(params) - {"buttons", "frames", "sampleCount"}:
-            raise RequestValidationError("A play step accepts only buttons, frames, and optional sampleCount")
-        buttons = params.get("buttons")
-        if (not isinstance(buttons, list) or len(buttons) > len(BUTTONS)
-                or any(not isinstance(button, str) or button not in BUTTONS for button in buttons)
-                or len(set(buttons)) != len(buttons)):
-            raise RequestValidationError("A play step requires a full unique set of Game Boy buttons")
-        try:
-            frames = bounded_integer(params.get("frames"), "play step frames", 1, MAX_FRAMES)
-            sample_count = bounded_integer(params.get("sampleCount", 4), "play step sampleCount", 1, MAX_STEP_SAMPLES)
-        except ValueError as error:
-            raise RequestValidationError(str(error)) from error
+        inputs = self.step_inputs(params)
+        frames = sum(item["frames"] for item in inputs)
         try:
             self.require_mutable()
             self.require_paused()
@@ -1389,19 +1409,24 @@ class EmulatorWorker:
         start_frame = self.frame
         original_buttons = set(self.active_buttons)
         applied_buttons: set[str] | None = None
+        input_index = 0
         samples = []
         try:
             if self.recording is not None and self.recording.total_frames + frames > self.recording.limits["maxFrames"]:
                 raise RecordingLimitError("Recording frame limit reached; the attempt was retained")
-            self.set_buttons(set(buttons))
-            applied_buttons = set(self.active_buttons)
-            count = min(sample_count, frames)
-            for index in range(1, count + 1):
-                # Positive, strictly increasing integer offsets always include
-                # the exact endpoint; no sample is borrowed from another call.
-                target = start_frame + index * frames // count
-                self.advance(target - self.frame)
-                samples.append(self.frame_sample())
+            for input_index, item in enumerate(inputs):
+                self.set_buttons(item["buttons"])
+                applied_buttons = set(self.active_buttons)
+                input_start = self.frame
+                count = item["samples"]
+                if count == 0:
+                    self.advance(item["frames"])
+                for index in range(1, count + 1):
+                    # Positive, strictly increasing integer offsets always include
+                    # the input's exact endpoint; no sample is borrowed from another call.
+                    target = input_start + index * item["frames"] // count
+                    self.advance(target - self.frame)
+                    samples.append({**self.frame_sample(), "inputIndex": input_index})
         except Exception as error:
             unknown = native_accounting_error(error)
             if unknown is not None:
@@ -1422,19 +1447,19 @@ class EmulatorWorker:
                 raise TimelineExecutionError(
                     f"Play step failed and the emulator session was reset: {error}; "
                     f"held-button restoration failed: {restoration_error}",
-                    failed_action_index=0, start_frame=start_frame,
+                    failed_action_index=input_index, start_frame=start_frame,
                     frame=failed_frame, active_buttons=set(),
                     requested_frames=frames, applied_buttons=applied_buttons, sampled_buttons=sampled_buttons,
                 ) from error
             raise TimelineExecutionError(
                 f"Play step failed after {failed_frame - start_frame} advanced frames: {error}",
-                failed_action_index=0, start_frame=start_frame,
+                failed_action_index=input_index, start_frame=start_frame,
                 frame=failed_frame, active_buttons=self.active_buttons,
                 requested_frames=frames, applied_buttons=applied_buttons, sampled_buttons=sampled_buttons,
             ) from error
         return {**self.state(), "startFrame": start_frame,
                 "advancedFrames": self.frame - start_frame,
-                "appliedButtons": sorted(buttons), "samples": samples}
+                "appliedButtons": sorted(inputs[-1]["buttons"]), "samples": samples}
 
     def observe(self, params: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(params, dict) or params:

@@ -49,9 +49,10 @@ event. It also works after close without loading a ROM.
 
 When `chromatic_emulator_step` returns `recordingSpan`, copy its `recordingPath`,
 `sessionId`, `branchId`, `fromActionIndex`, `toActionIndex`, `fromFrame`,
-`toFrame`, and `prefixPin` into the review request. Keep `fromPrefixPin`
-separately; it is not an input field. Do not reconstruct normalized indices
-from the number of requested steps.
+`toFrame`, and `prefixPin` into the review request. One span covers the whole
+call, every input of an `inputs` list included. With `detail:"full"` the span
+also has `fromPrefixPin`; it is not an input field. Do not reconstruct
+normalized indices from the number of requested steps or inputs.
 
 Review selects `(fromActionIndex,toActionIndex]` on one exact session and
 branch. Equal indices select an explicitly empty interval. Limits are 4,096
@@ -95,11 +96,17 @@ claiming an interaction or other outcome succeeded.
 
 ## Checkpoints are for the same build
 
-Before saving, deliver one neutral frame so releases reach the emulated
-hardware:
+Saving needs two things, or it is refused:
+
+- An active recording: the ROM was started with `recording:{}` and the
+  recording has not been stopped. Stopping it with `chromatic_emulator_recording`
+  ends what can be saved in that session.
+- A sampled neutral frame: no buttons held, and the last step ended with `[]`
+  for at least one frame, so the releases reached the emulated hardware. End
+  the step before a save with a neutral input:
 
 ```text
-chromatic_emulator_step {"buttons":[],"frames":1,"sampleCount":1}
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":20},{"buttons":[],"frames":1}]}
 chromatic_emulator_checkpoint {"action":"save","label":"Before the jump"}
 chromatic_emulator_checkpoint {"action":"restore","checkpointId":"<returned-checkpoint-id>"}
 chromatic_emulator_observe {}

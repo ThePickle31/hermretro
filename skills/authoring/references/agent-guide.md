@@ -606,16 +606,18 @@ still does not establish that the user's ROM has run.
 ```text
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","initialFrames":120,"recording":{}}
 chromatic_emulator_observe {}
-chromatic_emulator_step {"buttons":["right"],"frames":20,"sampleCount":4}
-chromatic_emulator_step {"buttons":[],"frames":1,"sampleCount":1}
+chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":20,"sample":true},{"buttons":[],"frames":1}]}
 chromatic_emulator_inspect {"view":"oam","visibleOnly":true,"limit":40}
 chromatic_emulator_close {}
 ```
 
-A step requires the complete held-button set and 1–3,600 frames. The set
-persists; repeating it does not add release/press edges. Up to eight genuine
-samples are returned across positive frame offsets including the endpoint,
-four by default. `chromatic_emulator_observe` only reads the current frame: it does not
+A step takes one complete held-button set with its frames, or an ordered
+`inputs` list of them run in one call, at most 3,600 frames in all. The set
+persists; repeating it does not add release/press edges. Send a sequence as one
+`inputs` list, never as repeated identical calls in one turn: Hermes drops the
+repeats. The result is compact, with the last frame sampled; `sample:true` on an
+input or `sampleCount` adds samples (eight at most), `scale` enlarges images
+and `detail:"full"` returns every field. `chromatic_emulator_observe` only reads the current frame: it does not
 advance, deliver input, or change the recording journal. `includeImages:false`
 omits images; optional `imageLayout:"contact-sheet"` lays out the SAME current
 image in memory. Individual PNGs remain the default. The same layout option on
