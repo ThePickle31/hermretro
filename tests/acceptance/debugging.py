@@ -22,7 +22,8 @@ MENU = {
 
 
 def author_scene(client_b):
-    """Give B's start scene two actors on one tile, a text box and then a menu that stores its choice in "Oil"."""
+    """Give B's start scene two actors on one tile, a text box and then a menu that stores its choice in "Oil", and
+    two other scenes actors of their own: "faraway" in one and "Faraway" in the other, and a "Wanderer" in both."""
 
     def call(tool, args=None):
         return structured(client_b.call(OWNER_B, tool, args or {}))
@@ -41,6 +42,11 @@ def author_scene(client_b):
             "actor_create",
             {"sceneId": scene, "name": name, "x": 4, "y": 6, "direction": direction, "spriteSheetId": sprite},
         )
+    background = next(item["backgroundId"] for item in inventory["scenes"] if item["id"] == scene)
+    for room, name in (("Near room", "faraway"), ("Far room", "Faraway")):
+        other = call("scene_create", {"name": room, "backgroundId": background})["scene"]["id"]
+        for actor in (name, "Wanderer"):
+            call("actor_create", {"sceneId": other, "name": actor, "x": 2, "y": 2, "spriteSheetId": sprite})
     call("dialogue_update", {"sceneId": scene, "text": "Hi"})
     script = call("script_inspect", {"target": {"sceneId": scene}})
     edit = call(
@@ -90,6 +96,7 @@ def check_live_state(suite, client_b):
     step(client_b, ([], 30), (["right"], 20))
     walking = debug(client_b, actors="all")
     unknown = client_b.call(OWNER_B, "emulator_debug", {"variableNames": ["no such variable"]})
+    check_actor_elsewhere(suite, client_b)
     # Earlier stages may have placed their own actors in B's start scene; this check is about its two.
     actors = {
         actor.get("name"): actor
@@ -137,6 +144,34 @@ def run(client_b, build_arguments):
         )
     )
     return built, started
+
+
+def check_actor_elsewhere(suite, client_b):
+    """An actor asked for by name that another scene has is reported as data, with its scene (an exact name in any
+    scene before one in another case), several such actors with each one's ID and scene; one no scene has is refused
+    with the current scene's actors."""
+    elsewhere = debug(client_b, actors=["Guide", "Faraway", "Wanderer"])
+    nowhere = client_b.call(OWNER_B, "emulator_debug", {"actors": ["Nobody"]})
+    actors = (elsewhere.get("live") or {}).get("actors") or []
+    guide, faraway, wanderer = (actors + [{}, {}, {}])[:3]
+    suite.check(
+        "K1",
+        "emulator_debug reports an actor of another scene as not in the current scene, with that scene (an exact name "
+        "first), several of them with their IDs and scenes, beside the live actors asked for, and refuses an actor no "
+        "scene has",
+        [actor.get("name") for actor in actors] == ["Guide", "Faraway", "Wanderer"]
+        and isinstance(guide.get("x"), int)
+        and faraway.get("unavailable") == "not in the current scene (it is in Far room)"
+        and isinstance(faraway.get("sceneId"), str)
+        and "x" not in faraway
+        and str(wanderer.get("unavailable")).startswith("not in the current scene; 2 actors")
+        and sorted(match.get("scene") for match in wanderer.get("matches") or []) == ["Far room", "Near room"]
+        and all(isinstance(match.get("id"), str) and match.get("sceneId") for match in wanderer.get("matches") or [])
+        and nowhere["result"].get("isError") is True
+        and "No scene has an actor" in str(structured(nowhere).get("error")),
+        actors=actors or elsewhere.get("error"),
+        nowhere=structured(nowhere).get("error"),
+    )
 
 
 def check_debug_defaults(suite, client_b):

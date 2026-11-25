@@ -340,6 +340,11 @@ it.
   the generated `page/app/rpc-names.js` from the backend's `@rpc` declarations (and only when it changes; `--check`
   writes nothing and exits 1 when it is stale); `node tools/bundle/bundle.mjs` runs it too, before rebuilding the
   page. Commit the generated file with the backend change.
+- `tests/repo/test_tool_shapes.py` checks that fields of one name and meaning in the pinned engine tools have one
+  shape (types, enums, number, length and item ranges, patterns, object and required keys) across them. After pinning
+  a changed tool contract, a mismatch it names is fixed in the engine or its path is listed in
+  `tests/repo/tool_shape_differences.py` with why it differs (`OWN`, `GROUPS`, `NARROWER` or `WIDER`); an entry no
+  longer needed, or a schema form it does not compare, fails it.
 
 ## Looking at the page
 

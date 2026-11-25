@@ -12,7 +12,11 @@ unknown fields, event branches, source assets, and neighboring authored files.
   with `chromatic_trigger_create`, `chromatic_trigger_update`, `chromatic_trigger_inspect`, and
   `chromatic_trigger_delete`, preserve resource identities and unrelated scripts.
 - `chromatic_script_inspect`, `chromatic_script_edit`, and `chromatic_script_transition` inspect nested visual
-  events, make focused event edits, and author typed native scene transitions.
+  events, make focused event edits, and author typed native scene transitions. Name the event as `eventId` beside
+  `target` or inside it (`"target": {"sceneId": "<id>", "eventId": "<id>"}`), the same in a `chromatic_scene_apply`
+  `script.edit` operation; two different ones are refused. An operation that names its scene, actor, trigger,
+  event or branch both in `input` and beside it, or in both targets, must give the same one, or the batch is refused
+  with nothing applied.
 - `chromatic_world_dependencies` traces reusable indexed project relationships without
   assuming a particular genre, game mechanic, or custom event.
 - `chromatic_variable_inspect`, `chromatic_variable_set`, and `chromatic_variable_delete` manage authored

@@ -1,6 +1,6 @@
 """Small tool fixes on the real engine, on B after its replays (later checks restart B's emulator): script_inspect
-named flat, a step that only looks pointed to observe, frames and contact sheets in the Chromatic's colors, and a
-stopped recording continued by replay."""
+named flat, a step that only looks pointed to observe, frames and contact sheets in the Chromatic's colors, a
+stopped recording continued by replay, and the event named inside a script target."""
 
 import base64
 
@@ -49,6 +49,7 @@ def check_tool_friction(suite, client_b, rom_b):
     check_color_correction(suite, client_b, rom_b)
     check_corrected_contact_sheets(suite, client_b)
     check_stopped_recording(suite, client_b, rom_b)
+    check_event_in_target(suite, client_b)
 
 
 def check_script_inspect(suite, client_b):
@@ -180,4 +181,87 @@ def check_stopped_recording(suite, client_b, rom_b):
         and replay.get("replayedActions") == played.get("actionCount"),
         source=source,
         replay=replay or replayed.get("error"),
+    )
+
+
+def check_event_in_target(suite, client_b):
+    """script_edit, scene_apply and script_inspect take the event inside target as they take it beside target, and a
+    scene_apply batch whose last operation names two different events is refused with nothing applied. The events it
+    adds are deleted again, so B's start script is as it was."""
+
+    def edit(arguments):
+        return client_b.call(OWNER_B, "script_edit", arguments)
+
+    def apply(operations, **arguments):
+        return client_b.call(
+            OWNER_B, "scene_apply", {"sceneId": target["sceneId"], "operations": operations, **arguments}
+        )
+
+    def revision():
+        return structured(client_b.call(OWNER_B, "project_inspect", {})).get("revision")
+
+    target = {"sceneId": structured(client_b.call(OWNER_B, "project_inspect", {}))["settings"]["startSceneId"]}
+    comment = {"command": "EVENT_COMMENT", "args": {"text": "first"}}
+    inserted = structured(edit({"action": "insert", "target": target, "event": comment}))
+    event = {**target, "eventId": (inserted.get("event") or {}).get("id")}
+    edited = edit({"action": "update", "target": event, "patch": {"args": {"text": "second"}}})
+    operation = {"type": "script.edit", "action": "update", "target": event, "patch": {"args": {"text": "third"}}}
+    applied = apply([operation])
+    inspected = structured(client_b.call(OWNER_B, "script_inspect", {"target": event}))
+    conflicting = edit({"action": "delete", "target": event, "eventId": "another-event"})
+    condition = {"command": "EVENT_IF_TRUE", "args": {"variable": "0"}, "children": {"true": [], "false": []}}
+    branch = (structured(edit({"action": "insert", "target": target, "event": condition})).get("event") or {}).get("id")
+    batch = [
+        {"type": "actor.create", "id": "acceptance-k2-actor", "name": "K2 actor", "x": 1, "y": 1},
+        {
+            "type": "script.edit",
+            "action": "insert",
+            "target": {**target, "branchPath": [{"eventId": branch, "branch": "true"}]},
+            "event": comment,
+        },
+        {
+            "type": "script.edit",
+            "action": "insert",
+            "target": {**target, "actorId": "acceptance-k2-actor"},
+            "event": comment,
+        },
+        {**operation, "input": {"target": {**target, "eventId": branch}}},
+    ]
+    staged = apply(batch[:-1], dryRun=True)
+    before = revision()
+    mixed = apply(batch)
+    after = revision()
+    deleted = [
+        edit({"action": "delete", "target": {**target, "eventId": eventId}}) for eventId in (event["eventId"], branch)
+    ]
+    suite.check(
+        "K2",
+        "An event named as target.eventId is updated by script_edit and by a scene_apply operation, read alone by "
+        "script_inspect and deleted by script_edit; a different eventId beside it is refused, and a batch that "
+        "creates an actor and edits a nested branch and that actor's script is refused with nothing applied when "
+        "its last operation names another event in its input",
+        event["eventId"] is not None
+        and not refused(edited)
+        and not refused(applied)
+        and [(e.get("id"), (e.get("args") or {}).get("text")) for e in inspected.get("events") or []]
+        == [(event["eventId"], "third")]
+        and refused(conflicting)
+        and "target.eventId" in error(conflicting)
+        and branch is not None
+        and not refused(staged)
+        and refused(mixed)
+        and "Operation 3" in error(mixed)
+        and "eventId" in error(mixed)
+        and before is not None
+        and after == before
+        and not any(refused(result) for result in deleted),
+        inserted=inserted.get("event") or inserted.get("error"),
+        edited=error(edited) if refused(edited) else "ok",
+        applied=error(applied) if refused(applied) else "ok",
+        inspected=inspected.get("events") or inspected.get("error"),
+        conflicting=error(conflicting),
+        staged=error(staged) if refused(staged) else "ok",
+        mixed=error(mixed) if refused(mixed) else "applied",
+        revisions=[before, after],
+        deleted=[error(result) if refused(result) else "ok" for result in deleted],
     )
