@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 e231243f4ea6f7714601725e500d58d8c68d17ac232d346aefe6366ef8f30028
- * body: sha256 197759dfa8cdda1fcb1db9de8b4052fd2a77046cc46a29d7dbc4304dcc6f9e17
+ * sources: sha256 7a6d1d7bbece12ef61f461607123303a49cf54e0a147b2732cd96391bdf7e49f
+ * body: sha256 df444f063f8441adbf6aebf29a71d3cc6565283ca4c1c27dff451dad814a5a2d
  */
 // page/sdk.js
 import {
@@ -483,6 +483,9 @@ var attachmentLine = (item) => item.detail ?? `About ${item.path}:`;
 
 // page/pages/build/chat/report.js
 var REPORT_KINDS = /* @__PURE__ */ new Set(["added", "changed", "removed"]);
+var CHECK_RESULTS = /* @__PURE__ */ new Set(["passed", "failed", "not run", "blocked", "needs review"]);
+var MAX_CHECKS = 100;
+var MAX_CHECK_ID = 9;
 function normalizeReport(value) {
   if (!value || typeof value !== "object") {
     return null;
@@ -494,6 +497,7 @@ function normalizeReport(value) {
   if (!title && !summary) {
     return null;
   }
+  const checks = (Array.isArray(value.checks) ? value.checks : []).map((check) => ({ id: line(check?.id, MAX_CHECK_ID), text: line(check?.text, 100), result: CHECK_RESULTS.has(check?.result) ? check.result : "not run" })).filter((check) => check.id && check.text).slice(0, MAX_CHECKS);
   return {
     title,
     summary,
@@ -504,8 +508,23 @@ function normalizeReport(value) {
     })).filter((change) => change.text).slice(0, 8),
     tested: lines(value.tested, 6, 100),
     untested: lines(value.untested, 6, 100),
+    checks,
+    difficulty: line(value.difficulty, 240),
     notes: lines(value.notes, 3, 200),
     suggestions: lines(value.suggestions, 4, 60)
+  };
+}
+var checkLine = (check) => `${check.id} · ${check.text}`;
+function reportLines(report) {
+  const checks = report?.checks ?? [];
+  const settled = /* @__PURE__ */ new Set(["passed", "failed"]);
+  return {
+    tested: [...report?.tested ?? [], ...checks.filter((check) => check.result === "passed").map(checkLine)],
+    failed: checks.filter((check) => check.result === "failed").map(checkLine),
+    untested: [
+      ...report?.untested ?? [],
+      ...checks.filter((check) => !settled.has(check.result)).map((check) => `${checkLine(check)}${check.result === "not run" ? "" : ` (${check.result})`}`)
+    ]
   };
 }
 var reportOf = (name, args) => String(name ?? "") === REPORT_TOOL ? normalizeReport(args) : null;
@@ -4682,6 +4701,8 @@ function KeyHints({ className = "cs-ip-keys" }) {
 }
 var STATE_NOTE = {
   untested: `${AGENT} didn’t test this`,
+  review: "Needs your review",
+  failed: `Failed in ${AGENT}’s test`,
   reported: `Reported · ${AGENT} is on it`
 };
 function CheckItem({ item, build, asking, onToggle, onWorked, onWrong }) {
@@ -4714,10 +4735,11 @@ function CheckItem({ item, build, asking, onToggle, onWorked, onWrong }) {
     ]
   });
 }
+var ASK_FIRST = /* @__PURE__ */ new Set(["untested", "review", "failed", "fixed"]);
 function Checklist({ playtest, build, onWrong }) {
   const [asking, setAsking] = useState(null);
   const toggle = (item, on) => {
-    if (on && (item.state === "untested" || item.state === "fixed")) {
+    if (on && ASK_FIRST.has(item.state)) {
       setAsking(asking === item.key ? null : item.key);
     } else {
       playtest.tick(item.key, on);
@@ -4884,11 +4906,13 @@ async function askAboutMoment({ bridge, game, stored: stored2 }) {
 // page/pages/build/player/checks.js
 var KEPT_BUILDS = 12;
 var keyOf = (text2) => String(text2).trim().toLowerCase();
+var STATE_OF_RESULT = { passed: "todo", failed: "failed", "not run": "untested", blocked: "untested", "needs review": "review" };
+var ORDER = { failed: 0, untested: 1, review: 1, todo: 2 };
 function reportChecks(report) {
-  const untested = (report?.untested ?? []).map((text2) => ({ key: keyOf(text2), text: text2, untested: true }));
-  const tested = (report?.tested ?? []).map((text2) => ({ key: keyOf(text2), text: text2, untested: false }));
+  const lines = (list, state) => (list ?? []).map((text2) => ({ key: keyOf(text2), text: text2, state }));
+  const planned = (report?.checks ?? []).map((check) => ({ key: `#${keyOf(check.id)}`, text: checkLine(check), state: STATE_OF_RESULT[check.result] ?? "untested" }));
   const seen = /* @__PURE__ */ new Set();
-  return [...untested, ...tested].filter((item) => item.key && !seen.has(item.key) && seen.add(item.key));
+  return [...lines(report?.untested, "untested"), ...lines(report?.tested, "todo"), ...planned].filter((item) => item.key && !seen.has(item.key) && seen.add(item.key)).sort((a, b) => ORDER[a.state] - ORDER[b.state]);
 }
 var emptyBuild = () => ({ ticks: {}, reported: {} });
 function checklist(report, n, saved = {}) {
@@ -4912,7 +4936,7 @@ function checklist(report, n, saved = {}) {
       continue;
     }
     keys.add(check.key);
-    const state = own.ticks[check.key] ? "done" : own.reported[check.key] ? "reported" : check.untested ? "untested" : "todo";
+    const state = own.ticks[check.key] ? "done" : own.reported[check.key] ? "reported" : check.state;
     items.push({ key: check.key, text: check.text, state });
   }
   return items;
@@ -6998,13 +7022,13 @@ function BuildCard({ art, primary, replay, play, build, parts: parts2, report, t
   const [details, setDetails] = useState(false);
   const failed = build?.state === "failed";
   const { changes, edited } = art;
-  const tested = report?.tested ?? [];
-  const untested = report?.untested ?? [];
+  const { tested, failed: failedChecks, untested } = reportLines(report);
   const notes = report?.notes ?? [];
+  const difficulty = report?.difficulty;
   const title = report?.title ?? (failed ? "The build didn’t finish" : build?.title ?? (primary ? baseName(primary) : "Done"));
   const summary = failed && parts2.buildFailed || report?.summary;
   const extraArt = edited.filter((path) => path !== primary);
-  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || failed;
+  const hasFoot = changes.length || extraArt.length || tested.length || failedChecks.length || untested.length || notes.length || difficulty || failed;
   const compareArt = (path) => jsx(BeforeAfter, {
     actions: isLast && !chatBusy,
     from: parts2.startedAt,
@@ -7035,6 +7059,7 @@ function BuildCard({ art, primary, replay, play, build, parts: parts2, report, t
         className: "cs-b-bc-foot",
         children: [
           tested.length ? jsxs("span", { children: [jsx("span", { className: "cs-b-ok", children: "✓" }), ` ${tested.length} play-tested`] }) : null,
+          failedChecks.length ? jsxs("span", { children: [jsx("span", { className: "cs-b-bad", children: "✗" }), ` ${failedChecks.length} failed`] }) : null,
           untested.length ? jsx("span", { className: "cs-faint", children: `○ ${untested.length} not tested` }) : null,
           notes.length ? jsx("span", { className: "cs-faint", children: `⚠ ${notes.length} ${notes.length === 1 ? "note" : "notes"}` }) : null,
           failed && isLast && !chatBusy ? jsx(Button, { onClick: () => onSend?.("The build failed. Please fix it and build again."), size: "sm", variant: "outline", children: `Ask ${AGENT} to fix it` }) : null,
@@ -7054,7 +7079,9 @@ function BuildCard({ art, primary, replay, play, build, parts: parts2, report, t
           changes.length ? jsx(ChangeList, { changes, onOpen: onOpenAsset }) : null,
           ...extraArt.map(compareArt),
           tested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Play-tested" }), ...tested.map((line, index) => jsxs("p", { children: [jsx("span", { className: "cs-b-ok", children: "✓ " }), line] }, index))] }) : null,
+          failedChecks.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Failed" }), ...failedChecks.map((line, index) => jsxs("p", { children: [jsx("span", { className: "cs-b-bad", children: "✗ " }), line] }, index))] }) : null,
           untested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Not tested" }), ...untested.map((line, index) => jsx("p", { className: "cs-faint", children: `○ ${line}` }, index))] }) : null,
+          difficulty ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Difficulty" }), jsx("p", { children: difficulty })] }) : null,
           notes.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "You might notice" }), ...notes.map((line, index) => jsx("p", { children: line }, index))] }) : null,
           failed && parts2.buildFailed ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "What went wrong" }), jsx("pre", { className: "cs-b-cmd", children: parts2.buildFailed })] }) : null
         ]
@@ -12346,7 +12373,8 @@ var INLINE_PLAYER_CSS = `
 .cs-ip-check label > span { display: flex; flex-direction: column; gap: 1px; }
 .cs-ip-check em { font-size: 11px; font-style: normal; }
 .cs-ip-check[data-state=done] .cs-ip-check-text { color: var(--ui-text-quaternary); text-decoration: line-through; }
-.cs-ip-check[data-state=untested] em { color: var(--ui-yellow); }
+.cs-ip-check[data-state=untested] em, .cs-ip-check[data-state=review] em { color: var(--ui-yellow); }
+.cs-ip-check[data-state=failed] em { color: var(--ui-red); }
 .cs-ip-check[data-state=reported] em { color: var(--ui-accent); }
 .cs-ip-check[data-state=fixed] em { color: var(--ui-green); }
 .cs-ip-ask { background: color-mix(in srgb, var(--ui-yellow) 7%, transparent); border-radius: 8px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 40%, transparent); color: var(--ui-text-secondary); display: flex; flex-direction: column; gap: 6px; margin: 6px 0 0 22px; padding: 8px; }
@@ -12404,6 +12432,7 @@ var BUILD_CARD_CSS = `
 .cs-b-bc-foot { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 6px 14px; padding-left: 2px; }
 .cs-b-bc-foot .cs-b-link { align-items: center; display: inline-flex; gap: 3px; }
 .cs-b-ok { color: var(--ui-green); font-weight: 700; }
+.cs-b-bad { color: var(--ui-red); font-weight: 700; }
 .cs-b-bc-details { border-left: 2px solid var(--ui-stroke-tertiary); display: grid; font-size: 12.5px; gap: 12px 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-left: 2px; padding: 2px 0 4px 12px; }
 .cs-b-bc-details p { line-height: 1.45; margin: 5px 0 0; }
 .cs-b-bc-details pre { margin: 6px 0 0; white-space: pre-wrap; }

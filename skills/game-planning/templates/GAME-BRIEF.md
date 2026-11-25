@@ -51,6 +51,17 @@
 - Later milestones:
 - **Explicitly out of scope:**
 
+## Solvability
+Every hazard lane, timer and gate, checked with the game-planning solvability
+checklist; confirm each on the built ROM.
+
+| Hazard / gate | Lane or cells | Period / need | Player crossing time | Safe window | Respawn point |
+|---|---|---|---|---|---|
+| | | | | | |
+
+- Difficulty intent (target time to finish, expected deaths, what gets harder):
+- Tuning values (speeds, timings, counts):
+
 ## Hardware budget assumptions
 Assumptions until confirmed by graphics analysis, a real build and emulator runs.
 - Tiles / sprites per scene:

@@ -25,6 +25,7 @@ export const robinBuildReport = () => ({
   title: 'Robin in the sky', summary: 'A little red robin in a big daytime sky. Fly anywhere with the D-pad.',
   changes: [{ kind: 'added', text: 'Robin sprite, 3 views', asset: 'assets/sprites/bird.png' }, { kind: 'changed', text: 'Camera follows the player' }],
   tested: ['Robin faces where it flies', 'Camera follows'], untested: ['Sound'],
+  difficulty: 'Gentle: nothing can hurt the robin yet.',
   notes: ['It only flaps while moving'], suggestions: ['Flap while idle', 'Fly faster']
 })
 

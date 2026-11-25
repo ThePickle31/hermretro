@@ -64,7 +64,8 @@ export const INLINE_PLAYER_CSS = `
 .cs-ip-check label > span { display: flex; flex-direction: column; gap: 1px; }
 .cs-ip-check em { font-size: 11px; font-style: normal; }
 .cs-ip-check[data-state=done] .cs-ip-check-text { color: var(--ui-text-quaternary); text-decoration: line-through; }
-.cs-ip-check[data-state=untested] em { color: var(--ui-yellow); }
+.cs-ip-check[data-state=untested] em, .cs-ip-check[data-state=review] em { color: var(--ui-yellow); }
+.cs-ip-check[data-state=failed] em { color: var(--ui-red); }
 .cs-ip-check[data-state=reported] em { color: var(--ui-accent); }
 .cs-ip-check[data-state=fixed] em { color: var(--ui-green); }
 .cs-ip-ask { background: color-mix(in srgb, var(--ui-yellow) 7%, transparent); border-radius: 8px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-yellow) 40%, transparent); color: var(--ui-text-secondary); display: flex; flex-direction: column; gap: 6px; margin: 6px 0 0 22px; padding: 8px; }

@@ -59,6 +59,23 @@ test('a check that is only reported is not "all checked"; one ticked after its r
   assert.deepEqual(checklist({ tested: [], untested: [] }, 3, saved), [], 'it worked after all: it does not come back')
 })
 
+test('a test-plan check is one item by its ID: failed first, its result on a later build replaces it', () => {
+  const b1 = { tested: ['Hover'], untested: [], checks: [{ id: 'T1', text: 'Gate stays shut', result: 'failed' }, { id: 'AUD1', text: 'Chime', result: 'needs review' }, { id: 'T2', text: 'Ending', result: 'not run' }] }
+
+  assert.deepEqual(checklist(b1, 1).map(item => [item.key, item.text, item.state]), [
+    ['#t1', 'T1 \u00B7 Gate stays shut', 'failed'],
+    ['#aud1', 'AUD1 \u00B7 Chime', 'review'],
+    ['#t2', 'T2 \u00B7 Ending', 'untested'],
+    ['hover', 'Hover', 'todo']
+  ])
+
+  const saved = withReport({}, 1, '#t1', 'T1 \u00B7 Gate stays shut')
+  const b2 = { tested: [], untested: [], checks: [{ id: 't1', text: 'Gate stays shut with 2 seeds', result: 'passed' }] }
+
+  assert.deepEqual(checklist(b2, 2, saved), [{ key: '#t1', text: 'T1 \u00B7 Gate stays shut', state: 'fixed', from: 1 }])
+  assert.deepEqual(checklist(b2, 2).map(item => item.state), ['todo'])
+})
+
 test('what the frame posts is checked before the page uses it', () => {
   const png = 'data:image/png;base64,iVBORw0KGgo='
 

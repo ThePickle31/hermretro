@@ -307,7 +307,7 @@ def update(
         if not cover["ok"]:
             problems.append(cover["problem"])
         else:
-            copied = copied_asset(root, cover["sha256"])
+            copied = copied_asset(root, source)
             if copied:
                 problems.append(_copy_problem(copied))
     if problems:
@@ -347,8 +347,9 @@ def update(
     if not isinstance(data.get("version"), int) or data["version"] < VERSION:
         data["version"] = VERSION
     data["updatedAt"] = int(time.time())
+    state = status(root, data, strict=True)
     _write(root, data)
-    return {"ok": True, "card": data, "status": status(root, data, strict=True), "was_complete": was_complete}
+    return {"ok": True, "card": data, "status": state, "was_complete": was_complete}
 
 
 # -- for the desktop ---------------------------------------------------------------------

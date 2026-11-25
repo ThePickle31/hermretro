@@ -123,6 +123,24 @@ one frame, and restore only into the identical ROM and runtime, including the
 worker hash. A checkpoint from before a rebuild cannot be used for
 the regression run.
 
+## Finishable
+
+A game is **finishable** when one run from power-on reaches its ending on the
+exact ROM the user gets, with no checkpoint restores, save-state loads, memory
+writes or debug shortcuts in between. Prove it once all of the game is in: boot
+that ROM fresh with `restart:true` and `recording:{}`, play to the ending, and
+keep the recording as the evidence. Checkpoints are fine while finding a bug,
+but a route pieced together from them shows each part works, not that the game
+can be finished. Every rebuild needs the run again; a run on an earlier ROM
+does not count.
+
+From that run, report the difficulty in `chromatic_build_report`: time to
+finish, deaths or retries and where, and what you tuned. For a game with a test
+plan, the report gives each open check its result on this ROM (`not run` for
+any you did not play on it) and the run is the plan's finishable check. With no
+such run on this ROM (the ending unreachable, the run skipped, a game with no
+ending), report what happened instead, as `hermretro:game-planning` step 6 says.
+
 ## Diagnose and report
 
 For named variables, the current scene, or authored collision/event references,

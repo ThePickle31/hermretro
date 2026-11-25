@@ -13,10 +13,9 @@ from backend.hermes import contracts  # noqa: E402 - the repository root goes on
 from backend.hermes import workflow  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import tools as host_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import games, tool_args  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import report_tools  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import games, plan_checks, tool_args  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
 GOOD = {
@@ -55,7 +54,7 @@ class BuildReport(unittest.TestCase):
         self.tmp.cleanup()
 
     def report(self, args, **kwargs):
-        return json.loads(library_tools.build_report_handler(args, **{"session_id": "s1", **kwargs}))
+        return json.loads(report_tools.build_report_handler(args, **{"session_id": "s1", **kwargs}))
 
     def test_a_good_report_is_trimmed_and_its_assets_resolved(self):
         answer = self.report(dict(GOOD))
@@ -78,7 +77,7 @@ class BuildReport(unittest.TestCase):
         self.assertNotIn("warnings", answer)
 
     def test_the_build_event_carries_the_game_and_its_images(self):
-        with mock.patch.object(library_tools, "emit") as emit:
+        with mock.patch.object(report_tools, "emit") as emit:
             self.assertTrue(self.report(dict(GOOD))["ok"])
         emit.assert_called_once_with(
             "library.build_reported",
@@ -86,7 +85,7 @@ class BuildReport(unittest.TestCase):
             assets=[str((self.root / "assets" / "sprites" / "robin.png").resolve())],
         )
         with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
-            with mock.patch.object(library_tools, "emit") as emit:
+            with mock.patch.object(report_tools, "emit") as emit:
                 self.assertTrue(self.report({"title": "t", "summary": "s"})["ok"])
         emit.assert_called_once_with("library.build_reported", game=None, assets=[])
 
@@ -97,7 +96,7 @@ class BuildReport(unittest.TestCase):
             )
             return 1_000_500_000
 
-        with mock.patch.object(library_tools.time, "time_ns", side_effect=capture_time):
+        with mock.patch.object(report_tools.time, "time_ns", side_effect=capture_time):
             answer = self.report(dict(GOOD))  # the real emit reaches backend/assets/listeners.py
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(answer["reportedAt"], 1000.5)
@@ -122,9 +121,102 @@ class BuildReport(unittest.TestCase):
         answer = self.report({"title": "Chubbier robin", "summary": "The robin is rounder."})
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(
-            {key: answer["report"][key] for key in ("changes", "tested", "untested", "notes", "suggestions")},
-            {"changes": [], "tested": [], "untested": [], "notes": [], "suggestions": []},
+            {key: answer["report"][key] for key in ("changes", "tested", "untested", "checks", "notes", "suggestions")},
+            {"changes": [], "tested": [], "untested": [], "checks": [], "notes": [], "suggestions": []},
         )
+        self.assertIsNone(answer["report"]["difficulty"])
+
+    def plan(self, rows):
+        path = plan_checks.plan_path(self.root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("| ID | Then | Status |\n|---|---|---|\n" + "".join(f"| {row} |\n" for row in rows))
+
+    def test_a_game_with_a_test_plan_reports_every_open_check_and_its_difficulty(self):
+        self.plan(
+            ["T1 | the title shows | passed", "T2 | the gate opens | superseded (by D2)", "T3 | it ends | not run"]
+        )
+        refused = self.report(dict(GOOD))
+        self.assertEqual(refused["code"], "INVALID_REPORT")
+        self.assertIn("difficulty is required", refused["error"])
+        self.assertIn("checks has no result for T1, T3", refused["error"])
+        checks = [
+            {"id": "T1", "text": "Title shows", "result": "passed"},
+            {"id": "t3", "text": "One run to the ending", "result": "not run"},
+        ]
+        difficulty = "Finished in one run from power-on in 6 minutes; the last room took 3 tries."
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual(
+            answer["report"]["checks"][1], {"id": "t3", "text": "One run to the ending", "result": "not run"}
+        )
+        self.assertEqual(answer["report"]["difficulty"], difficulty)
+        for wrong, problem in (
+            ([*checks, {"id": "T2", "text": "Gate", "result": "passed"}], "checks names T2, which"),
+            ([*checks, {"id": "T1", "text": "Again", "result": "passed"}], "T1 is reported twice"),
+            ([checks[0], {**checks[1], "result": "ok"}], "result must be one of"),
+            ([checks[0], {**checks[1], "proof": "x"}], "unknown field 'proof'"),
+            ([checks[0], {"id": "T3", "result": "failed"}], "checks[2].text"),
+            (checks[:1] * 101, "at most 100"),
+            ("T1 passed", "checks must be a list"),
+        ):
+            answer = self.report({**GOOD, "checks": wrong, "difficulty": difficulty})
+            self.assertEqual(answer["code"], "INVALID_REPORT", wrong)
+            self.assertIn(problem, answer["error"])
+
+    def test_a_test_plan_without_checks_asks_only_for_the_difficulty(self):
+        path = plan_checks.plan_path(self.root)
+        path.parent.mkdir(parents=True)
+        path.write_text("# Test plan\nEvery check is observable.\n")
+        self.assertIn("difficulty is required", self.report(dict(GOOD))["error"])
+        answer = self.report({**GOOD, "difficulty": "Easy: one screen, no way to lose."})
+        self.assertTrue(answer["ok"], answer)
+        self.assertIn("lists no checks", answer["warnings"][0])
+
+    def test_checks_written_as_lines_are_held_to_like_table_rows(self):
+        path = plan_checks.plan_path(self.root)
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            "# Test plan · revision 1\nT1: Given a fresh boot, then a frog appears.\n"
+            "T2: Given a resting frog, when directions are held, then it hops.\n"
+            "T3: Given a resting frog, when A is pressed, a croak plays.\n## Results · 2026-11-22\nT1 passed.\n"
+        )
+        difficulty = "No ending: a meadow to hop around in; nothing to fail."
+        refused = self.report({**GOOD, "difficulty": difficulty})
+        self.assertIn("checks has no result for T1, T2, T3", refused["error"])
+        checks = [
+            {"id": "T1", "text": "Frog in the meadow", "result": "passed"},
+            {"id": "T2", "text": "Hop and rest", "result": "passed"},
+            {"id": "T3", "text": "Croak", "result": "needs review"},
+        ]
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertTrue(answer["ok"], answer)
+        self.assertNotIn("warnings", answer)
+
+    def test_every_open_check_fits_a_report_and_a_plan_with_too_many_says_how_to_go_on(self):
+        difficulty = "Finished in one run."
+        rows = [f"T{index} | step {index} | not run" for index in range(1, 32)]
+        self.plan([*rows, "GATE_1 | the gate | not run", "`T40` | the end | passed"])
+        checks = [{"id": f"T{index}", "text": f"Step {index}", "result": "not run"} for index in range(1, 32)]
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertIn("checks has no result for T40", answer["error"])
+        checks.append({"id": "t40", "text": "The end", "result": "passed"})
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertTrue(answer["ok"], answer)
+        self.assertIn("no check ID, so they are not checks: GATE_1", answer["warnings"][0])
+        self.plan([f"T{index} | step {index} | not run" for index in range(1, 102)])
+        answer = self.report({**GOOD, "checks": checks[:31], "difficulty": difficulty})
+        self.assertEqual(answer["code"], "INVALID_REPORT")
+        self.assertIn("lists 101 open checks; a report holds results for at most 100", answer["error"])
+        self.assertIn("Keep every approved check", answer["error"])
+        self.assertNotIn("checks has no result", answer["error"])
+
+    def test_without_a_test_plan_checks_and_difficulty_are_optional(self):
+        checks = [{"id": "X1", "text": "Robin flaps", "result": "passed"}]
+        answer = self.report({**GOOD, "checks": checks, "difficulty": "x" * 201})
+        self.assertIn("difficulty is 201 characters", answer["error"])
+        answer = self.report({**GOOD, "checks": checks})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual(answer["report"]["checks"], checks)
 
     def test_any_problem_refuses_the_whole_report(self):
         cases = [
@@ -204,12 +296,12 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(answer["code"], "PARENT_ONLY")
 
     def test_the_handler_never_raises(self):
-        with mock.patch.object(host_tools, "_report_text", side_effect=RuntimeError("bad")):
+        with mock.patch.object(report_tools, "_report_text", side_effect=RuntimeError("bad")):
             self.assertEqual(self.report(dict(GOOD))["code"], "ADAPTER_ERROR")
         self.assertEqual(self.report(None)["code"], "INVALID_REPORT")
 
     def test_schema_is_plugin_owned_and_strict(self):
-        schema = library_tools.BUILD_REPORT_TOOL
+        schema = report_tools.BUILD_REPORT_TOOL
         self.assertEqual(schema["name"], "chromatic_build_report")
         self.assertNotIn("chromatic_build_report", {s["name"] for s in contracts.hermes_schemas()})
         parameters = schema["parameters"]
@@ -217,7 +309,18 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(parameters["required"], ["title", "summary"])
         self.assertEqual(
             set(parameters["properties"]),
-            {"title", "summary", "changes", "tested", "untested", "notes", "suggestions", "project"},
+            {
+                "title",
+                "summary",
+                "changes",
+                "tested",
+                "untested",
+                "checks",
+                "difficulty",
+                "notes",
+                "suggestions",
+                "project",
+            },
         )
         self.assertFalse(parameters["properties"]["changes"]["items"]["additionalProperties"])
         for needed in (
