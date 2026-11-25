@@ -8,6 +8,7 @@ import json
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
 from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
@@ -33,6 +34,11 @@ CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT
 CREATE TABLE session_model_usage (session_id TEXT NOT NULL, task TEXT NOT NULL DEFAULT '',
     api_call_count INTEGER NOT NULL DEFAULT 0, estimated_cost_usd REAL NOT NULL DEFAULT 0);
 """
+
+
+def logged(epoch: float) -> str:
+    """``epoch`` as Hermes's log lines start, in local time, to its second."""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(epoch))
 
 
 def call(name: str, arguments: dict) -> dict:
@@ -124,14 +130,15 @@ class ReportTest(Fixture):
         self.message("user", content="[CONTEXT COMPACTION] summary", _compressed_summary=1)
         self.message("assistant", content="The game is finished.", finish_reason="stop")
         (self.home / "logs" / "errors.log").write_text(
-            f"2026-11-24 21:13:05,282 WARNING [{SESSION}] run_agent: Removed duplicate tool call: tool_call\n"
-            f"2026-11-24 21:13:05,283 WARNING [{SESSION}] run_agent: Removed duplicate tool call: tool_call\n"
-            "2026-11-24 21:13:06,000 WARNING [local-other] run_agent: Removed duplicate tool call: tool_call\n"
-            f"2026-11-24 21:13:07,000 ERROR [{SESSION}] run_agent: something else\n",
+            f"{logged(1005)},282 WARNING [{SESSION}] run_agent: Removed duplicate tool call: tool_call\n"
+            f"{logged(1005)},283 WARNING [{SESSION}] run_agent: Removed duplicate tool call: tool_call\n"
+            f"{logged(1006)},000 WARNING [local-other] run_agent: Removed duplicate tool call: tool_call\n"
+            f"{logged(1007)},000 ERROR [{SESSION}] run_agent: something else\n",
             encoding="utf-8",
         )
+        # The copy the log rotated into goes back to before the session started.
         (self.home / "logs" / "errors.log.1").write_text(
-            f"2026-11-24 20:00:00,000 WARNING [{SESSION}] run_agent: Removed duplicate tool call: terminal\n",
+            f"{logged(990)},000 WARNING [{SESSION}] run_agent: Removed duplicate tool call: terminal\n",
             encoding="utf-8",
         )
 
@@ -170,6 +177,15 @@ class ReportTest(Fixture):
         before = (self.home / "state.db").read_bytes()
         bench.reports(self.home, ids=[SESSION])
         self.assertEqual((self.home / "state.db").read_bytes(), before)
+
+    def test_drops_are_unknown_when_the_logs_begin_after_the_session(self):
+        (self.home / "logs" / "errors.log.1").unlink()  # rotated out: the logs now begin at 1005, after its start
+        found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]
+        self.assertIsNone(found.duplicate_drops)
+        self.assertIn("duplicate drops      unknown", bench.table({SESSION[:14]: found}))
+        for log in (self.home / "logs").glob("errors.log*"):
+            log.write_text("", encoding="utf-8")  # nothing ever logged: nothing rotated out either
+        self.assertEqual(bench.reports(self.home, ids=[SESSION])[SESSION[:14]].duplicate_drops, 0)
 
 
 class CompactionCopiesTest(Fixture):
@@ -270,8 +286,8 @@ class EndingTest(Fixture):
     def test_a_session_its_stopped_chat_left_open_ends_when_the_chat_exited(self):
         self.session()
         self.message("assistant", tool_calls="[]", finish_reason="tool_calls")
-        with bench.closing(bench.connect(self.home / "state.db")) as db:
-            found = bench.report(db, SESSION, Counter(), exited=1090.0)
+        with bench.snapshot(self.home / "state.db") as db:
+            found = bench.report(db, SESSION, bench.Drops(Counter(), None), exited=1090.0)
         self.assertFalse(found.running)
         self.assertEqual(found.wall, 90.0)
         self.assertEqual(found.ended, "no (chat exited, session left open)")
@@ -308,7 +324,7 @@ class RunSessionsTest(Fixture):
             self.session(session, started=started)
             self.message("user", session=session, content=PROMPT.strip())
         self.message("user", session="local-stopped", content="a later turn")
-        with bench.closing(bench.connect(self.home / "state.db")) as db:
+        with bench.snapshot(self.home / "state.db") as db:
             sessions = bench.run_sessions(folder, db)
         self.assertEqual(
             sessions,
@@ -332,7 +348,7 @@ class RunSessionsTest(Fixture):
         for session, started in (("local-this", 2100.0), ("local-next", 5000.0)):
             self.session(session, started=started)
             self.message("user", session=session, content=PROMPT)
-        with bench.closing(bench.connect(self.home / "state.db")) as db:
+        with bench.snapshot(self.home / "state.db") as db:
             self.assertEqual(bench.run_sessions(folder, db), {"1-test": bench.Game(None)})
 
     def test_the_newest_run_and_no_run(self):
@@ -346,8 +362,8 @@ class RunSessionsTest(Fixture):
         self.assertEqual(bench.latest_run(runs).name, "20261125-090000")
 
 
-class CommandTest(Fixture):
-    """`python tools/dev bench report` against a profile home of its own."""
+class CliFixture(Fixture):
+    """`python tools/dev` with the fixture as its studio profile's home."""
 
     def setUp(self):
         super().setUp()
@@ -360,6 +376,10 @@ class CommandTest(Fixture):
         patcher = mock.patch.object(self.cli.hermes, "hermes_root", return_value=root)
         patcher.start()
         self.addCleanup(patcher.stop)
+
+
+class CommandTest(CliFixture):
+    """`python tools/dev bench report` against a profile home of its own."""
 
     def test_report_of_a_run_folder(self):
         self.session(ended=1060.0, reason="cli_close")

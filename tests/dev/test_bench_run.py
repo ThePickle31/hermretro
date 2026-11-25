@@ -161,12 +161,13 @@ class RunTest(unittest.TestCase):
 
     def test_runs_every_game_at_once_and_records_each_session(self):
         with mock.patch("sys.stdout"):
-            folder = bench.run(self.prompts, "hermretro", self.folder / "runs", None)
+            folder = bench.run(self.prompts, "hermretro", self.folder / "home", self.folder / "runs", None)
         record = json.loads((folder / "run.json").read_text(encoding="utf-8"))
         works, fails = record["games"]["1-works"], record["games"]["2-fails"]
         self.assertEqual((works["exit"], works["session"]), (0, "local-1-works"))
         self.assertEqual((fails["exit"], fails["session"]), (3, None))
         self.assertEqual(works["prompt"], "Make 1-works.\n")
+        self.assertEqual(record["home"], str((self.folder / "home").resolve()))
         self.assertLessEqual(works["started"], works["ended"])
         log = (folder / "1-works.log").read_text(encoding="utf-8").splitlines()
         prompt = self.prompts[0]
