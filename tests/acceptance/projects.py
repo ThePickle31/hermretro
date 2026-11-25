@@ -361,15 +361,23 @@ def check_input_list(suite, client_a, start):
     return result.get("frame")
 
 
+OWNER_M = {"profile": "s01-profile", "conversation_id": "conv-M"}  # a chat that belongs to no game
+
+
 def check_result_fidelity(suite, client_a, rom_a):
     via_broker = client_a.call(OWNER_A, "rom_inspect", {"romPath": rom_a})
     with EngineProcess(paths.ENGINE_ROOT, node=suite.node, client_name="chromatic-studio-acceptance-direct") as direct:
-        direct.call_tool("project_select", {"projectPath": str(suite.project_a / "project.gbsproj")})
-        direct_result = direct.call_tool("rom_inspect", {"romPath": rom_a})
+        # The error first, from an engine with nothing selected yet, as the broker's lane for a new chat has.
         direct_error = direct.call_tool(
             "project_select", {"projectPath": str(suite.work / "missing" / "project.gbsproj")}
         )
+        direct.call_tool("project_select", {"projectPath": str(suite.project_a / "project.gbsproj")})
+        direct_result = direct.call_tool("rom_inspect", {"romPath": rom_a})
+    # A chat that belongs to no game: A's own conversation may open only its game, so the broker refuses it first.
     broker_error = client_a.call(
+        OWNER_M, "project_select", {"projectPath": str(suite.work / "missing" / "project.gbsproj")}
+    )
+    own_only = client_a.call(
         OWNER_A, "project_select", {"projectPath": str(suite.work / "missing" / "project.gbsproj")}
     )
     suite.check(
@@ -378,7 +386,8 @@ def check_result_fidelity(suite, client_a, rom_a):
         via_broker["result"] == direct_result
         and broker_error["result"] == direct_error
         and broker_error["result"].get("isError") is True
-        and bool(structured(broker_error).get("code")),
+        and bool(structured(broker_error).get("code"))
+        and own_only.get("denied", {}).get("code") == "ONE_GAME_PER_CONVERSATION",
         error_code=structured(broker_error).get("code"),
         result_keys=sorted(via_broker["result"].keys()),
     )

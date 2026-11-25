@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from . import bindings, game_card, layout, project, shelf
+from . import bindings, game_card, layout, ownership, project, shelf
 from .bindings import BindingError as BindingError
 from .bindings import session_aliases as session_aliases
 from .freshness import (  # noqa: F401 - existing library imports
@@ -143,7 +143,11 @@ class Registry:
         web_export: float | None = None,
         sources: str | None = None,
         only_if_missing: bool = False,
+        claim: tuple | None = None,
     ) -> dict | None:
+        """Add or refresh a game. ``claim`` is ``(profile, conversation id, sessions seen)``: in the same locked step,
+        a chat that belongs to no game becomes this game's conversation if it has none (``bindings.claim_in``), so no
+        reader ever sees the game registered without the chat that brought it in."""
         real = Path(os.path.realpath(root))
         if not real.is_dir():
             return None
@@ -156,6 +160,9 @@ class Registry:
                 return project.identified_game(identifier, entry) if isinstance(entry, dict) else None
             entry = entry if isinstance(entry, dict) else {"id": identifier, "projectRoot": str(real), "addedAt": now}
             self._update_project(entry, real, now)
+            data["games"][identifier] = entry
+            if claim is not None:
+                bindings.claim_in(data, identifier, *claim)
             bindings.record_chat(entry, chat)
             if build is not None:
                 entry["lastBuild"] = build
@@ -233,6 +240,13 @@ class Registry:
                 return project.identified_game(identifier, entry)
         return None
 
+    def owning_game(self, path: str, *, snapshot: dict | None = None) -> dict | None:
+        """The library game whose folder is, or most deeply holds, ``path`` (read as the engine reads it); None when
+        it is in no game. Folders match by file-system identity (``ownership``)."""
+        data = self.load() if snapshot is None else snapshot
+        found = ownership.owner_in(ownership.root_index(data["games"]), ownership.engine_path(path))
+        return project.identified_game(found[0], found[1]) if found else None
+
     def game_for_root(self, root: str) -> dict | None:
         real = os.path.realpath(root)
         identifier = game_id(real)
@@ -241,9 +255,10 @@ class Registry:
 
     # -- Build conversations -------------------------------------------------------
 
-    def binding_for(self, profile: str | None, ids) -> tuple[str | None, dict | None]:
-        """``("game", entry)``, ``("pending", record)`` or ``(None, None)`` for a conversation."""
-        return bindings.binding_for(self, profile, ids)
+    def binding_for(self, profile: str | None, ids, *, snapshot: dict | None = None) -> tuple[str | None, dict | None]:
+        """``("game", entry)``, ``("pending", record)`` or ``(None, None)`` for a conversation (read from ``snapshot``
+        when given)."""
+        return bindings.binding_for(self, profile, ids, snapshot)
 
     def build_start(self, stored: str, profile: str | None, name: str | None = None, plan: bool = False) -> dict:
         """Record a conversation started on New Game (before its project exists)."""
@@ -266,6 +281,11 @@ class Registry:
     def claim_pending(self, identifier: str, profile: str | None, ids) -> dict | None:
         """Bind a game to the pending conversation among ``ids``, if there is one and the game is free."""
         return bindings.claim_pending(self, identifier, profile, ids)
+
+    def claim_new(self, identifier: str, profile: str | None, conversation_id: str, sessions_seen=()) -> dict | None:
+        """Bind a game to the chat that just made it (or brought it into the library), when that chat belongs to no
+        game and the game has no conversation yet."""
+        return bindings.claim_new(self, identifier, profile, conversation_id, sessions_seen)
 
     def note_alias(self, profile: str | None, conversation_id: str, session_id: str) -> None:
         """Remember a bound conversation's live session id (compression rotates it), so a hook that only
@@ -305,7 +325,11 @@ class Registry:
             # A project created without selecting it still belongs to the library, but the chat only
             # owns the one it actually works on.
             owns = tool == "project_select" or arguments.get("select") is True
-            entry = self.upsert(root, chat=chat if owns else None)
+            # A chat that belongs to no game becomes the conversation of the game it makes or brings into the
+            # library, in the same step that registers it (the broker's guard_selection lets such a chat open only
+            # projects the library did not have; one that lost the race to another chat is refused by the broker).
+            claim = (profile, conversation_id, tuple(sessions_seen)) if conversation_id else None
+            entry = self.upsert(root, chat=chat if owns else None, claim=claim)
             if entry is not None and tool != "project_select":
                 # Every game gets its card file when it is made; the agent fills it in before presenting.
                 try:

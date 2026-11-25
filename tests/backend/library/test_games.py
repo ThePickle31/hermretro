@@ -86,7 +86,7 @@ class Registry(unittest.TestCase):
             )["web"]
         )
 
-    def test_a_project_created_without_selecting_has_no_chat(self):
+    def test_the_chat_that_makes_a_project_is_its_conversation_even_without_selecting_it(self):
         root = make_project(self.base)
         self.registry.observe(
             "project_create",
@@ -96,7 +96,28 @@ class Registry(unittest.TestCase):
             lane_root=None,
             conversation_id="conv-1",
         )
-        self.assertIsNone(self.registry.library()[0]["chat"])
+        self.assertEqual(self.registry.get(games.game_id(root))["session"]["storedId"], "conv-1")
+        self.assertEqual(self.registry.binding_for(None, ["conv-1"])[0], "game")
+        # That chat now has its game: a second one it makes belongs to no chat until it is opened on the Build page.
+        other = make_project(self.base, "Other")
+        self.registry.observe(
+            "project_create", {}, {"projectRoot": str(other)}, False, lane_root=None, conversation_id="conv-1"
+        )
+        self.assertNotIn("session", self.registry.get(games.game_id(other)))
+
+    def test_the_chat_that_selects_a_project_claims_it_in_the_same_step_that_registers_it(self):
+        # The Games page may register a selected root first (seeding from the broker), without a conversation: the
+        # chat that selected it still becomes its conversation.
+        seeded, owned = make_project(self.base, "Seeded"), make_project(self.base, "Owned")
+        self.registry.upsert(str(seeded), only_if_missing=True)
+        self.registry.upsert(str(owned))
+        self.registry.bind(games.game_id(owned), "c-1", None)
+        for root in (seeded, owned):
+            self.registry.observe(
+                "project_select", {}, {"projectRoot": str(root)}, False, lane_root=str(root), conversation_id="c-2"
+            )
+        self.assertEqual(self.registry.get(games.game_id(seeded))["session"]["storedId"], "c-2")
+        self.assertEqual(self.registry.get(games.game_id(owned))["session"]["storedId"], "c-1")  # never taken over
 
     def test_states_follow_builds_and_source_edits(self):
         root = make_project(self.base, web=False, built=False)
@@ -272,7 +293,7 @@ class GamesRpc(unittest.TestCase):
         self.assertEqual(game["card"]["tagline"], "Fly a tiny ship through a meteor field.")
         self.assertTrue(game["card"]["complete"])
         self.assertEqual(game["layout"], {"ok": True, "problems": [], "warnings": []})
-        self.assertIsNone(game["session"])
+        self.assertEqual(game["session"]["storedId"], "conv")  # a project new to the library is its chat's game
         self.assertEqual(answer["pending"], [])
         self.assertEqual(game["chat"]["sessionId"], "run-1")
         self.assertEqual(game["chat"]["profile"], "studio")
@@ -413,6 +434,8 @@ class GamesRpc(unittest.TestCase):
         later = rom.stat().st_mtime + 600
         os.utime(rom, (later, later))
         registry = games.Registry(paths.library_dir())
+        registry.upsert(str(root))
+        registry.bind(games.game_id(root), "conv", self.identity)  # this chat is the game's conversation
         registry.observe(
             "rom_build",
             {},
@@ -451,14 +474,21 @@ class GamesRpc(unittest.TestCase):
 
     def test_present_falls_back_to_the_chat_link_then_needs_a_project(self):
         root = make_project(self.base)
-        games.Registry(paths.library_dir()).upsert(
-            str(root), chat={"conversationId": "conv", "sessionId": "old-run", "profile": self.identity}
-        )
+        registry = games.Registry(paths.library_dir())
+        registry.upsert(str(root), chat={"conversationId": "conv", "sessionId": "old-run", "profile": self.identity})
+        registry.bind(games.game_id(root), "conv", self.identity)
         payload = self.present()  # no broker running (setUp): the library's chat link
         self.assertTrue(payload["ok"], payload)
         self.assertEqual(payload["studio"]["gameId"], games.game_id(root))
         payload = self.present(conversation_id="other", session_id="other-run")
         self.assertEqual((payload["ok"], payload["code"]), (False, "NO_PROJECT"))
+
+    def test_a_chat_link_left_after_stop_editing_does_not_let_that_chat_act_on_the_game(self):
+        root = make_project(self.base)
+        registry = games.Registry(paths.library_dir())
+        registry.upsert(str(root), chat={"conversationId": "conv", "sessionId": "old-run", "profile": self.identity})
+        self.assertEqual(self.present()["code"], "GAME_CHAT_ONLY")
+        self.assertEqual(self.present({"project": str(root)}, conversation_id="else")["code"], "GAME_CHAT_ONLY")
 
     def test_an_explicit_project_is_used_and_checked(self):
         root = make_project(self.base)

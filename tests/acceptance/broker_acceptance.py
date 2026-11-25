@@ -142,7 +142,7 @@ def exercise(suite):
         golden_path.check_golden_path(suite)
         ownership.check_child_lease(suite, client_a, edited_source, last_frame)
         client_c = connections.enter_context(BrokerClient(suite.state))
-        ownership.check_writer_handoff(suite, client_a, client_c)
+        ownership.check_one_game_per_chat(suite, client_a, client_c)
         ownership.check_hardware_policy(suite, client_a)
         ownership.check_desktop_activity(suite, control)
         recovery.check_worker_restart(suite, client_a)

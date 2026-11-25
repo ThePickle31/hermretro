@@ -26,9 +26,9 @@ class Guards(unittest.TestCase):
         self.registry.bind(games.game_id(self.frog), "st-frog", PROFILE)
         self.broker = bare_broker(games=self.registry)
 
-    def guard(self, conversation, tool, arguments, continue_here=False):
+    def guard(self, conversation, tool, arguments):
         lane = Lane((PROFILE, conversation))
-        self.broker.guard_selection(lane.owner, lane, tool, arguments, continue_here)
+        self.broker.guard_selection(lane.owner, lane, tool, arguments)
 
     def denied(self, *args, **kwargs):
         with self.assertRaises(Denied) as refused:
@@ -46,21 +46,29 @@ class Guards(unittest.TestCase):
         refused = self.denied("st-frog", "project_create", {"name": "X", "destinationPath": str(self.base / "x")})
         self.assertEqual(refused.code, "ONE_GAME_PER_CONVERSATION")
         self.assertIn("create another project", str(refused))
-        # continueInThisChat never lifts the hard block
-        self.denied("st-frog", "project_select", {"projectPath": str(self.comet)}, continue_here=True)
 
-    def test_another_chat_is_warned_and_may_continue_once_the_user_confirms(self):
+    def test_no_other_chat_opens_a_game_that_has_its_own_conversation(self):
         refused = self.denied("plain-chat", "project_select", {"projectPath": str(self.frog)})
-        self.assertEqual(refused.code, "GAME_HAS_CONVERSATION")
-        self.assertIn("continueInThisChat", str(refused))
-        self.guard("plain-chat", "project_select", {"projectPath": str(self.frog)}, continue_here=True)
-        self.assertEqual(self.broker.events[-1]["event"], "continued_outside_game_conversation")
+        self.assertEqual(refused.code, "GAME_CHAT_ONLY")
+        self.assertIn("Build page", str(refused))
+        # The old escape (continueInThisChat) is gone: the argument is not hermretro's any more.
+        self.denied("plain-chat", "project_select", {"projectPath": str(self.frog), "continueInThisChat": True})
 
-    def test_a_chat_in_another_profile_is_warned_too(self):
+    def test_no_other_chat_opens_a_game_that_has_no_conversation_yet(self):
+        refused = self.denied("plain-chat", "project_select", {"projectPath": str(self.comet / "comet-drift.gbsproj")})
+        self.assertEqual(refused.code, "GAME_CHAT_ONLY")
+        self.assertIn("Comet Drift", str(refused))
+
+    def test_nor_a_project_inside_a_games_folder(self):
+        nested = make_project(self.comet, "Nested")  # a project inside a game's folder is that game's files
+        refused = self.denied("plain-chat", "project_select", {"projectPath": str(nested)})
+        self.assertEqual(refused.code, "GAME_CHAT_ONLY")
+
+    def test_a_chat_in_another_profile_is_refused_too(self):
         lane = Lane(("/profiles/other", "plain-chat"))
         with self.assertRaises(Denied) as refused:
-            self.broker.guard_selection(lane.owner, lane, "project_select", {"projectPath": str(self.frog)}, False)
-        self.assertEqual(refused.exception.code, "GAME_HAS_CONVERSATION")
+            self.broker.guard_selection(lane.owner, lane, "project_select", {"projectPath": str(self.frog)})
+        self.assertEqual(refused.exception.code, "GAME_CHAT_ONLY")
 
     def test_a_conversation_whose_game_folder_is_gone_is_told_so(self):
         import shutil
@@ -69,19 +77,21 @@ class Guards(unittest.TestCase):
         refused = self.denied("st-frog", "project_select", {"projectPath": str(self.comet)})
         self.assertEqual(refused.code, "GAME_FOLDER_MISSING")
 
-    def test_games_without_a_conversation_and_new_projects_are_open_to_any_chat(self):
-        self.guard("plain-chat", "project_select", {"projectPath": str(self.comet)})
+    def test_any_other_chat_may_make_a_new_project_or_open_one_the_library_does_not_have(self):
         self.guard("plain-chat", "project_create", {"name": "Y", "destinationPath": str(self.base / "y")})
+        loose = make_project(self.base / "elsewhere", "Loose")
+        self.guard("plain-chat", "project_select", {"projectPath": str(loose)})
 
-    def test_a_new_game_conversation_makes_a_project_but_opens_no_existing_game(self):
+    def test_a_new_game_conversation_makes_a_project_but_opens_no_project(self):
         self.registry.build_start("st-new", PROFILE)
         self.guard("st-new", "project_create", {"name": "Z", "destinationPath": str(self.base / "z")})
-        # Even a game without a conversation: it would stay selected once the new project claims this chat.
-        refused = self.denied("st-new", "project_select", {"projectPath": str(self.comet)})
-        self.assertEqual(refused.code, "NEW_GAME_ONLY")
-        self.assertIn("chromatic_project_create", str(refused))
-        refused = self.denied("st-new", "project_select", {"projectPath": str(self.frog)}, continue_here=True)
-        self.assertEqual(refused.code, "GAME_HAS_CONVERSATION")
+        # Not even one without a conversation, nor one outside the library: it would stay selected once the new
+        # project claims this chat.
+        loose = make_project(self.base / "elsewhere", "Loose")
+        for target in (self.comet, self.frog, loose):
+            refused = self.denied("st-new", "project_select", {"projectPath": str(target)})
+            self.assertEqual(refused.code, "NEW_GAME_ONLY")
+            self.assertIn("chromatic_project_create", str(refused))
 
 
 class AutoSelect(unittest.TestCase):

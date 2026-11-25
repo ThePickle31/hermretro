@@ -24,6 +24,8 @@ DEFAULT_CALL_TIMEOUT = 900.0
 # engine's 30 s to save.
 RECORDING_DEFAULT = 180.0
 RECORDING_SAVE = 30.0
+# Arguments that name a file an engine call writes; checked against the games inside this chat's game (guard_ownership).
+WRITE_PATH_KEYS = ("outputPath", "assetPath", "atlasPath", "recipePath", "backgroundPath", "recordingPath")
 
 
 def canonical_hash(value) -> str:
@@ -262,8 +264,17 @@ class LaneMixin:
             )
             if restarted and lane.selected_project_path:
                 # The previous worker is gone, and with it the emulator, preview and held input.
-                # Source selection is rebuildable from disk, so restore that and say what was lost.
-                result = engine.call_tool("project_select", {"projectPath": lane.selected_project_path}, timeout=120)
+                # Source selection is rebuildable from disk, so restore that and say what was lost; never a game
+                # this chat no longer owns (Stop editing, or another chat's).
+                try:
+                    owned = self.ownership_refusal(lane) is None
+                except Exception:
+                    owned = False
+                result = (
+                    engine.call_tool("project_select", {"projectPath": lane.selected_project_path}, timeout=120)
+                    if owned
+                    else {"isError": True}
+                )
                 restored = not result.get("isError")
                 if not restored:
                     self._release_root(lane)
@@ -371,23 +382,21 @@ class LaneMixin:
         path = arguments.get("projectPath") if tool == "project_select" else arguments.get("destinationPath")
         if not isinstance(path, str) or not path.strip():
             return None
-        path = os.path.expanduser(path.strip())
-        if not os.path.isabs(path):
-            if not lane.selected_root:
-                raise Denied(
-                    "INVALID_ARGUMENTS",
-                    f"{'projectPath' if tool == 'project_select' else 'destinationPath'} must be an absolute path "
-                    "here. Nothing was changed.",
-                )
-            path = os.path.join(lane.selected_root, path)
-        real = os.path.realpath(path)
+        path = path.strip()
+        if path.startswith("~") or (not os.path.isabs(path) and not lane.selected_root):
+            raise Denied(
+                "INVALID_ARGUMENTS",
+                f"{'projectPath' if tool == 'project_select' else 'destinationPath'} must be an absolute path "
+                "here. Nothing was changed.",
+            )
+        real = str(library.engine_path(path, lane.selected_root))  # ``..`` first, then links, as the engine does
         return os.path.dirname(real) if tool == "project_select" and os.path.isfile(real) else real
 
     def _project_holding(self, target: str) -> str | None:
         """The game folder ``target`` would be made inside: a library game's existing folder above it, or a folder
         above it holding a GB Studio project (one another chat is making right now is not in the library yet).
         ``target`` itself is the engine's to refuse: it only makes a project in a new folder."""
-        game = self.games.game_around(target)
+        game = self.games.owning_game(str(Path(target).parent))
         if game is not None:
             return os.path.realpath(game["projectRoot"])
         for folder in Path(target).parents:
@@ -398,11 +407,10 @@ class LaneMixin:
                 continue
         return None
 
-    def guard_selection(
-        self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict, continue_here: bool
-    ) -> None:
-        """A game's conversation works on that game only; another conversation that opens a game with
-        its own conversation is warned first (it may continue once the user confirms)."""
+    def guard_selection(self, owner: tuple[str, str], lane: Lane, tool: str, arguments: dict) -> None:
+        """A library game is opened and edited only from its own conversation: a game's conversation works on that game
+        only, a New Game conversation only makes its new project, and any other chat makes new projects (each becomes
+        that chat's game) but opens no library game."""
         profile, conversation = owner
         kind, bound = self.games.binding_for(profile, [conversation, *lane.sessions_seen])
         target = self._selection_target(lane, tool, arguments)
@@ -426,8 +434,8 @@ class LaneMixin:
                 "game, start one with New Game on the hermretro Build page; to work on another game, "
                 "open that game on the Build page. Nothing was changed.",
             )
-        if target and tool != "project_select":
-            holder = self._project_holding(target)
+        if tool != "project_select":
+            holder = self._project_holding(target) if target else None
             if holder is not None:
                 where = os.path.realpath(paths.games_dir())
                 inside = where == holder or where.startswith(holder.rstrip(os.sep) + os.sep)
@@ -442,32 +450,82 @@ class LaneMixin:
                     )
                     + " Nothing was changed.",
                 )
-        entry = self.games.game_for_root(target) if target and tool == "project_select" else None
-        if kind == "pending" and isinstance(entry, dict):
-            # A new game's conversation makes its own project: an existing game it opened would stay selected
-            # after the new project claims the conversation, and its edits and builds would go there.
+            return
+        if kind == "pending":
+            # A New Game conversation makes its own project: one it opened would stay selected after the new project
+            # claims the conversation, and its edits and builds would go there.
+            raise Denied(
+                "NEW_GAME_ONLY",
+                "This conversation is for a new game, so it opens no existing project. Create the new game's "
+                "project with chromatic_project_create or chromatic_project_create_blank. To work on an existing "
+                "game, tell the user to open it on the hermretro Build page. Nothing was changed.",
+            )
+        # The game itself, or the game whose folder holds it (a project inside a game's folder is that game's files).
+        entry = self.games.owning_game(target) if target else None
+        if isinstance(entry, dict):
             title = entry.get("title") or os.path.basename(target)
             raise Denied(
-                "GAME_HAS_CONVERSATION" if isinstance(entry.get("session"), dict) else "NEW_GAME_ONLY",
-                f"This conversation is for a new game, so it does not open \"{title}\". Create the new game's "
-                "project with chromatic_project_create or chromatic_project_create_blank. To work on "
-                f"\"{title}\", tell the user to open it on the hermretro Build page. Nothing was changed.",
+                "GAME_CHAT_ONLY",
+                f"\"{title}\" is a hermretro game, and a game is worked on only in its own conversation. Tell the "
+                f"user to open \"{title}\" on the hermretro Build page and continue there. Nothing was changed.",
             )
-        session = entry.get("session") if isinstance(entry, dict) else None
-        if not isinstance(session, dict):
-            return
-        title = entry.get("title") or os.path.basename(target)
-        if continue_here:
-            self.trace(event="continued_outside_game_conversation", owner_key=lane.key)
-            return
-        raise Denied(
-            "GAME_HAS_CONVERSATION",
-            f"\"{title}\" has its own conversation on the hermretro Build page. Changes made here will "
-            "not be in that game's conversation history. Tell the user this and ask whether to continue "
-            "here anyway or open the game on the Build page. Only if the user says to continue here, call "
-            "chromatic_project_select again with the same projectPath and continueInThisChat set to "
-            "true. Nothing was changed.",
+
+    def ownership_refusal(self, lane: Lane, snapshot: dict | None = None) -> Denied | None:
+        """Why this chat may not work on the project its worker has open: the library game holding it is not this
+        chat's own (another conversation's, or none since Stop editing). None when it may, or nothing is open, or the
+        project is in no library game."""
+        if not lane.selected_root:
+            return None
+        data = self.games.load() if snapshot is None else snapshot
+        game = self.games.owning_game(lane.selected_root, snapshot=data)
+        if game is None:
+            return None
+        kind, bound = self.games.binding_for(lane.owner[0], [lane.owner[1], *lane.sessions_seen], snapshot=data)
+        if kind == "game" and bound.get("id") == game["id"]:
+            return None
+        title = game.get("title") or os.path.basename(game["projectRoot"])
+        return Denied(
+            "GAME_CHAT_ONLY",
+            f"\"{title}\" is no longer this conversation's game: a game is worked on only in its own conversation. "
+            f"Tell the user to open \"{title}\" on the hermretro Build page and continue there. Nothing was changed.",
         )
+
+    def guard_ownership(self, lane: Lane, arguments: dict) -> None:
+        """Before a call that changes a project or runs its game: refuse it unless the open project is this chat's own
+        game, and refuse a path argument that lands in another game's folder (a library game inside this one's)."""
+        data = self.games.load()
+        refusal = self.ownership_refusal(lane, data)
+        if refusal is not None:
+            self._release_root(lane)  # let the game's own conversation write at once
+            raise refusal
+        if not lane.selected_root:
+            return
+        mine = self.games.owning_game(lane.selected_root, snapshot=data)
+        for key in WRITE_PATH_KEYS:
+            value = arguments.get(key)
+            if not isinstance(value, str) or not value.strip() or value.strip().startswith("~"):
+                continue
+            found = self.games.owning_game(str(library.engine_path(value.strip(), lane.selected_root)), snapshot=data)
+            if found is not None and (mine is None or found["id"] != mine["id"]):
+                title = found.get("title") or os.path.basename(found["projectRoot"])
+                raise Denied(
+                    "INSIDE_ANOTHER_GAME",
+                    f"{key} {value} is in the game \"{title}\" ({found['projectRoot']}), not this conversation's "
+                    "game: each game's files are written only from its own conversation. Give a path in this game's "
+                    f"own folder. To work on \"{title}\", tell the user to open it on the hermretro Build page. "
+                    "Nothing was changed.",
+                )
+
+    def confirm_selection(self, lane: Lane) -> None:
+        """After a successful selection: the project the worker really has open must be this chat's own game. One
+        another chat claimed first (two chats bringing the same project into the library at once) is closed again."""
+        refusal = self.ownership_refusal(lane)
+        if refusal is None:
+            return
+        self._release_root(lane)
+        lane.selected_root = lane.selected_project_path = None
+        self.close_lane_engine(lane, "selection_not_owned")
+        raise refusal
 
     def select_bound_game(self, lane: Lane, engine: EngineProcess) -> None:
         """A game's conversation works on its game: selected for it when nothing is, and again when another project

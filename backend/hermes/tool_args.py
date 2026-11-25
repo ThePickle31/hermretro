@@ -34,16 +34,39 @@ NEXT_STEPS = {
 }
 
 
+def _same_folder(one, other) -> bool:
+    try:
+        return os.path.samefile(one, other)
+    except (OSError, ValueError):
+        return False
+
+
 def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id: str) -> str | None:
-    """The refusal when this chat may not act on ``folder``: ``ONE_GAME_PER_CONVERSATION`` for a game's Build
-    conversation and another folder, ``NEW_GAME_ONLY`` for a New Game conversation and an existing library game; None
-    when the chat may act on it."""
-    kind, bound = host._chat_binding(conversation_id, session_id)
-    if kind == "pending":
-        other = host._registry().game_for_root(str(folder))
-        if other is None:
+    """The refusal when this chat may not act on ``folder``: a library game is acted on only from its own
+    conversation. ``ONE_GAME_PER_CONVERSATION`` for a game's Build conversation and another folder, ``NEW_GAME_ONLY``
+    for a New Game conversation and an existing library game, ``GAME_CHAT_ONLY`` for any other chat and a library
+    game; None when the chat may act on it."""
+    registry = host._registry()
+    data = registry.load()
+    ids = [value for value in (conversation_id, session_id) if value]
+    kind, bound = registry.binding_for(host._profile_identity(), ids, snapshot=data) if ids else (None, None)
+    # The game the folder is in: itself, or the deepest game whose folder holds it.
+    other = registry.owning_game(str(folder), snapshot=data)
+    if kind == "game":
+        if other is not None and other["id"] == bound.get("id") and _same_folder(folder, other["projectRoot"]):
             return None
-        title = other.get("title") or Path(other["projectRoot"]).name
+        title = bound.get("title") or Path(bound["projectRoot"]).name
+        return tool_error(
+            f"This conversation belongs to the game \"{title}\" ({bound['projectRoot']}), so {tool} cannot act on "
+            f"{folder}. Nothing was changed.",
+            "ONE_GAME_PER_CONVERSATION",
+            f"Leave out project to act on \"{title}\". To work on another game, tell the user to open it on the "
+            "hermretro Build page.",
+        )
+    if other is None:
+        return None
+    title = other.get("title") or Path(other["projectRoot"]).name
+    if kind == "pending":
         return tool_error(
             f"This conversation is for a new game, so {tool} cannot act on \"{title}\" ({other['projectRoot']}). "
             "Nothing was changed.",
@@ -51,22 +74,19 @@ def other_game_refusal(tool: str, folder: Path, conversation_id: str, session_id
             "Create the new game's project first and leave out project. To work on that game, tell the user to open "
             "it on the hermretro Build page.",
         )
-    if kind != "game" or os.path.realpath(folder) == os.path.realpath(bound["projectRoot"]):
-        return None
-    title = bound.get("title") or Path(bound["projectRoot"]).name
     return tool_error(
-        f"This conversation belongs to the game \"{title}\" ({bound['projectRoot']}), so {tool} cannot act on "
-        f"{folder}. Nothing was changed.",
-        "ONE_GAME_PER_CONVERSATION",
-        f"Leave out project to act on \"{title}\". To work on another game, tell the user to open it on the "
-        "hermretro Build page.",
+        f"\"{title}\" ({other['projectRoot']}) is worked on only in its own conversation, so {tool} cannot act on "
+        "it from this chat. Nothing was changed.",
+        "GAME_CHAT_ONLY",
+        f"Tell the user to open \"{title}\" on the hermretro Build page and continue there.",
     )
 
 
 def tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str | None]:
     """The project a plugin-owned tool acts on: ``project`` when given, else this chat's. A game's Build
     conversation acts on its own game only. Returns ``(root, None)`` or ``(None, error json)``; the codes are
-    ``INVALID_ARGUMENTS``, ``PROJECT_NOT_FOUND``, ``ONE_GAME_PER_CONVERSATION`` and ``NO_PROJECT``."""
+    ``INVALID_ARGUMENTS``, ``PROJECT_NOT_FOUND``, ``ONE_GAME_PER_CONVERSATION``, ``NEW_GAME_ONLY``, ``GAME_CHAT_ONLY``
+    and ``NO_PROJECT``."""
     conversation_id = str(kwargs.get("conversation_id") or "")
     session_id = str(kwargs.get("session_id") or "")
     project = args.get("project")
@@ -89,4 +109,8 @@ def tool_project(tool: str, args: dict, kwargs: dict) -> tuple[str | None, str |
             "pass project).",
             "NO_PROJECT",
         )
+    # The chat's project can be a game this chat no longer owns (its chat link after Stop editing).
+    refused = other_game_refusal(tool, Path(root), conversation_id, session_id)
+    if refused:
+        return None, refused
     return root, None

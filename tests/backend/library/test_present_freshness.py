@@ -28,11 +28,13 @@ class PresentFreshness(unittest.TestCase):
         patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
         patch.start()
         self.addCleanup(patch.stop)
-        _id, self.root = make_library_game(self.home)
+        _id, self.root = make_library_game(self.home, chat="game-chat")
         self.web = self.root / "build" / "web"
 
     def present(self):
-        answer = library_tools.present_game_handler({"project": str(self.root)}, conversation_id="", session_id="")
+        answer = library_tools.present_game_handler(
+            {"project": str(self.root)}, conversation_id="game-chat", session_id=""
+        )
         return json.loads(answer)
 
     def freshness(self):

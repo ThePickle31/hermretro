@@ -264,7 +264,8 @@ class Layout(unittest.TestCase):
             return (hooks.guard_game_record(tool_name=tool, args=args) or {}).get("action") == "block"
 
         notes = (
-            "*** Begin Patch\n*** Update File: docs/notes.md\n@@\n+ids live in .hermretro/identity.json\n*** End Patch"
+            f"*** Begin Patch\n*** Update File: {self.home.base / 'notes.md'}\n@@\n+ids live in .hermretro/identity.json\n"
+            "*** End Patch"
         )
         self.assertFalse(blocked("patch", {"mode": "patch", "patch": notes}))
         self.assertTrue(blocked("write_file", {"path": str(alias / "identity.json")}))
@@ -277,11 +278,11 @@ class PresentLayout(unittest.TestCase):
         patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
         patch.start()
         self.addCleanup(patch.stop)
-        _id, self.root = make_library_game(home)
+        _id, self.root = make_library_game(home, chat="game-chat")
 
     def present(self):
         return json.loads(
-            library_tools.present_game_handler({"project": str(self.root)}, conversation_id="", session_id="")
+            library_tools.present_game_handler({"project": str(self.root)}, conversation_id="game-chat", session_id="")
         )
 
     def test_an_edited_id_is_put_back_before_the_game_is_shown(self):

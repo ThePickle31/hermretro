@@ -262,17 +262,15 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
             lane.sessions_seen.append(session_id)
             del lane.sessions_seen[:-16]
         if tool in SELECTORS:
-            # `continueInThisChat` is hermretro's own argument (the user confirmed working on a game outside
-            # its conversation); the engine never sees it.
-            arguments = dict(arguments)
-            continue_here = arguments.pop("continueInThisChat", None) is True
-            self.guard_selection(owner, lane, tool, arguments, continue_here)
+            self.guard_selection(owner, lane, tool, arguments)
 
         with self.table_lock:
             lane.last_used = time.monotonic()  # before the engine is fetched: see close_lane_if_idle
         engine = self.ensure_engine(lane)
         if not delegated and kind in ("read", "project-write", "runtime"):
             self.select_bound_game(lane, engine)
+        if kind in ("project-write", "runtime"):
+            self.guard_ownership(lane, arguments)  # only a game's own conversation changes it or runs it
         if tool == "rom_build" and lane.selected_root:
             arguments = game_rom_arguments(lane.selected_root, arguments)
         if tool == "scene_apply":
@@ -371,6 +369,8 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
             lane.remember(tool, kind, result, time.time() - started, arguments)
         except Exception as error:  # display bookkeeping must never fail a call
             self.trace(event="activity_record_failed", error=str(error)[:200])
+        if kind == "select" and not result.get("isError"):
+            self.confirm_selection(lane)  # the root really opened is this chat's own game (or the library's none)
         player = None
         if (
             tool == "rom_build"

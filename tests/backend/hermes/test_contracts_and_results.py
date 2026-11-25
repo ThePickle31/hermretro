@@ -38,7 +38,7 @@ class ContractTests(unittest.TestCase):
                 required = [key for key in required if key != "operations"]
             self.assertEqual(schema["parameters"].get("required"), required)
             # hermretro's own arguments (the broker takes them out before the engine sees the call).
-            extra = {"project_select": ["continueInThisChat"], "scene_apply": ["operationsPath"]}.get(tool["name"], [])
+            extra = {"scene_apply": ["operationsPath"]}.get(tool["name"], [])
             self.assertEqual(
                 sorted(schema["parameters"].get("properties", {})),
                 sorted([*tool["inputSchema"].get("properties", {}), *extra]),

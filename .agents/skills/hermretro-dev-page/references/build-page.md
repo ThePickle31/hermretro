@@ -26,14 +26,21 @@ menu, Escape closes the right-click menu, then the library list, then the menu. 
 - **Stop editing** unbinds the game (`build` `unbind`) and un-hides its session (`session.set_hidden
   {hidden: false}`), so the old conversation shows up in the Hermes sidebar instead of being lost. The
   game goes back under Edit a game; editing it again starts a new conversation.
-- **Guards (broker, `guard_selection`):** a game's conversation that tries to create a project or
-  select a different one is refused (`ONE_GAME_PER_CONVERSATION`, "start a new game from Build").
-  Another chat selecting a game that has its own conversation is warned (`GAME_HAS_CONVERSATION`);
-  it may continue once the user confirms, by selecting again with `continueInThisChat: true`
-  (hermretro's own `project_select` argument, removed before the engine sees it). A New Game
-  conversation creates its project and opens no existing game (`NEW_GAME_ONLY`, or `GAME_HAS_CONVERSATION` for a
-  bound one): what it opened would stay selected after its new project claims it; nor does it name one in the card,
-  present or report tools. No chat creates a project inside another game's folder, a library game's or any folder
+- **Guards (broker, `guard_selection`):** a library game is opened and edited only from its own conversation. A
+  game's conversation that tries to create a project or select a different one is refused
+  (`ONE_GAME_PER_CONVERSATION`, "start a new game from Build"). Any other chat selecting a library game, or a project
+  inside a game's folder, is refused (`GAME_CHAT_ONLY`), whether or not the game has a conversation yet: the user
+  opens it on the Build page, which gives it one. Such a chat may still make a new project or open one the library
+  does not have, and becomes that game's conversation in the same locked step that registers it (`upsert(claim=…)`,
+  from the broker's `observe`); one that lost that race to another chat has its worker closed again
+  (`confirm_selection`). Paths are read as the engine reads them (`library.engine_path`: `..` first, then links), and
+  the game is the deepest library folder holding the path. Every call that changes or runs a project
+  (`guard_ownership`) is refused unless the open project is this chat's own game, so a chat that stopped editing a
+  game (or whose worker restarted) cannot keep changing it, and a path argument (`WRITE_PATH_KEYS`) into a game inside
+  this one is refused (`INSIDE_ANOTHER_GAME`). A New Game
+  conversation creates its project and opens no project (`NEW_GAME_ONLY`): what it opened would stay selected after
+  its new project claims it; nor does it name one in the card, present or report tools. Hermes's file tools follow
+  the same rule (the library's `pre_tool_call`). No chat creates a project inside another game's folder, a library game's or any folder
   holding a `.gbsproj` (`INSIDE_ANOTHER_GAME`; the same folder is the engine's `PROJECT_ALREADY_EXISTS`, so a
   default name still moves to the next number). Selector paths are read as the engine reads them (trimmed; relative
   only against an open project). A game's conversation that has another project open is moved back to its game, and
