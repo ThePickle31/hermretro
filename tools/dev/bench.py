@@ -5,7 +5,7 @@ of what each chat cost and where its time went, read from Hermes's own records.
 each with its log in a run folder under `notes/bench/`, and waits for them all; `run.json` there records each game's
 process, start, exit and session. The running gateway serves those chats with the plugin code it loaded, so `run`
 first makes sure that is the code the profile loads now (`current_gateway`). `report` reads the studio profile's
-`state.db` (read-only) and `logs/errors.log`.
+`state.db` (read-only) and `logs/errors.log`; `compare` (bench_compare.py) sets two runs' reports side by side.
 Standard library only; development only; Linux and macOS.
 """
 
@@ -187,12 +187,17 @@ class Game(NamedTuple):
     exited: float | None = None
 
 
+def run_record(folder: Path) -> dict:
+    """A run folder's `run.json`."""
+    if not (folder / "run.json").is_file():
+        raise BenchError(f"{folder} is not a run folder (no run.json)")
+    return json.loads((folder / "run.json").read_text(encoding="utf-8"))
+
+
 def run_sessions(folder: Path, db: sqlite3.Connection) -> dict[str, Game]:
     """Each game of a run and its session: the one its log printed, else the one session with exactly its prompt
     that started while its chat ran (a chat stopped before printing its id)."""
-    if not (folder / "run.json").is_file():
-        raise BenchError(f"{folder} is not a run folder (no run.json)")
-    record = json.loads((folder / "run.json").read_text(encoding="utf-8"))
+    record = run_record(folder)
     found = {}
     for name, game in record["games"].items():
         session = game.get("session") or logged_session(folder / game["log"])

@@ -159,6 +159,31 @@ while that chat ran, else none; a session the stopped chat left open ends when t
 fixture database (`tests/dev/test_bench.py`) and, for `run`, a stand-in gateway and `hermes`
 (`tests/dev/test_bench_run.py`): no test reloads or reaches the real gateway.
 
+`python tools/dev bench compare` sets a run (`--run <folder>`, default the newest) beside an earlier one
+(`--against <folder>`, default the newest run before it in the same folder that made every one of its games): for
+each game both made, every measure of the report in each run and its change, then the games that got clearly worse.
+It exits 1 when one did. A game got clearly worse when it no longer ended normally or, when both chats ended normally,
+when a measure rose by at least its floor and by more than its share of the earlier value:
+
+| Measure | Floor | Share |
+|---|---|---|
+| wall time | 5 minutes | 25% |
+| estimated cost | $2 | 25% |
+| model calls | 20 | 25% |
+| tool calls | 40 | 25% |
+| failed builds, compactions | 2 | 50% |
+| duplicate drops | 5 | 50% |
+| source commands, source file reads, tool errors | 3 | 50% |
+
+Step calls, builds and checkpoint restores move with how a game was made more than with how well, so they are shown,
+not judged. The thresholds are `MEASURES` in `tools/dev/bench_compare.py`; the floors leave room for one chat running
+differently from the next, so a game called worse is a session to read, not proof. It reads what `report` reads,
+read-only. Its tests use fixture runs and a fixture database (`tests/dev/test_bench_compare.py`).
+
+Run Bolt and Starling on each release candidate: `python tools/dev bench run bolt starling` (in the background) on
+the candidate, then `python tools/dev bench compare`, and read the session of any game it calls clearly worse before
+releasing.
+
 ## Where tests live
 
 Tests mirror the code: `tests/backend/<feature>/test_*.py` for each backend feature, `tests/page/` for the page

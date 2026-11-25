@@ -12,8 +12,9 @@
   ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
   mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
                     FOLDER/gallery.html
-  bench run|report  the benchmark: every game in tools/dev/bench_games/ made at once by a one-shot chat in the
-                    studio profile (run, which waits for them all), and what each cost (report)
+  bench VERB        the benchmark: every game in tools/dev/bench_games/ made at once by a one-shot chat in the
+                    studio profile (run, which waits for them all), what each cost (report), and each game against
+                    an earlier run's, non-zero when one got clearly worse (compare)
 
 Standard library only; Linux and macOS.
 """
@@ -34,6 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import bench  # noqa: E402 - this folder, put on the path just above
+import bench_compare  # noqa: E402
 import local_hermes as hermes  # noqa: E402
 import mockup  # noqa: E402
 import studio  # noqa: E402
@@ -307,11 +309,21 @@ def cmd_bench(args) -> int:
     if args.verb == "report":
         if args.games:
             raise bench.BenchError("bench report takes no games (--run FOLDER or --sessions ID ...)")
+        if args.against:
+            raise bench.BenchError("--against is for bench compare")
         folder = None if args.sessions else Path(args.folder).resolve() if args.folder else bench.latest_run(bench.RUNS)
         print(bench.table(bench.reports(profile, folder, args.sessions)))
         return 0
-    if args.folder or args.sessions:
-        raise bench.BenchError("--run and --sessions are for bench report")
+    if args.verb == "compare":
+        if args.games or args.sessions:
+            raise bench.BenchError("bench compare takes no games or sessions (--run FOLDER, --against FOLDER)")
+        folder = Path(args.folder).resolve() if args.folder else bench.latest_run(bench.RUNS)
+        against = Path(args.against).resolve() if args.against else bench_compare.previous_run(folder)
+        text, worse = bench_compare.compare(profile, folder, against)
+        print(text)
+        return 1 if worse else 0
+    if args.folder or args.sessions or args.against:
+        raise bench.BenchError("--run and --sessions are for bench report, --run and --against for bench compare")
     prompts = bench.games(args.games)  # a bad name ends it before the gateway is asked or reloaded
     for needed in ("hermes", "node"):  # node asks the gateway which code it runs
         if shutil.which(needed) is None:
@@ -379,11 +391,16 @@ def parser() -> argparse.ArgumentParser:
     round_.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
     round_.set_defaults(run=cmd_mockup)
     benchmark = commands.add_parser("bench")
-    benchmark.add_argument("verb", choices=["run", "report"])
+    benchmark.add_argument("verb", choices=["run", "report", "compare"])
     benchmark.add_argument("games", nargs="*", help="run: only the games whose name contains one of these")
     which = benchmark.add_mutually_exclusive_group()
-    which.add_argument("--run", dest="folder", help="report: this run folder (default: the newest in notes/bench/)")
+    which.add_argument(
+        "--run", dest="folder", help="report, compare: this run folder (default: the newest in notes/bench/)"
+    )
     which.add_argument("--sessions", nargs="+", help="report: these session ids instead of a run")
+    benchmark.add_argument(
+        "--against", help="compare: this earlier run (default: the newest before it that made all its games)"
+    )
     benchmark.set_defaults(run=cmd_bench)
     return top
 

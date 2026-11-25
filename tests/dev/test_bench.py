@@ -346,8 +346,8 @@ class RunSessionsTest(Fixture):
         self.assertEqual(bench.latest_run(runs).name, "20261125-090000")
 
 
-class CommandTest(Fixture):
-    """`python tools/dev bench report` against a profile home of its own."""
+class CliFixture(Fixture):
+    """`python tools/dev` with the fixture as its studio profile's home."""
 
     def setUp(self):
         super().setUp()
@@ -360,6 +360,10 @@ class CommandTest(Fixture):
         patcher = mock.patch.object(self.cli.hermes, "hermes_root", return_value=root)
         patcher.start()
         self.addCleanup(patcher.stop)
+
+
+class CommandTest(CliFixture):
+    """`python tools/dev bench report` against a profile home of its own."""
 
     def test_report_of_a_run_folder(self):
         self.session(ended=1060.0, reason="cli_close")
