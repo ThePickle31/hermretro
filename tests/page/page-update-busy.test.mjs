@@ -146,6 +146,9 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   await typeInto(document.querySelector('.cs-b-new textarea'), 'A lighthouse game')
   check('with an idea typed, New Game can start', () => { assert.equal(send().disabled, false) })
   await openChip(); await click('Update', scrim()); await settle(40)
+  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+  await act(async () => { scrim().dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true })) })
+  check('while updating, neither Escape nor a click beside the dialog closes it', () => { assert.ok(scrim()); assert.match(popover(), /Updating/) })
   check('while updating, New Game cannot start a game', () => {
     assert.ok(send(), 'the New Game composer is shown'); assert.equal(send().disabled, true)
     assert.match(send().getAttribute('title'), /hermretro is updating/)

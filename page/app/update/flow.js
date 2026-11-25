@@ -354,8 +354,9 @@ export async function runUpdate({
 /** Load files already on disk (an update made outside this page: a terminal, Capabilities > Plugins, git) into
  *  `studio` without updating: the same steps as the end of runUpdate, refused while something is being built.
  *  Resolves to `{ kind: 'reloaded', pageRefreshed }`, `{ kind: 'restart' }` (only a restart of Hermes loads it),
- *  `{ kind: 'busy', chats }` or `{ kind: 'failed', error }`; never throws. */
-export async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, onWaiting, waitMs, checkTries }) {
+ *  `{ kind: 'busy', chats }` or `{ kind: 'failed', error }`; never throws. `loadedNow()` is called once Hermes runs the
+ *  new code, right before the app is asked to refresh the page (so the page it loads can say how it went). */
+export async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, loadedNow = () => {}, onWaiting, waitMs, checkTries }) {
   let building
 
   try {
@@ -374,5 +375,11 @@ export async function runReload({ install, studio, busy = async () => [], confir
     return { kind: 'failed', error: loaded.error }
   }
 
-  return loaded.reloaded ? { kind: 'reloaded', pageRefreshed: await refreshDesktopHalf() } : { kind: 'restart' }
+  if (!loaded.reloaded) {
+    return { kind: 'restart' }
+  }
+
+  loadedNow()
+
+  return { kind: 'reloaded', pageRefreshed: await refreshDesktopHalf() }
 }

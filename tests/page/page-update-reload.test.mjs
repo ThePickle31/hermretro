@@ -45,6 +45,34 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, chec
   log.length = 0
   await render(); await settle(40)
   check('it is loaded once, never again in a loop', () => { assert.deepEqual(log, []) })
+  // The page the app loads next opens on the new version.
+  const marker = scenario.storage.update
+  await act(async () => { root.render(null) })
+  scenario.storage = { setup: { onboarded: true, hardwareSkipped: true }, page: 'games', update: marker }
+  scenario.status = answered({ ...status(), plugin: { version: '1.2.4', installed_in: { profile: 'default', linked: false } } })
+  await render(); await settle(40)
+  check('the reloaded page opens the dialog on the new version', () => { assert.match(dialog(), /You’re on 1\.2\.4/) })
+  // A second update made elsewhere while this page stays open: loaded too, once Hermes caught up with the first.
+  await click('Done', document.querySelector('.cs-upd-scrim'))
+  log.length = 0
+  scenario.status = stale(); await render(); await settle(40)
+  check('a later outside update in the same page is loaded too', () => { assert.deepEqual(log.slice(-2), ['toggle:false', 'toggle:true']) })
+
+  // A build starts after the last cached check: the live check refuses the load, and it is not retried on that same
+  // cached answer, only on a newer one.
+  let building = true
+  scenario.byMethod['session.active_list'] = () => { log.push('busy'); return { sessions: building ? [{ title: 'Comet Drift', status: 'working' }] : [] } }
+  await fresh()
+  await render(); await settle(40); await render(); await settle(40)
+  check('a build the live check finds stops the load, and the stale cached answer does not retry it', () => {
+    assert.equal(log.filter(entry => entry === 'busy').length, 1); assert.ok(!log.some(entry => entry.startsWith('toggle')))
+    assert.equal(scenario.storage.update ?? null, null)
+  })
+  building = false
+  scenario['update-busy'] = { ...answered([]), dataUpdatedAt: Date.now() + 60_000 }
+  await render(); await settle(40)
+  check('a newer check that finds nothing building loads it', () => { assert.deepEqual(log.slice(-2), ['toggle:false', 'toggle:true']) })
+  scenario.byMethod['session.active_list'] = () => { log.push('busy'); return { sessions: [] } }
 
   // A linked checkout: the dev loop reloads it.
   await fresh({ installedIn: { profile: null, linked: true } })
@@ -66,7 +94,9 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, chec
 
   toggleAnswer = params => (params.enable ? { ok: false, error: 'no' } : { ok: true })
   await fresh()
-  check('a plugin left switched off is said by the chip', () => { assert.equal(chip(), 'Finish update') })
+  check('a plugin left switched off is said by the chip, and nothing tells the next page it updated', () => {
+    assert.equal(chip(), 'Finish update'); assert.equal(scenario.storage.update ?? null, null)
+  })
   scenario.status = notLoaded
   await render()
   check('the failure stays said once hermretro stops answering', () => { assert.equal(chip(), 'Finish update') })

@@ -19,7 +19,8 @@ const MARKER_FRESH_MS = 15 * 60_000
 // While an update is ready, how often the hermretro profile's chats are checked for a build under way.
 const BUSY_EVERY_MS = 5_000
 const installingSentence = verb => `The game tools are being installed. You can ${verb} when that finishes.`
-// The version whose corner card was put away (Later, or a click beside it): it does not come back for that version.
+// The new version whose corner card was put away (Later, or a click beside it): `{ version, target }`, the release and
+// Hermes's update target it was known by; the card does not come back for either.
 const SEEN = 'updateLater'
 // Hermes installed the new version but the rest (the hermretro profile, the page) did not finish: { at, error }. Kept
 // until a run finishes, so Finish update resumes it even though Hermes now answers "unchanged".
@@ -120,8 +121,9 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
   const [seen, setSeen] = useState(() => stored(ctx, SEEN))
   const stale = Boolean(status.data?.restart_needed)
   const busy = useRef(false)
-  // The outside update this page already tried to load: tried once, never in a loop.
-  const autoTried = useRef(false)
+  // The outside update this page is loading or loaded (`tried`), and the busy check a build refused it after (`after`):
+  // it is tried again only on a newer idle answer, never in a loop.
+  const auto = useRef({ tried: false, after: -1 })
   // The status says the hermretro profile was made: not finding it is then an error, never "there is none".
   const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists)
 
@@ -136,8 +138,10 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
   const published = releases.data?.ok ? releases.data.releases : []
   const notes = releasesBetween(published, version)
   const latest = notes[0]?.version ?? null
-  const ready = Boolean(target) && (row?.update_available === true || notes.length > 0)
-  const key = latest ?? row?.update_target ?? 'ready'
+  // A published release counts only for an install Hermes would update (not one pinned to a commit).
+  const ready = Boolean(target) && (row?.update_available === true || (notes.length > 0 && Boolean(row) && !row.pinned_sha))
+  const updateTarget = row?.update_target ?? null
+  const putAway = Boolean(seen && ((latest && seen.version === latest) || (updateTarget && seen.target === updateTarget) || (!latest && !updateTarget && seen.version === null)))
   // Files on disk newer than what Hermes runs, in a copy Hermes installed (a linked checkout has the dev loop).
   const outside = running && stale && Boolean(installedIn) && !installedIn.linked
   const building = useQuery({
@@ -159,8 +163,10 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
   const blocked = blockedFor('update')
 
   const later = () => {
-    setSeen(key)
-    remember(ctx, SEEN, key)
+    const value = { version: latest, target: updateTarget }
+
+    setSeen(value)
+    remember(ctx, SEEN, value)
   }
 
   const start = async (options = {}) => {
@@ -173,7 +179,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     if (blocked) {
       // A build or the toolchain install finishes by itself: the update waits for it. An install error does not.
       if (!installError) {
-        setState(current => ({ ...current, queued: true }))
+        setState(current => ({ ...current, queued: options }))
       }
 
       return
@@ -238,7 +244,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
         phase: resume ? 'partial' : 'idle',
         step: 0,
         error: resume ? (current.error ?? null) : null,
-        queued: !resume,
+        queued: resume ? false : options,
         raced: outcome.chats,
         racedAt: building.dataUpdatedAt ?? 0
       }))
@@ -259,9 +265,6 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     busy.current = true
     setUpdating(true)
     setState({ phase: 'updating', step: 1 })
-    // Written first: the app may reload this page before runReload answers.
-    remember(ctx, UPDATE_MARKER, { result: 'updated', restart: false, at: Date.now(), from: version })
-
     let outcome
 
     try {
@@ -280,7 +283,14 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
         outcome = { kind: 'failed', error: `Could not reach the ${profile} profile, where hermretro is installed` }
       }
 
-      outcome ??= await runReload({ install, studio, busy: () => busyChats(studio), confirmInstallIdle })
+      outcome ??= await runReload({
+        install,
+        studio,
+        busy: () => busyChats(studio),
+        confirmInstallIdle,
+        // The app may reload this page before runReload answers.
+        loadedNow: () => remember(ctx, UPDATE_MARKER, { result: 'updated', restart: false, at: Date.now(), from: version })
+      })
     } finally {
       busy.current = false
       setUpdating(false)
@@ -291,8 +301,8 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     }
 
     if (outcome.kind === 'busy') {
-      // A build started meanwhile: tried again once nothing is building.
-      autoTried.current = false
+      // A build started meanwhile: tried again once a newer check says nothing is building.
+      auto.current = { tried: false, after: Date.now() }
       setState({ phase: 'idle', step: 0 })
     } else if (outcome.kind === 'failed') {
       setState({ phase: 'partial', step: 0, error: outcome.error, reloadOnly: true })
@@ -303,12 +313,20 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     void queryClient.invalidateQueries({ queryKey: [ID] })
   }
 
-  // An update made outside this page: loaded as soon as nothing is being built, once.
-  const canLoad = outside && state.phase === 'idle' && Array.isArray(building.data) && !blockedFor('reload')
+  // An update made outside this page: loaded as soon as nothing is being built, once per update (a later one, after
+  // Hermes caught up with the last, is loaded again). Not over an update of this page's own under way or asking.
+  const canLoad =
+    outside && ['idle', 'failed'].includes(state.phase) && Array.isArray(building.data) && (building.dataUpdatedAt ?? 0) > auto.current.after && !blockedFor('reload')
 
   useEffect(() => {
-    if (canLoad && !autoTried.current && !busy.current) {
-      autoTried.current = true
+    if (!stale) {
+      auto.current = { tried: false, after: -1 }
+    }
+  }, [stale])
+
+  useEffect(() => {
+    if (canLoad && !auto.current.tried && !busy.current) {
+      auto.current = { ...auto.current, tried: true }
       void reload()
     }
   }, [canLoad])
@@ -316,7 +334,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
   // The user asked to update while a build ran: it starts once nothing is.
   useEffect(() => {
     if (state.queued && state.phase === 'idle' && !blocked && !busy.current) {
-      void start()
+      void start(state.queued)
     }
   }, [state.queued, state.phase, blocked])
 
@@ -327,7 +345,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     visible: phase !== 'idle' || ready,
     ready,
     // the corner card: a new version the user has not put away yet
-    card: ready && phase === 'idle' && !state.queued && !open && seen !== key,
+    card: ready && phase === 'idle' && !state.queued && !open && !putAway,
     // Hermes answered for this install (so "up to date" can be said), and whether it is a linked checkout
     checked: Boolean(row),
     linked: Boolean(installedIn?.linked),

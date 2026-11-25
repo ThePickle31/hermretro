@@ -14,7 +14,7 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   const popover = () => scrim()?.textContent.replace(/\s+/g, ' ') ?? ''
   // The dialog's own buttons (the corner card and the Setup row have an Update too).
   const inDialog = label => [...(scrim()?.querySelectorAll('button') ?? [])].find(node => node.textContent === label)
-  const openChip = async () => { await act(async () => { chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
+  const openChip = async () => { await act(async () => { chip().focus(); chip().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
   // The app on the default profile, where the plugin was installed; the hermretro profile answers the page.
   const installed = { profile: 'default', linked: false }
   const base = (extra = {}) => ({ ...status(), plugin: { version: '1.2.3', installed_in: installed }, ...extra })
@@ -61,6 +61,12 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.match(popover(), /A new version is ready/)
     assert.ok(inDialog('Update')); assert.match(popover(), /What's new/); assert.ok(inDialog('Later'))
   })
+
+  check('focus moves into the dialog', () => { assert.ok(scrim().contains(document.activeElement)) })
+  const key = async name => { await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: name, bubbles: true })) }) }
+  await key('Escape')
+  check('Escape closes it and focus goes back to the chip', () => { assert.ok(!scrim()); assert.equal(document.activeElement, chip()) })
+  await openChip()
 
   // Update now: Hermes's update, the hermretro profile refreshed and reloaded, then the page refreshed.
   await click('Update', scrim())
@@ -166,15 +172,15 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   check('a new version shows the corner card', () => { assert.ok(card()); assert.ok(!scrim()) })
   await click('Later', card())
   check('Later puts the card away for this version and keeps the chip', () => {
-    assert.ok(!card()); assert.ok(chip()); assert.equal(scenario.storage.updateLater, 'abc123')
+    assert.ok(!card()); assert.ok(chip()); assert.deepEqual(scenario.storage.updateLater, { version: null, target: 'abc123' })
   })
-  await fresh({ updateLater: 'abc123' })
+  await fresh({ updateLater: { version: null, target: 'abc123' } })
   check('a reopened page does not show it again for that version', () => { assert.ok(!card()); assert.ok(chip()) })
   scenario['plugin-update'] = check_({ update_available: true, update_target: 'def456' })
-  await fresh({ updateLater: 'abc123' })
+  await fresh({ updateLater: { version: null, target: 'abc123' } })
   check('a newer version shows the card again', () => { assert.ok(card()) })
   await act(async () => { document.body.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true })) })
-  check('a click anywhere else puts it away like Later', () => { assert.ok(!card()); assert.equal(scenario.storage.updateLater, 'def456') })
+  check('a click anywhere else puts it away like Later', () => { assert.ok(!card()); assert.equal(scenario.storage.updateLater.target, 'def456') })
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true, restart_required: false })
   await fresh()
   await click('Update', card()); await settle(40)
@@ -208,6 +214,18 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
   check('after an update the dialog lists what the releases it brought changed', () => {
     assert.match(popover(), /You’re on 1\.2\.3/); assert.match(popover(), /Already installed/); assert.ok(!/Skins for the player/.test(popover()))
   })
+  // Put away before the notes arrived: the notes arriving do not bring the same version back.
+  scenario['plugin-update'] = check_({ update_available: true, update_target: 'abc123' })
+  scenario.releases = undefined
+  await fresh({ updateLater: { version: null, target: 'abc123' } })
+  scenario.releases = answered({ ok: true, releases: notes })
+  await render()
+  check('a version put away before its notes arrived stays put away once they do', () => { assert.ok(!card()); assert.ok(chip()) })
+
+  // An install Hermes pinned to a commit: a newer release offers nothing Hermes would do.
+  scenario['plugin-update'] = check_({ update_available: undefined, pinned_sha: 'f'.repeat(40) })
+  await fresh()
+  check('a pinned install gets no card and no chip for a newer release', () => { assert.ok(!card()); assert.ok(!chip()) })
   scenario.releases = undefined
 
   // First-time setup has its own header: the chip is there too (a release may fix the install itself).

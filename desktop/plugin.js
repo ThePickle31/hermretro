@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 a04c37538ccf08b7cff14568856cf78bcec3efe11353e102672096ab73f0152b
- * body: sha256 b196e4ce9f746d1727b696abf73cf21039365eb8866ddad68d3c9ea2fdeb7039
+ * sources: sha256 e231243f4ea6f7714601725e500d58d8c68d17ac232d346aefe6366ef8f30028
+ * body: sha256 197759dfa8cdda1fcb1db9de8b4052fd2a77046cc46a29d7dbc4304dcc6f9e17
  */
 // page/sdk.js
 import {
@@ -17875,18 +17875,20 @@ function UpdateButton({ update }) {
 function UpdateCard({ update }) {
   const root = useRef(null);
   const { card, later: later2 } = update;
+  const latestLater = useRef(later2);
+  latestLater.current = later2;
   useEffect(() => {
     if (!card) {
       return void 0;
     }
     const away = (event) => {
       if (!root.current?.contains(event.target)) {
-        later2();
+        latestLater.current();
       }
     };
     const escape = (event) => {
       if (event.key === "Escape") {
-        later2();
+        latestLater.current();
       }
     };
     window.addEventListener("pointerdown", away, true);
@@ -18137,7 +18139,8 @@ async function runUpdate({
   remember3({ result: "updated", restart, at: Date.now() });
   return { kind: "updated", restart, pageRefreshed: await refreshDesktopHalf() };
 }
-async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, onWaiting, waitMs, checkTries }) {
+async function runReload({ install, studio, busy = async () => [], confirmInstallIdle, loadedNow = () => {
+}, onWaiting, waitMs, checkTries }) {
   let building;
   try {
     building = await busy();
@@ -18151,7 +18154,11 @@ async function runReload({ install, studio, busy = async () => [], confirmInstal
   if (!loaded.ok) {
     return { kind: "failed", error: loaded.error };
   }
-  return loaded.reloaded ? { kind: "reloaded", pageRefreshed: await refreshDesktopHalf() } : { kind: "restart" };
+  if (!loaded.reloaded) {
+    return { kind: "restart" };
+  }
+  loadedNow();
+  return { kind: "reloaded", pageRefreshed: await refreshDesktopHalf() };
 }
 
 // page/app/update/update-dialog.js
@@ -18280,12 +18287,42 @@ function content(update, close) {
       ];
   }
 }
+var FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 function UpdateDialog({ update }) {
   const { open, phase, setOpen } = update;
   const closable = phase !== "updating";
   const close = () => setOpen(false);
+  const box = useRef(null);
+  const shown = open && !(phase === "idle" && !update.ready);
   useEffect(() => {
-    if (!open || !closable) {
+    if (!shown) {
+      return void 0;
+    }
+    const before = document.activeElement;
+    const inside = () => [...box.current?.querySelectorAll(FOCUSABLE) ?? []];
+    (inside()[0] ?? box.current)?.focus();
+    const tab = (event) => {
+      if (event.key !== "Tab") {
+        return;
+      }
+      const items = inside();
+      if (!items.length) {
+        event.preventDefault();
+        return;
+      }
+      const at = items.indexOf(document.activeElement);
+      const next = event.shiftKey ? at <= 0 ? items.length - 1 : at - 1 : at === -1 || at === items.length - 1 ? 0 : at + 1;
+      event.preventDefault();
+      items[next].focus();
+    };
+    window.addEventListener("keydown", tab, true);
+    return () => {
+      window.removeEventListener("keydown", tab, true);
+      before?.focus?.();
+    };
+  }, [shown]);
+  useEffect(() => {
+    if (!shown || !closable) {
       return void 0;
     }
     const escape = (event) => {
@@ -18295,8 +18332,8 @@ function UpdateDialog({ update }) {
     };
     window.addEventListener("keydown", escape, true);
     return () => window.removeEventListener("keydown", escape, true);
-  }, [open, closable]);
-  if (!open || phase === "idle" && !update.ready) {
+  }, [shown, closable]);
+  if (!shown) {
     return null;
   }
   return jsx("div", {
@@ -18306,7 +18343,15 @@ function UpdateDialog({ update }) {
         close();
       }
     },
-    children: jsx("div", { "aria-label": "hermretro update", "aria-modal": "true", className: "cs-upd-dlg", role: "dialog", children: content(update, closable ? close : null) })
+    children: jsx("div", {
+      "aria-label": "hermretro update",
+      "aria-modal": "true",
+      className: "cs-upd-dlg",
+      ref: box,
+      role: "dialog",
+      tabIndex: -1,
+      children: content(update, closable ? close : null)
+    })
   });
 }
 
@@ -18403,7 +18448,7 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
   const [seen, setSeen] = useState(() => stored(ctx, SEEN));
   const stale = Boolean(status.data?.restart_needed);
   const busy = useRef(false);
-  const autoTried = useRef(false);
+  const auto = useRef({ tried: false, after: -1 });
   const studioExists = Boolean(status.data?.profile?.is_studio || status.data?.profile?.studio?.exists);
   useEffect(() => {
     if (state.announce) {
@@ -18415,8 +18460,9 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
   const published = releases.data?.ok ? releases.data.releases : [];
   const notes = releasesBetween(published, version);
   const latest = notes[0]?.version ?? null;
-  const ready = Boolean(target) && (row?.update_available === true || notes.length > 0);
-  const key = latest ?? row?.update_target ?? "ready";
+  const ready = Boolean(target) && (row?.update_available === true || notes.length > 0 && Boolean(row) && !row.pinned_sha);
+  const updateTarget = row?.update_target ?? null;
+  const putAway = Boolean(seen && (latest && seen.version === latest || updateTarget && seen.target === updateTarget || !latest && !updateTarget && seen.version === null));
   const outside = running && stale && Boolean(installedIn) && !installedIn.linked;
   const building = useQuery({
     queryKey: [ID, "update-busy"],
@@ -18435,8 +18481,9 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
   const blockedFor = (verb) => installing ? installingSentence(verb) : installError || (chats.length ? busySentence(chats, verb) : null);
   const blocked = blockedFor("update");
   const later2 = () => {
-    setSeen(key);
-    remember2(ctx, SEEN, key);
+    const value = { version: latest, target: updateTarget };
+    setSeen(value);
+    remember2(ctx, SEEN, value);
   };
   const start = async (options = {}) => {
     if (busy.current || !target) {
@@ -18445,7 +18492,7 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
     setOpen(true);
     if (blocked) {
       if (!installError) {
-        setState((current) => ({ ...current, queued: true }));
+        setState((current) => ({ ...current, queued: options }));
       }
       return;
     }
@@ -18498,7 +18545,7 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
         phase: resume ? "partial" : "idle",
         step: 0,
         error: resume ? current.error ?? null : null,
-        queued: !resume,
+        queued: resume ? false : options,
         raced: outcome.chats,
         racedAt: building.dataUpdatedAt ?? 0
       }));
@@ -18515,7 +18562,6 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
     busy.current = true;
     setUpdating(true);
     setState({ phase: "updating", step: 1 });
-    remember2(ctx, UPDATE_MARKER, { result: "updated", restart: false, at: Date.now(), from: version });
     let outcome;
     try {
       let studio = null;
@@ -18528,7 +18574,14 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
       if (!outcome && !install && profile && profile !== STUDIO_PROFILE) {
         outcome = { kind: "failed", error: `Could not reach the ${profile} profile, where hermretro is installed` };
       }
-      outcome ??= await runReload({ install, studio, busy: () => busyChats(studio), confirmInstallIdle });
+      outcome ??= await runReload({
+        install,
+        studio,
+        busy: () => busyChats(studio),
+        confirmInstallIdle,
+        // The app may reload this page before runReload answers.
+        loadedNow: () => remember2(ctx, UPDATE_MARKER, { result: "updated", restart: false, at: Date.now(), from: version })
+      });
     } finally {
       busy.current = false;
       setUpdating(false);
@@ -18537,7 +18590,7 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
       remember2(ctx, UPDATE_MARKER, null);
     }
     if (outcome.kind === "busy") {
-      autoTried.current = false;
+      auto.current = { tried: false, after: Date.now() };
       setState({ phase: "idle", step: 0 });
     } else if (outcome.kind === "failed") {
       setState({ phase: "partial", step: 0, error: outcome.error, reloadOnly: true });
@@ -18546,16 +18599,21 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
     }
     void queryClient.invalidateQueries({ queryKey: [ID] });
   };
-  const canLoad = outside && state.phase === "idle" && Array.isArray(building.data) && !blockedFor("reload");
+  const canLoad = outside && ["idle", "failed"].includes(state.phase) && Array.isArray(building.data) && (building.dataUpdatedAt ?? 0) > auto.current.after && !blockedFor("reload");
   useEffect(() => {
-    if (canLoad && !autoTried.current && !busy.current) {
-      autoTried.current = true;
+    if (!stale) {
+      auto.current = { tried: false, after: -1 };
+    }
+  }, [stale]);
+  useEffect(() => {
+    if (canLoad && !auto.current.tried && !busy.current) {
+      auto.current = { ...auto.current, tried: true };
       void reload();
     }
   }, [canLoad]);
   useEffect(() => {
     if (state.queued && state.phase === "idle" && !blocked && !busy.current) {
-      void start();
+      void start(state.queued);
     }
   }, [state.queued, state.phase, blocked]);
   const phase = state.phase;
@@ -18564,7 +18622,7 @@ function usePluginUpdate({ ctx, status, running, installing = false, installErro
     visible: phase !== "idle" || ready,
     ready,
     // the corner card: a new version the user has not put away yet
-    card: ready && phase === "idle" && !state.queued && !open && seen !== key,
+    card: ready && phase === "idle" && !state.queued && !open && !putAway,
     // Hermes answered for this install (so "up to date" can be said), and whether it is a linked checkout
     checked: Boolean(row),
     linked: Boolean(installedIn?.linked),

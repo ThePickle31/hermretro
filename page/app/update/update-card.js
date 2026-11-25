@@ -8,6 +8,10 @@ import { Fill, UpdateButton, UpdateFoot, UpdateHead, WaitLine } from './update-p
 export function UpdateCard({ update }) {
   const root = useRef(null)
   const { card, later } = update
+  // The listeners below outlive renders; the card remembers the version it shows now, never an earlier one.
+  const latestLater = useRef(later)
+
+  latestLater.current = later
 
   useEffect(() => {
     if (!card) {
@@ -16,12 +20,12 @@ export function UpdateCard({ update }) {
 
     const away = event => {
       if (!root.current?.contains(event.target)) {
-        later()
+        latestLater.current()
       }
     }
     const escape = event => {
       if (event.key === 'Escape') {
-        later()
+        latestLater.current()
       }
     }
 

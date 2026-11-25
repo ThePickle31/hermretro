@@ -56,6 +56,21 @@ await runScenario(async ({ act, dom, scenario, root, render, settle, click, butt
     assert.equal(chip().textContent, 'Updated')
   })
 
+  // A build starts while Hermes's question is on screen (after the last cached check): Install anyway is caught by the
+  // live check, waits for the build, and keeps the yes.
+  updateAnswer = params => (params.force ? { ok: true, unchanged: false, gateway_reloaded: true } : { ok: false, scan_blocked: true, scan_verdict: 'caution', scan_findings: [] })
+  await fresh()
+  await openChip(); await click('Update', scrim()); await settle(40)
+  sessions = () => [{ title: 'Comet Drift', status: 'working' }]
+  await click('Install anyway'); await settle(40)
+  check('Install anyway while a game builds waits for it', () => { assert.equal(updates.length, 1); assert.ok(inDialog('Waiting…')) })
+  sessions = () => []
+  scenario['update-busy'] = { ...answered([]), dataUpdatedAt: Date.now() + 60_000 }
+  await render(); await settle(40)
+  check('and once it finishes, the update goes with the yes already given', () => {
+    assert.deepEqual(updates.map(params => Boolean(params.force)), [false, true]); assert.equal(chip().textContent, 'Updated')
+  })
+
   // Switching hermretro back on in the hermretro profile fails: installed, not finished.
   updateAnswer = () => ({ ok: true, unchanged: false, gateway_reloaded: true })
   toggleOn = () => ({ ok: false })

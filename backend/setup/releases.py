@@ -13,7 +13,7 @@ import urllib.request
 
 from ..system import paths
 
-RELEASES_URL = "https://api.github.com/repos/ThePickle31/hermretro/releases?per_page=10"
+RELEASES_URL = "https://api.github.com/repos/ThePickle31/hermretro/releases?per_page=30"
 CACHE_SECONDS = 600  # GitHub answers 60 unsigned requests an hour; every open page asks every 30 minutes
 FETCH_TIMEOUT = 10.0
 
@@ -72,17 +72,17 @@ def _fetch(opener) -> list:
 
 def latest(opener=urllib.request.urlopen, now=time.monotonic) -> dict:
     """`{"ok": True, "releases": [...]}` (parse), kept for CACHE_SECONDS; `{"ok": False, "error"}` when GitHub
-    cannot be read (the page then shows the update without its notes). A failure is not kept."""
+    cannot be read (the page then shows the update without its notes). A failure is not kept. One request at a time:
+    callers that arrive while it runs wait for it and share its answer."""
     with _lock:
         if _cache["answer"] is not None and now() - _cache["at"] < CACHE_SECONDS:
             return _cache["answer"]
-    try:
-        answer = {"ok": True, "releases": parse(_fetch(opener))}
-    except Exception as error:
-        return {"ok": False, "error": f"{type(error).__name__}: {error}"}
-    with _lock:
+        try:
+            answer = {"ok": True, "releases": parse(_fetch(opener))}
+        except Exception as error:
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
         _cache.update(at=now(), answer=answer)
-    return answer
+        return answer
 
 
 def forget() -> None:

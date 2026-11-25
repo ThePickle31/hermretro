@@ -7,7 +7,7 @@ import unittest
 
 from backend.setup import releases
 
-BODY = """<!-- Release notes generated using configuration in .github/release.yml at v0.0.13 -->
+BODY = """<!-- Release notes generated using configuration in .github/release.yml at v1.4.13 -->
 
 ## What's Changed
 ### Changes
@@ -18,7 +18,7 @@ BODY = """<!-- Release notes generated using configuration in .github/release.ym
 * chore(engine): the maintainer may change the engine by @someone in https://github.com/o/r/pull/144
 * fix: a bare fix with no scope
 
-**Full Changelog**: https://github.com/o/r/compare/v0.0.12...v0.0.13
+**Full Changelog**: https://github.com/o/r/compare/v1.4.12...v1.4.13
 """
 
 
@@ -60,24 +60,24 @@ class ReleasesTest(unittest.TestCase):
 
     def test_only_stable_published_releases_newest_first(self):
         rows = [
-            row("v0.0.9"),
-            row("v0.0.13", body=BODY),
-            row("v0.0.12"),
-            row("v0.0.14", draft=True),
-            row("v0.0.14-rc.1", prerelease=True),
+            row("v1.4.9"),
+            row("v1.4.13", body=BODY),
+            row("v1.4.12"),
+            row("v1.4.14", draft=True),
+            row("v1.4.14-rc.1", prerelease=True),
             row("nightly"),
         ]
         answer = releases.latest(opener=Opener(rows))
         self.assertTrue(answer["ok"])
-        self.assertEqual([r["version"] for r in answer["releases"]], ["0.0.13", "0.0.12", "0.0.9"])
-        self.assertEqual(answer["releases"][0]["url"], "https://x/v0.0.13")
+        self.assertEqual([r["version"] for r in answer["releases"]], ["1.4.13", "1.4.12", "1.4.9"])
+        self.assertEqual(answer["releases"][0]["url"], "https://x/v1.4.13")
         self.assertEqual(len(answer["releases"][0]["notes"]), 3)
 
     def test_an_answer_is_kept_for_a_while_and_a_failure_is_not(self):
         clock = [1000.0]
         failing = Opener(error=OSError("offline"))
         self.assertEqual(releases.latest(opener=failing, now=lambda: clock[0])["ok"], False)
-        working = Opener([row("v0.0.1")])
+        working = Opener([row("v1.4.1")])
         releases.latest(opener=working, now=lambda: clock[0])
         clock[0] += releases.CACHE_SECONDS - 1
         releases.latest(opener=working, now=lambda: clock[0])
@@ -85,6 +85,30 @@ class ReleasesTest(unittest.TestCase):
         clock[0] += 2
         releases.latest(opener=working, now=lambda: clock[0])
         self.assertEqual(working.calls, 2)
+
+    def test_callers_at_the_same_time_share_one_request(self):
+        import threading
+
+        started, release = threading.Event(), threading.Event()
+
+        class Slow(Opener):
+            def __call__(self, request, timeout):
+                started.set()
+                release.wait(5)
+                return super().__call__(request, timeout)
+
+        slow = Slow([row("v1.4.1")])
+        answers = []
+        threads = [threading.Thread(target=lambda: answers.append(releases.latest(opener=slow))) for _ in range(3)]
+        threads[0].start()
+        started.wait(5)
+        for thread in threads[1:]:
+            thread.start()
+        release.set()
+        for thread in threads:
+            thread.join(5)
+        self.assertEqual(slow.calls, 1)
+        self.assertEqual(len(answers), 3)
 
 
 if __name__ == "__main__":

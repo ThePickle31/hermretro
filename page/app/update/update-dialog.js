@@ -1,7 +1,7 @@
 // The full-screen update dialog: what a new version changes and its Update button, the update's steps while it runs,
 // and how it ended. Opened from the header chip or the corner card's Update; closes on Escape, the close button or a
 // click beside it, except while updating.
-import { Button, Codicon, jsx, jsxs, useEffect } from '#sdk'
+import { Button, Codicon, jsx, jsxs, useEffect, useRef } from '#sdk'
 import { UPDATE_STEPS } from './flow.js'
 import { ReleaseNotes } from './release-notes.js'
 import { Fill, UpdateButton, UpdateFoot, UpdateHead, WaitLine } from './update-parts.js'
@@ -144,14 +144,57 @@ function content(update, close) {
   }
 }
 
+const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 /** `update` is shell.pluginUpdate (use-update.js). */
 export function UpdateDialog({ update }) {
   const { open, phase, setOpen } = update
   const closable = phase !== 'updating'
   const close = () => setOpen(false)
+  const box = useRef(null)
+  const shown = open && !(phase === 'idle' && !update.ready)
+
+  // A modal: focus moves into it, Tab stays inside, and focus goes back where it was when it closes.
+  useEffect(() => {
+    if (!shown) {
+      return undefined
+    }
+
+    const before = document.activeElement
+    const inside = () => [...(box.current?.querySelectorAll(FOCUSABLE) ?? [])]
+
+    ;(inside()[0] ?? box.current)?.focus()
+
+    const tab = event => {
+      if (event.key !== 'Tab') {
+        return
+      }
+
+      const items = inside()
+
+      if (!items.length) {
+        event.preventDefault()
+
+        return
+      }
+
+      const at = items.indexOf(document.activeElement)
+      const next = event.shiftKey ? (at <= 0 ? items.length - 1 : at - 1) : at === -1 || at === items.length - 1 ? 0 : at + 1
+
+      event.preventDefault()
+      items[next].focus()
+    }
+
+    window.addEventListener('keydown', tab, true)
+
+    return () => {
+      window.removeEventListener('keydown', tab, true)
+      before?.focus?.()
+    }
+  }, [shown])
 
   useEffect(() => {
-    if (!open || !closable) {
+    if (!shown || !closable) {
       return undefined
     }
 
@@ -164,9 +207,9 @@ export function UpdateDialog({ update }) {
     window.addEventListener('keydown', escape, true)
 
     return () => window.removeEventListener('keydown', escape, true)
-  }, [open, closable])
+  }, [shown, closable])
 
-  if (!open || (phase === 'idle' && !update.ready)) {
+  if (!shown) {
     return null
   }
 
@@ -177,6 +220,14 @@ export function UpdateDialog({ update }) {
         close()
       }
     },
-    children: jsx('div', { 'aria-label': 'hermretro update', 'aria-modal': 'true', className: 'cs-upd-dlg', role: 'dialog', children: content(update, closable ? close : null) })
+    children: jsx('div', {
+      'aria-label': 'hermretro update',
+      'aria-modal': 'true',
+      className: 'cs-upd-dlg',
+      ref: box,
+      role: 'dialog',
+      tabIndex: -1,
+      children: content(update, closable ? close : null)
+    })
   })
 }

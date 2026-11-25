@@ -185,6 +185,7 @@ await runScenario(async ({ act, dom, root, scenario, render, click, button, chec
     await act(async () => { completeStart({ ok: true, install: { state: 'done', run_id: 'old-run' } }) })
     await poll({ ...idle, expired_admission: { ...starts.at(-1).admission, boot_id: 'other-boot' } })
     check('a malformed Start reply or an older admission cannot unblock the current attempt', () => {
+      assert.equal(button('Download and install')?.disabled, true)
     })
     Date.now = () => originalNow() - 86_400_000
     await poll(params => ({ ...idle, expired_admission: { ...params.admission } }))
