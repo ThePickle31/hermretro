@@ -1584,7 +1584,15 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 4,
-            "description": "Enlarge returned images 1\u20134\u00d7 with square pixels; image hashes stay those of the native frames."
+            "description": "Enlarge returned images 1–4× with square pixels; image hashes stay those of the native frames."
+          },
+          "colorCorrection": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chromatic"
+            ],
+            "description": "none (default) returns the emulator's colors; chromatic shows color-hardware frames with the hermretro player's color correction, an approximation of the Chromatic's screen. A monochrome session, including a dual-mode cartridge run as DMG, keeps the emulator's colors. Sample hashes stay those of the native frames."
           }
         },
         "required": [
@@ -1606,7 +1614,7 @@
     {
       "name": "emulator_step",
       "title": "Play exact frames and observe the result",
-      "description": "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image.",
+      "description": "Hold exact button sets for exact native frames and return genuine sampled PNGs. Give buttons and frames for one held set, or inputs for an ordered sequence run in this one call (at most 64 inputs, 3,600 frames and 8 samples in all): send a press, wait and press again as one inputs list, not as repeated identical calls. Each set is complete: buttons persist after the call, the same set does not release/repress them, and [] is neutral. Nothing advances between calls. By default the last frame is sampled and the result is compact; ask for more samples with sampleCount or sample:true, larger images with scale, or every field with detail:'full'. Optional imageLayout:'contact-sheet' lays out the SAME samples with frame/input labels, adding no steps or captures. Errors separate confirmed execution from image delivery: never repeat input merely to recover an image. To look without advancing, use emulator_observe. After emulator_recording stop, steps are refused until emulator_run boots again or emulator_replay, given the recordingPath and branchId stop returned, continues from the recording. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1630,15 +1638,15 @@
           },
           "frames": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 3600,
-            "description": "With buttons: native frames to advance."
+            "description": "With buttons: native frames to advance, at least 1. To look without advancing, use emulator_observe."
           },
           "sampleCount": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 8,
-            "description": "With buttons and frames: evenly spaced samples ending on the last frame; defaults to 1."
+            "description": "With buttons and frames: evenly spaced samples ending on the last frame, at least 1; defaults to 1. For no images, set includeImages:false."
           },
           "inputs": {
             "type": "array",
@@ -1651,9 +1659,9 @@
                 },
                 "frames": {
                   "type": "integer",
-                  "minimum": 1,
+                  "minimum": 0,
                   "maximum": 3600,
-                  "description": "Native frames to hold this set."
+                  "description": "Native frames to hold this set, at least 1."
                 },
                 "sample": {
                   "type": "boolean",
@@ -1666,7 +1674,6 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1,
             "maxItems": 64,
             "description": "Instead of buttons and frames: ordered inputs run in this one call, at most 3,600 frames and 8 samples in all. Press, wait, press again: [{buttons:['a'],frames:2},{buttons:[],frames:30},{buttons:['a'],frames:2}]."
           },
@@ -1684,7 +1691,15 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 4,
-            "description": "Enlarge returned images 1\u20134\u00d7 with square pixels (contact sheets default to 2\u00d7); sample hashes stay those of the native frames."
+            "description": "Enlarge returned images 1–4× with square pixels (contact sheets default to 2×); sample hashes stay those of the native frames."
+          },
+          "colorCorrection": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chromatic"
+            ],
+            "description": "none (default) returns the emulator's colors; chromatic shows color-hardware frames with the hermretro player's color correction, an approximation of the Chromatic's screen. A monochrome session, including a dual-mode cartridge run as DMG, keeps the emulator's colors. Sample hashes stay those of the native frames."
           },
           "detail": {
             "type": "string",
@@ -1711,7 +1726,7 @@
     {
       "name": "emulator_observe",
       "title": "Observe the current genuine framebuffer",
-      "description": "Return the current real 160\u00d7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. Use emulator_step to play.",
+      "description": "Return the current real 160×144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does. Use emulator_step to play.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1729,7 +1744,15 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 4,
-            "description": "Enlarge returned images 1\u20134\u00d7 with square pixels (contact sheets default to 2\u00d7); sample hashes stay those of the native frames."
+            "description": "Enlarge returned images 1–4× with square pixels (contact sheets default to 2×); sample hashes stay those of the native frames."
+          },
+          "colorCorrection": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chromatic"
+            ],
+            "description": "none (default) returns the emulator's colors; chromatic shows color-hardware frames with the hermretro player's color correction, an approximation of the Chromatic's screen. A monochrome session, including a dual-mode cartridge run as DMG, keeps the emulator's colors. Sample hashes stay those of the native frames."
           },
           "detail": {
             "type": "string",
@@ -1809,7 +1832,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 7,
-            "description": "memory/vram only: optional for VRAM (0\u20131) or WRAM (0\u20137). A banked WRAM range must fit within 4 KiB."
+            "description": "memory/vram only: optional for VRAM (0–1) or WRAM (0–7). A banked WRAM range must fit within 4 KiB."
           }
         },
         "required": [
@@ -2037,7 +2060,7 @@
     {
       "name": "emulator_recording",
       "title": "Inspect, finish, archive or retrieve a recorded attempt",
-      "description": "Inspect/export history, stop the active recording, or archive/retrieve/restore it. access_diagnostic takes only action; without a worker, lease, recording read or process probe, it cannot prove liveness or authorize recovery. Maintenance requires closed transports and exclusive client access. Archive moves unchanged bytes in the project, preserves original-path mapping and releases admission reservation, not disk space. Retrieval verifies provenance without an emulator; restore reinstates quota.",
+      "description": "Inspect/export history, stop the active recording, or archive/retrieve/restore it. stop finalizes the recording and ends its session: steps, input and checkpoints are refused until emulator_run boots again (restart:true, or recording:{} to record), and emulator_replay with the recordingPath and branchId stop returns continues from where it ended (it reached the end when replay.replayedActions equals replay.source.actionCount). access_diagnostic takes only action; without a worker, lease, recording read or process probe, it cannot prove liveness or authorize recovery. Maintenance requires closed transports and exclusive client access. Archive moves unchanged bytes in the project, preserves original-path mapping and releases admission reservation, not disk space. Retrieval verifies provenance without an emulator; restore reinstates quota.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3156,7 +3179,7 @@
     {
       "name": "scene_apply",
       "title": "Apply a bounded scene transaction",
-      "description": "Apply 1\u2013100 ordered scene, actor, trigger, event, collision, or variable edits. Guard with scene_inspect.revision; dryRun previews without writing. Distributed projects have best-effort rollback, not cross-file atomicity.",
+      "description": "Apply 1–100 ordered scene, actor, trigger, event, collision, or variable edits. Guard with scene_inspect.revision; dryRun previews without writing. Distributed projects have best-effort rollback, not cross-file atomicity.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4897,7 +4920,7 @@
     {
       "name": "graphics_preview_scene",
       "title": "Preview authored scene colors",
-      "description": "Write a static background color projection for sceneId, or an ordered contact sheet for 1\u201316 distinct sceneIds. Supply one form and a new PNG path; neither mode overwrites files. Output is enlarged 2x by default (magnification 1\u20134); columns apply only to sheets. colorCorrection chromatic approximates the Chromatic's display. Actors, UI, camera motion, and runtime gameplay are not shown.",
+      "description": "Write a static background color projection for sceneId, or an ordered contact sheet for 1–16 distinct sceneIds. Supply one form and a new PNG path; neither mode overwrites files. Output is enlarged 2x by default (magnification 1–4); columns apply only to sheets. colorCorrection chromatic approximates the Chromatic's display. Actors, UI, camera motion, and runtime gameplay are not shown.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4965,62 +4988,75 @@
     {
       "name": "script_inspect",
       "title": "Inspect gameplay script",
-      "description": "Read one scene, actor, trigger, or nested event-branch script. Returns its owner-resource revision for script_edit or script_transition; this differs from the project revision.",
+      "description": "Read one scene, actor, trigger, or nested event-branch script, named by sceneId with optional actorId, triggerId, scriptKey and branchPath (or the same fields as target). Returns its owner-resource revision for script_edit or script_transition; this differs from the project revision.",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "sceneId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "actorId": {
+            "$ref": "#/properties/sceneId"
+          },
+          "triggerId": {
+            "$ref": "#/properties/sceneId"
+          },
+          "scriptKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "branchPath": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "eventId": {
+                  "$ref": "#/properties/sceneId"
+                },
+                "branch": {
+                  "$ref": "#/properties/sceneId"
+                }
+              },
+              "required": [
+                "eventId",
+                "branch"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 64
+          },
           "target": {
             "type": "object",
             "properties": {
               "sceneId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+                "$ref": "#/properties/sceneId"
               },
               "actorId": {
-                "$ref": "#/properties/target/properties/sceneId"
+                "$ref": "#/properties/actorId"
               },
               "triggerId": {
-                "$ref": "#/properties/target/properties/sceneId"
+                "$ref": "#/properties/triggerId"
               },
               "scriptKey": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100
+                "$ref": "#/properties/scriptKey"
               },
               "branchPath": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "eventId": {
-                      "$ref": "#/properties/target/properties/sceneId"
-                    },
-                    "branch": {
-                      "$ref": "#/properties/target/properties/sceneId"
-                    }
-                  },
-                  "required": [
-                    "eventId",
-                    "branch"
-                  ],
-                  "additionalProperties": false
-                },
-                "maxItems": 64
+                "$ref": "#/properties/branchPath"
               }
             },
             "required": [
               "sceneId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "The same script as one object; give either target or sceneId with its optional actorId, triggerId, scriptKey and branchPath."
           },
           "eventId": {
-            "$ref": "#/properties/target/properties/sceneId"
+            "$ref": "#/properties/sceneId"
           }
         },
-        "required": [
-          "target"
-        ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       },

@@ -67,8 +67,8 @@ for actual scene behavior. Distinguish source previews from verified gameplay.
   (`sprite.paletteIndex`), imports larger sprites with the `metasprite` profile, and returns each
   asset's graphics analysis. Sprites show palette entries 0, 1 and 3 only: give sprite palettes
   three colors ([palette mapping](references/hardware-and-imports.md#sprite-palette-mapping)).
-- Previews are enlarged by default; `colorCorrection: "chromatic"` shows colors as the Chromatic,
-  the reference display, does ([display colors](references/hardware-and-imports.md#display-colors-the-chromatic-is-the-reference)).
+- Previews are enlarged by default; `colorCorrection: "chromatic"` on previews and on color-hardware
+  emulator step, observe and replay frames shows colors as the Chromatic, the reference display, does ([display colors](references/hardware-and-imports.md#display-colors-the-chromatic-is-the-reference)).
 - To show the user existing art, deliver the real file on its own line (`MEDIA:<project>/assets/sprites/<name>.png`).
   The hermretro Build page draws it in the game's colours, animates a sprite, and opens it in its viewer;
   a preview or contact sheet you draw instead is just a flat image there.

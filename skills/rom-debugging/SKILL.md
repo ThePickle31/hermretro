@@ -99,11 +99,17 @@ presses. Put the presses and waits in one list:
 The result is compact: frame, held and sampled buttons, sample hashes and
 `recordingSpan`, with the image of the last frame. Mark an input `sample:true`
 to also see its last frame (at most 8 samples a call), give `scale` 2–4 for
-larger images, and `detail:"full"` only when you need ROM, runtime, clock or
-recording state. `chromatic_emulator_observe {}` is inert: it reads the genuine
-160 × 144 framebuffer without advancing frames, delivering input, or changing a
-recording. Use short inputs near uncertain timings and consecutive samples for
-flicker; a sampled frame proves nothing about gaps.
+larger images, `colorCorrection:"chromatic"` to see a color-hardware session's
+colors as the Chromatic shows them, and `detail:"full"` only when you need ROM,
+runtime, clock or recording state. A step always advances and samples at least
+one frame; to only look, use `chromatic_emulator_observe {}`. It is inert: it
+reads the genuine 160 × 144 framebuffer without advancing frames, delivering
+input, or changing a recording. Stopping a recording ends its session: boot
+again with `chromatic_emulator_run`, or continue from its end with
+`chromatic_emulator_replay` given the `recordingPath` and `branchId` that `stop`
+returned ([after a stop](references/recorded-playtesting.md#retain-an-attempt)).
+Use short inputs near uncertain timings and consecutive samples for flicker; a
+sampled frame proves nothing about gaps.
 
 If images fail, check `execution` separately from `imageDelivery`. The input may
 have advanced even if no image arrived or transport left execution unknown. Do

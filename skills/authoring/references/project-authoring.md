@@ -188,6 +188,9 @@ script edit. For an actor-, trigger-, or scene-owned script, use that same targe
 `chromatic_script_inspect.revision` to guard `chromatic_script_edit`, `chromatic_script_transition`, or
 `chromatic_dialogue_update`; a successful dialogue update returns the owner revision for a
 subsequent edit. A project revision does not guard an individual script resource.
+`chromatic_script_inspect` names its script with `sceneId` and optional `actorId`, `triggerId`,
+`scriptKey` and `branchPath` (or the same fields as `target`); `chromatic_script_edit` and
+`chromatic_script_transition` take them as `target`.
 
 For related edits, `chromatic_scene_apply` accepts 1–100 ordered typed operations such as
 `actor.create`, `trigger.update`, `event.edit`, `collision.edit`, or

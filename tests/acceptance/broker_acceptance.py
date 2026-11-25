@@ -25,7 +25,17 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend.broker.client import BrokerClient, ensure_broker  # noqa: E402 - direct script entry point
-from tests.acceptance import art, art_limits, authoring, debugging, ownership, projects, recovery, replay  # noqa: E402 - direct script entry point
+from tests.acceptance import (  # noqa: E402 - direct script entry point
+    art,
+    art_limits,
+    authoring,
+    debugging,
+    ownership,
+    projects,
+    recovery,
+    replay,
+    tool_friction,
+)
 from tests.acceptance.fixture import HANDOFF, BrokerRun  # noqa: E402 - direct script entry point
 
 
@@ -112,6 +122,7 @@ def exercise(suite):
         rom_a, rom_b, hash_a, hash_b = projects.build_roms(suite, client_a, client_b)
         last_frame = projects.check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b)
         replay.check_replay(suite, client_b, rom_b)
+        tool_friction.check_tool_friction(suite, client_b, rom_b)
         projects.check_result_fidelity(suite, client_a, rom_a)
         projects.check_owner_identity(suite, client_a, client_b, first_status)
         art.check_art_import(suite, client_b)

@@ -117,3 +117,18 @@ files, what changed and why.
   Studio compiles as script values must be typed ScriptValues on write, like the scene-switch coordinates already
   were; an active actor direction event needs a `direction` that is a variable, an expression or up/down/left/right,
   commented-out events are not checked, and an unchanged older id-less event stays accepted once it gets an id.
+- `dist/server.js` (`dist/contact-sheet.js`, `dist/emulator.js`, the `script_inspect`, `emulator_step`,
+  `emulator_observe`, `emulator_replay` and `emulator_recording` tools): `script_inspect` takes `sceneId` with
+  optional `actorId`, `triggerId`, `scriptKey` and `branchPath` like its neighbours, or the same fields as `target`,
+  and refuses both or neither before it selects a project. `emulator_step` accepts `frames:0` and `sampleCount:0`,
+  and an `inputs` list that is empty or holds only 0-frame inputs, in its schema and refuses them, and a call with no
+  input, with an error that names `emulator_observe` (to look without advancing) and `includeImages:false` (to
+  advance without images). `emulator_step`, `emulator_observe` and `emulator_replay` take
+  `colorCorrection: "chromatic"`, the hermretro player's color correction that the art previews take, for frames
+  from color hardware (`imageDelivery.colorCorrection` says what was applied); it is applied to the decoded pixels
+  before enlargement and, in a contact sheet, after the native PNG's SHA-256 is verified, so sample and tile hashes
+  stay those of the native frames. The step and recording descriptions, and the worker's refusal after a recording
+  is finalized (stopped, or failed at a recording limit), say that it ends the session's play and how to go on:
+  `emulator_run` again, or `emulator_replay` with the `recordingPath` and `branchId` the recording returned. Hermes
+  rejected the agents' `sampleCount:0` and flat `sceneId` against the schema before the engine saw them, the
+  emulator frames showed uncorrected colors, and agents stopped recordings without knowing play ended with them.

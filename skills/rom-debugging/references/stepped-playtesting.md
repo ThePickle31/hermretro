@@ -71,12 +71,13 @@ ordered `inputs` list, never both:
 
 | Field | Meaning |
 | --- | --- |
-| `inputs` | Ordered list of 1–64 `{buttons, frames, sample?}` run in this one call, at most 3,600 frames in all. Each input holds its complete set for its frames; `sample:true` also samples that input's last frame. The last input is always sampled. |
+| `inputs` | Ordered list of 1–64 `{buttons, frames, sample?}` run in this one call, at most 3,600 frames in all. Each input holds its complete set for its frames; `sample:true` also samples that input's last frame. The last input is always sampled. To look without advancing, use `chromatic_emulator_observe`, not an empty list or 0 frames. |
 | `buttons` | One held set instead of `inputs`: any of `a`, `b`, `up`, `down`, `left`, `right`, `start`, `select`. Use `[]` for no buttons. |
-| `frames` | With `buttons`: positive frame count, 1–3,600. |
-| `sampleCount` | With `buttons`: 1–8, default 1. Real samples evenly across positive frame offsets, including the endpoint. |
+| `frames` | With `buttons`: positive frame count, 1–3,600. To look without advancing, use `chromatic_emulator_observe`. |
+| `sampleCount` | With `buttons`: 1–8, default 1. Real samples evenly across positive frame offsets, including the endpoint. For no images use `includeImages:false`. |
 | `includeImages` | Optional, default `true`. `false` omits inline images without changing input, frame advancement, or sampling. |
 | `scale` | Optional, 1–4. Enlarges the returned images with square pixels; sample hashes stay those of the native frames. |
+| `colorCorrection` | Optional, `none` (default) or `chromatic`. `chromatic` draws color-hardware (CGB) frames with the hermretro player's color correction, as the Chromatic shows them; sample hashes stay those of the native frames. A DMG session, including a dual-mode cartridge run as DMG, keeps the emulator's colors and reports `none`. |
 | `imageLayout` | Optional, `individual` (default) or `contact-sheet`. The sheet labels the same requested samples in memory; it adds no frames, captures, or file writes. |
 | `detail` | Optional, `compact` (default) or `full`. |
 
@@ -117,7 +118,8 @@ with `sampleCount:8`. Samples do not prove what happened in the gaps.
 `chromatic_emulator_observe {}` returns the current genuine 160 × 144 PNG without
 advancing a frame, delivering input, or changing the recording journal.
 `chromatic_emulator_observe {"includeImages":false}` returns metadata without the inline
-image, and `{"scale":3}` returns it three times larger. Optional
+image, `{"scale":3}` returns it three times larger, and
+`{"colorCorrection":"chromatic"}` returns it in the Chromatic's colors. Optional
 `imageLayout:"contact-sheet"` labels the same current image in memory; the
 individual PNG remains the default. Its result is compact unless `detail:"full"`. Observation accepts no actions
 or output path and writes no files.

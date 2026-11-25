@@ -228,12 +228,15 @@ Sources: [GB Studio: scene limits](https://www.gbstudio.dev/docs/project-editor/
 Judge colors as the Chromatic shows them. ModRetro builds its screen to match the
 Game Boy Color's color balance, so palette colors look darker and less saturated
 there than their raw RGB555 values. The hermretro player approximates this with
-GB Studio's default color correction; `chromatic_emulator_step` and
-`chromatic_emulator_observe` frames show the raw values. Pass
-`colorCorrection: "chromatic"` to `chromatic_sprite_preview`,
-`chromatic_sprite_contact_sheet` or `chromatic_graphics_preview_scene` to see
-art with the player's correction, and keep enough value separation between a
-palette's colors after it.
+GB Studio's default color correction. Pass `colorCorrection: "chromatic"` to
+`chromatic_sprite_preview`, `chromatic_sprite_contact_sheet` or
+`chromatic_graphics_preview_scene` to see art with the player's correction, and
+to `chromatic_emulator_step`, `chromatic_emulator_observe` or
+`chromatic_emulator_replay` to see running frames with it (their sample hashes
+stay those of the uncorrected frames). The correction applies to color-hardware
+(CGB) sessions only: a DMG session, including a dual-mode cartridge run as DMG,
+keeps the emulator's colors. Keep enough value separation between a palette's
+colors after it.
 
 `chromatic_graphics_preview_scene` is a static authored-color projection. Confirm actual
 colorization, sprite overlays, UI, flicker, and movement through a freshly
