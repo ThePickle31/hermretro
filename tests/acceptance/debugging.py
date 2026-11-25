@@ -175,3 +175,54 @@ def check_debug_defaults(suite, client_b):
         plain_mode=plain_started.get("debugMode"),
         refused=structured(refused),
     )
+
+
+def check_debug_fallbacks(suite, client_b):
+    """Source debugging that was only a default never costs a run: a default build whose debug folder cannot be written
+    still succeeds and says why, a ROM path through a symbolic link starts in source mode, and a replay after the
+    source changed runs in ROM mode and says why."""
+    built, _ = run(client_b, {})
+    rom = Path(built["outputPath"])
+    folder = Path(built["debugArtifacts"]["directory"])
+    # Read-only, so no capture can write there. (Replacing the folder with a file would instead stop the engine:
+    # Node's recursive project watcher throws on a watched folder that becomes a file.)
+    folder.chmod(0o500)
+    try:
+        blocked = structured(client_b.call(OWNER_B, "rom_build", {}))
+        required = structured(client_b.call(OWNER_B, "rom_build", {"captureDebugArtifacts": True}))
+    finally:
+        folder.chmod(0o700)
+    rebuilt, _ = run(client_b, {})
+    link = suite.work / "linked-build"
+    link.symlink_to(rom.parent, target_is_directory=True)
+    linked = structured(
+        client_b.call(
+            OWNER_B,
+            "emulator_run",
+            {"romPath": str(link / rom.name), "restart": True, "initialFrames": 60, "recording": {}},
+        )
+    )
+    client_b.call(OWNER_B, "emulator_step", {"inputs": [{"buttons": [], "frames": 30}]})
+    revision = structured(client_b.call(OWNER_B, "variable_inspect", {}))["revision"]
+    client_b.call(OWNER_B, "variable_set", {"variableId": "1", "name": "Spare", "expectedRevision": revision})
+    replayed = structured(client_b.call(OWNER_B, "emulator_replay", {"romPath": str(rom), "includeImages": False}))
+    suite.check(
+        "M17",
+        "A default build whose debug folder cannot be written still succeeds and reports why source debugging is off (an "
+        "explicit captureDebugArtifacts:true fails), emulator_run through a symbolic link starts the ROM in source "
+        "mode, and a replay after a source edit runs in ROM mode with the stale-source reason",
+        blocked.get("success") is True
+        and "debugArtifacts" not in blocked
+        and (blocked.get("sourceDebug") or {}).get("available") is False
+        and "No debug artifacts were captured" in str((blocked.get("sourceDebug") or {}).get("reason"))
+        and required.get("success") is False
+        and rebuilt.get("sourceDebug") == {"available": True}
+        and linked.get("debugMode") == "source"
+        and replayed.get("debugMode") == "rom"
+        and (replayed.get("sourceDebug") or {}).get("code") == "SOURCE_DEBUG_STALE_SOURCE",
+        blocked={key: blocked.get(key) for key in ("success", "debugArtifacts", "sourceDebug", "error")},
+        required={key: required.get(key) for key in ("success", "stderr", "error")},
+        rebuilt=rebuilt.get("sourceDebug"),
+        linked={key: linked.get(key) for key in ("debugMode", "sourceDebug", "error")},
+        replayed={key: replayed.get(key) for key in ("debugMode", "sourceDebug", "error")},
+    )

@@ -125,8 +125,8 @@ checked for audio; open the ROM with `chromatic_emulator_run` instead.
 
 ROM-only mode does not infer high-level game state or named variable addresses.
 A successful official build of the selected project captures debug artifacts,
-and `chromatic_emulator_run` starts its exact ROM in source mode in the same
-MCP session (`"debugMode"` in its result says which; a `sourceDebug` there says
+and `chromatic_emulator_run` or `chromatic_emulator_replay` starts its exact ROM
+in source mode in the same MCP session (`"debugMode"` in its result says which; a `sourceDebug` there says
 why source mode is off, such as source edited since the build):
 
 ```text

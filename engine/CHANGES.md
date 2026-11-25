@@ -170,16 +170,18 @@ files, what changed and why.
   for it (`DEPRECATED_EVENT`); disabled else branches and commented-out events are skipped, at most three of each
   warning are listed, and the compiler's own diagnostics come first. Agents read GB Studio's source about 160 times in
   the five-game audit to find event args, and met each of these only when playing the game.
-- `examples/starter/project/engine_field_values.gbsres`, `dist/server.js` (`rom_build`, `emulator_run`,
-  `emulator_replay`, `emulator_debug`, `asset_import`): a new starter or blank project's shoot-'em-up movement is GB
-  Studio's default (`SHOOTER_MOVEMENT_TYPE` `MOVEMENT_TYPE_FREE`, was `MOVEMENT_TYPE_LOCK_PERPENDICULAR`; the
-  starter is top-down and never used it). A project build captures debug artifacts unless `captureDebugArtifacts`
-  is false (no measurable build time, about 32 KB in `build/<rom>.debug`), and its result names only their folder
-  and `sourceDebug.available` (`detail:"full"` keeps the files, hashes and identity). `emulator_run` and
-  `emulator_replay` without `debugMode` start a ROM in source mode when a build in this session captured artifacts
-  for it, else in ROM mode, with `sourceDebug` saying why when that build's artifacts no longer apply. A debug read
-  leaves out the build identity, the standing limitations and references unless `detail:"full"` or
-  `referenceLimit` asks (about 6 KB to 0.7 KB a call), and a `native_metadata` import leaves out its ID map and
-  pattern notes unless `detail:"full"` (about 6 KB to 1.5 KB). In the benchmark rerun four of five games spent a
-  second build only to turn source debugging on, a blank shoot-'em-up could not move its player up, and imports and
-  debug reads repeated kilobytes on every call.
+- `examples/starter/project/engine_field_values.gbsres`, `docs/native-sprite-import.md`, `dist/server.js` (`rom_build`,
+  `emulator_run`, `emulator_replay`, `emulator_debug`, `asset_import`): a new starter or blank project's shoot-'em-up
+  movement is GB Studio's default (`SHOOTER_MOVEMENT_TYPE` `MOVEMENT_TYPE_FREE`, was
+  `MOVEMENT_TYPE_LOCK_PERPENDICULAR`; the starter is top-down and never used it). A project build captures debug
+  artifacts unless `captureDebugArtifacts` is false (no measurable build time, about 32 KB in `build/<rom>.debug`), and
+  its result names only their folder and `sourceDebug.available` (`detail:"full"` keeps the files, hashes and
+  identity); when that default capture fails the build still succeeds and `sourceDebug` says why (an explicit
+  `captureDebugArtifacts:true` still fails it). `emulator_run` and `emulator_replay` without `debugMode` start a ROM in
+  source mode when a build in this session captured artifacts for it (found by the emulator's own path check, so a path
+  through a symbolic link such as macOS's `/tmp` works), else in ROM mode, with `sourceDebug` saying why when that
+  build's artifacts no longer apply or the ROM changed as it opened. A debug read leaves out the build identity, the
+  standing limitations and references unless `detail:"full"` or `referenceLimit` asks (about 6 KB to 0.7 KB a call),
+  and a `native_metadata` import leaves out its ID map and pattern notes unless `detail:"full"` (about 6 KB to 1.5 KB).
+  In the benchmark rerun four of five games spent a second build only to turn source debugging on, a blank shoot-'em-up
+  could not move its player up, and imports and debug reads repeated kilobytes on every call.

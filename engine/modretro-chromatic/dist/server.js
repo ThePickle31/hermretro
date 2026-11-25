@@ -15841,8 +15841,6 @@ async function deleteScene(projectPath, input, indexedAccess) {
 }
 
 // dist/server.js
-import { createHash as createHash43 } from "node:crypto";
-import { readFile as readFile15 } from "node:fs/promises";
 import os7 from "node:os";
 import path45 from "node:path";
 import { fileURLToPath as fileURLToPath3, pathToFileURL as pathToFileURL2 } from "node:url";
@@ -31632,10 +31630,18 @@ async function buildRom(options) {
   let compilerStderr = "";
   let buildFailed = false;
   let sourceProvenance;
+  let debugSkipped;
+  const debugOptional = () => options.debugArtifactsOptional === true && options.signal?.aborted !== true;
   try {
     try {
       if (options.captureDebugArtifacts) {
-        sourceProvenance = await captureBuildSourceProvenance(source, args[0], options.signal);
+        try {
+          sourceProvenance = await captureBuildSourceProvenance(source, args[0], options.signal);
+        } catch (error2) {
+          if (!debugOptional())
+            throw error2;
+          debugSkipped = error2 instanceof Error ? error2.message : String(error2);
+        }
       }
       const result2 = await runBuildCommand(command, args, {
         cwd: root,
@@ -31689,7 +31695,7 @@ async function buildRom(options) {
     }
     let debugArtifacts;
     buildFailed = rom?.valid !== true;
-    if (!buildFailed && options.captureDebugArtifacts && temporaryDirectory) {
+    if (!buildFailed && options.captureDebugArtifacts && debugSkipped === void 0 && temporaryDirectory) {
       try {
         debugArtifacts = await captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath);
         const after = await captureBuildSourceProvenance(source, args[0], options.signal);
@@ -31698,9 +31704,14 @@ async function buildRom(options) {
         }
         debugArtifacts.sourceProvenance = sourceProvenance;
       } catch (error2) {
-        buildFailed = true;
         debugArtifacts = void 0;
-        stderr = [stderr, error2 instanceof Error ? error2.message : String(error2)].filter(Boolean).join("\n");
+        const reason = error2 instanceof Error ? error2.message : String(error2);
+        if (debugOptional()) {
+          debugSkipped = reason;
+        } else {
+          buildFailed = true;
+          stderr = [stderr, reason].filter(Boolean).join("\n");
+        }
       }
     }
     const cancelled = options.signal?.aborted === true;
@@ -31724,7 +31735,8 @@ async function buildRom(options) {
       outputPath,
       ...log,
       rom,
-      ...debugArtifacts ? { debugArtifacts } : {}
+      ...debugArtifacts ? { debugArtifacts } : {},
+      ...!buildFailed && debugSkipped !== void 0 ? { sourceDebug: { available: false, code: "SOURCE_DEBUG_UNAVAILABLE", reason: `No debug artifacts were captured: ${debugSkipped}` } } : {}
     };
     if (sourceProvenance)
       rememberAuthenticatedSourceBuild(result, args[0], sourceProvenance, debugArtifacts?.sourceDebugAbi);
@@ -35346,6 +35358,10 @@ var EmulatorService = class {
     if (this.#worker !== void 0 && this.#workerClosures.has(this.#worker)) {
       throw new EmulatorError("The emulator worker is closing; wait for cleanup before opening a ROM");
     }
+  }
+  /** The SHA-256 of the ROM run and replay would open for romPath, validated as they validate it. */
+  romSha256(romPath) {
+    return this.#romDigest(this.#resolveRom(romPath));
   }
   #resolveRom(romPath) {
     const validatedRom = this.#resolvePath(romPath, { existing: true });
@@ -69094,7 +69110,11 @@ async function runWithSourceDebugState(current, setContext, operation) {
     const next = await operation.resolve();
     const running = await operation.run();
     if (next !== void 0 && running.romSha256 !== next.identity.romSha256) {
-      throw new PlaytestError("SOURCE_DEBUG_ROM_MISMATCH", "The loaded emulator ROM does not match the authenticated build.");
+      const mismatch = new PlaytestError("SOURCE_DEBUG_ROM_MISMATCH", "The loaded emulator ROM does not match the authenticated build.");
+      if (operation.mismatched === void 0)
+        throw mismatch;
+      operation.mismatched(mismatch);
+      return running;
     }
     setContext(next);
     return running;
@@ -69324,7 +69344,7 @@ function createGbStudioServer(options = {}) {
       const duplicates = inventory.diagnostics.filter((diagnostic) => diagnostic.code === "DUPLICATE_SYMBOL");
       if (duplicates.length > 0)
         throw new GameStudioProjectError("DUPLICATE_SYMBOL", duplicates.map((diagnostic) => diagnostic.message).join(". "), duplicates[0].resourcePath);
-      const result = await buildRom({ ...input, captureDebugArtifacts: input.captureDebugArtifacts ?? true, projectRoot: project2.projectRoot, projectPath, authoringWarnings: authoringWarnings(inventory, await authoringScripts(inventory)) });
+      const result = await buildRom({ ...input, captureDebugArtifacts: input.captureDebugArtifacts ?? true, debugArtifactsOptional: input.captureDebugArtifacts === void 0, projectRoot: project2.projectRoot, projectPath, authoringWarnings: authoringWarnings(inventory, await authoringScripts(inventory)) });
       if (before && result.success !== false && typeof result.outputPath === "string" && result.rom)
         await rememberNativeRom(before, project2.projectPath, { path: result.outputPath, sha256: result.rom.sha256 }, configuredToolchain).catch(() => {
         });
@@ -69336,9 +69356,8 @@ function createGbStudioServer(options = {}) {
     });
   }
   async function sourceContextForRom(romPath) {
-    assertSafePlatformPath(romPath, process.platform);
-    const filename = (await inspectRom(romPath, authorizedEmulatorRoot())).path;
-    const digest8 = createHash43("sha256").update(await readFile15(filename)).digest("hex");
+    authorizedEmulatorRoot();
+    const digest8 = emulator.romSha256(romPath);
     const context = sourceBuilds.get(digest8);
     if (context === void 0 || context.projectPath !== (await selectedProject()).projectPath) {
       throw new PlaytestError("SOURCE_DEBUG_UNAVAILABLE", "No build in this session captured debug artifacts for this ROM in the selected project. Rebuild it with rom_build (it captures them unless captureDebugArtifacts is false) and run the ROM it returns.");
@@ -69352,13 +69371,16 @@ function createGbStudioServer(options = {}) {
   async function replayEmulator(romPath, options2, debugMode, signal) {
     return openEmulator(romPath, debugMode, signal, () => emulator.replay(romPath, options2, signal));
   }
+  function sourceDebugUnavailable(error2) {
+    return { unavailable: { available: false, code: error2.code, reason: error2.message } };
+  }
   async function automaticSourceContext(romPath) {
     try {
       return { context: await sourceContextForRom(romPath) };
     } catch (error2) {
       if (!(error2 instanceof PlaytestError || error2 instanceof SourceDebugError) || !error2.code.startsWith("SOURCE_DEBUG_"))
         throw error2;
-      return { unavailable: { available: false, code: error2.code, reason: error2.message } };
+      return sourceDebugUnavailable(error2);
     }
   }
   async function openEmulator(romPath, debugMode, signal, open) {
@@ -69372,6 +69394,9 @@ function createGbStudioServer(options = {}) {
         chosen = debugMode === "rom" ? { context: void 0 } : debugMode === "source" ? { context: await sourceContextForRom(romPath) } : await automaticSourceContext(romPath);
         return chosen.context;
       },
+      ...debugMode === void 0 ? { mismatched: (error2) => {
+        chosen = sourceDebugUnavailable(error2);
+      } } : {},
       run: async () => {
         if (signal?.aborted)
           throw new PlaytestError("EMULATOR_OPERATION_CANCELLED", "The emulator open request was cancelled before execution.");
@@ -69997,6 +70022,7 @@ function createGbStudioServer(options = {}) {
           frame: replayed.frame,
           activeButtons: replayed.activeButtons,
           debugMode: replayed.debugMode,
+          ...replayed.sourceDebug === void 0 ? {} : { sourceDebug: replayed.sourceDebug },
           replay: replayed.replay,
           ...replayed.recording === void 0 ? {} : {
             recording: { recordingPath: replayed.recording.recordingPath, sessionId: replayed.recording.sessionId, branchId: replayed.recording.branchId }

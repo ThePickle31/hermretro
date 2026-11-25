@@ -19,10 +19,13 @@ The source pair is read-only. Both destination files must be new.
     "metadataSha256": "<SHA-256 of the exact metadata bytes>"
   },
   "expectedRevision": "<fresh whole-project revision>",
-  "dryRun": true
+  "dryRun": true,
+  "detail": "full"
 }
 ```
 
+`detail: "full"` adds the ID map and the pattern accounting note to the receipt;
+leave it out when only the imported asset's ID and paths are needed.
 Inspect the dry-run receipt, then repeat with `dryRun: false` and the same revision
 if the project is unchanged. An omitted asset ID is derived deterministically
 from the destination path. The explicit or derived destination ID must be fresh.
@@ -63,7 +66,8 @@ metadata cannot provide arbitrary output paths or executable fields.
 allocation and need not equal the measured deduplicated pattern count. The
 receipt separately reports `declaredNumTiles`, exact referenced
 `sourcePatterns8x16`, and `flipCanonicalPatterns8x16`. Transparent and native
-chroma-key pixels are normalized for those measurements. A differing declaration
+chroma-key pixels are normalized for those measurements. `detail: "full"` adds
+`patternAccounting`, which says what these counts measure. A differing declaration
 produces `NATIVE_TILE_DECLARATION_DIFFERS`, a warning that does not block import.
 These measurements do not establish compiled tile allocation or scanline use.
 
@@ -71,7 +75,7 @@ These measurements do not establish compiled tile allocation or scanline use.
 
 Every root, state, animation, frame, and object ID must be a unique UUID. The
 importer assigns fresh deterministic IDs in the destination asset's namespace,
-checks project collisions, and returns every mapping in `idMap` with `kind`,
+checks project collisions, and with `detail: "full"` returns every mapping in `idMap` with `kind`,
 `sourceId`, `destinationId`, and an exact `sourcePointer` to the original ID.
 Array order and all other authored nested fields are preserved. Root name,
 symbol, filename, checksum, and ID are derived from the requested output.
