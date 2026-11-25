@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .. import library
 from ..hermes import host
 from ..hermes.declare import rpc
 from . import snapshots
@@ -54,14 +55,15 @@ def rpc_build_restore(ctx):
             if root is None:
                 return {"ok": False, "code": "NO_GAME", "error": "Only a game in your library can be restored."}
             identifier = str(params.get("id") or "")
-            restored = snapshots.restore(
-                _snapshots_dir(),
-                game,
-                root,
-                identifier,
-                build_ref=params.get("buildRef"),
-                build_at=params.get("buildAt"),
-            )
+            with library.folder_lock(root):  # never while an installed game's update replaces its files
+                restored = snapshots.restore(
+                    _snapshots_dir(),
+                    game,
+                    root,
+                    identifier,
+                    build_ref=params.get("buildRef"),
+                    build_at=params.get("buildAt"),
+                )
             if restored.get("problems"):
                 return {"ok": False, "code": "PARTIAL", "error": "Some files could not be restored.", **restored}
             return {"ok": True, **restored}

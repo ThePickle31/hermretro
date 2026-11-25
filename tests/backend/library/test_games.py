@@ -283,6 +283,7 @@ class GamesRpc(unittest.TestCase):
                 "cover",
                 "card",
                 "layout",
+                "install",
                 "displayTitle",
             },
             "the games RPC's keys changed: change describe (backend/library/shelf.py), this set, the "

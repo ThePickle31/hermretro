@@ -299,3 +299,94 @@ def make_library_game(
     if chat is not None:
         hermes_host._registry().bind(entry["id"], chat, hermes_host._profile_identity())
     return entry["id"], root
+
+
+# -- games installed from a link (backend/library/installs.py) ------------------------------------
+
+NINTENDO_LOGO = bytes.fromhex(
+    "ceed6666cc0d000b03730083000c000d0008111f8889000edccc6ee6ddddd999bbbb67636e0eecccdddc999fbbb9333e"
+)
+
+
+def make_rom(size: int = 32 * 1024, *, colour: bool = True, kind: int = 0x1E, ram: int = 4, fill: int = 0) -> bytes:
+    """A Game Boy ROM with a whole, valid cartridge header (logo, sizes, both checksums): what GB Studio writes."""
+    rom = bytearray([fill & 0xFF]) * size
+    rom[0x104:0x134] = NINTENDO_LOGO
+    rom[0x134:0x13D] = b"TESTGAME\0"
+    rom[0x143] = 0x80 if colour else 0x00
+    rom[0x147], rom[0x149] = kind, ram
+    rom[0x148] = max(0, (size // (32 * 1024)).bit_length() - 1)
+    checksum = 0
+    for byte in rom[0x134:0x14D]:
+        checksum = (checksum - byte - 1) & 0xFF
+    rom[0x14D] = checksum
+    rom[0x14E] = rom[0x14F] = 0
+    total = sum(rom) & 0xFFFF
+    rom[0x14E], rom[0x14F] = total >> 8, total & 0xFF
+    return bytes(rom)
+
+
+def git(cwd: Path, *args: str) -> str:
+    """Run git in a test repository, with none of the developer's own git configuration."""
+    import subprocess
+
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    config = ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "init.defaultBranch=main"]
+    config += ["-c", f"core.hooksPath={os.devnull}", "-c", "commit.gpgSign=false"]
+    result = subprocess.run(
+        ["git", *config, *args], cwd=cwd, env=environment, capture_output=True, text=True, check=True
+    )
+    return result.stdout.strip()
+
+
+def make_game_folder(
+    root: Path,
+    *,
+    source: bool = False,
+    identifier: str = "ab" * 16,
+    title: str = "Space Game",
+    rom: bytes | None = None,
+) -> Path:
+    """A published game's files in ``root``: the card (with ``identifier`` and the ROM's ``romSha256``), the cover and
+    ``build/game.gbc`` (``rom``, else ``make_rom()``), and with ``source`` its ``.gbsproj`` and ``project/`` too."""
+    rom = make_rom() if rom is None else rom
+    (root / "build").mkdir(parents=True, exist_ok=True)
+    (root / "build" / "game.gbc").write_bytes(rom)
+    (root / "cover.png").write_bytes(COVER)
+    card = {
+        "version": 1,
+        "id": identifier,
+        "title": title,
+        "tagline": "Fly a tiny ship through a meteor field.",
+        "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
+        "genres": ["Arcade"],
+        "cover": "cover.png",
+        "gameVersion": "0.1.0",
+        "rom": "build/game.gbc",
+        "romSha256": hashlib.sha256(rom).hexdigest(),
+    }
+    (root / "game.json").write_text(json.dumps(card, indent=2))
+    (root / "CHANGELOG.md").write_text("# Changelog\n")
+    if source:
+        (root / "project").mkdir(exist_ok=True)
+        (root / "space-game.gbsproj").write_text(json.dumps({"_resourceType": "project", "name": title}))
+        (root / "project" / "scene.gbsres").write_text("{}")
+    return root
+
+
+def make_game_repo(base: Path, name: str = "space-game", **game) -> tuple[Path, str]:
+    """A git repository holding a published game (``make_game_folder``), committed on ``main``. Returns the repository
+    folder and its ``file://`` link."""
+    repo = base / name
+    repo.mkdir(parents=True)
+    git(repo, "init", "-q")
+    make_game_folder(repo, **game)
+    commit_all(repo, "First version")
+    return repo, repo.resolve().as_uri()
+
+
+def commit_all(repo: Path, message: str) -> str:
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", message)
+    return git(repo, "rev-parse", "HEAD")

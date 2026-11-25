@@ -318,6 +318,12 @@ def _shutdown_for_replacement(client: BrokerClient, *, replace: bool = False) ->
         raise BrokerUnavailable(f"The previous hermretro broker did not confirm shutdown: {error}") from error
 
 
+def game_hold(client: BrokerClient, root: str, *, hold: bool) -> dict:
+    """Hold a game while an installed game's files are replaced, or release it (``backend/broker/holds.py``):
+    ``{ok: True}``, or ``{ok: False, denied: {code, message}}`` (``GAME_BUSY`` while a conversation has it open)."""
+    return client.request({"op": "hold_game" if hold else "release_game", "root": root})
+
+
 def try_connect(
     state_dir: Path, retire_broken: bool = False, *, deadline: float | None = None
 ) -> tuple[BrokerClient | None, Exception | None]:

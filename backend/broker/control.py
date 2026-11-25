@@ -28,6 +28,8 @@ class ControlMixin(InstallMixin):
             else:
                 install = self.start_install(admit_before=request.get("admit_before") or 0)
             return {"ok": True, "install": install}
+        if op in ("hold_game", "release_game"):
+            return self.game_hold(request)
         if op == "install_status":
             return {"ok": True, "install": self.install_status()}
         if op == "install_cancel":

@@ -115,7 +115,19 @@ class Layout(unittest.TestCase):
         release.record_publish(
             self.root, repo="https://example.invalid/game", commit="c" * 40, version="0.2.0", source=True
         )
-        release.record_install(self.root, repo="https://example.invalid/game", commit="c" * 40, source=True)
+        source = {
+            "canonical": "https://example.invalid/game",
+            "url": "https://example.invalid/game",
+            "ref": None,
+            "subdir": None,
+        }
+        release.record_install(
+            self.root,
+            source=source,
+            commit="c" * 40,
+            mode="game+source",
+            rom={"path": "build/game.gbc", "sha256": "0" * 64},
+        )
         identifier = layout.new_identity(self.root)
         self.assertNotEqual(identifier, original)
         card = self.card()

@@ -90,6 +90,7 @@ Params: none. Result:
     "cover": false,
     "card": { "title": "…", … } | null,
     "layout": { "ok": true, "problems": [ { "code": "…", "path": "…", "message": "…" } ], "warnings": [ … ] },
+    "install": { "source": "https://github.com/…", "url": "…", "ref": "main", "commit": "<40 hex>", "mode": "game" | "game+source", "rom": "build/game.gbc", "installedAt": 1731400000, "edited": false } | null,
     "displayTitle": "Comet Drift",
     "chat": { "sessionId": "…", "title": "…", "conversationId": "…", "profile": "…", "thisProfile": true } | null,
     "session": { "storedId": "…", "createdAt": 1731400000, "thisProfile": true, "profileName": null, "exists": true } | null,
@@ -103,7 +104,7 @@ Params: none. Result:
 }
 ```
 `demo` is the built-in demo cartridge. It is never part of `games[]`, so the Games shelf stays the user's library.
-The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM named by the export's `gbstudio.json`, or is null if it is missing or unreadable. The rebuilt banner compares the ROM the web player loads against `web.sha256`. `layout` is `layout.check` (`backend/library/layout.py`): a problem keeps the game from being presented; a warning names something that stays local.
+The registry is `state_dir/games.json`, updated by the broker whenever a lane selects or builds a project (`Lane.remember` paths for `project_select`/`project_create`/`rom_build`/`web_preview`). `state` = `failed` if the last build failed, `changed` if any file under the project's sources is newer than the ROM, `unbuilt` without a ROM, else `ready`. `webExport` = `<project>/build/web/index.html` and `js/binjgb.wasm` exist. `web` describes the ROM named by the export's `gbstudio.json`, or is null if it is missing or unreadable. The rebuilt banner compares the ROM the web player loads against `web.sha256`. `layout` is `layout.check` (`backend/library/layout.py`): a problem keeps the game from being presented; a warning names something that stays local. `install` says where a game installed from a link came from (`backend/library/installs.py`), null for a game made here; `edited` is whether its files changed since.
 
 On `ok: false` the page shows the read error and retains any cached result. A nonempty `unavailable` list
 shows the shelf's read notice alongside the cards that loaded. An empty library requires a successful

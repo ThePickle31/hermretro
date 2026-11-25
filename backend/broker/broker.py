@@ -28,6 +28,7 @@ from ..system import paths
 from . import leases
 from .control import ControlMixin
 from .lifecycle import LifecycleMixin, Notices
+from .holds import HoldsMixin
 from .lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
 from .engine import EngineError
 from .operations_file import scene_apply_arguments
@@ -96,7 +97,7 @@ def _same_path(root: Path, asked, wanted: Path) -> bool:
     return first == second or (sys.platform == "darwin" and first.lower() == second.lower())
 
 
-class Broker(LaneMixin, ControlMixin, LifecycleMixin):
+class Broker(LaneMixin, ControlMixin, LifecycleMixin, HoldsMixin):
     def __init__(self, state_dir: Path, node: str):
         self.state_dir = state_dir
         self.node = node
@@ -264,6 +265,7 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
         if isinstance(session_id, str) and session_id and not delegated and session_id not in lane.sessions_seen:
             lane.sessions_seen.append(session_id)
             del lane.sessions_seen[:-16]
+        self.refuse_held(lane, self._selection_target(lane, tool, arguments) if tool in SELECTORS else None)
         if tool in SELECTORS:
             self.guard_selection(owner, lane, tool, arguments)
 
@@ -272,6 +274,7 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin):
         engine = self.ensure_engine(lane)
         if not delegated and kind in ("read", "project-write", "runtime"):
             self.select_bound_game(lane, engine)
+            self.refuse_held(lane, None)  # the game it selects for this conversation may be held
         if kind in ("project-write", "runtime"):
             self.guard_ownership(lane, arguments)  # only a game's own conversation changes it or runs it
         if tool == "rom_build" and lane.selected_root:

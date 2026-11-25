@@ -11,6 +11,7 @@ from .client import (
     LegacyBrokerHello,
     OtherCopyBusy,
     ensure_broker,
+    game_hold,
     request_shutdown,
     try_connect,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "LegacyBrokerHello",
     "OtherCopyBusy",
     "ensure_broker",
+    "game_hold",
     "request_shutdown",
     "try_connect",
 ]

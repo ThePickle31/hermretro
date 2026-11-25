@@ -80,15 +80,18 @@ _held = threading.local()
 @contextmanager
 def folder_lock(root: Path):
     """Hold the game folder's lock: the gateway and the broker both write a game's card and layout files, and each
-    write reads, merges and replaces. Taken again by the same thread, it is already held."""
-    key = os.path.realpath(root)
-    held = _held.__dict__.setdefault("roots", set())
-    if key in held:
-        yield
-        return
+    write reads, merges and replaces. Taken again by the same thread, it is already held, also through the folder's
+    new name after it was moved (the lock is its lock file, which moves with it: an installed game's update renames
+    it)."""
     folder = Path(root) / RECORD_DIR
     folder.mkdir(exist_ok=True)
+    held = _held.__dict__.setdefault("locks", set())
     with open(folder / LOCK_FILE, "a+") as handle:
+        info = os.fstat(handle.fileno())
+        key = (info.st_dev, info.st_ino)
+        if key in held:
+            yield
+            return
         fcntl.flock(handle, fcntl.LOCK_EX)
         held.add(key)
         try:
