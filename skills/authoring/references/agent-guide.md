@@ -638,9 +638,11 @@ dumps, arbitrary host files, or a shell.
 
 Use optional [recordings and checkpoints](../../rom-debugging/references/recorded-playtesting.md) to preserve
 failure evidence, export retained input history, review an interval, or extract
-a supporting clip. Repeat the relevant steps from a comparable fresh boot
-after editing and rebuilding. Checkpoints require matching ROM and worker
-identity; they do not transfer to a rebuild.
+a supporting clip. After editing and rebuilding, replay a recorded attempt onto
+the new ROM with `chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}`
+instead of playing the route again by hand: it stops at the first frame that
+differs and leaves the session where the replay ended. Checkpoints require
+matching ROM and worker identity; they do not transfer to a rebuild.
 
 Inspect actual samples for movement, interactions, collision boundaries, art,
 and readability. They establish only the frames and inputs exercised, not

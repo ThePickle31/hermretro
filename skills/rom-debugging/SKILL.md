@@ -111,17 +111,40 @@ not repeat it to recover evidence; use inert observation or `chromatic_emulator_
 of a retained interval. See [stepped playtesting](references/stepped-playtesting.md)
 for execution status, contact sheets, cancellation, and cleanup.
 
-Preserve the first failure and its inputs. After a source fix, build the new
-cartridge and repeat the relevant button sets and frame counts from comparable
-starting conditions; inspect behavior separately from animation/hash changes.
+Play with `recording:{}` on a fresh boot so the route can be replayed. **After
+every rebuild, replay the recorded attempt onto the new ROM instead of playing
+the route again by hand:**
+
+```text
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}
+```
+
+It boots the new ROM as the attempt booted, plays every recorded input in one
+call and compares each frame with the attempt's. `status:"matched"` with
+`coverage:"every-frame"` means the new ROM showed the same frames all the way;
+an attempt recorded before replay existed kept only every few frames
+(`coverage:"retained-frames"`), and only those were compared. `status:"diverged"`
+stops at the first frame that differs and returns the new (`actual`) image, with
+the recorded one (`expected`) when the attempt kept it: a difference you made on
+purpose, or a regression. To play the rest of the route anyway, replay the same
+attempt again with `onDivergence:"continue"`, naming it from `replay.source`:
+
+```text
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>","recordingPath":"<replay.source.recordingPath>","branchId":"<replay.source.branchId>","onDivergence":"continue"}
+```
+
+`toActionIndex` (a `recordingSpan`'s `toActionIndex`) stops where the fix is to
+be checked. The session stays open where the replay ended, recorded as a new
+attempt, so keep playing, save checkpoints or replay again from there. A
+cartridge with a real-time clock replays best effort (`deterministic:false`).
+See [replay after a rebuild](references/recorded-playtesting.md#replay-after-a-rebuild).
+
 An unchanged ROM reuses its session; use `restart:true` for an intentional fresh
-boot and `chromatic_emulator_close {}` before selecting another project. Enable
-`recording:{}` on a fresh boot when the input history matters. For branching an
-existing attempt, see [recordings and checkpoints](references/recorded-playtesting.md):
+boot and `chromatic_emulator_close {}` before selecting another project. For
+branching an attempt, see [recordings and checkpoints](references/recorded-playtesting.md):
 save only in a recorded session after a step that ends with `[]` for at least
 one frame, and restore only into the identical ROM and runtime, including the
-worker hash. A checkpoint from before a rebuild cannot be used for
-the regression run.
+worker hash. A checkpoint never crosses a rebuild: replay instead.
 
 ## Finishable
 

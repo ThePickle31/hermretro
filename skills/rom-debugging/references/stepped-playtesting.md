@@ -140,23 +140,26 @@ For named variables or the current scene, build with
 then call `chromatic_emulator_debug`. Source diagnostics require the matching successful
 build and unchanged authored source; addresses are not guessed.
 
-Preserve the original attempt when it helps explain a failure. Record what the
-frames showed and the exact button sets and frame counts. Apply the smallest
-relevant native source edit, then build a new cartridge and repeat those steps:
+Preserve the original attempt when it helps explain a failure. Play recorded
+(`recording:{}`) and note what the frames showed. Apply the smallest relevant
+native source edit, build a new cartridge and replay the attempt onto it, rather
+than repeating the route by hand:
 
 ```text
-chromatic_emulator_close {}
 chromatic_rom_build {}
-chromatic_rom_inspect {"romPath":"<new ROM outputPath>"}
-chromatic_emulator_run {"romPath":"<new ROM outputPath>","restart":true,"initialFrames":120,"recording":{}}
-chromatic_emulator_step {"inputs":[{"buttons":["right"],"frames":12,"sample":true},{"buttons":["right","a"],"frames":8},{"buttons":[],"frames":1}]}
-chromatic_emulator_close {}
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}
+chromatic_emulator_step {"inputs":[{"buttons":["right","a"],"frames":8,"sample":true},{"buttons":[],"frames":1}]}
 ```
 
-Keep the starting condition and relevant input sequence comparable. Inspect the
+The replay boots the new ROM as the attempt booted and plays its recorded inputs
+in one call, comparing every frame with the attempt's, then leaves the session at
+the end of the route for the next step. A frame that differs stops it with the
+recorded and new images: decide whether the change was intended. Inspect the
 functional result yourself: a changed animation hash is not automatically a
 regression, and a completed tool call is not a gameplay pass. A rebuild cannot
-reuse an opaque checkpoint from different ROM bytes or a different worker.
+reuse an opaque checkpoint from different ROM bytes or a different worker; the
+replay is how play resumes after one. See
+[replay after a rebuild](recorded-playtesting.md#replay-after-a-rebuild).
 
 ## Stop and retain only what you need
 

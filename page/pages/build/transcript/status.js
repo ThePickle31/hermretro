@@ -18,7 +18,7 @@ export function BuildStatus({ chat, onStop }) {
   const running = [...chat.items].reverse().find(item => item.kind === 'tools' && item.tools.some(tool => tool.state === 'running'))
   const tool = running ? [...running.tools].reverse().find(entry => entry.state === 'running') : null
   const waiting = chat.waiting || chat.items.some(item => (item.kind === 'clarify' || item.kind === 'approval') && !item.answered)
-  const slow = tool && /rom_build|web_build|toolchain_prepare|emulator_step|flash/.test(tool.name)
+  const slow = tool && /rom_build|web_build|toolchain_prepare|emulator_step|emulator_replay|flash/.test(tool.name)
   let tone = ''
   let headline
   let detail = null

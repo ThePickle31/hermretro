@@ -30,8 +30,8 @@ By default it returns up to 64 actions. Use `nextActionOffset` for the next
 action page. Evidence always contains the latest `min(limit, 32)` samples;
 `actionOffset` does not page that evidence. `actionCount` and `evidenceCount`
 are full retained totals, and `truncation` identifies omitted entries.
-Use that history to repeat the relevant button sets and frame counts directly
-after a rebuild. Exporting does not play the game or judge its behavior.
+Exporting does not play the game or judge its behavior; to play the history
+again on a rebuilt ROM, [replay it](#replay-after-a-rebuild).
 
 ```text
 chromatic_emulator_recording {"action":"stop","outcome":"failed","reason":"The player cannot pass through the opened door."}
@@ -98,6 +98,69 @@ finalized recordings still require valid complete tails. Review reports
 `semanticValidity:"not-adjudicated"`: inspect the actual evidence before
 claiming an interaction or other outcome succeeded.
 
+## Replay after a rebuild
+
+`chromatic_emulator_replay` plays a recorded attempt's inputs onto a ROM, usually
+the one `chromatic_rom_build` just made, in one call:
+
+```text
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>","recordingPath":"<an earlier recordingPath>","toActionIndex":42}
+chromatic_emulator_replay {"romPath":"<new ROM outputPath>","onDivergence":"continue"}
+```
+
+It boots the ROM with the attempt's boot frames and hardware mode, then plays
+its normalized inputs (button sets and frame counts) and compares every frame
+with the same moment of the attempt: a recording keeps a short hash of each
+frame it plays, besides the images it retains. The result's `replay` reports:
+
+- `status`: `matched`, or `diverged` with `divergence`: the first differing
+  `frame`, the `actionIndex` that played it (0 for the boot),
+  `lastMatchedFrame`, the hashes of the images and, with `continue`, how many
+  compared frames differed (`differingFrames`).
+- `coverage`: `every-frame`; `retained-frames` for an attempt recorded before
+  per-frame hashes, where only its retained images (by default every fourth
+  frame and each step's end) were compared, so a difference between them can
+  go unseen; `partial` for a branch whose checkpoint came from such an attempt.
+- `source`: the replayed recording, branch, ROM hash and action count, and
+  `sameRuntime` (false after a PyBoy or worker update; frames normally still match).
+- `replayedActions` up to `toActionIndex`, and `comparedFrames`.
+- `deterministic`: false, with `knownNondeterminism:["host-clock-rtc"]`, when
+  the attempt's or the new cartridge has a real-time clock. PyBoy reads that
+  clock from the computer's, so a game that reads it can differ on an
+  unchanged ROM: the comparison is best effort.
+
+Images, in order: `expected` (the attempt's retained image of that frame, when
+it kept one) and `actual` (the replay's frame there) when they differ, then
+`end`, the frame the session is at now. `scale` enlarges them and
+`includeImages:false` omits them.
+
+By default a difference stops the replay at that frame, even inside a step. A
+change you made on purpose (new art, text, a moved actor) also differs: look at
+the images, then replay the same attempt with `onDivergence:"continue"` to
+reach the end of the route, naming it from the result's `replay.source`
+(`{"romPath":…,"recordingPath":"<replay.source.recordingPath>","branchId":"<replay.source.branchId>","onDivergence":"continue"}`),
+or with `toActionIndex` to stop before the changed part. A replay only presses
+the recorded buttons; when the new ROM behaves differently (a door now opens
+one frame later), later inputs can land differently, so check the `end` frame
+before continuing.
+
+A replay that starts ends the current session; a refused one (a wrong
+`toActionIndex` or branch, a `recording.maxFrames` shorter than the route, an
+`outputPath` inside another recording or the archives) leaves it running. A
+replay needs no open session: after `chromatic_emulator_close` or a restart,
+name the attempt with `recordingPath`. The new session stays open where the
+replay ended, with the last recorded buttons still held, and is recorded as a
+new attempt with the source's limits (pass a `recording` object to change them
+or `false` to record nothing); that attempt notes which recording, branch, ROM
+and action boundary it replayed. Until a replay has played its source's whole
+route, that source stays the default of the next replay, so a replay stopped
+by a difference is never what the next one plays. After a whole route, the
+replay's own `recording.recordingPath` becomes the default. Pass `recordingPath`
+to replay another attempt, and `branchId` for a branch other than its current
+one. Step, save checkpoints and review there as usual: a checkpoint saved after
+the replay belongs to the new ROM.
+
 ## Checkpoints are for the same build
 
 Saving needs two things, or it is refused:
@@ -121,7 +184,7 @@ Checkpoint IDs and state files are opaque. Identity includes exact ROM bytes,
 active CGB mode, PyBoy version, worker protocol, and worker implementation hash.
 Changing the plugin worker can therefore invalidate an old checkpoint even
 when the ROM is unchanged. A damaged, stale, or incompatible state is refused;
-start from boot to retest a rebuild. Checkpoints are not battery-save backups
+[replay](#replay-after-a-rebuild) the attempt to retest a rebuild. Checkpoints are not battery-save backups
 or evidence of physical save-hardware behavior.
 
 ## Extract a supporting GIF
@@ -185,8 +248,8 @@ symlinks/junctions or rewrite its journals.
 Schema-v1 archives remain readable through recording status/export, review,
 and clip tools after close or a server restart. Reader compatibility does not
 make old checkpoints compatible with a different worker. Preserve old recipe
-files as user data, but the plugin no longer exposes a recipe-saving or replay
-runner. Retest through explicit steps from the required starting condition.
+files as user data; the plugin has no recipe runner. Retest a rebuild with
+`chromatic_emulator_replay` of a recorded attempt.
 
 Generated evidence remains separate from authored game assets. Keep failed
 attempts until they are understood, delete only with the owner's permission,

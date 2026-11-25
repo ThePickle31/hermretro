@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 7a6d1d7bbece12ef61f461607123303a49cf54e0a147b2732cd96391bdf7e49f
- * body: sha256 df444f063f8441adbf6aebf29a71d3cc6565283ca4c1c27dff451dad814a5a2d
+ * sources: sha256 70b27a1c8215f12600c5497353dc6106c4e8ce84c93c3a7d8ff4742c21e73b89
+ * body: sha256 c8516444f63eab51846c2427ea9b0abbaa6904fb8b7b072a2587566917418ae9
  */
 // page/sdk.js
 import {
@@ -5421,6 +5421,7 @@ var STEP_WORDS = {
   web_preview_close: ["Closing the player", "Closed the player"],
   present_game: ["Handing you the game", "Handed you the game"],
   emulator_run: ["Starting the emulator", "Started the emulator"],
+  emulator_replay: ["Replaying the playtest", "Replayed the playtest"],
   emulator_step: ["Playing the game", "Played the game"],
   emulator_observe: ["Looking at the screen", "Looked at the screen"],
   emulator_inspect: ["Reading the game’s memory", "Read the game’s memory"],
@@ -5547,7 +5548,7 @@ function BuildStatus({ chat, onStop }) {
   const running = [...chat.items].reverse().find((item) => item.kind === "tools" && item.tools.some((tool2) => tool2.state === "running"));
   const tool = running ? [...running.tools].reverse().find((entry) => entry.state === "running") : null;
   const waiting = chat.waiting || chat.items.some((item) => (item.kind === "clarify" || item.kind === "approval") && !item.answered);
-  const slow = tool && /rom_build|web_build|toolchain_prepare|emulator_step|flash/.test(tool.name);
+  const slow = tool && /rom_build|web_build|toolchain_prepare|emulator_step|emulator_replay|flash/.test(tool.name);
   let tone = "";
   let headline;
   let detail = null;

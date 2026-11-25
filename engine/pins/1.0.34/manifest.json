@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 511,
  "symlink_count": 0,
- "total_bytes": 35866748,
+ "total_bytes": 35896016,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "e99b5d752013c1ce0bfc1f000a98bc529848cfcfcfd5a8af51f372edbc41f56b",
+ "aggregate_sha256": "2a62e692e2f582f9398386b946545436e2892aa3efb782a1889a938545f78dd4",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -1006,9 +1006,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2880292,
+   "size": 2891969,
    "mode": "0o644",
-   "sha256": "b2efe115dd19a54e001720e9b6ec8d998dcd4cbe27da3ce63be56b386294e0a2"
+   "sha256": "ce4f3639e405cb53d143147b2d69b79c2f7d682f089e9384d6d12b5a4954f399"
   },
   {
    "path": "dist/server.js.map",
@@ -3288,9 +3288,9 @@
   {
    "path": "scripts/emulator_worker.py",
    "type": "file",
-   "size": 150739,
+   "size": 168330,
    "mode": "0o755",
-   "sha256": "5104ec810324457f7d62bb15f429fdb6ac5934e1951ddc136ad23ccf591f08a0"
+   "sha256": "3f16204a794b677079a507e9ba76b59cd459aa208d736dc6c8e28cf1ade5c2c8"
   },
   {
    "path": "scripts/node-releases.tsv",
