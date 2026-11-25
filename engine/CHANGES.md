@@ -205,3 +205,12 @@ files, what changed and why.
   only when it succeeds; a failed build returns `rom: null`. In the benchmark rerun an actor `paletteId` drew every
   sprite in one palette, found only while making the cover, and an invented `EVENT_INPUT_AWAIT` built with
   `success: true`.
+- `scripts/emulator_worker.py` (`unstamped_rom_digest`, `load`, `checkpoint_save`, `checkpoint_restore`), `dist/server.js`
+  (the `emulator_checkpoint` description): a checkpoint restores onto a rebuild of the unchanged project. GB Studio's
+  4-byte `save_signature` hashes the loaded project, whose resources carry their load time (`_v: Date.now()`), so two
+  builds of an unchanged project differ there and in the header's global checksum (`0x14E-0x14F`) and nowhere else.
+  A session also hashes its ROM with those bytes zeroed, the signature found from the build's own
+  `<rom>.debug/symbols.noi` (`_save_signature`, bank 0) and its place part of the hash, and checkpoints and recordings
+  keep that hash beside the exact one; a restore takes either. Without the symbols, or with any other byte different,
+  the restore is refused as before; the game's own battery save still refuses the other build's signature. A
+  checkpoint saved before a no-change rebuild was refused, so the agent replayed the route by hand.

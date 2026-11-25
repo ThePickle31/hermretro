@@ -189,12 +189,32 @@ chromatic_emulator_observe {}
 ```
 
 A restore preserves the original route and creates a new recorded branch.
-Checkpoint IDs and state files are opaque. Identity includes exact ROM bytes,
-active CGB mode, PyBoy version, worker protocol, and worker implementation hash.
+Checkpoint IDs and state files are opaque. Identity includes the ROM, active
+CGB mode, PyBoy version, worker protocol, and worker implementation hash.
 Changing the plugin worker can therefore invalidate an old checkpoint even
-when the ROM is unchanged. A damaged, stale, or incompatible state is refused;
-[replay](#replay-after-a-rebuild) the attempt to retest a rebuild. Checkpoints are not battery-save backups
-or evidence of physical save-hardware behavior.
+when the ROM is unchanged. A damaged, stale, or incompatible state is refused.
+
+The ROM is the same build when its bytes are identical or when it is a rebuild
+of the unchanged project. GB Studio stamps every build with a 4-byte save
+signature (a hash of the project as loaded, which includes load times) and
+the header's global checksum, so two builds without an edit differ in those
+bytes alone. The worker finds the signature in the build's
+`<rom>.debug/symbols.noi` (written by every project build unless
+`captureDebugArtifacts:false`) and ignores just those bytes. To restore a
+checkpoint from an earlier session onto such a rebuild, boot the new ROM with
+`recording:{}` and pass the checkpoint's `recordingPath`:
+
+```text
+chromatic_emulator_run {"romPath":"build/game.gbc","recording":{}}
+chromatic_emulator_checkpoint {"action":"restore","checkpointId":"<id>","recordingPath":"<the save's recordingPath>"}
+```
+
+Any other changed byte (an edit, a setting, a new asset) is a different
+build and the restore is refused: [replay](#replay-after-a-rebuild) the attempt
+to retest it. The game's own battery save still checks the signature, so a
+save written by one build is ignored by the other as on hardware; that is GB
+Studio's behaviour, not a failed restore. Checkpoints are not battery-save
+backups or evidence of physical save-hardware behavior.
 
 ## Extract a supporting GIF
 

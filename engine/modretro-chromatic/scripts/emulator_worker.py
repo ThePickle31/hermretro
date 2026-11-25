@@ -65,6 +65,8 @@ MAX_RECORDING_BRANCHES = 64
 FRAME_HASH_CHARS = 16
 FRAME_HASHES = re.compile("(?:[0-9a-f]{16})*")
 UNKNOWN_FRAME_HASH = "-" * FRAME_HASH_CHARS
+SAVE_SIGNATURE_SYMBOL = re.compile(rb"^DEF _save_signature (0x[0-9A-Fa-f]+)\r?$", re.MULTILINE)
+GLOBAL_CHECKSUM = slice(0x14E, 0x150)
 DEFAULT_RECORDING_LIMITS = {
     "sampleEveryFrames": 4,
     "recentFrameCount": 12,
@@ -132,6 +134,27 @@ def recorded_action_hashes(value: object, action: dict[str, Any]) -> str | None:
 def host_clock_rtc(rom: bytes) -> bool:
     """Whether the cartridge has a real-time clock, which PyBoy reads from the host's clock."""
     return len(rom) > 0x147 and rom[0x147] in {0x0F, 0x10}
+
+
+def unstamped_rom_digest(rom: bytes, rom_path: Path, resolve_path: Any) -> str | None:
+    """The ROM's SHA-256 without what GB Studio stamps into every build, or None without the build's symbols.
+
+    GB Studio's 4-byte `save_signature` hashes the loaded project, whose resources carry their load time, so two
+    builds of an unchanged project differ there and in the header's global checksum, and nowhere else. The
+    signature's place comes from the build's own linker symbols (`<rom>.debug/symbols.noi`) and is part of the
+    digest: two ROMs agree only with the signature in the same bank-0 place and every other byte equal."""
+    try:
+        symbols = bounded_recording_metadata(resolve_path(f"{rom_path}.debug/symbols.noi", existing=True), 1024 * 1024)
+    except (OSError, ValueError):
+        return None
+    found = SAVE_SIGNATURE_SYMBOL.findall(symbols)
+    address = int(found[0], 16) if len(found) == 1 else 0
+    if not GLOBAL_CHECKSUM.stop <= address <= 0x4000 - 4 or len(rom) < 0x4000:
+        return None
+    unstamped = bytearray(rom)
+    unstamped[address:address + 4] = bytes(4)
+    unstamped[GLOBAL_CHECKSUM] = bytes(2)
+    return digest(b"save_signature@%d\n" % address + bytes(unstamped))
 
 
 def bounded_integer(value: object, name: str, minimum: int, maximum: int) -> int:
@@ -1291,6 +1314,7 @@ class EmulatorWorker:
         self.controller_dirty = False
         self.rom_bytes: bytes | None = None
         self.rom_sha256: str | None = None
+        self.rom_unstamped_sha256: str | None = None
         self.runtime: dict[str, Any] | None = None
         self.recording: Recording | None = None
         self.last_recording_path: Path | None = None
@@ -1493,6 +1517,7 @@ class EmulatorWorker:
         self.rom_path = plan["romPath"]
         self.rom_bytes = raw
         self.rom_sha256 = rom_sha256
+        self.rom_unstamped_sha256 = unstamped_rom_digest(raw, plan["romPath"], self.resolve_project_path)
         self.runtime = {"name": "PyBoy", "version": importlib.metadata.version("pyboy"),
                         "protocolVersion": PROTOCOL_VERSION, "workerSha256": WORKER_SHA256,
                         "soundEmulated": plan["soundEmulated"]}
@@ -1510,6 +1535,7 @@ class EmulatorWorker:
             rtc = host_clock_rtc(raw)
             self.recording = Recording(plan["recordingPath"], limits=limits,
                                        rom={"sha256": rom_sha256, "cgb": self.cgb, "cartridgeType": raw[0x147] if len(raw) > 0x147 else None,
+                                            **({"unstampedSha256": self.rom_unstamped_sha256} if self.rom_unstamped_sha256 else {}),
                                             "deterministicReplaySupported": not rtc,
                                             "knownNondeterminism": ["host-clock-rtc"] if rtc else []}, runtime=self.runtime,
                                        initial_frames=initial_frames, resolve_path=self.resolve_project_path)
@@ -2245,6 +2271,7 @@ class EmulatorWorker:
         branch = recording.branches[recording.branch_id]
         metadata = {"schemaVersion": 1, "kind": "gb-studio-checkpoint", "checkpointId": checkpoint_id,
                     "sessionId": recording.session_id, "romSha256": self.rom_sha256, "cgb": self.cgb,
+                    **({"romUnstampedSha256": self.rom_unstamped_sha256} if self.rom_unstamped_sha256 else {}),
                     "runtime": self.runtime, "frame": self.frame, "branchId": recording.branch_id,
                     "actionCount": len(branch["actions"]), "evidenceCount": len(branch["evidence"]),
                     "stateSha256": state_hash, "stateFile": "state.bin",
@@ -2264,6 +2291,11 @@ class EmulatorWorker:
                 "branchId": recording.branch_id, "romSha256": self.rom_sha256,
                 "stateSha256": state_hash, "automaticAdvance": 0}
 
+    def same_build(self, rom_sha256: object, unstamped_sha256: object) -> bool:
+        """Whether a recorded ROM is the loaded one: the same bytes, or a rebuild of the same unchanged project
+        (`unstamped_rom_digest`)."""
+        return rom_sha256 == self.rom_sha256 or (self.rom_unstamped_sha256 is not None and unstamped_sha256 == self.rom_unstamped_sha256)
+
     def checkpoint_restore(self, params: dict[str, Any]) -> dict[str, Any]:
         self.require_mutable()
         self.require_paused()
@@ -2279,7 +2311,7 @@ class EmulatorWorker:
         metadata = json.loads(metadata_bytes)
         if metadata.get("kind") != "gb-studio-checkpoint" or metadata.get("schemaVersion") != 1 or metadata.get("checkpointId") != checkpoint_id:
             raise ValueError("Unsupported checkpoint format or identity")
-        if metadata.get("romSha256") != self.rom_sha256 or metadata.get("cgb") != self.cgb:
+        if not self.same_build(metadata.get("romSha256"), metadata.get("romUnstampedSha256")) or metadata.get("cgb") != self.cgb:
             raise ValueError("Checkpoint ROM identity is incompatible with the loaded ROM bytes")
         if metadata.get("runtime") != self.runtime:
             raise ValueError("Checkpoint runtime identity is incompatible with this PyBoy worker")
@@ -2294,7 +2326,8 @@ class EmulatorWorker:
         if digest(state_bytes) != metadata.get("stateSha256"):
             raise ValueError("Checkpoint state SHA-256 differs")
         source = self.recording_data({"recordingPath": str(source_root)})
-        if source.get("rom", {}).get("sha256") != self.rom_sha256 or source.get("rom", {}).get("cgb") != self.cgb or source.get("runtime") != self.runtime:
+        source_rom = source.get("rom", {})
+        if not self.same_build(source_rom.get("sha256"), source_rom.get("unstampedSha256")) or source_rom.get("cgb") != self.cgb or source.get("runtime") != self.runtime:
             raise ValueError("Checkpoint source recording ROM or runtime identity is incompatible")
         if source["sessionId"] != metadata.get("sessionId"):
             raise ValueError("Checkpoint recording identity differs")
@@ -2880,6 +2913,7 @@ class EmulatorWorker:
         self.controller_dirty = False
         self.rom_bytes = None
         self.rom_sha256 = None
+        self.rom_unstamped_sha256 = None
         self.runtime = None
         self.restored_image = None
         self.recording = None

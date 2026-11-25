@@ -60468,7 +60468,7 @@ function registerPlaytestTools(context) {
   });
   server.registerTool("emulator_checkpoint", {
     title: "Save or branch from an opaque checkpoint",
-    description: "Save a paused, neutral, sampled state or restore it into the exact same ROM/runtime. Saving needs an active recording (emulator_run with recording:{}, not yet stopped) and a sampled neutral frame: no held buttons, and the last emulator_step ended with buttons:[] for at least one frame, such as a final input {buttons:[],frames:1}. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
+    description: "Save a paused, neutral, sampled state or restore it into the same ROM and runtime: the exact ROM, or a rebuild of the unchanged project. Saving needs an active recording (emulator_run with recording:{}, not yet stopped) and a sampled neutral frame: no held buttons, and the last emulator_step ended with buttons:[] for at least one frame, such as a final input {buttons:[],frames:1}. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
     inputSchema: external_exports.object({
       action: external_exports.enum(["save", "restore"]),
       checkpointId: identifier.optional().describe("Restore only; required checkpointId returned by save."),
