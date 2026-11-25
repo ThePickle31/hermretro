@@ -25,6 +25,7 @@ import json
 import os
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
@@ -302,14 +303,22 @@ def cmd_mockup(args) -> int:
 
 def cmd_bench(args) -> int:
     root = hermes.hermes_root()
-    if args.verb == "run":
-        if shutil.which("hermes") is None:
-            print("needs hermes on PATH", file=sys.stderr)
-            return 1
-        folder = bench.run(bench.games(args.games), hermes.STUDIO, bench.RUNS, hermes.live_checkout(root))
-    else:
+    profile = root / "profiles" / hermes.STUDIO
+    if args.verb == "report":
+        if args.games:
+            raise bench.BenchError("bench report takes no games (--run FOLDER or --sessions ID ...)")
         folder = None if args.sessions else Path(args.folder).resolve() if args.folder else bench.latest_run(bench.RUNS)
-    print(bench.table(bench.reports(root / "profiles" / hermes.STUDIO, folder, args.sessions)))
+        print(bench.table(bench.reports(profile, folder, args.sessions)))
+        return 0
+    if args.folder or args.sessions:
+        raise bench.BenchError("--run and --sessions are for bench report")
+    if shutil.which("hermes") is None:
+        raise bench.BenchError("needs hermes on PATH")
+    folder = bench.run(bench.games(args.games), hermes.STUDIO, bench.RUNS, hermes.live_checkout(root))
+    try:
+        print(bench.table(bench.reports(profile, folder)))
+    except (bench.BenchError, sqlite3.Error) as error:
+        raise bench.BenchError(f"{error}; the run is kept in {folder} (bench report --run {folder})") from error
     return 0
 
 

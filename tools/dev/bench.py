@@ -3,7 +3,7 @@ of what each chat cost and where its time went, read from Hermes's own records.
 
 `run` starts every game at once (`hermes -p hermretro chat --query-file <prompt> --oneshot -Q --reasoning high`),
 each with its log in a run folder under `notes/bench/`, and waits for them all; `run.json` there records each game's
-process, exit and session. `report` reads the studio profile's `state.db` (read-only) and `logs/errors.log`.
+process, start, exit and session. `report` reads the studio profile's `state.db` (read-only) and `logs/errors.log`.
 Standard library only; development only; Linux and macOS.
 """
 
@@ -21,13 +21,15 @@ from collections import Counter
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 GAMES = Path(__file__).resolve().parent / "bench_games"
 RUNS = Path(__file__).resolve().parents[2] / "notes" / "bench"
 REASONING = "high"
-# Where the agent reads GB Studio's or the engine's source instead of a tool or skill telling it.
+# Where the agent reads GB Studio's or the engine's source instead of a tool or skill telling it: with a terminal
+# command, or with the file tools.
 SOURCE_MARKERS = ("gb-studio", "modretro-chromatic")
-SOURCE_READERS = {"terminal", "read_file", "search_files"}
+SOURCE_READERS = {"read_file", "search_files"}
 NORMAL_ENDS = {"cli_close", "agent_close"}
 DUPLICATE_DROP = "Removed duplicate tool call"
 SESSION_LINE = re.compile(r"^session_id: (\S+)\s*$", re.MULTILINE)
@@ -89,11 +91,12 @@ def run(prompts: list[Path], profile: str, runs: Path, checkout: Path | None) ->
                 "prompt": prompt.read_text(encoding="utf-8"),
                 "log": log.name,
                 "pid": child.pid,
+                "started": time.time(),
                 "exit": None,
                 "ended": None,
                 "session": None,
             }
-        write_record(folder, record)
+            write_record(folder, record)
         print(f"running {len(children)} games on {checkout or 'an installed copy'}: {folder}", flush=True)
         lock = threading.Lock()
 
@@ -142,32 +145,42 @@ def connect(db: Path) -> sqlite3.Connection:
     return connection
 
 
-def run_sessions(folder: Path, db: sqlite3.Connection) -> dict[str, str | None]:
-    """Each game of a run and its session: the one its log printed, else the session that started after the run
-    began with exactly its prompt (a chat stopped before printing its id)."""
+class Game(NamedTuple):
+    """A game of a run: its session (None when none was found) and when its chat exited (None if not recorded)."""
+
+    session: str | None
+    exited: float | None = None
+
+
+def run_sessions(folder: Path, db: sqlite3.Connection) -> dict[str, Game]:
+    """Each game of a run and its session: the one its log printed, else the one session with exactly its prompt
+    that started while its chat ran (a chat stopped before printing its id)."""
     if not (folder / "run.json").is_file():
         raise BenchError(f"{folder} is not a run folder (no run.json)")
     record = json.loads((folder / "run.json").read_text(encoding="utf-8"))
-    sessions = {}
+    found = {}
     for name, game in record["games"].items():
         session = game.get("session") or logged_session(folder / game["log"])
         if not session:
-            session = prompt_session(db, game["prompt"], record["started"], set(sessions.values()))
-        sessions[name] = session
-    return sessions
+            started = game.get("started") or record["started"]
+            taken = {other.session for other in found.values()}
+            session = prompt_session(db, game["prompt"], started, game.get("ended"), taken)
+        found[name] = Game(session, game.get("ended"))
+    return found
 
 
-def prompt_session(db: sqlite3.Connection, prompt: str, since: float, taken: set) -> str | None:
+def prompt_session(db: sqlite3.Connection, prompt: str, since: float, until: float | None, taken: set) -> str | None:
+    """The session with ``prompt`` as its first message that started between ``since`` and ``until`` (no end
+    when the chat's exit was not recorded); None when there is none or more than one."""
+    window = "s.started_at >= ?" + (" AND s.started_at <= ?" if until is not None else "")
     rows = db.execute(
         "SELECT s.id, m.content FROM sessions s JOIN messages m ON m.id = ("
         " SELECT MIN(id) FROM messages WHERE session_id = s.id AND role = 'user')"
-        " WHERE s.started_at >= ? ORDER BY s.started_at",
-        (since,),
+        f" WHERE {window}",
+        (since,) if until is None else (since, until),
     )
-    for row in rows:
-        if row["id"] not in taken and (row["content"] or "").strip() == prompt.strip():
-            return row["id"]
-    return None
+    matches = [row["id"] for row in rows if row["id"] not in taken and (row["content"] or "").strip() == prompt.strip()]
+    return matches[0] if len(matches) == 1 else None
 
 
 @dataclass
@@ -179,11 +192,13 @@ class Report:
     running: bool = False
     cost: float = 0.0
     model_calls: int = 0
+    auxiliary_calls: int = 0
     tool_calls: int = 0
     builds: int = 0
     failed_builds: int = 0
     compactions: int = 0
     duplicate_drops: int = 0
+    source_commands: int = 0
     source_reads: int = 0
     restores: int = 0
     ended: str = ""
@@ -191,51 +206,66 @@ class Report:
 
 
 def calls(tool_calls: str | None) -> list[tuple[str, dict]]:
-    """Each call an assistant message made, as (tool, arguments), with a `tool_call` envelope's calls unwrapped."""
+    """Each call an assistant message made, as (tool, arguments), with a `tool_call` envelope's calls unwrapped.
+    Arguments may be stored as objects or as JSON text, at either level; anything else counts as no arguments."""
     found = []
-    for item in json.loads(tool_calls or "[]"):
-        function = item.get("function") or {}
-        arguments = parsed(function.get("arguments"))
-        if function.get("name") == "tool_call" and isinstance(arguments.get("calls"), list):
-            found += [(inner.get("name", ""), inner.get("arguments") or {}) for inner in arguments["calls"]]
+    for item in decoded(tool_calls, list):
+        function = item.get("function") if isinstance(item, dict) else None
+        function = function if isinstance(function, dict) else {}
+        arguments = decoded(function.get("arguments"), dict)
+        inner = decoded(arguments.get("calls"), list)
+        if function.get("name") == "tool_call" and inner:
+            found += [
+                (str(call.get("name") or ""), decoded(call.get("arguments"), dict))
+                for call in inner
+                if isinstance(call, dict)
+            ]
         else:
-            found.append((function.get("name", ""), arguments))
+            found.append((str(function.get("name") or ""), arguments))
     return found
 
 
-def parsed(text) -> dict:
-    if isinstance(text, dict):
-        return text
-    try:
-        value = json.loads(text or "{}")
-    except ValueError:
-        return {}
-    return value if isinstance(value, dict) else {}
+def decoded(value, kind: type):
+    """``value`` as ``kind`` (dict or list): itself, or the JSON text it holds; an empty one otherwise."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return kind()
+    return value if isinstance(value, kind) else kind()
 
 
 def error_code(tool: str, content: str | None) -> str | None:
-    """The error code a tool result reports (else its tool, marked as having none), or None when it succeeded."""
-    result = parsed(content)
-    if not (result.get("isError") or result.get("error") or result.get("status") == "error"):
+    """The error code a tool result reports (else its tool, marked as having none), or None when it succeeded.
+    A compiler failure reports only `success: false` in its structured content."""
+    result = decoded(content, dict)
+    structured = decoded(result.get("structuredContent"), dict)
+    failed = result.get("isError") or result.get("error") or result.get("status") == "error"
+    if not (failed or result.get("success") is False or structured.get("success") is False):
         return None
-    structured = result.get("structuredContent")
-    nested = structured.get("code") if isinstance(structured, dict) else None
-    return result.get("code") or nested or f"{tool} (no code)"
+    return result.get("code") or structured.get("code") or f"{tool} (no code)"
 
 
-def report(db: sqlite3.Connection, session: str, drops: Counter) -> Report:
+def report(db: sqlite3.Connection, session: str, drops: Counter, exited: float | None = None) -> Report:
+    """One session's report; ``exited`` is when its chat exited, the end of a session a stopped chat left open."""
     found = Report(session=session, duplicate_drops=drops[session])
     row = db.execute("SELECT * FROM sessions WHERE id = ?", (session,)).fetchone()
     if row is None:
         found.ended = "no such session"
         return found
     last = db.execute("SELECT MAX(timestamp) FROM messages WHERE session_id = ?", (session,)).fetchone()[0]
-    found.running = row["ended_at"] is None
-    found.wall = (row["ended_at"] or last or row["started_at"]) - row["started_at"]
-    found.model_calls = row["api_call_count"] or 0
-    # Every model call's cost, the compaction summaries' too (the session's own column leaves those out).
-    usage = db.execute("SELECT SUM(estimated_cost_usd) FROM session_model_usage WHERE session_id = ?", (session,))
-    found.cost = usage.fetchone()[0] or row["estimated_cost_usd"] or 0.0
+    found.running = row["ended_at"] is None and exited is None
+    found.wall = (row["ended_at"] or exited or last or row["started_at"]) - row["started_at"]
+    # Every model call and its cost, the auxiliary ones (compaction summaries) too: the session's own columns
+    # leave those out.
+    usage = db.execute(
+        "SELECT SUM(api_call_count), SUM(CASE WHEN task != '' THEN api_call_count ELSE 0 END),"
+        " SUM(estimated_cost_usd) FROM session_model_usage WHERE session_id = ?",
+        (session,),
+    ).fetchone()
+    found.model_calls = usage[0] or row["api_call_count"] or 0
+    found.auxiliary_calls = usage[1] or 0
+    found.cost = usage[2] or row["estimated_cost_usd"] or 0.0
     # Rows, not the session's counts: those count only what is still active after a compaction.
     for tool, content in db.execute(
         "SELECT tool_name, content FROM messages WHERE session_id = ? AND role = 'tool'", (session,)
@@ -252,17 +282,18 @@ def report(db: sqlite3.Connection, session: str, drops: Counter) -> Report:
         (session,),
     ):
         for tool, arguments in calls(tool_calls):
-            text = json.dumps(arguments)
-            found.source_reads += tool in SOURCE_READERS and any(marker in text for marker in SOURCE_MARKERS)
+            source = any(marker in json.dumps(arguments) for marker in SOURCE_MARKERS)
+            found.source_commands += tool == "terminal" and source
+            found.source_reads += tool in SOURCE_READERS and source
             found.restores += tool == "chromatic_emulator_checkpoint" and arguments.get("action") == "restore"
     found.compactions = db.execute(
         "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user' AND _compressed_summary = 1", (session,)
     ).fetchone()[0]
-    found.ended = ending(db, session, row["end_reason"])
+    found.ended = ending(db, session, row["end_reason"], found.running)
     return found
 
 
-def ending(db: sqlite3.Connection, session: str, reason: str | None) -> str:
+def ending(db: sqlite3.Connection, session: str, reason: str | None, running: bool) -> str:
     """`yes` when the chat closed after a final answer, else what happened instead."""
     final = db.execute(
         "SELECT finish_reason FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1",
@@ -272,7 +303,7 @@ def ending(db: sqlite3.Connection, session: str, reason: str | None) -> str:
     if reason in NORMAL_ENDS and answered:
         return "yes"
     if reason is None:
-        return "no (still open)"
+        return "no (still open)" if running else "no (chat exited, session left open)"
     return f"no ({reason}{'' if answered else ', no final answer'})"
 
 
@@ -293,12 +324,16 @@ def minutes(seconds: float) -> str:
 ROWS = (
     ("wall time", lambda r: minutes(r.wall) + (" (running)" if r.running else "")),
     ("cost (estimated)", lambda r: f"${r.cost:.2f}"),
-    ("model calls", lambda r: str(r.model_calls)),
+    (
+        "model calls",
+        lambda r: f"{r.model_calls} ({r.auxiliary_calls} auxiliary)" if r.auxiliary_calls else str(r.model_calls),
+    ),
     ("tool calls", lambda r: str(r.tool_calls)),
     ("builds", lambda r: f"{r.builds} ({r.failed_builds} failed)" if r.failed_builds else str(r.builds)),
     ("compactions", lambda r: str(r.compactions)),
     ("duplicate drops", lambda r: str(r.duplicate_drops)),
-    ("engine source reads", lambda r: str(r.source_reads)),
+    ("source commands", lambda r: str(r.source_commands)),
+    ("source file reads", lambda r: str(r.source_reads)),
     ("checkpoint restores", lambda r: str(r.restores)),
     ("tool errors", lambda r: str(sum(r.errors.values()))),
     ("ended normally", lambda r: r.ended),
@@ -323,8 +358,10 @@ def reports(profile_home: Path, folder: Path | None = None, ids: list[str] | Non
     """The report of each game of the run in ``folder``, or of each session in ``ids``."""
     drops = duplicate_drops(profile_home / "logs")
     with closing(connect(profile_home / "state.db")) as db:
-        sessions = {session[:14]: session for session in ids} if ids else run_sessions(folder, db)
+        found = {session[:14]: Game(session) for session in ids} if ids else run_sessions(folder, db)
         return {
-            name: report(db, session, drops) if session else Report(session="none found", ended="no session")
-            for name, session in sessions.items()
+            name: report(db, game.session, drops, game.exited)
+            if game.session
+            else Report(session="none found", ended="no session")
+            for name, game in found.items()
         }

@@ -3,12 +3,14 @@ control socket `reload` talks to (a stand-in gateway here)."""
 
 import importlib.util
 import json
+import os
 import shutil
 import socket
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 TOP = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("local_hermes", TOP / "tools" / "dev" / "local_hermes.py")
@@ -148,6 +150,21 @@ class ReloadTest(HermesHomeTest):
             local_hermes.reload(self.root, "hermretro")
         with self.assertRaisesRegex(local_hermes.GatewayError, "no profile"):
             local_hermes.reload(self.root, "missing")
+
+
+class RootTest(unittest.TestCase):
+    """The Hermes root the development loop and the benchmark use (the chats write there): Hermes's rule."""
+
+    def test_hermes_home(self):
+        native = Path.home() / ".hermes"
+        for configured, root in (
+            ("", native),
+            (str(native / "profiles" / "hermretro"), native),
+            ("/srv/hermes", Path("/srv/hermes")),
+            ("/srv/hermes/profiles/hermretro", Path("/srv/hermes")),
+        ):
+            with mock.patch.dict(os.environ, {"HERMES_HOME": configured}):
+                self.assertEqual(local_hermes.hermes_root(), root, configured)
 
 
 if __name__ == "__main__":

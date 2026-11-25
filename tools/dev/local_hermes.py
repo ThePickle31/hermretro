@@ -20,8 +20,16 @@ class GatewayError(Exception):
 
 
 def hermes_root() -> Path:
-    """The Hermes home that holds every profile."""
-    return Path.home() / ".hermes"
+    """The Hermes home that holds every profile, by Hermes's own rule: ``~/.hermes`` unless ``HERMES_HOME`` names
+    a folder outside it, then that folder (or the root its ``profiles/<name>`` sits in)."""
+    native = Path.home() / ".hermes"
+    configured = os.environ.get("HERMES_HOME", "").strip()
+    if not configured:
+        return native
+    home = Path(os.path.expandvars(configured)).expanduser()
+    if home.resolve().is_relative_to(native.resolve()):
+        return native
+    return home.parents[1] if home.parent.name == "profiles" else home
 
 
 def is_checkout(folder: Path) -> bool:

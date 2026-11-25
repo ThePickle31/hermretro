@@ -116,17 +116,20 @@ is refused.
 each) goes at the same time to its own one-shot chat in the `hermretro` profile (`hermes -p hermretro chat
 --query-file <prompt> --oneshot -Q --reasoning high`), on the checkout that profile loads (`python tools/dev live`).
 It spends real model calls, so run it on purpose and in the background: it waits for every chat, keeps each one's
-output and `run.json` (process, exit, session, checkout and commit) in `notes/bench/<time>/`, then prints the
-report. `run bolt tide` runs only the games whose names contain those words.
+output and `run.json` (process, start, exit, session, checkout and commit) in `notes/bench/<time>/`, then prints
+the report (if that fails, the run stays there for `report`). `run bolt tide` runs only the games whose names contain
+those words. The chats and the report use the same Hermes root: `HERMES_HOME`'s, by Hermes's own rule.
 
 `python tools/dev bench report` prints the newest run's report again; `--run <folder>` reports another run,
 `--sessions <id> ...` any sessions. It reads the profile's `state.db` (read-only) and `logs/errors.log*`, and gives
-each game: wall time, estimated cost (compaction summaries included), model calls, tool calls (counted from the
-stored results: the session's own count leaves out what a compaction removed), builds, compactions, the identical
-tool calls Hermes dropped (`Removed duplicate tool call`), shell and file reads of GB Studio's or the engine's
-source, checkpoint restores, whether the chat ended with a final answer, and the tool errors by code. A chat
-stopped before it printed its session id is found by its prompt. Its tests use a fixture database
-(`tests/dev/test_bench.py`).
+each game: wall time, estimated cost and model calls (auxiliary ones such as compaction summaries included, and
+counted apart), tool calls (counted from the stored results: the session's own count leaves out what a compaction
+removed), builds and failed builds (`success: false` from the compiler counts), compactions, the identical tool
+calls Hermes dropped (`Removed duplicate tool call`), terminal commands and file reads into GB Studio's or the
+engine's source (apart), checkpoint restores, whether the chat ended with a final answer, and the tool errors by
+code. A chat stopped before it printed its session id is found by its prompt: the one session with it that started
+while that chat ran, else none; a session the stopped chat left open ends when the chat exited. Its tests use a
+fixture database (`tests/dev/test_bench.py`).
 
 ## Where tests live
 

@@ -21,6 +21,7 @@ sys.path.insert(0, str(TOP / "tools" / "dev"))
 import bench  # noqa: E402 - tools/dev, put on the path just above (a dataclass needs its module importable)
 
 SESSION = "local-aaaa"
+RESTORE = json.dumps({"action": "restore"})
 PROMPT = "Make a new Game Boy Color game called \"Test\".\n"
 # The columns of Hermes's state.db the report reads.
 SCHEMA = """
@@ -31,7 +32,7 @@ CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT
     _compressed_summary INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
     compacted INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE session_model_usage (session_id TEXT NOT NULL, task TEXT NOT NULL DEFAULT '',
-    estimated_cost_usd REAL NOT NULL DEFAULT 0);
+    api_call_count INTEGER NOT NULL DEFAULT 0, estimated_cost_usd REAL NOT NULL DEFAULT 0);
 """
 
 
@@ -77,7 +78,8 @@ class ReportTest(Fixture):
         super().setUp()
         self.session(ended=1125.0, reason="cli_close", calls=7, cost=1.0)
         self.db.executemany(
-            "INSERT INTO session_model_usage VALUES (?, ?, ?)", [(SESSION, "", 1.0), (SESSION, "compression", 0.25)]
+            "INSERT INTO session_model_usage VALUES (?, ?, ?, ?)",
+            [(SESSION, "", 7, 1.0), (SESSION, "compression", 2, 0.25)],
         )
         self.message("user", content=PROMPT, active=0, compacted=1)
         source = {"command": "grep -n EVENT_TEXT ~/.cache/toolchain/vendor/gb-studio/src/lib/events/eventText.js"}
@@ -95,6 +97,14 @@ class ReportTest(Fixture):
                         "tool_call",
                         {"calls": [{"name": "chromatic_emulator_checkpoint", "arguments": {"action": "restore"}}]},
                     ),
+                    # Hermes takes the envelope's calls and their arguments as JSON text too.
+                    call(
+                        "tool_call",
+                        {"calls": json.dumps([{"name": "chromatic_emulator_checkpoint", "arguments": RESTORE}])},
+                    ),
+                    call("tool_call", {"calls": [None, "text", {"name": "terminal", "arguments": "not json"}]}),
+                    {"function": None},
+                    None,
                 ]
             ),
         )
@@ -104,6 +114,9 @@ class ReportTest(Fixture):
         self.tool("terminal", {"output": "", "exit_code": -1, "error": "BLOCKED: script execution"})
         self.tool("chromatic_rom_build", {"result": "Completed"})
         self.tool("chromatic_rom_build", {"isError": True, "error": "compile failed", "code": "BUILD_FAILED"})
+        # A compiler failure: no error flag, only its structured content's `success: false`.
+        failed = {"result": "Operation failed (exit 1; diagnostics: 5).", "structuredContent": {"success": False}}
+        self.tool("chromatic_rom_build", failed)
         self.tool(
             "chromatic_scene_apply",
             {"isError": True, "error": "Operation 0 failed", "structuredContent": {"code": "INVALID_EVENT"}},
@@ -128,21 +141,28 @@ class ReportTest(Fixture):
         self.assertEqual(found.wall, 125.0)
         self.assertFalse(found.running)
         self.assertEqual(found.cost, 1.25)
-        self.assertEqual(found.model_calls, 7)
-        self.assertEqual(found.tool_calls, 7)
-        self.assertEqual((found.builds, found.failed_builds), (2, 1))
+        self.assertEqual((found.model_calls, found.auxiliary_calls), (9, 2))
+        self.assertEqual(found.tool_calls, 8)
+        self.assertEqual((found.builds, found.failed_builds), (3, 2))
         self.assertEqual(found.compactions, 1)
         self.assertEqual(found.duplicate_drops, 3)
-        self.assertEqual(found.source_reads, 2)
-        self.assertEqual(found.restores, 1)
+        self.assertEqual((found.source_commands, found.source_reads), (1, 1))
+        self.assertEqual(found.restores, 2)
         self.assertEqual(found.ended, "yes")
-        self.assertEqual(found.errors, Counter({"terminal (no code)": 1, "BUILD_FAILED": 1, "INVALID_EVENT": 1}))
+        self.assertEqual(
+            found.errors,
+            Counter(
+                {"terminal (no code)": 1, "BUILD_FAILED": 1, "chromatic_rom_build (no code)": 1, "INVALID_EVENT": 1}
+            ),
+        )
 
     def test_table_has_a_column_per_game_and_each_games_errors(self):
         text = bench.table(bench.reports(self.home, ids=[SESSION]))
         lines = text.splitlines()
         self.assertEqual(lines[0].split(), [SESSION[:14]])
-        self.assertIn("builds               2 (1 failed)", text)
+        self.assertIn("model calls          9 (2 auxiliary)", text)
+        self.assertIn("builds               3 (2 failed)", text)
+        self.assertIn("tool errors          4", text)
         self.assertIn("ended normally       yes", text)
         self.assertIn(f"{SESSION[:14]}: {SESSION}", text)
         self.assertIn("  BUILD_FAILED x1", text)
@@ -164,12 +184,21 @@ class EndingTest(Fixture):
         self.assertEqual(found.ended, "no (still open)")
         self.assertEqual(bench.ROWS[0][1](found), "0m02s (running)")
 
+    def test_a_session_its_stopped_chat_left_open_ends_when_the_chat_exited(self):
+        self.session()
+        self.message("assistant", tool_calls="[]", finish_reason="tool_calls")
+        with bench.closing(bench.connect(self.home / "state.db")) as db:
+            found = bench.report(db, SESSION, Counter(), exited=1090.0)
+        self.assertFalse(found.running)
+        self.assertEqual(found.wall, 90.0)
+        self.assertEqual(found.ended, "no (chat exited, session left open)")
+
     def test_a_reaped_session_without_an_answer_is_not_a_normal_end(self):
-        self.session(ended=1600.0, reason="startup_orphan_reap", cost=2.5)
+        self.session(ended=1600.0, reason="startup_orphan_reap", calls=7, cost=2.5)
         self.message("assistant", tool_calls="[]", finish_reason="tool_calls")
         found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]
         self.assertEqual(found.ended, "no (startup_orphan_reap, no final answer)")
-        self.assertEqual(found.cost, 2.5)  # no usage rows: the session's own estimate
+        self.assertEqual((found.cost, found.model_calls), (2.5, 7))  # no usage rows: the session's own columns
 
     def test_an_unknown_session(self):
         self.assertEqual(bench.reports(self.home, ids=["local-missing"])["local-missing"].ended, "no such session")
@@ -185,31 +214,43 @@ class RunSessionsTest(Fixture):
             "started": 2000.0,
             "games": {
                 "1-recorded": {"prompt": "one", "log": "1-recorded.log", "session": "local-recorded"},
-                "2-printed": {"prompt": "two", "log": "2-printed.log", "session": None},
-                "3-stopped": {"prompt": PROMPT, "log": "3-stopped.log", "session": None},
+                "2-printed": {"prompt": "two", "log": "2-printed.log", "session": None, "ended": 2400.0},
+                "3-stopped": {"prompt": PROMPT, "log": "3-stopped.log", "session": None, "ended": 2500.0},
                 "4-never": {"prompt": "four", "log": "4-never.log", "session": None},
             },
         }
         (folder / "run.json").write_text(json.dumps(record), encoding="utf-8")
-        # The same prompt in a session from before the run is not this run's.
-        self.session("local-earlier", started=1000.0)
-        self.message("user", session="local-earlier", content=PROMPT)
-        self.session("local-stopped", started=2100.0)
-        self.message("user", session="local-stopped", content=PROMPT.strip())
+        # The same prompt in a session from before the chat started, or after it exited, is not this run's.
+        for session, started in (("local-earlier", 1000.0), ("local-stopped", 2100.0), ("local-later", 3000.0)):
+            self.session(session, started=started)
+            self.message("user", session=session, content=PROMPT.strip())
         self.message("user", session="local-stopped", content="a later turn")
         with bench.closing(bench.connect(self.home / "state.db")) as db:
             sessions = bench.run_sessions(folder, db)
         self.assertEqual(
             sessions,
             {
-                "1-recorded": "local-recorded",
-                "2-printed": "local-printed",
-                "3-stopped": "local-stopped",
-                "4-never": None,
+                "1-recorded": bench.Game("local-recorded"),
+                "2-printed": bench.Game("local-printed", 2400.0),
+                "3-stopped": bench.Game("local-stopped", 2500.0),
+                "4-never": bench.Game(None),
             },
         )
         reports = bench.reports(self.home, folder)
         self.assertEqual(reports["4-never"].ended, "no session")
+        self.assertEqual(reports["3-stopped"].wall, 400.0)  # to the chat's exit: its session was left open
+
+    def test_two_sessions_with_the_prompt_leave_the_game_unresolved(self):
+        folder = self.home / "run"
+        folder.mkdir()
+        # A stopped run (no exit recorded) and a later run of the same game: neither session is surely this one's.
+        record = {"started": 2000.0, "games": {"1-test": {"prompt": PROMPT, "log": "1-test.log", "session": None}}}
+        (folder / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        for session, started in (("local-this", 2100.0), ("local-next", 5000.0)):
+            self.session(session, started=started)
+            self.message("user", session=session, content=PROMPT)
+        with bench.closing(bench.connect(self.home / "state.db")) as db:
+            self.assertEqual(bench.run_sessions(folder, db), {"1-test": bench.Game(None)})
 
     def test_the_newest_run_and_no_run(self):
         runs = self.home / "runs"
@@ -232,14 +273,22 @@ class RunTest(unittest.TestCase):
         bin_ = folder / "bin"
         bin_.mkdir()
         hermes = bin_ / "hermes"
+        # Each stand-in waits (up to 10 s) until both have started, so they finish only when run side by side.
         hermes.write_text(
             '#!/bin/sh\necho "$@"\npwd\nprompt="$5"\nname=$(basename "$prompt" .txt)\n'
+            'touch "$BENCH_STARTED/$name"\ni=0\n'
+            'while [ "$(ls "$BENCH_STARTED" | wc -l)" -lt 2 ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done\n'
+            'if [ "$(ls "$BENCH_STARTED" | wc -l)" -lt 2 ]; then echo alone; exit 4; fi\n'
             'if [ "$name" = "2-fails" ]; then echo boom >&2; exit 3; fi\n'
             'echo "Done."\necho\necho "session_id: local-$name"\n',
             encoding="utf-8",
         )
+        started = folder / "started"
+        started.mkdir()
         hermes.chmod(0o755)
-        patcher = mock.patch.dict(os.environ, {"PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}"})
+        patcher = mock.patch.dict(
+            os.environ, {"PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}", "BENCH_STARTED": str(started)}
+        )
         patcher.start()
         self.addCleanup(patcher.stop)
         self.prompts = []
@@ -256,7 +305,7 @@ class RunTest(unittest.TestCase):
         self.assertEqual((works["exit"], works["session"]), (0, "local-1-works"))
         self.assertEqual((fails["exit"], fails["session"]), (3, None))
         self.assertEqual(works["prompt"], "Make 1-works.\n")
-        self.assertIsNotNone(works["ended"])
+        self.assertLessEqual(works["started"], works["ended"])
         log = (folder / "1-works.log").read_text(encoding="utf-8").splitlines()
         prompt = self.prompts[0]
         self.assertEqual(log[0], f"-p hermretro chat --query-file {prompt} --oneshot -Q --reasoning high")
@@ -290,6 +339,31 @@ class CommandTest(Fixture):
         with redirect_stdout(output):
             self.assertEqual(self.cli.main(["bench", "report", "--run", str(folder)]), 0)
         self.assertIn("wall time            1m00s", output.getvalue())
+
+    def test_run_takes_no_report_flags_and_report_no_games(self):
+        for argv in (
+            ["bench", "run", "--run", str(self.home)],
+            ["bench", "run", "--sessions", SESSION],
+            ["bench", "report", "bolt"],
+        ):
+            error = io.StringIO()
+            with mock.patch.object(self.cli.bench, "run") as run, redirect_stderr(error):
+                self.assertEqual(self.cli.main(argv), 1)
+            run.assert_not_called()
+            self.assertIn("bench report", error.getvalue())
+
+    def test_a_failed_report_after_a_run_keeps_the_run(self):
+        folder = self.home.parent / "run"
+        folder.mkdir()
+        error = io.StringIO()
+        with (
+            mock.patch.object(self.cli.shutil, "which", return_value="/bin/hermes"),
+            mock.patch.object(self.cli.bench, "run", return_value=folder),
+            mock.patch.object(self.cli.bench, "reports", side_effect=sqlite3.OperationalError("no such column")),
+            redirect_stderr(error),
+        ):
+            self.assertEqual(self.cli.main(["bench", "run"]), 1)
+        self.assertIn(f"no such column; the run is kept in {folder}", error.getvalue())
 
     def test_a_folder_that_is_not_a_run(self):
         error = io.StringIO()
