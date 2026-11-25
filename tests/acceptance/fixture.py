@@ -120,6 +120,14 @@ def structured(response: dict) -> dict:
     return (response.get("result") or {}).get("structuredContent") or {}
 
 
+def move_scene_on_map(project: Path) -> None:
+    """An editor-only change: the first scene's place on GB Studio's map. It compiles to nothing, so the next build
+    differs from the last only in its save signature (which hashes the project) and the global checksum."""
+    scene = sorted((project / "project" / "scenes").glob("*/scene.gbsres"))[0]
+    data = json.loads(scene.read_text())
+    scene.write_text(json.dumps({**data, "x": data.get("x", 0) + 8}, indent=2))
+
+
 def snapshot(root: Path) -> dict[str, str]:
     out = {}
     for path in sorted(root.rglob("*")):

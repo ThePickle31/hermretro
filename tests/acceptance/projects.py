@@ -16,6 +16,7 @@ from backend.broker.engine import EngineProcess
 from backend.library import game_card, layout
 from backend.system import paths
 from tests.acceptance import build_output
+from tests.acceptance.checkpoints import signature_bytes
 from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
 
 
@@ -227,9 +228,16 @@ def build_roms(suite, client_a, client_b):
         built=[(structured(live).get("rom") or {}).get("sha256") for live in (live_1, live_2)],
         played=[live["played"] for live in (live_1, live_2)],
     )
+    rebuilt = [hash_a, *((structured(live).get("rom") or {}).get("sha256") for live in (live_1, live_2))]
+    suite.check(
+        "V5",
+        "An unchanged project builds to the same ROM bytes every time (its save signature included)",
+        all(rebuilt) and len(set(rebuilt)) == 1,
+        sha256=rebuilt,
+    )
     client_a.call(OWNER_A, "web_preview_close", {})
     check_rom_after_restart(suite, client_b)
-    # A and B were rebuilt, and every build has its own save signature: later checks use these ROMs.
+    # Later checks use the ROMs as they are now on disk.
     hash_a = hashlib.sha256(Path(rom_a).read_bytes()).hexdigest()
     hash_b = hashlib.sha256(Path(rom_b).read_bytes()).hexdigest()
     return rom_a, rom_b, hash_a, hash_b
@@ -238,7 +246,16 @@ def build_roms(suite, client_a, client_b):
 def check_rom_after_restart(suite, client_b):
     """A build's ROM is still the one the playable copy plays when another worker makes the copy. On B, whose worker
     no later check pins."""
-    built = structured(client_b.call(OWNER_B, "rom_build", {}))  # the live player off: no copy is made now
+    signatures_by_build: dict = {}
+
+    def rom_build() -> dict:
+        """B's build, with the save signature its ROM had right after it (the next build replaces the file)."""
+        result = structured(client_b.call(OWNER_B, "rom_build", {}))
+        sha = (result.get("rom") or {}).get("sha256")
+        signatures_by_build[sha] = signature_bytes(result.get("outputPath"))
+        return result
+
+    built = rom_build()  # the live player off: no copy is made now
     os.kill(client_b.call(OWNER_B, "session_status")["lane"]["engine_pid"], signal.SIGKILL)
     time.sleep(1.0)
     opened = structured(client_b.call(OWNER_B, "web_preview", {}))
@@ -257,8 +274,9 @@ def check_rom_after_restart(suite, client_b):
     settings = suite.project_b / "project" / "settings.gbsres"
     saved = settings.read_text()
     settings.write_text(json.dumps({**json.loads(saved), "batterylessEnabled": True}, indent=2))
+    batteryless: dict = {}
     try:
-        batteryless = structured(client_b.call(OWNER_B, "rom_build", {}))
+        batteryless = rom_build()
         opened = structured(client_b.call(OWNER_B, "web_preview", {}))
         played = played_hash(suite.project_b)
         suite.check(
@@ -274,6 +292,22 @@ def check_rom_after_restart(suite, client_b):
         client_b.call(OWNER_B, "web_preview_close", {})
     finally:
         settings.write_text(saved)
+    undone = rom_build()
+    before, edited, after = ((result.get("rom") or {}).get("sha256") for result in (built, batteryless, undone))
+    signatures = [signatures_by_build.get(sha) for sha in (before, edited, after)]
+    suite.check(
+        "V6",
+        "An edit to the saved data's layout (batteryless saves) changes the ROM and its save signature, and undoing it "
+        "builds the earlier bytes again",
+        bool(before and edited and after and all(signatures))
+        and edited != before
+        and after == before
+        and signatures[1] != signatures[0] == signatures[2],
+        before=before,
+        edited=edited,
+        after=after,
+        signatures=signatures,
+    )
 
 
 def check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b):

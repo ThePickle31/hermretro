@@ -40487,7 +40487,7 @@ var WRECKLIGHT_REVIEW = {
     }
   ],
   "compiler": {
-    "id": "gb-studio-4.3.2-wrecklight-webpack-gbvm-bd6f41cc-native13-v2",
+    "id": "gb-studio-4.3.2-wrecklight-webpack-gbvm-bd6f41cc-native13-v3",
     "files": [
       {
         "path": "appData/engine/engine.json",
@@ -40841,8 +40841,8 @@ var WRECKLIGHT_REVIEW = {
       },
       {
         "path": "out/cli/buildWorker.js",
-        "bytes": 4101172,
-        "sha256": "1d4ba237c24b24127d70db6bd202c4a1d37b408755dc40de675f6dfd9003d86f"
+        "bytes": 4103789,
+        "sha256": "43a2d6ff1146dd1fcafc97c2b3b94dc05a414774d75437500bbc3853f4c20a5f"
       },
       {
         "path": "out/cli/gb-studio-cli.js",
@@ -61246,6 +61246,14 @@ async function hashFile(filePath2) {
     digest8.update(chunk);
   return digest8.digest("hex");
 }
+// Signs a web export and a native ROM receipt for the compiler that made them (the CLI and its build worker, by
+// content): after the compiler is replaced, neither is reused and the next build compiles again.
+async function compilerBoundKey(attestationKey, cliPath) {
+  const digest8 = createHash33("sha256").update("codex-gb-studio\0compiler\0v1\0");
+  for (const file2 of [cliPath, path37.join(path37.dirname(cliPath), "buildWorker.js")])
+    updateHash(digest8, await hashFile(file2).catch(() => "missing"));
+  return createHmac("sha256", attestationKey).update("codex-gb-studio\0compiler-bound\0v1\0").update(digest8.digest()).digest();
+}
 function updateHash(digest8, value) {
   const encoded2 = Buffer.from(value, "utf8");
   const length = Buffer.allocUnsafe(4);
@@ -61659,7 +61667,8 @@ async function rememberNativeRom(before, projectPath, rom, toolchainRoot) {
   const runtime = runtimeOptions({});
   const official = await findOfficialCli(before.root, runtime, toolchainRoot);
   const receipt = { version: 1, sourceRevision: before.revision, romPath, sha256: rom.sha256 };
-  const signature = nativeRomSignature(await signingKey(before.root, official.toolchainRoot, runtime), receipt);
+  const key = await compilerBoundKey(await signingKey(before.root, official.toolchainRoot, runtime), official.cliPath);
+  const signature = nativeRomSignature(key, receipt);
   await mkdir11(path37.dirname(receiptPath), { recursive: true });
   const temporary = `${receiptPath}.${process.pid}-${Date.now()}`;
   await writeFile2(temporary, JSON.stringify({ ...receipt, signature }) + "\n", { flag: "wx", mode: 384 });
@@ -61711,16 +61720,17 @@ async function buildWeb(options, platformOptions = {}) {
     const sourceRevision = await sourceFingerprint(root, source, options.revision);
     const official = await findOfficialCli(root, runtime, options.toolchainRoot);
     const cli = official.cliPath;
-    const attestationKey = await signingKey(root, official.toolchainRoot, runtime);
+    const signing = await signingKey(root, official.toolchainRoot, runtime);
+    const attestationKey = await compilerBoundKey(signing, cli);
     const command = process.execPath;
     const publishedArgs = [cli, "make:web", source, outputPath];
     const startedAt = performance.now();
     const resources = {
       allocations: [],
       attestation: {
-        storage: attestationKey === PROCESS_WEB_BUILD_ATTESTATION_KEY ? "process-only" : "trusted-key-reused-or-created",
+        storage: signing === PROCESS_WEB_BUILD_ATTESTATION_KEY ? "process-only" : "trusted-key-reused-or-created",
         // A process-local fallback does not prove that no durable allocation was attempted.
-        persistentKeyBytes: attestationKey === PROCESS_WEB_BUILD_ATTESTATION_KEY ? null : 32,
+        persistentKeyBytes: signing === PROCESS_WEB_BUILD_ATTESTATION_KEY ? null : 32,
         allocationObserved: false
       },
       measurementScope: "bounded post-compiler samples, not peak usage; attestation directory allocation unobserved",

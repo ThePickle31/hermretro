@@ -61,9 +61,11 @@ with the ordinary emulator tools. Use a short local compiler temporary path. A s
 build does not establish complete gameplay, heard audio, or physical hardware
 acceptance. Use the [controls](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/blob/a734c73e21d234e252f6637960d65ec620ce9133/examples/wrecklight/CONTROLS.md) when playing.
 
-Start a new save for your remix and keep original saves separate. This GB Studio
-version includes loaded asset metadata in its save signature, so even unchanged
-source can produce a different ROM hash and save signature on rebuild. The
+Start a new save for your remix and keep original saves separate. Setup's GB Studio
+builds unchanged source to the same ROM and save signature. Editing the project's
+data, engine code or plugins changes the signature, so saves from the original do
+not load in your remix; an art-only edit can keep it (a background's pixels, which
+do not change what a save holds). The
 included [build verification](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/blob/a734c73e21d234e252f6637960d65ec620ce9133/examples/wrecklight/BUILD-VERIFICATION.md)
 records the original result and compiler warnings, not a reproducibility promise.
 

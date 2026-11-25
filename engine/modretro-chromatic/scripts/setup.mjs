@@ -390,6 +390,9 @@ export async function applySetup(options = {}) {
             catch (error) { ready = false; entry.repairReason = error.message; }
           }
         }
+        // A receipt left by an install that did not finish names no component to reuse: what detection found may be
+        // another copy (a desktop application's CLI), or the one that install was replacing.
+        if (ready && ["installing", "prepared", "failed", "cancelled"].includes(prior?.status)) ready = false;
         if (ready && prior?.primarySha256 && id !== "desktop") {
           ready = await hashFile(primaryFile(id, targets[id], platform)).then((hash) => hash === prior.primarySha256, () => false);
         }
@@ -405,12 +408,17 @@ export async function applySetup(options = {}) {
           await persist(); continue;
         }
         if (cancelled()) throw Object.assign(new Error("Setup cancelled before installation."), { code: "ABORT_ERR" });
-        if (await info(targets[id])) {
-          if (!prior?.ownedDestination) throw new Error(`Refusing to repair an unowned occupied component: ${targets[id]}. Preserve it and select a new root.`);
+        const occupied = await info(targets[id]);
+        if (occupied && !prior?.ownedDestination) throw new Error(`Refusing to repair an unowned occupied component: ${targets[id]}. Preserve it and select a new root.`);
+        // The previous component keeps working until its replacement is prepared and verified in staging; only the
+        // emulator, which is prepared in its final place, is moved aside first.
+        const preservePrevious = async () => {
+          if (!(await info(targets[id]))) return;
           const quarantine = path.join(root, "quarantine", `${id}-${runId}`);
           await rename(targets[id], quarantine);
           entry.preservedPrevious = quarantine;
-        }
+        };
+        if (occupied && id === "emulator") await preservePrevious();
         const stageRoot = path.join(root, "staging", `${id}-${runId}`);
         await mkdir(stageRoot, { mode: 0o700 });
         const intent = { schemaVersion: 1, owner: OWNER, id, destination: targets[id], stageRoot, runId, ownedDestination: true, status: "installing", sourceIdentity: id === "runtime" ? identity : undefined };
@@ -442,6 +450,7 @@ export async function applySetup(options = {}) {
           if (!within(stageRoot, prepared.preparedPath)) throw new Error("Prepared component must belong to this operation's staging directory.");
           await noLinks(path.dirname(targets[id]));
           await mkdir(path.dirname(targets[id]), { recursive: true, mode: 0o700 });
+          if (occupied) await preservePrevious();
           if (await info(targets[id])) throw new Error("Component destination appeared during setup; it was preserved.");
           await rename(prepared.preparedPath, targets[id]);
         }

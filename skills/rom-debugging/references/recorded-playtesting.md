@@ -263,14 +263,18 @@ CGB mode, PyBoy version, worker protocol, and worker implementation hash.
 Changing the plugin worker can therefore invalidate an old checkpoint even
 when the ROM is unchanged. A damaged, stale, or incompatible state is refused.
 
-The ROM is the same build when its bytes are identical or when it is a rebuild
-of the unchanged project. GB Studio stamps every build with a 4-byte save
-signature (a hash of the project as loaded, which includes load times) and
-the header's global checksum, so two builds without an edit differ in those
-bytes alone. The worker places the signature from the linker symbols
-(`<rom>.debug/symbols.noi`) that `chromatic_rom_build` captured with that exact
-ROM in this session, and ignores just those bytes. A restore across a rebuild
-therefore needs verified symbols from both builds: the build the checkpoint was
+A checkpoint restores onto the ROM it was saved on: the worker compares the
+exact ROM hash first, so a rebuild with identical bytes takes it with no
+symbols at all, and hermretro's toolchain rebuilds an unchanged project to
+identical bytes. A ROM that differs from it only in GB Studio's 4-byte save
+signature and the header's global checksum also counts as the same build. The
+signature hashes the project and the code it brings (engine, plugins), so an
+editor-only change (a scene's place on the map) changes it alone, and a GB
+Studio without repeatable builds (a desktop GB Studio, or a toolchain from
+before them) changes it on every rebuild. The worker places the signature from
+the linker symbols (`<rom>.debug/symbols.noi`) that `chromatic_rom_build`
+captured with that exact ROM in this session, and ignores just those bytes. A
+restore across such a rebuild therefore needs verified symbols from both builds: the build the checkpoint was
 saved on and the one now running, each run as `chromatic_rom_build` returned
 it. A ROM with none matches only its own bytes: a C (GBDK) build, a build with
 `captureDebugArtifacts:false`, a build whose default capture was skipped (its

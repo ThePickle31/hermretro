@@ -2910,7 +2910,7 @@ export const WRECKLIGHT_REVIEW = {
         }
     ],
     "compiler": {
-        "id": "gb-studio-4.3.2-wrecklight-webpack-gbvm-bd6f41cc-native13-v2",
+        "id": "gb-studio-4.3.2-wrecklight-webpack-gbvm-bd6f41cc-native13-v3",
         "files": [
             {
                 "path": "appData/engine/engine.json",
@@ -3264,8 +3264,8 @@ export const WRECKLIGHT_REVIEW = {
             },
             {
                 "path": "out/cli/buildWorker.js",
-                "bytes": 4101172,
-                "sha256": "1d4ba237c24b24127d70db6bd202c4a1d37b408755dc40de675f6dfd9003d86f"
+                "bytes": 4103789,
+                "sha256": "43a2d6ff1146dd1fcafc97c2b3b94dc05a414774d75437500bbc3853f4c20a5f"
             },
             {
                 "path": "out/cli/gb-studio-cli.js",

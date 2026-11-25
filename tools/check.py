@@ -322,6 +322,12 @@ def check_scan(args) -> str:
     return f"safe ({report['findings']} minor notes)"
 
 
+# How long the real-engine suite may take. On a macOS CI runner it took about 17 of its first 20 minutes before the
+# repeatable-build checks (R1-R4: a copy of a project, built and compiled for the web; signature edits) added about 10
+# builds; this leaves room for those and the next stages, inside the integration job's 50 minutes.
+ACCEPTANCE_MINUTES = 30
+
+
 def acceptance_env(paths) -> dict:
     """The suite's environment: a short TMPDIR, and the toolchain folders absolute as this process resolved them
     (from the caller's folder), since the suite runs from the checkout root."""
@@ -345,10 +351,12 @@ def check_acceptance(args) -> str:
     env = acceptance_env(paths)
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     try:
-        result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
+        result = run(
+            [sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=ACCEPTANCE_MINUTES * 60
+        )
     except subprocess.TimeoutExpired:
         raise AssertionError(
-            "the acceptance suite did not finish in 20 minutes\nFIX: rerun python "
+            f"the acceptance suite did not finish in {ACCEPTANCE_MINUTES} minutes\nFIX: rerun python "
             "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops"
         )
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())

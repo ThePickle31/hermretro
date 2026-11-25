@@ -39,6 +39,7 @@ from tests.acceptance import (  # noqa: E402 - direct script entry point
     playtest,
     projects,
     recovery,
+    repeatable,
     replay,
     tool_friction,
     update,
@@ -127,6 +128,7 @@ def exercise(suite):
         check_missing_identity(suite, client_a, control)
         first_status, edited_source = projects.create_and_edit(suite, client_a, client_b)
         rom_a, rom_b, hash_a, hash_b = projects.build_roms(suite, client_a, client_b)
+        repeatable.check_repeatable(suite, client_b, rom_b)
         last_frame = projects.check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b)
         replay.check_replay(suite, client_b, rom_b)
         tool_friction.check_tool_friction(suite, client_b, rom_b)

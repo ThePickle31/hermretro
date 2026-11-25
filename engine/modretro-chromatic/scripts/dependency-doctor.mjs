@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DEPENDENCY_CATALOG, NODE_RELEASES, SUPPORTED_SETUP_PLATFORMS } from "./dependency-catalog.mjs";
+import { CLI_SAVE_SIGNATURE_PATCH } from "./setup-compiler.mjs";
 import { runSetupCommand, setupSha256File } from "./setup-io.mjs";
 
 export const DEPENDENCY_TASKS = Object.freeze(["authoring", "projectBuild", "cBuild", "play", "desktop"]);
@@ -20,6 +21,7 @@ const TASK_COMPONENTS = {
 };
 const contexts = new WeakMap();
 const MAX_METADATA_BYTES = 1024 * 1024;
+const MAX_CLI_WORKER_BYTES = 16 * 1024 * 1024;
 const MAX_PROBE_BYTES = 64 * 1024;
 const UNSAFE_ENV = new Set([
   "NODE_OPTIONS", "NODE_PATH", "NODE_EXTRA_CA_CERTS", "NODE_REPL_HISTORY", "PYTHONPATH", "PYTHONHOME",
@@ -330,6 +332,22 @@ async function detectCli(result, context) {
     const header = await boundedText(path.join(compilerRoot, "include", "gbdk", "version.h"), root, 64 * 1024);
     if (!/^\s*#\s*define\s+__GBDK_VERSION\s+450(?:\s|$)/mu.test(header)) throw new Error("The CLI's embedded GBDK version metadata is incompatible.");
     detected(result, metadata.version, `CLI artifact, package version, engine metadata, VM header and platform GBDK resources: ${packagePath}; --version was not run.`);
+    // The CLI setup compiles carries the repeatable save signature; one compiled before it is rebuilt by setup. A
+    // desktop application's CLI cannot be patched and is used as it is.
+    if (result.status === "ready" && cliRoot === path.resolve(cliCandidates(root, context.platform)[0].directory)) {
+      const worker = await boundedText(path.join(cliRoot, ...CLI_SAVE_SIGNATURE_PATCH.worker.split("/")), root, MAX_CLI_WORKER_BYTES);
+      if (!worker.includes(CLI_SAVE_SIGNATURE_PATCH.marker)) {
+        result.status = "incompatible";
+        result.detectionEvidence.push("The CLI was compiled without the repeatable save signature; its setup compiles it again.");
+        // Packaged setup records its source build beside the CLI; the standalone installers leave a Git checkout.
+        const packaged = await lstat(path.join(cliRoot, ".codex-setup-source.json")).then(() => true, (error) => {
+          if (missing(error)) return false;
+          throw error;
+        });
+        result.nextSteps = [packaged ? nextStep("cli", context.roots, context.platform)
+          : `Run ${context.platform === "win32" ? "scripts/setup.ps1" : "scripts/setup-compiler.sh --with-cli"} from ${context.roots.packageRoot} again, without --use-existing: it compiles the CLI in ${cliRoot} again.`];
+      }
+    }
   });
 }
 
