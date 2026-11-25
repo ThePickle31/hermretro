@@ -130,12 +130,13 @@ return `sourceProvenance` and `sourceDebugAbi`; otherwise inspect
 
 The build tool may also support a direct GBDK C source path. A successful C compilation proves the local compiler works, but it does not prove that a `.gbsproj` or the user's actual scenes compiled. Report which path ran.
 
-Builds return bounded actionable `diagnostics`; `diagnosticsTruncated` reports
-when more diagnostic records exist. A successful build returns the last 20 lines
-of compiler stdout (`stdoutOmittedLines` counts the rest) and its stderr; a failed
-build returns all of both. Every build writes its whole output to `logPath`
-(`build/game.build.log` beside the ROM): read it only when the returned lines are
-not enough. A `DEPRECATED_EVENT` warning names a GB Studio event (`event`) that
+Builds return bounded actionable `diagnostics`, errors first; `diagnosticsTruncated`
+reports when more diagnostic records exist. Every build writes its whole output to
+`logPath` (`build/logs/<ROM file name>.log`, for example `build/logs/game.gbc.log`,
+replaced by the next build of that ROM): read it only when the returned lines are
+not enough. A successful build returns the last 20 lines of compiler stdout
+(`stdoutOmittedLines` counts the rest) and its stderr; a failed build returns all
+of both, and so does a build whose log could not be written (`logError` says why). A `DEPRECATED_EVENT` warning names a GB Studio event (`event`) that
 still compiles but uses an API GB Studio will remove, for example `EVENT_IF_VALUE`
 (replace it with `EVENT_IF`); the ROM is fine. Node's `[DEP0190]` notice from the
 official CLI is left out. A nonzero compiler exit, missing output ROM, invalid

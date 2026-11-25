@@ -278,10 +278,11 @@ chromatic_settings_update {"settings":{"defaultFontId":"<existing-font-asset-id>
 chromatic_settings_update {"settings":{"startMoveSpeed":2}}
 ```
 
-`startMoveSpeed` is the player's walk speed in pixels per frame (GB Studio's choices are 0.25, 0.5, 1, 2, 3
-and 4; 1 is the default). Platformer scenes ignore it: their movement is the platformer engine fields
-(`plat_walk_vel`, `plat_run_vel` and the rest), read and changed with `chromatic_engine_field_inspect` and
-`chromatic_engine_field_update`.
+`startMoveSpeed` is the player's move speed in pixels per frame in `TOPDOWN`, `SHMUP` and `POINTNCLICK`
+scenes (GB Studio's choices are 0.25, 0.5, 1, 2, 3 and 4; 1 is the default). Other scene types ignore it:
+`PLATFORM` movement is the platformer engine fields (`plat_walk_vel`, `plat_run_vel` and the rest) and
+`ADVENTURE` movement is `adv_walk_vel` and `adv_run_vel`, all read and changed with
+`chromatic_engine_field_inspect` and `chromatic_engine_field_update`.
 
 The requested `defaultFontId` must resolve to an actual project font. An invalid
 ID returns `FONT_NOT_FOUND` before writing project settings.

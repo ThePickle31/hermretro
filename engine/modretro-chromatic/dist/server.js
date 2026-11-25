@@ -30492,6 +30492,7 @@ var execFileAsync2 = promisify2(execFile2);
 var MAX_TIMEOUT_MS = 6e5;
 var DEFAULT_TIMEOUT_MS = 12e4;
 var SUCCESS_STDOUT_TAIL_LINES = 20;
+var BUILD_LOG_DIRECTORY = path16.join("build", "logs");
 var HEADER_MINIMUM_BYTES = 336;
 var MAX_ROM_BYTES = 8 * 1024 * 1024;
 var NINTENDO_LOGO = Buffer.from("ce ed 66 66 cc 0d 00 0b 03 73 00 83 00 0c 00 0d 00 08 11 1f 88 89 00 0e dc cc 6e e6 dd dd d9 99 bb bb 67 63 6e 0e ec cc dd dc 99 9f bb b9 33 3e".replace(/\s+/g, ""), "hex");
@@ -30712,32 +30713,42 @@ function withoutNodeDeprecationNotice(text) {
   }
   return kept.join("\n");
 }
-function successfulBuildOutput(stdout, stderr) {
+function successfulBuildOutput(stdout, stderr, logged) {
   const lines = stdout.replace(/\r?\n$/, "").split(/\r?\n/);
-  const omitted = lines.length - SUCCESS_STDOUT_TAIL_LINES;
+  const omitted = logged ? lines.length - SUCCESS_STDOUT_TAIL_LINES : 0;
   return {
     stdout: omitted > 0 ? `${lines.slice(omitted).join("\n")}\n` : stdout,
     ...omitted > 0 ? { stdoutOmittedLines: omitted } : {},
     stderr: stderr.split("\n").filter((line) => !GB_STUDIO_DEPRECATION.test(line.trim())).join("\n")
   };
 }
-async function writeBuildLog(outputPath, { command, args, exitCode, stdout, stderr }) {
-  const logPath = path16.join(path16.dirname(outputPath), `${path16.basename(outputPath, path16.extname(outputPath))}.build.log`);
-  const staged = `${logPath}.${process.pid}-${Date.now()}.tmp`;
+async function writeBuildLog(root, outputPath, { command, args, exitCode, stdout, stderr }) {
   const text = [`$ ${[command, ...args].join(" ")}`, `exit code: ${exitCode ?? "none"}`, "", "[stdout]", stdout, "[stderr]", stderr].join("\n");
+  let logPath;
+  let staged;
   try {
+    const directory = await resolveOutputWithinRoot(root, BUILD_LOG_DIRECTORY);
+    await mkdir4(directory, { recursive: true });
+    const metadata2 = await lstat9(directory);
+    if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePlatformPath(await realpath7(directory), directory)) {
+      throw new Error(`the log folder must be a real project-local directory: ${directory}`);
+    }
+    logPath = path16.join(directory, `${path16.basename(outputPath)}.log`);
+    staged = `${logPath}.${process.pid}-${Date.now()}.tmp`;
     await writeFile(staged, text, { flag: "wx", mode: 420 });
     await rename4(staged, logPath);
-    return logPath;
-  } catch {
-    await rm3(staged, { force: true }).catch(() => {
-    });
-    return void 0;
+    return { logPath };
+  } catch (error2) {
+    if (staged)
+      await rm3(staged, { force: true }).catch(() => {
+      });
+    return { logError: `The build log could not be written${logPath ? ` to ${logPath}` : ""}: ${error2 instanceof Error ? error2.message : String(error2)}` };
   }
 }
 function summarizeBuildDiagnostics(input) {
   const maximum = 16;
-  const diagnostics = [];
+  const errors = [];
+  const others = [];
   const seen2 = /* @__PURE__ */ new Set();
   let diagnosticsTruncated = false;
   const add = (diagnostic) => {
@@ -30746,11 +30757,12 @@ function summarizeBuildDiagnostics(input) {
     if (seen2.has(key))
       return;
     seen2.add(key);
-    if (diagnostics.length === maximum) {
+    const kept = diagnostic.severity === "error" ? errors : others;
+    if (kept.length === maximum) {
       diagnosticsTruncated = true;
       return;
     }
-    diagnostics.push({ ...diagnostic, message: message2 });
+    kept.push({ ...diagnostic, message: message2 });
   };
   if (input.cancelled)
     add({ severity: "error", code: "BUILD_CANCELLED", message: "The build was cancelled.", suggestedAction: "The cancelled attempt cannot authenticate new debug artifacts. Rerun the build when ready." });
@@ -30821,10 +30833,11 @@ ${input.stdout}`.split(/\r?\n/)) {
       } : {}
     });
   }
-  if (!input.success && !diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+  if (!input.success && errors.length === 0) {
     add({ severity: "error", code: "BUILD_FAILED", message: input.exitCode === 0 ? "The compiler did not produce a valid requested ROM or required debug artifacts." : `The compiler failed${input.exitCode === null ? "" : ` with exit code ${input.exitCode}`}.`, suggestedAction: "Read the retained stdout/stderr, run toolchain_doctor, and fix the first reported error before rebuilding." });
   }
-  return { diagnostics, diagnosticsTruncated };
+  const diagnostics = [...errors, ...others];
+  return { diagnostics: diagnostics.slice(0, maximum), diagnosticsTruncated: diagnosticsTruncated || diagnostics.length > maximum };
 }
 function processRunning(child) {
   return child.pid !== void 0 && child.exitCode === null && child.signalCode === null;
@@ -31361,7 +31374,7 @@ async function buildRom(options) {
       const cancelled2 = failure.buildCancelled || options.signal?.aborted === true;
       if (failure.buildCleanupWarning)
         stderr = [stderr, failure.buildCleanupWarning].filter(Boolean).join("\n");
-      const logPath = await writeBuildLog(outputPath, { command, args, exitCode, stdout, stderr });
+      const log = await writeBuildLog(root, outputPath, { command, args, exitCode, stdout, stderr });
       return {
         success: false,
         builder,
@@ -31384,7 +31397,7 @@ async function buildRom(options) {
         }),
         durationMs: Math.round(performance.now() - startedAt),
         outputPath,
-        ...logPath ? { logPath } : {},
+        ...log,
         rom: null
       };
     }
@@ -31416,20 +31429,20 @@ async function buildRom(options) {
       debugArtifacts = void 0;
       stderr = [stderr, "The build was cancelled."].filter(Boolean).join("\n");
     }
-    const logPath = await writeBuildLog(outputPath, { command, args, exitCode, stdout, stderr });
+    const log = await writeBuildLog(root, outputPath, { command, args, exitCode, stdout, stderr });
     const result = {
       success: !buildFailed,
       builder,
       command,
       args,
       exitCode,
-      ...buildFailed ? { stdout, stderr } : successfulBuildOutput(stdout, stderr),
+      ...buildFailed ? { stdout, stderr } : successfulBuildOutput(stdout, stderr, log.logPath !== void 0),
       ...compilerStderr === stderr ? {} : { compilerStderr },
       ...cancelled ? { cancelled: true } : {},
       ...summarizeBuildDiagnostics({ stdout, stderr, success: !buildFailed, exitCode, cancelled }),
       durationMs: Math.round(performance.now() - startedAt),
       outputPath,
-      ...logPath ? { logPath } : {},
+      ...log,
       rom,
       ...debugArtifacts ? { debugArtifacts } : {}
     };
@@ -51753,7 +51766,7 @@ var ProjectSession = class {
       const descriptor = {
         ...templateProject.descriptor,
         name: input.name.trim(),
-        author: input.author === void 0 ? "" : input.author.trim()
+        ...input.author !== void 0 ? { author: input.author.trim() } : input.template === "starter" ? { author: "" } : {}
       };
       try {
         await mkdir6(destination);
@@ -66766,7 +66779,7 @@ function createGbStudioServer(options = {}) {
     return void 0;
   });
   const server = new McpServer({ name: SERVER_NAME, title: "ModRetro Chromatic", version: SERVER_VERSION }, {
-    instructions: "Use project_create_blank for a blank game or project_create for a sample. Select the project before editing. In Hermes, show a successful playable build to the user early with chromatic_present_game (the hermretro emulator beside the chat); web_preview opens the engine's own player only when the user cannot see that emulator. Defer updates that could interrupt human play, saves or recordings; resolve unknown outcomes first. Do not arbitrarily reload or autoplay. Continue gameplay headlessly with public PyBoy emulator_run on the intended exact ROM, then emulator_step and emulator_observe; use emulator_review for retained evidence. Browser access is not a prerequisite for gameplay checks. If PyBoy is missing, follow the setup skill for the emulator component within existing authorization. Keep denials and uncertain actions scoped; never replay them. Native gameplay does not verify browser UI, annotations or physical capture. Use device_capture to watch physical play beside the chat in Hermes Desktop; emulator controls cannot drive hardware. Inspect the exact ROM before an approved device action. Close only temporary sessions you own when no longer needed, preserving user play and recordings."
+    instructions: "Use project_create_blank for a blank game or project_create for a sample. Select the project before editing. In Hermes, show a successful playable build to the user early with chromatic_present_game (the hermretro emulator beside the chat); if the user cannot see that emulator, open studio.playerUrl from its result with desktop_preview, never web_preview URLs. Defer updates that could interrupt human play, saves or recordings; resolve unknown outcomes first. Do not arbitrarily reload or autoplay. Continue gameplay headlessly with public PyBoy emulator_run on the intended exact ROM, then emulator_step and emulator_observe; use emulator_review for retained evidence. Browser access is not a prerequisite for gameplay checks. If PyBoy is missing, follow the setup skill for the emulator component within existing authorization. Keep denials and uncertain actions scoped; never replay them. Native gameplay does not verify browser UI, annotations or physical capture. Use device_capture to watch physical play beside the chat in Hermes Desktop; emulator controls cannot drive hardware. Inspect the exact ROM before an approved device action. Close only temporary sessions you own when no longer needed, preserving user play and recordings."
   });
   async function selectedProject() {
     await initialized;
@@ -67255,7 +67268,7 @@ function createGbStudioServer(options = {}) {
         startX: position.optional(),
         startY: position.optional(),
         startDirection: direction2.optional(),
-        startMoveSpeed: external_exports.number().min(1 / 32).max(255 / 32).optional().describe("Player walk speed in pixels per frame outside platformer scenes: GB Studio offers 0.25, 0.5, 1 (default), 2, 3 and 4. Platformer movement is the plat_* engine fields (engine_field_update)."),
+        startMoveSpeed: external_exports.number().min(1 / 32).max(255 / 32).optional().describe("Player move speed in pixels per frame in TOPDOWN, SHMUP and POINTNCLICK scenes: GB Studio offers 0.25, 0.5, 1 (default), 2, 3 and 4. PLATFORM scenes use the plat_* engine fields and ADVENTURE scenes adv_walk_vel and adv_run_vel (engine_field_update)."),
         defaultSceneTypeId: identifier3.optional(),
         cartType: external_exports.string().trim().min(1).max(100).optional(),
         musicDriver: external_exports.string().trim().min(1).max(100).optional(),
@@ -67327,7 +67340,7 @@ function createGbStudioServer(options = {}) {
   })));
   server.registerTool("web_preview", {
     title: "Preview a game and capture or reopen saved moments",
-    description: "Open or refresh the selected project's official player (the engine's own preview). To show the game to the user in Hermes, call chromatic_present_game instead (it shows the game in the hermretro emulator); open this URL with desktop_preview only if the user says they cannot see that emulator. If unavailable, locked or unreachable, keep the URL and state and report the browser limitation; do not launch an external browser. Continue gameplay with public PyBoy emulator_run on the intended exact ROM, then emulator_step/emulator_observe; browser UI and annotation checks remain unverified. Preview URLs are process-local and can expire after plugin restart or a fresh chat. On connection refused, inspect action status; if no live preview exists, select the original project and open again, using the newly returned URL without forcing a rebuild. Do not infer browser-policy failure from connection refused. Preserve unresolved old saves/recordings and explicit access refusals. Reuse only the current active URL for the same task; preserve user play and recording. outputPath, timeoutMs and force apply only to open. Other actions use the already-open player: status lists views, list_states returns saved IDs, and capture_state or restore_state pauses the selected view. Saved states require the exact build; native edits require a rebuild. Input holds ordinary game buttons in the running browser only, with exact status binding, at most 2 seconds. Human input cancels it. Timed video uses start_recording, recording_status, stop_recording and read_capture with the same visible UI recorder. Keep the player open until saved and acknowledged. For an expired URL use action recover on the same project: it only reopens a verified export, never rebuilds or restores unsaved state. No implicit resume or replay; inspect status after uncertainty.",
+    description: "Open or refresh the selected project's official player (the engine's own preview). To show the game to the user in Hermes, call chromatic_present_game instead (it shows the game in the hermretro emulator); do not open this URL yourself. If the user says they cannot see that emulator, open studio.playerUrl from chromatic_present_game's result with desktop_preview (action \"open\"). If unavailable, locked or unreachable, keep the URL and state and report the browser limitation; do not launch an external browser. Continue gameplay with public PyBoy emulator_run on the intended exact ROM, then emulator_step/emulator_observe; browser UI and annotation checks remain unverified. Preview URLs are process-local and can expire after plugin restart or a fresh chat. On connection refused, inspect action status; if no live preview exists, select the original project and open again, using the newly returned URL without forcing a rebuild. Do not infer browser-policy failure from connection refused. Preserve unresolved old saves/recordings and explicit access refusals. Reuse only the current active URL for the same task; preserve user play and recording. outputPath, timeoutMs and force apply only to open. Other actions use the already-open player: status lists views, list_states returns saved IDs, and capture_state or restore_state pauses the selected view. Saved states require the exact build; native edits require a rebuild. Input holds ordinary game buttons in the running browser only, with exact status binding, at most 2 seconds. Human input cancels it. Timed video uses start_recording, recording_status, stop_recording and read_capture with the same visible UI recorder. Keep the player open until saved and acknowledged. For an expired URL use action recover on the same project: it only reopens a verified export, never rebuilds or restores unsaved state. No implicit resume or replay; inspect status after uncertainty.",
     inputSchema: webPreviewInput,
     annotations: updateExisting2
   }, async (input, extra) => safely(() => performProjectArtifact(async (project2, access4) => {

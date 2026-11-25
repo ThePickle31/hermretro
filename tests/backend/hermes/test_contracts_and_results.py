@@ -53,7 +53,7 @@ class ContractTests(unittest.TestCase):
         schemas = {s["name"]: s["description"] for s in contracts.hermes_schemas()}
         preview = schemas["chromatic_web_preview"]
         self.assertIn("call chromatic_present_game instead", preview)
-        self.assertIn("only if the user says they cannot see that emulator", preview)
+        self.assertIn("open studio.playerUrl from chromatic_present_game's result", preview)
         self.assertNotIn("Codex", preview)
         # The physical feed has no Studio surface: it keeps the in-app browser wording.
         self.assertIn("desktop_preview tool", schemas["chromatic_device_capture"])

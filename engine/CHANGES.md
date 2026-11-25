@@ -32,18 +32,22 @@ files, what changed and why.
   names what a save needs (an active recording, a sampled neutral frame). Hermes drops a tool call identical to
   an earlier one in the same turn, so press-wait-press sequences sent as separate steps lost presses, and the
   full result of every step (about 4 KB, with up to four images) filled the agent's context.
-- `dist/server.js` (`dist/project-session.js` module): a new project's author is the `author` argument, else empty,
-  never the template's ("Codex" in the starter). `examples/starter/project/engine_field_values.gbsres`: coyote time
-  (`FEAT_PLATFORM_COYOTE_TIME`) and drop-through (`FEAT_PLATFORM_DROP_THROUGH`) are on, GB Studio's own defaults,
-  so a new platformer plays like one made in GB Studio.
+- `dist/server.js` (`dist/project-session.js` module): a new starter or blank project's author is the `author`
+  argument, else empty, never the template's ("Codex"); a Wrecklight remix keeps its source's author as before.
+  `examples/starter/project/engine_field_values.gbsres`: coyote time (`FEAT_PLATFORM_COYOTE_TIME`) and drop-through
+  (`FEAT_PLATFORM_DROP_THROUGH`) are on, GB Studio's own defaults, so a new platformer plays like one made in GB
+  Studio.
 - `dist/server.js` (`settings_update`): takes the player's `startMoveSpeed` (pixels per frame, within the one byte
-  GB Studio compiles it to); before, agents could not change the player's speed.
+  GB Studio compiles it to; top-down, shooter and point-and-click scenes use it); before, agents could not change the
+  player's speed.
 - `dist/server.js` (the server instructions, `web_preview`, `device_capture`): the text names Hermes, the hermretro
-  emulator (`chromatic_present_game`) and Hermes Desktop's preview instead of "Codex's built-in browser", so
-  hermretro no longer rewrites the descriptions it registers.
+  emulator (`chromatic_present_game`, with its `studio.playerUrl` as the fallback) and Hermes Desktop's preview
+  instead of "Codex's built-in browser", so hermretro no longer rewrites the descriptions it registers.
 - `dist/server.js` (`dist/build.js` module, `rom_build`): a successful build returns the last 20 lines of compiler
   stdout (`stdoutOmittedLines` counts the rest) instead of 12–20 KB of it; every build writes its whole output to
-  `logPath` (`<rom name>.build.log` beside the ROM). Node's `DEP0190` notice from GB Studio's CLI is left out of
-  stderr and no longer counts as a warning (the `warnings` field is gone: it held only that notice), and GB
+  `logPath` (`build/logs/<ROM file name>.log` in the project, its folder checked when the log is written), and a build
+  whose log cannot be written returns all of its output with `logError`. Error diagnostics come before warnings, so
+  notices cannot crowd a compiler error out of the 16 kept. Node's `DEP0190` notice from GB Studio's CLI is left out
+  of stderr and no longer counts as a warning (the `warnings` field is gone: it held only that notice), and GB
   Studio's deprecation notices (for example `EVENT_IF_VALUE` compiled with `ifVariableValue`) are
   `DEPRECATED_EVENT` diagnostics, once each, instead of lines only in stderr.
