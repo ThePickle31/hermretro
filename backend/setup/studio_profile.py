@@ -43,9 +43,10 @@ OLDER_SOULS = frozenset(
 )
 MARKER = Path("plugin-data") / paths.PLUGIN_ID / "studio-profile.json"
 TURN_LIMIT = 1000
-# Studio chats grow fast (builds, emulator steps, frames): they are compacted at this many tokens of context instead
-# of half the model's window. Set when the profile is made and when a repair finds none or one an earlier release set
-# (OLDER_COMPACT_AT); any other cap the user set is kept.
+# Studio chats grow fast (builds, emulator steps, frames): Hermes compacts them by this many tokens of context at the
+# latest (compression.threshold_tokens is a cap: its ratio or the summarizer's window can come first). Set where the
+# profile has none or one an earlier release set (OLDER_COMPACT_AT): when it is made or repaired, and when the plugin
+# registers in it (refresh_compaction_cap). Any other value, null included (the ratio alone decides), is the user's.
 COMPACT_AT_TOKENS = 300_000
 OLDER_COMPACT_AT = frozenset({200_000})
 # The profile's own empty working folder: new chats in the profile start here (terminal.cwd).
@@ -59,6 +60,35 @@ def refresh_soul(profile_home: Path) -> bool:
     OSError."""
     soul = profile_home / "SOUL.md"
     return _replace_soul(soul, _shipped_before)
+
+
+def compaction_cap_due(compression) -> bool:
+    """Whether a profile's raw ``compression`` section gets ``COMPACT_AT_TOKENS``: it has no ``threshold_tokens`` (an
+    explicit null is kept) or one an earlier release set."""
+    if compression is None:
+        return True
+    if not isinstance(compression, dict):
+        return False
+    if "threshold_tokens" not in compression:
+        return True
+    cap = compression["threshold_tokens"]
+    return isinstance(cap, int) and not isinstance(cap, bool) and cap in OLDER_COMPACT_AT
+
+
+def refresh_compaction_cap(profile_home: Path) -> bool:
+    """Set the compaction cap in the studio profile's config where ``compaction_cap_due``, so the profile gets each
+    release's cap however the plugin was updated, as ``refresh_soul`` does the SOUL. Answers whether it was
+    written."""
+    config = hermes_api.read_profile_config(profile_home)
+    compression = config.get("compression")
+    if not compaction_cap_due(compression):
+        return False
+    if compression is None:
+        config["compression"] = {"threshold_tokens": COMPACT_AT_TOKENS}
+    else:
+        compression["threshold_tokens"] = COMPACT_AT_TOKENS
+    hermes_api.write_profile_config(profile_home, config)
+    return True
 
 
 def _read_soul(soul: str | Path, directory: int | None = None) -> bytes | None:
@@ -459,9 +489,7 @@ def _configure(
     # Pinned, not inherited: the approval prompt before anything touches the Chromatic only appears
     # while approvals are on.
     configure("config", "set", "approvals.mode", "smart")
-    compression = hermes_api.read_profile_config(target).get("compression")
-    cap = compression.get("threshold_tokens") if isinstance(compression, dict) else None
-    if cap is None or (isinstance(cap, int) and cap in OLDER_COMPACT_AT):
+    if compaction_cap_due(hermes_api.read_profile_config(target).get("compression")):
         configure("config", "set", "compression.threshold_tokens", str(COMPACT_AT_TOKENS))
     # Every chat in the profile opens in its own workspace folder (an absolute, existing directory is
     # what Hermes accepts as terminal.cwd). Games themselves still go in the plugin's games folder.

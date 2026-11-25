@@ -101,7 +101,7 @@ on every machine, unlike the library's path id) kept in `.hermretro/identity.jso
 (`id`), `gameVersion` (`0.1.0` until a release raises it) and `rom` in `game.json` (`game_card.set_fields`; the card's
 own `version` is its schema), writes `README.md` from the card, `CHANGELOG.md` and `.gitignore`, and restores an
 edited id. It rewrites only files whose first line says hermretro made them (and a template project's own README),
-and never moves or deletes anything; for a game installed without its source it only keeps the author's id. None of
+adds `/scratch/` to a `.gitignore` of the user's own that has no line for it, and never moves or deletes anything; for a game installed without its source it only keeps the author's id. None of
 these files is game source (`freshness.sources_newer_than` skips them). `layout.new_identity` makes a copy (a remix) a
 game of its own: a new id, the first version, a fresh changelog, no publish or install record, and `remixOf: {id,
 version}` in `game.json`.

@@ -25,11 +25,11 @@ class Delivery(unittest.TestCase):
         ):
             return json.loads(hermes_host._deliver(self.RESPONSE, "chromatic_rom_build"))
 
-    def broken(self, response, name, image_dir, attach):
+    def broken(self, response, name, image_dir, attach, context=None):
         raise ValueError("broken")
 
     def test_a_result_whose_images_cannot_be_saved_is_still_delivered(self):
-        def encode(response, name, image_dir, attach):
+        def encode(response, name, image_dir, attach, context=None):
             if image_dir is not None:
                 raise OSError(28, "No space left on device")
             return json.dumps({"success": True})

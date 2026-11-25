@@ -12,8 +12,11 @@ import threading
 from pathlib import Path
 
 
-# Folders under a project that hold build output, recordings or tooling, never game source.
-NOT_SOURCE = frozenset({"build", "captures", "save-states", "artifacts", "node_modules", "__pycache__", "docs"})
+# Folders under a project that hold build output, recordings, tooling or the agent's own files (docs/ its plans,
+# scratch/ its helper scripts), never game source.
+NOT_SOURCE = frozenset(
+    {"build", "captures", "save-states", "artifacts", "node_modules", "__pycache__", "docs", "scratch"}
+)
 # The files at the top of a game folder that describe the game rather than make it (backend/library/layout.py):
 # what every publish holds besides the ROM.
 GAME_FILES = ("game.json", "cover.png", "README.md", "CHANGELOG.md", "LICENSE", ".gitignore")

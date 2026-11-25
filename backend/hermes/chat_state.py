@@ -1,30 +1,38 @@
 """Where a studio chat stands, told to it again after a context compaction.
 
 Hermes's compaction summary keeps what the agent did but not reliably where it stands, and it drops the skill pages
-the agent was following. So ``observe`` (``post_tool_call``) keeps, per chat, what the tool results said last: the
-project, the last build, the emulator's ROM and frame, the recording, and the skill pages loaded with ``skill_view``.
-``compacted`` (``post_compaction``) marks the chat, and ``deliver`` (``transform_tool_result``) adds one short note to
-the next tool result as ``hermretroContext`` (Hermes has no hook that adds context mid-turn, and ``pre_llm_call`` runs
-once per user turn, while a studio chat compacts inside its tool loop).
+the agent was following. So this module keeps, per chat, what its last results said: the project, the last build,
+the live emulator session (ROM and frame), its recording, and the skill pages loaded with ``skill_view``.
 
-The state is this process's memory: Hermes runs all three hooks in the process that runs the agent loop. A chat is
-keyed by its compression-stable ``conversation_id`` when Hermes gives one, else by its session id; a compaction that
-moves the chat to a new session id carries the key along.
+- ``engine_result``: the engine tool handler (``host.make_tool_handler``) folds each engine result in and, after a
+  compaction, gets the note that result carries as ``hermretroContext``. The note rides in hermretro's own result, so
+  it is there whatever the hook order, with images too, and no other plugin's result is touched.
+- ``observe`` (``post_tool_call``): the skill pages loaded with ``skill_view``.
+- ``compacted`` (``post_compaction``): the chat's next engine result carries the note (Hermes has no hook that adds
+  context mid-turn, and ``pre_llm_call`` runs once per user turn, while a studio chat compacts inside its tool loop).
+- ``child_started`` and ``child_stopped`` (``subagent_start``, ``subagent_stop``): a delegated subagent reports its
+  parent's ``conversation_id``, so it gets a state of its own, keyed by its session id, and never reads, adds to or
+  marks its parent's.
+
+The state is this process's memory: the hooks and the tool handlers run in the process that loaded the plugin. A
+chat is keyed by its compression-stable ``conversation_id`` when Hermes gives one, else by its session id; a
+compaction that moves the chat to a new session id carries the key along.
 """
 
 from __future__ import annotations
 
-import json
+import logging
 import threading
 from collections import OrderedDict
+from collections.abc import Callable
 
-from . import host
+logger = logging.getLogger(__name__)
 
-ENGINE_PREFIX = "chromatic_"
 SKILL_VIEW = "skill_view"
-KEY = "hermretroContext"
 # A compaction that only shortened old tool results leaves the chat's own summary of where it stands intact.
 PRUNE_ONLY = "prune_tool_results"
+# Engine tools whose result is the whole live session (worker ``state``): its ROM, frame and recording, if any.
+SESSION_RESULTS = frozenset({"emulator_run", "emulator_status"})
 MAX_CHATS = 64
 MAX_SKILL_PAGES = 12
 SHA_SHOWN = 12
@@ -51,41 +59,44 @@ def _state(key: str) -> dict:
     state = _chats.pop(key, None) or {"skills": []}
     _chats[key] = state
     while len(_chats) > MAX_CHATS:
-        forgotten, _old = _chats.popitem(last=False)
-        for session in [session for session, chat in _keys.items() if chat == forgotten]:
-            del _keys[session]
+        _forget(next(iter(_chats)))
     return state
 
 
-def observe(tool_name=None, args=None, result=None, status=None, session_id=None, conversation_id=None, **_kwargs):
-    """``post_tool_call``: keep what a successful engine result or ``skill_view`` said about where the chat stands.
-    Never raises."""
-    try:
-        if status not in (None, "", "ok") or not isinstance(tool_name, str):
-            return
-        args = args if isinstance(args, dict) else {}
-        if tool_name == SKILL_VIEW:
-            page = _skill_page(args)
-            if page:
-                with _lock:
-                    key = _key(session_id, conversation_id)
-                    if key:
-                        _remember_page(_state(key), page)
-            return
-        if not tool_name.startswith(ENGINE_PREFIX):
-            return
-        payload = host.tool_result_payload(result)
-        if not payload or payload.get("error") or payload.get("isError"):
-            return
-        structured = payload.get("structuredContent")
-        if not isinstance(structured, dict):
-            return
+def _forget(key: str) -> None:
+    """Drop a chat's state and every session id that leads to it. Caller holds the lock."""
+    _chats.pop(key, None)
+    for session in [session for session, chat in _keys.items() if chat == key]:
+        del _keys[session]
+
+
+def child_started(child_session_id=None, **_kwargs):
+    """``subagent_start``: the delegated subagent's own state, never its parent's conversation's."""
+    if child_session_id:
         with _lock:
-            key = _key(session_id, conversation_id)
-            if key:
-                _take(_state(key), tool_name, args, structured)
+            _keys[str(child_session_id)] = str(child_session_id)
+
+
+def child_stopped(child_session_id=None, **_kwargs):
+    """``subagent_stop``: the subagent's state goes with it."""
+    if child_session_id:
+        with _lock:
+            _forget(_keys.get(str(child_session_id), str(child_session_id)))
+
+
+def observe(tool_name=None, args=None, status=None, session_id=None, conversation_id=None, **_kwargs):
+    """``post_tool_call``: remember a skill page a successful ``skill_view`` loaded. Never raises."""
+    try:
+        if tool_name != SKILL_VIEW or status not in (None, "", "ok"):
+            return
+        page = _skill_page(args if isinstance(args, dict) else {})
+        if page:
+            with _lock:
+                key = _key(session_id, conversation_id)
+                if key:
+                    _remember_page(_state(key), page)
     except Exception:
-        host.logger.debug("hermretro chat_state.observe failed", exc_info=True)
+        logger.debug("hermretro chat_state.observe failed", exc_info=True)
 
 
 def _skill_page(args: dict) -> str | None:
@@ -101,44 +112,8 @@ def _remember_page(state: dict, page: str) -> None:
     state["skills"] = pages[-MAX_SKILL_PAGES:]
 
 
-def _take(state: dict, tool: str, args: dict, structured: dict) -> None:
-    """Fold one successful engine result into the chat's state."""
-    if isinstance(structured.get("projectRoot"), str):
-        state["project"] = structured["projectRoot"]
-    rom = structured.get("rom")
-    if tool == "chromatic_rom_build" and structured.get("success") is True and isinstance(rom, dict):
-        state["build"] = {"path": rom.get("path") or structured.get("outputPath"), "sha256": rom.get("sha256")}
-    if tool == "chromatic_emulator_close":
-        state.pop("emulator", None)
-        state.pop("recording", None)
-        return
-    if not tool.startswith(ENGINE_PREFIX + "emulator_"):
-        return
-    emulator = state.setdefault("emulator", {})
-    if isinstance(structured.get("romPath"), str):
-        emulator.update(rom=structured["romPath"], sha256=structured.get("romSha256"))
-    if isinstance(structured.get("frame"), int) and not isinstance(structured.get("frame"), bool):
-        emulator["frame"] = structured["frame"]
-    recording = next(
-        (
-            block
-            for block in (structured.get("recording"), structured.get("recordingSpan"), structured)
-            if isinstance(block, dict) and isinstance(block.get("sessionId"), str)
-        ),
-        None,
-    )
-    if recording is not None:
-        known = state.get("recording") or {}
-        status = recording.get("status")
-        if tool == "chromatic_emulator_recording" and args.get("action") == "stop":
-            status = "stopped"
-        if not isinstance(status, str):
-            status = known.get("status") if known.get("id") == recording["sessionId"] else None
-        state["recording"] = {"id": recording["sessionId"], "status": status}
-
-
 def compacted(session_id=None, old_session_id=None, kind=None, **_kwargs):
-    """``post_compaction``: the chat's next tool result carries where it stands. Never raises."""
+    """``post_compaction``: the chat's next engine result carries where it stands. Never raises."""
     try:
         if kind == PRUNE_ONLY or not session_id:
             return
@@ -147,40 +122,125 @@ def compacted(session_id=None, old_session_id=None, kind=None, **_kwargs):
             _keys[session_id] = key
             _state(key)["due"] = True
     except Exception:
-        host.logger.debug("hermretro chat_state.compacted failed", exc_info=True)
+        logger.debug("hermretro chat_state.compacted failed", exc_info=True)
 
 
-def deliver(result=None, session_id=None, conversation_id=None, **_kwargs):
-    """``transform_tool_result``: after a compaction, the first text result the chat gets carries the note
-    (a JSON object gains ``hermretroContext``; other text gains a closing line). A result with images is left as it
-    is and the note waits for the next one. None when nothing changes. Never raises."""
+def engine_result(
+    tool: str,
+    args: dict,
+    response: dict,
+    *,
+    session_id: str,
+    conversation_id: str,
+    project: Callable[[], str | None],
+) -> str | None:
+    """Fold an engine tool's broker response into the chat's state (``tool`` is the engine's name, without
+    ``chromatic_``). After a compaction, answer the note this result carries, built after this result was taken in;
+    None otherwise. The note stays due until a result that reached the engine carries it. ``project`` answers the
+    chat's project as hermretro knows it now. Never raises."""
     try:
-        if not isinstance(result, str):
-            return None
         with _lock:
-            key = _keys.get(session_id or "") or conversation_id
-            state = _chats.get(key) if key else None
-            if not state or not state.get("due"):
+            key = _key(session_id, conversation_id)
+            if key is None:
+                return None
+            state = _state(key)
+            result = response.get("result") if response.get("ok") else None
+            structured = result.get("structuredContent") if isinstance(result, dict) else None
+            if isinstance(structured, dict) and not result.get("isError"):
+                _take(state, tool, args if isinstance(args, dict) else {}, structured)
+            if not state.get("due") or not isinstance(result, dict):
                 return None
             state["due"] = False
             known = {name: value for name, value in state.items() if name != "due"}
         try:
-            project = host._chat_project(str(conversation_id or ""), str(session_id or ""))
+            current = project()
         except Exception:
-            project = None
-        note = note_for(known, project)
-        if not note:
-            return None
-        try:
-            payload = json.loads(result)
-        except ValueError:
-            payload = None
-        if isinstance(payload, dict):
-            return json.dumps({**payload, KEY: note}, ensure_ascii=False)
-        return f"{result}\n\n[hermretro] {note}"
+            current = None
+        note = note_for(known, current)
+        if note is None:
+            with _lock:
+                state["due"] = True
+        return note
     except Exception:
-        host.logger.debug("hermretro chat_state.deliver failed", exc_info=True)
+        logger.debug("hermretro chat_state.engine_result failed", exc_info=True)
         return None
+
+
+def _take(state: dict, tool: str, args: dict, structured: dict) -> None:
+    """Fold one successful engine result into the chat's state, by tool and action: only a result that describes
+    the live session changes what the note says about it."""
+    if isinstance(structured.get("projectRoot"), str):
+        state["project"] = structured["projectRoot"]
+    if tool == "rom_build":
+        rom = structured.get("rom")
+        if structured.get("success") is True and isinstance(rom, dict):
+            state["build"] = {"path": rom.get("path") or structured.get("outputPath"), "sha256": rom.get("sha256")}
+    elif tool in SESSION_RESULTS or (tool == "emulator_checkpoint" and args.get("action") == "restore"):
+        # A fresh boot without a recording, or a session that has none, clears the one known before.
+        _session(state, structured.get("romPath"), structured)
+        _live_recording(state, _recording(structured.get("recording")))
+    elif tool == "emulator_replay":
+        # A replay boots the ROM it was given; its result names that ROM's hash but not its path.
+        _session(state, args.get("romPath"), structured)
+        _live_recording(state, _recording(structured.get("recording"), "recording"))
+    elif tool in ("emulator_step", "emulator_observe"):
+        if _frame(structured) is not None:
+            state.setdefault("emulator", {})["frame"] = _frame(structured)
+        if tool == "emulator_step" and isinstance(structured.get("recordingSpan"), dict):
+            _live_recording(state, _recording(structured["recordingSpan"], "recording"))
+    elif tool == "emulator_recording":
+        recording = _recording(structured)
+        live = state.get("recording") or {}
+        if args.get("action") == "stop" and recording is not None:
+            state["recording"] = recording
+        elif recording is not None and recording["id"] == live.get("id"):
+            # status or export of the live attempt; one about an older attempt changes nothing.
+            state["recording"] = {**live, **recording}
+    elif tool == "emulator_close":
+        state.pop("emulator", None)
+        live = state.get("recording")
+        if live and live.get("status") == "recording":
+            # Closing finishes the attempt as stopped; its path and branch still resume it with a replay.
+            live["status"] = "stopped"
+
+
+def _frame(structured: dict) -> int | None:
+    frame = structured.get("frame")
+    return frame if isinstance(frame, int) and not isinstance(frame, bool) else None
+
+
+def _session(state: dict, rom, structured: dict) -> None:
+    """The live emulator session, as a result that started or describes one says."""
+    state["emulator"] = {
+        name: value
+        for name, value in (
+            ("rom", rom if isinstance(rom, str) and rom else None),
+            ("sha256", structured.get("romSha256")),
+            ("frame", _frame(structured)),
+        )
+        if value is not None
+    }
+
+
+def _recording(block, status: str | None = None) -> dict | None:
+    """A recording as the note names it: path, session id, branch and status; None when ``block`` is not one."""
+    if not isinstance(block, dict) or not isinstance(block.get("sessionId"), str):
+        return None
+    status = status or block.get("status")
+    recording = {
+        "path": block.get("recordingPath"),
+        "id": block["sessionId"],
+        "branch": block.get("branchId"),
+        "status": status,
+    }
+    return {name: value for name, value in recording.items() if isinstance(value, str) and value}
+
+
+def _live_recording(state: dict, recording: dict | None) -> None:
+    if recording is None:
+        state.pop("recording", None)
+    else:
+        state["recording"] = recording
 
 
 def note_for(state: dict, project: str | None = None) -> str | None:
@@ -193,19 +253,20 @@ def note_for(state: dict, project: str | None = None) -> str | None:
     build = state.get("build") or {}
     if build.get("path"):
         parts.append(f"Last build: {build['path']}{_sha(build.get('sha256'))}.")
-    emulator = state.get("emulator") or {}
-    if emulator.get("rom") or "frame" in emulator:
+    emulator = state.get("emulator")
+    if emulator is not None:
         where = f"Emulator: frame {emulator['frame']}" if "frame" in emulator else "Emulator: running"
-        if emulator.get("rom"):
-            where += f" of {emulator['rom']}{_sha(emulator.get('sha256'))}"
+        if emulator.get("rom") or emulator.get("sha256"):
+            where += f" of {emulator.get('rom') or 'a ROM'}{_sha(emulator.get('sha256'))}"
             if build.get("sha256") and emulator.get("sha256") and build["sha256"] != emulator["sha256"]:
                 where += ", not the last build"
         parts.append(where + ".")
     recording = state.get("recording") or {}
     if recording.get("id"):
-        parts.append(
-            f"Recording: {recording['id']}" + (f" ({recording['status']})." if recording.get("status") else ".")
-        )
+        details = [f"session {recording['id']}"] + [
+            recording[name] for name in ("branch", "status") if name in recording
+        ]
+        parts.append(f"Recording: {recording.get('path') or 'path unknown'} ({', '.join(details)}).")
     if state.get("skills"):
         parts.append(
             "Skill pages you had loaded: " + ", ".join(state["skills"]) + ". Load again with skill_view only the "

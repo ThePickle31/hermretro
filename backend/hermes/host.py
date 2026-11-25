@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .. import library
 from ..system import paths
-from . import api as hermes_api, contracts, results
+from . import api as hermes_api, chat_state, contracts, results
 
 # try_connect is used by the feature modules as host.try_connect, so a test's patch here reaches them.
 from ..broker import BrokerUnavailable, OtherCopyBusy, ensure_broker, try_connect  # noqa: F401 - used as host.try_connect (above)
@@ -72,16 +72,17 @@ def on_subagent_stop(child_session_id=None, **_kwargs):
             _child_sessions.pop(str(child_session_id), None)
 
 
-def _deliver(response: dict, name: str):
-    """Shape a broker response for the model. By now the tool has already run, so a failure here
-    (for example the frames folder cannot be written) must not read as "the tool did not run"."""
+def _deliver(response: dict, name: str, context: str | None = None):
+    """Shape a broker response for the model, with ``context`` (``chat_state``'s note after a compaction). By now the
+    tool has already run, so a failure here (for example the frames folder cannot be written) must not read as "the
+    tool did not run"."""
     try:
-        return results.encode(response, name, _data_dir() / "frames", _attach_images())
+        return results.encode(response, name, _data_dir() / "frames", _attach_images(), context)
     except Exception as error:
         logger.exception("Chromatic tool %s ran but its result could not be fully delivered", name)
         problem = f"{type(error).__name__}: {error}"
     try:
-        plain = results.encode(response, name, None, False)  # the same result, without saving images
+        plain = results.encode(response, name, None, False, context)  # the same result, without saving images
         payload = json.loads(plain) if isinstance(plain, str) else None
         if isinstance(payload, dict):
             payload["deliveryProblem"] = (
@@ -218,7 +219,15 @@ def make_tool_handler(ctx, tool: dict):
                     _registry().note_alias(_profile_identity(), conversation_id, session_id)
                 except Exception:
                     logger.debug("hermretro: could not record the session alias", exc_info=True)
-            return _deliver(response, name)
+            context = chat_state.engine_result(
+                original,
+                args,
+                response,
+                session_id=session_id,
+                conversation_id=conversation_id,
+                project=lambda: _chat_project(conversation_id, session_id),
+            )
+            return _deliver(response, name, context)
         except OtherCopyBusy as error:
             return json.dumps(_other_copy_busy(error, conversation_id, session_id))
         except BrokerUnavailable as error:

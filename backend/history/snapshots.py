@@ -39,7 +39,8 @@ from .restore_files import (
 # Top-level folders that are build output, tool state or the user's own captures, never game source.
 # captures/ and save-states/ are kept out too: restoring an older build must not delete screenshots,
 # recordings or saved states the user made since. .hermretro/ is the game's own record (its id, what was published):
-# a restore must never take it back to an older build's.
+# a restore must never take it back to an older build's. scratch/ holds the agent's helper scripts and working files.
+# On a volume that ignores case, each is excluded in any spelling (it is the same folder).
 EXCLUDED_TOP = frozenset(
     {"build", "artifacts", ".git", "node_modules", "captures", "save-states", "scratch", ".hermretro"}
 )
@@ -59,6 +60,23 @@ class SnapshotError(Exception):
         self.code = code
 
 
+def ignores_case(root: Path) -> bool:
+    """Whether the volume holding the project finds a name in another case (as macOS's usually does), judged by the
+    project folder's own name; False for a name without letter case."""
+    other = root.parent / root.name.swapcase()
+    if other == root:
+        return False
+    try:
+        return os.path.samestat(root.lstat(), other.lstat())
+    except OSError:
+        return False
+
+
+def _excluded(name: str, folds: bool) -> bool:
+    """Whether a top-level folder named ``name`` is excluded; on a volume that ``folds`` case, in any case."""
+    return name in EXCLUDED_TOP or (folds and name.lower() in EXCLUDED_TOP)
+
+
 def _temporary(name: str) -> bool:
     return name.endswith(TEMP_SUFFIXES) or name.startswith(".~")
 
@@ -67,6 +85,7 @@ def walk(root: Path, *, stored: bool = False, live: LiveTree | None = None) -> d
     """Scan the whole tree up to the file cap, propagating I/O errors. A live project has exclusions, while stored
     files must all be accounted for by the snapshot manifest."""
     found: dict[str, Path] = {}
+    folds = not stored and ignores_case(Path(root))
     stack = [(Path(root), "")]
     while stack:
         folder, prefix = stack.pop()
@@ -89,7 +108,7 @@ def walk(root: Path, *, stored: bool = False, live: LiveTree | None = None) -> d
         for entry, mode in entries:
             relative = f"{prefix}{entry.name}"
             if stat.S_ISDIR(mode):
-                if stored or prefix or entry.name not in EXCLUDED_TOP:
+                if stored or prefix or not _excluded(entry.name, folds):
                     stack.append((Path(entry.path), relative + "/"))
                 elif live is not None:
                     live.excluded.add(directory_id(entry.stat(follow_symlinks=False)))
@@ -431,9 +450,12 @@ def restore(
             raise SnapshotError("BACKUP_FAILED", f"The current project could not be backed up ({error}).") from error
         if backup.get("skipped"):
             raise SnapshotError("TOO_LARGE", "The current project could not be backed up (" + backup["skipped"] + ").")
-        # Older snapshots can contain files in a folder that is now excluded.
+        # Older snapshots can contain files in a folder that is now excluded, in any case where the volume folds it.
+        folds = ignores_case(root)
         wanted = {
-            name: path for name, path in wanted.items() if name.partition("/")[0] not in EXCLUDED_TOP or "/" not in name
+            name: path
+            for name, path in wanted.items()
+            if "/" not in name or not _excluded(name.partition("/")[0], folds)
         }
         digests = {name: digests[name] for name in wanted}
         changed, removed, problems = _restore_files(root, wanted, digests, live)

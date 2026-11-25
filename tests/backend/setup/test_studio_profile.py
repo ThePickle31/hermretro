@@ -249,16 +249,17 @@ class StudioProfile(unittest.TestCase):
         self.finish()
         self.assertEqual(self.read_config(self.target)["compression"], {"threshold_tokens": 300000})
         # Unset, or the cap an earlier release set: the current one.
-        for unset in ({"threshold": 0.7}, {"threshold_tokens": None, "threshold": 0.7}, {"threshold_tokens": 200000}):
+        for unset in ({"threshold": 0.7}, {"threshold_tokens": 200000}):
             (self.target / "config.yaml").write_text(json.dumps({"compression": unset}))
             self.finish()
             self.assertEqual(self.read_config(self.target)["compression"], {**unset, "threshold_tokens": 300000})
-        own = {"threshold_tokens": 350000, "threshold": 0.7}
-        (self.target / "config.yaml").write_text(json.dumps({"compression": own}))
-        self.commands.clear()
-        self.finish()
-        self.assertFalse(any("compression.threshold_tokens" in args for _target, args in self.commands))
-        self.assertEqual(self.read_config(self.target)["compression"], own)
+        # The user's own cap, or an explicit null (the ratio alone decides), is kept.
+        for own in ({"threshold_tokens": 350000, "threshold": 0.7}, {"threshold_tokens": None, "threshold": 0.7}):
+            (self.target / "config.yaml").write_text(json.dumps({"compression": own}))
+            self.commands.clear()
+            self.finish()
+            self.assertFalse(any("compression.threshold_tokens" in args for _target, args in self.commands))
+            self.assertEqual(self.read_config(self.target)["compression"], own)
 
     def test_running_it_again_updates_a_soul_left_as_an_older_release_shipped_it(self):
         self.created()

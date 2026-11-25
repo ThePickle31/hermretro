@@ -123,8 +123,9 @@ def new_identity(root: Path) -> str:
 def ensure(root: Path) -> list[str]:
     """Fill in what the game lacks: its id (kept in ``.hermretro/``, copied into ``game.json``), ``gameVersion``
     and ``rom`` in ``game.json``, a README made from the card, ``CHANGELOG.md`` and ``.gitignore``. Rewrites only
-    files it made itself and changes nothing that is already right; never moves or deletes anything. A game
-    installed without its source only has its id kept. Returns the names it wrote."""
+    files it made itself (a ``.gitignore`` of the user's own only gains ``/scratch/``) and changes nothing that is
+    already right; never moves or deletes anything. A game installed without its source only has its id kept. Returns
+    the names it wrote."""
     root = Path(root)
     card = game_card.load(root)
     project = project_file(root) is not None
@@ -158,9 +159,25 @@ def ensure(root: Path) -> list[str]:
             written.append("README.md")
     if not (root / "CHANGELOG.md").exists() and write_text(root / "CHANGELOG.md", CHANGELOG_HEAD):
         written.append("CHANGELOG.md")
-    if replaceable(root / ".gitignore") and write_text(root / ".gitignore", gitignore(root)):
+    ignore = root / ".gitignore"
+    wrote = write_text(ignore, gitignore(root)) if replaceable(ignore) else _ignore_scratch(ignore)
+    if wrote:
         written.append(".gitignore")
     return written
+
+
+def _ignore_scratch(path: Path) -> bool:
+    """Add ``/scratch/`` to a ``.gitignore`` of the user's own that has no line for ``scratch`` (a link or an unreadable
+    file is left alone). Returns whether it wrote."""
+    if path.is_symlink():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return False
+    if any(line.strip().lstrip("!").strip("/") == "scratch" for line in text.splitlines()):
+        return False
+    return write_text(path, text + ("\n" if text and not text.endswith("\n") else "") + "/scratch/\n")
 
 
 def replaceable(path: Path) -> bool:

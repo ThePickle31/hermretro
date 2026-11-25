@@ -38,7 +38,6 @@ provides_hooks:
   - post_llm_call
   - post_tool_call
   - post_compaction
-  - transform_tool_result
 provides_tools:
   - chromatic_studio_device_cli
   - chromatic_present_game

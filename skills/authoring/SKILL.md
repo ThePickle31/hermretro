@@ -40,17 +40,19 @@ Work in the creator's genuine `.gbsproj` / `.gbsres` project so the result stays
   next turn.
 - Read the table above, then open a reference page only when you reach the step that needs it, not every page up
   front: whatever you load fills the context until a compaction drops it.
-- After a context compaction, your next tool result carries `hermretroContext`: the project, the last build, the
-  emulator's frame, the recording and the skill pages you had loaded. Load this skill again and, of those pages, only
-  the ones your next step needs: the summary keeps what you did, not how the tools work.
+- After a context compaction, your next `chromatic_*` result carries `hermretroContext`: the project, the last
+  build, the emulator's ROM and frame, the recording (its path, session and branch) and the skill pages you had
+  loaded. Load this skill again and, of those pages, only the ones your next step needs: the summary keeps what you
+  did, not how the tools work.
 - Read game data through the inspect tools above, never with `cat`, `grep` or a script over `.gbsres` or
   `.gbsproj` files, and never open another game's project as an example: the event cookbook and
   `chromatic_event_describe` have working events. The game's other files (`docs/game/`, your PNGs, captures) are
   yours to open.
 - For any helper code (drawing a PNG, computing collision rectangles, writing a `chromatic_scene_apply`
   operations file), write a script file in the game's own `scratch/` folder and run it; create the project first.
-  `scratch/` stays on this machine and out of builds, publishes and build history, and no other chat writes there.
-  One-shot chats refuse `python -c` and heredocs.
+  `scratch/` stays on this machine and out of builds, publishes and build history. Give each file a name of its own
+  for the job (`scratch/door-collision.py`, not `scratch/script.py`): another chat on the same game uses the same
+  folder. One-shot chats refuse `python -c` and heredocs.
 
 If the plugin needs setup or its tools cannot start, use the [setup skill](../setup/SKILL.md) first. Creating or iterating a playable game needs `runtime,build`, including its browser preview. Use runtime alone only for source inspection or edits that do not require a build; add `emulator` for local stepped play. Carry necessary authorized setup through installation and callable tools, then return to the requested game. Do not stop at a passive doctor report or ask the user to install Node/npm manually.
 

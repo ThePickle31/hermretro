@@ -8,7 +8,7 @@ Edit Build instructions in `workflow.py`. The system prompt, per-game hook and e
 
 - RPCs: none.
 - Tools (`tools.py`): the 85 engine tools from `engine/pins/<version>/tools.json`, each as `chromatic_<name>`.
-- Hooks (`hooks.py`): `pre_tool_call` (hardware approvals), `subagent_start`, `subagent_stop`; `post_tool_call`, `post_compaction` and `transform_tool_result` (`chat_state.py`: after a context compaction, the chat's next tool result carries `hermretroContext`, where it stands: project, last build, emulator frame, recording, skill pages).
+- Hooks (`hooks.py`): `pre_tool_call` (hardware approvals), `subagent_start`, `subagent_stop`; `post_tool_call` and `post_compaction` (`chat_state.py`: after a context compaction, the chat's next engine tool result leads with `hermretroContext`, where it stands: project, last build, emulator ROM and frame, recording, skill pages; the engine tool handler adds it).
 - Skills and the prompt section (`prompt.py`): every `skills/<name>/SKILL.md`, the `hermretro.guide` section.
 - Events: none.
 

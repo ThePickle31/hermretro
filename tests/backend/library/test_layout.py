@@ -208,6 +208,34 @@ class Layout(unittest.TestCase):
         os.utime(scene, (moment + 60, moment + 60))
         self.assertTrue(freshness.sources_newer_than(self.root, moment))
 
+    def test_a_helper_script_in_a_c_games_scratch_folder_is_not_a_change_to_it(self):
+        root = self.home.base / "C Game"
+        for name in ("src/main.c", "scratch/tiles.py"):
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_text("// code")
+        moment = (root / "src" / "main.c").stat().st_mtime + 60
+        os.utime(root / "scratch" / "tiles.py", (moment + 60, moment + 60))
+        self.assertFalse(freshness.sources_newer_than(root, moment))
+        os.utime(root / "src" / "main.c", (moment + 60, moment + 60))
+        self.assertTrue(freshness.sources_newer_than(root, moment))
+
+    def test_a_gitignore_of_the_users_own_gains_the_scratch_folder_once(self):
+        ignore = self.root / ".gitignore"
+        ignore.write_text("/build/\n*.sav")
+        self.assertIn(".gitignore", layout.ensure(self.root))
+        self.assertEqual(ignore.read_text(), "/build/\n*.sav\n/scratch/\n")
+        self.assertNotIn(".gitignore", layout.ensure(self.root), "a second pass changes nothing")
+        for own in ("scratch\n", "/scratch\n", "!scratch/\n"):
+            ignore.write_text(own)
+            layout.ensure(self.root)
+            self.assertEqual(ignore.read_text(), own, "a line of the user's own about scratch/ is theirs")
+        ignore.unlink()
+        (self.home.base / "shared-ignore").write_text("*.sav\n")
+        ignore.symlink_to(self.home.base / "shared-ignore")
+        layout.ensure(self.root)
+        self.assertEqual((self.home.base / "shared-ignore").read_text(), "*.sav\n", "a link is left alone")
+        self.assertTrue(ignore.is_symlink())
+
     def test_only_its_own_marker_line_makes_a_file_replaceable(self):
         layout.ensure(self.root)
         mine = f"# Notes: {layout.GENERATED} is what hermretro puts in its files\n"

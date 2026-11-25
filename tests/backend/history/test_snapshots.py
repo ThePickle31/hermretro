@@ -80,6 +80,24 @@ class Snapshots(unittest.TestCase):
         kept = [name for item in snapshots.list_snapshots(self.store, "g") for name in self.files_of(item["id"])]
         self.assertFalse(any(name.startswith(".hermretro") for name in kept))
 
+    def test_on_a_volume_that_ignores_case_an_excluded_folder_is_excluded_in_any_spelling(self):
+        swapped = self.root.parent / self.root.name.swapcase()
+        self.assertEqual(snapshots.ignores_case(self.root), swapped.exists(), "judged by the volume itself")
+        self.assertFalse(snapshots.ignores_case(Path("/")), "a name without letter case")
+        (self.root / "scratch").rename(self.root / "Scratch")
+        with mock.patch.object(snapshots, "ignores_case", return_value=False):
+            snapshots.take(self.store, "g", self.root, "build", now_ms=1000)  # Scratch/ is its own folder here
+        self.assertIn("Scratch/junk.bin", self.files_of("1000"))
+        (self.root / "Scratch" / "junk.bin").write_bytes(b"working")
+        (self.root / "Scratch" / "tiles.py").write_text("# helper")
+        with mock.patch.object(snapshots, "ignores_case", return_value=True):
+            snapshots.take(self.store, "g", self.root, "build", now_ms=2000)
+            answer = snapshots.restore(self.store, "g", self.root, "1000", now_ms=3000)
+        self.assertNotIn("Scratch/junk.bin", self.files_of("2000"))
+        self.assertNotIn("problems", answer)
+        self.assertEqual((self.root / "Scratch" / "junk.bin").read_bytes(), b"working")
+        self.assertTrue((self.root / "Scratch" / "tiles.py").is_file())
+
     def test_an_unchanged_project_adds_its_build_to_the_newest_snapshot(self):
         snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
         self.assertEqual(
