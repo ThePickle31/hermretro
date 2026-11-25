@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36253655,
+ "total_bytes": 36266721,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "4aa94564d909ca783bb7ff11bc0a02efdf75942faf3a11b89253b483b87cbacf",
+ "aggregate_sha256": "c51fa6a5063dcd09259f26c890053a261876b40a42f16590ad944d80538ea236",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -1048,9 +1048,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3070336,
+   "size": 3071086,
    "mode": "0o644",
-   "sha256": "686acd5502d7a8e08d602436ee0d9ee1ee2598bc531053419a8df1e65f5bd8c6"
+   "sha256": "88ab9682b349b604f66bd7ee86b63aceba6ca6c002d7696a9a645ffe7553f751"
   },
   {
    "path": "dist/server.js.map",
@@ -1638,7 +1638,7 @@
    "type": "file",
    "size": 105289,
    "mode": "0o644",
-   "sha256": "6d468f5ed05888f21f67a21643c13f060a2b187df8ed17c211f968f7bef80982"
+   "sha256": "d5489b922de886ac46f6426a21fd95f5a3c2bc9ff57f49c91876c6faac00fe3f"
   },
   {
    "path": "dist/wrecklight/profiles/base.js.map",
@@ -2112,9 +2112,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44604,
+   "size": 44728,
    "mode": "0o644",
-   "sha256": "2ff32f4581d5dd31c5db587aa9af3ecc6862a8ac3c897ea2cc2317a565e4933d"
+   "sha256": "6d1128218ab8d3008bb65730e2cddcd758e9ec59a263d0d927db746ea13db136"
   },
   {
    "path": "docs/architecture.md",
@@ -2427,9 +2427,9 @@
   {
    "path": "docs/wrecklight-remix.md",
    "type": "file",
-   "size": 4471,
+   "size": 4604,
    "mode": "0o644",
-   "sha256": "1928d5209facca8511f59d5301e120e9db1999c3f34ea47bb56fe956e2974aff"
+   "sha256": "171bc8922b8b027414d8bef15d84594f4d298ebb9c08f20549cb9c0d3b19fef3"
   },
   {
    "path": "examples/SAMPLE-PROVENANCE.json",
@@ -3302,9 +3302,9 @@
   {
    "path": "scripts/dependency-doctor.mjs",
    "type": "file",
-   "size": 38323,
+   "size": 39741,
    "mode": "0o644",
-   "sha256": "1a5e6e1f443f5ee3ca58000742f2bc6cee81eb2c60fa9c9cdfb780f85296ddeb"
+   "sha256": "26f09f6e7c985cb2f3a1d3e2045419a48efce4f38687e169b030653745caad64"
   },
   {
    "path": "scripts/device-client-deps.mjs",
@@ -3379,23 +3379,23 @@
   {
    "path": "scripts/setup-compiler.mjs",
    "type": "file",
-   "size": 60474,
+   "size": 68205,
    "mode": "0o644",
-   "sha256": "4f2f13e985392a937c7ea33b5cebdcef80b319df908609e64c3ed34975d99ffb"
+   "sha256": "aa8338bb26b4d73f8ff7ec27f6b070c7c1e2a92070507f6701ed102cb137ccb8"
   },
   {
    "path": "scripts/setup-compiler.sh",
    "type": "file",
-   "size": 21271,
+   "size": 22348,
    "mode": "0o755",
-   "sha256": "38499946eb785428f8213e46c6f31f5e9c7b3e3aa5376c4c1000173bb29c5c7e"
+   "sha256": "97913b4dfb22e61562c49cfeb969b27f72e6be2967acd9bdfc81f9605799f86b"
   },
   {
    "path": "scripts/setup-components.mjs",
    "type": "file",
-   "size": 28804,
+   "size": 29880,
    "mode": "0o644",
-   "sha256": "3ce9c8ef86f71945b1767e98f61ad1a4c0dc0d6ae9dd79dc82c5056b9267e9fa"
+   "sha256": "70c56848c19d3736da6469abc5e91597063cabc55891d579fa9f461651fe477e"
   },
   {
    "path": "scripts/setup-emulator.mjs",
@@ -3442,9 +3442,9 @@
   {
    "path": "scripts/setup.mjs",
    "type": "file",
-   "size": 40853,
+   "size": 41610,
    "mode": "0o644",
-   "sha256": "6a9bf1a3ee3544d681b2fb69c08c1df8502d89734b03a21038daf4dc9e7bf83a"
+   "sha256": "d32bd3ae628b01c4875ab2ffa07468d44a374d30217c942567ae1c441e9f246f"
   },
   {
    "path": "scripts/setup.ps1",

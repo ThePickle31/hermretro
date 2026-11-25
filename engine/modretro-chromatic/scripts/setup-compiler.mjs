@@ -744,6 +744,143 @@ export async function patchWindowsCliConstants(constantsPath, options = {}) {
   return true;
 }
 
+// The compiler's repeatable save signature (hermretro): GB Studio hashes `JSON.stringify(projectData)`, which holds
+// what its asset loaders add on every load (`_v`, the load time, and `inode`) and a new random UUID for an asset
+// with no .gbsres, and leaves out the code a project brings. The patch hashes the project without the loaders'
+// metadata, its UUIDs numbered by first appearance, with the content of `assets/engine` and of every file in `plugins`
+// (engine code, event scripts and their plugin.json): the same project in any folder gets the same signature, and code
+// that changes what a save holds changes it. `marker` is in the compiled worker exactly when it was built from the patch.
+export const CLI_SAVE_SIGNATURE_PATCH = Object.freeze({
+  source: "src/lib/compiler/compileData.ts",
+  worker: "out/cli/buildWorker.js",
+  marker: "hermretro-save-signature-v3",
+});
+
+const SAVE_SIGNATURE_INPUT = [
+  "// What the save signature hashes: the project as compiled, which stands for the layout of its saved data, the same",
+  "// for the same project wherever it is. The asset loaders' own metadata is left out (`_v`, the load time, and `inode`),",
+  "// UUIDs are numbered in order of appearance (an asset with no .gbsres gets a new random one on every load), and the",
+  "// code the project brings (its engine and its plugins' engine code and event scripts) is added: it can change what",
+  "// a save holds.",
+  "const SIGNATURE_ASSET_TYPES = [",
+  "  \"backgrounds\",",
+  "  \"sprites\",",
+  "  \"music\",",
+  "  \"sounds\",",
+  "  \"fonts\",",
+  "  \"avatars\",",
+  "  \"emotes\",",
+  "  \"tilesets\",",
+  "] as const;",
+  "const SIGNATURE_UUID =",
+  "  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+  "const SIGNATURE_CODE_FILES = \"{assets/engine/**,plugins/**}\";",
+  "",
+  "const saveSignatureInput = async (",
+  "  projectData: ProjectResources,",
+  "  projectRoot: string,",
+  "): Promise<string> => {",
+  "  const assets: Record<string, unknown> = {};",
+  "  for (const type of SIGNATURE_ASSET_TYPES) {",
+  "    assets[type] = (projectData[type] as unknown as Record<string, unknown>[]).map(",
+  "      (record) => {",
+  "        const { _v, inode, ...stable } = record;",
+  "        return stable;",
+  "      },",
+  "    );",
+  "  }",
+  "  const names = new Map<string, string>();",
+  "  const named = (value: string) => {",
+  "    if (!SIGNATURE_UUID.test(value)) return value;",
+  "    if (!names.has(value)) names.set(value, `uuid:${names.size}`);",
+  "    return names.get(value) as string;",
+  "  };",
+  "  const canonical = (value: unknown): unknown => {",
+  "    if (typeof value === \"string\") return named(value);",
+  "    if (Array.isArray(value)) return value.map(canonical);",
+  "    if (value && typeof value === \"object\") {",
+  "      const entries: [string, unknown][] = [];",
+  "      for (const [key, entry] of Object.entries(value)) {",
+  "        entries.push([named(key), canonical(entry)]);",
+  "      }",
+  "      return Object.fromEntries(entries);",
+  "    }",
+  "    return value;",
+  "  };",
+  "  const code: [string, string][] = [];",
+  "  const codeFiles = glob",
+  "    .sync(SIGNATURE_CODE_FILES, { cwd: projectRoot, nodir: true })",
+  "    .sort();",
+  "  for (const file of codeFiles) {",
+  "    const bytes = await readFile(Path.join(projectRoot, file));",
+  "    code.push([file, createHash(\"sha256\").update(bytes).digest(\"hex\")]);",
+  "  }",
+  "  return JSON.stringify([",
+  "    \"hermretro-save-signature-v3\",",
+  "    canonical({ ...projectData, ...assets }),",
+  "    code,",
+  "  ]);",
+  "};",
+].join("\n") + "\n";
+
+// The patch's hunks: each original occurs once in the pinned source, and becomes its replacement.
+const SAVE_SIGNATURE_HUNKS = [
+  ['import { ensureDir } from "fs-extra";\n',
+    'import { ensureDir, readFile } from "fs-extra";\nimport glob from "glob";\nimport { createHash } from "crypto";\n'],
+  ["const compile = async (\n  rawProjectData: ProjectResources,\n",
+    SAVE_SIGNATURE_INPUT + "const compile = async (\n  rawProjectData: ProjectResources,\n"],
+  ["  output[`game_signature.c`] = compileSaveSignature(\n    JSON.stringify(projectData),\n  );\n",
+    "  output[`game_signature.c`] = compileSaveSignature(\n    await saveSignatureInput(projectData, projectRoot),\n  );\n"],
+];
+
+/** Whether the source carries the patch (true), is the pinned original (false); anything else throws. Line endings
+ * are compared as LF. */
+function saveSignaturePatched(source) {
+  const text = normalizeSourceNewlines(source);
+  if (SAVE_SIGNATURE_HUNKS.every(([, after]) => text.split(after).length === 2) && !text.includes("JSON.stringify(projectData),")) return true;
+  if (SAVE_SIGNATURE_HUNKS.every(([before]) => text.split(before).length === 2) && !text.includes(CLI_SAVE_SIGNATURE_PATCH.marker)) return false;
+  throw new Error("The pinned GB Studio compiler does not match the expected repeatable save-signature patch.");
+}
+
+/** The pinned compiler source with the repeatable save signature, in the source's own line endings; refuses any
+ * source but the reviewed one. */
+export function patchedSaveSignatureSource(original) {
+  if (saveSignaturePatched(original)) {
+    throw new Error("The pinned GB Studio compiler does not match the expected repeatable save-signature patch.");
+  }
+  let text = normalizeSourceNewlines(original);
+  for (const [before, after] of SAVE_SIGNATURE_HUNKS) text = text.replace(before, () => after);
+  return original.includes("\r\n") ? text.replace(/\n/g, "\r\n") : text;
+}
+
+/** Patch the verified GB Studio 4.3.2 compiler's save signature in place (see CLI_SAVE_SIGNATURE_PATCH), replacing the
+ * whole file at once. Returns false when it already carries the patch. */
+export async function patchSaveSignature(compileDataPath, options = {}) {
+  const platform = options.platform ?? process.platform;
+  await requireRealFile(compileDataPath, "The verified GB Studio compiler source", platform);
+  const original = await readFile(compileDataPath, "utf8");
+  if (saveSignaturePatched(original)) return false;
+  const replacement = `${compileDataPath}.hermretro-${randomUUID()}`;
+  try {
+    await writeFile(replacement, patchedSaveSignatureSource(original), { encoding: "utf8", flag: "wx" });
+    await rename(replacement, compileDataPath);
+  } finally {
+    await rm(replacement, { force: true });
+  }
+  return true;
+}
+
+/** Whether a compiled CLI's build worker carries the repeatable save signature (CLI_SAVE_SIGNATURE_PATCH). */
+export async function cliWorkerCurrent(cliPath) {
+  try {
+    return (await readFile(path.join(path.dirname(cliPath), "buildWorker.js"), "utf8")).includes(CLI_SAVE_SIGNATURE_PATCH.marker);
+  } catch {
+    return false;
+  }
+}
+
+const OUTDATED_CLI = "The existing official GB Studio CLI was compiled without the repeatable save signature; run setup without --use-existing to compile it again.";
+
 async function resolveCorepackScript(executable, context, override) {
   if (override !== undefined) return trustedExecutable(override, "The trusted Corepack JavaScript launcher", context);
   const directory = path.dirname(executable);
@@ -937,23 +1074,31 @@ async function verifyPinnedWorktree(git, paths, context) {
     context,
     paths.vendor,
   )).split(/\r?\n/u).map((entry) => entry.trim()).filter(Boolean);
-  if (changes.length > 1 || (changes.length === 1 && changes[0] !== "src/consts.ts")) {
-    throw new Error(`The pinned GB Studio checkout contains untrusted tracked changes: ${changes.join(", ")}`);
+  // Each reviewed source patch: the one file it may change, and its exact patched text.
+  const reviewed = [
+    { file: "src/consts.ts", patched: patchedWindowsCliSource, label: "constants", patch: "Windows compatibility" },
+    { file: CLI_SAVE_SIGNATURE_PATCH.source, patched: patchedSaveSignatureSource, label: "compiler", patch: "repeatable save-signature" },
+  ];
+  const untrusted = changes.filter((entry) => !reviewed.some(({ file }) => file === entry));
+  if (untrusted.length) {
+    throw new Error(`The pinned GB Studio checkout contains untrusted tracked changes: ${untrusted.join(", ")}`);
   }
-  const pristineResult = await runTrustedGit(git, ["show", "HEAD:src/consts.ts"], context, paths.vendor);
-  const pristine = normalizeSourceNewlines(typeof pristineResult === "string" ? pristineResult : String(pristineResult.stdout ?? ""));
-  const expectedPatch = patchedWindowsCliSource(pristine);
-  const constantsPath = path.join(paths.vendor, "src", "consts.ts");
-  await requireRealFile(constantsPath, "The verified GB Studio constants source", context.platform);
-  const actual = normalizeSourceNewlines(await readFile(constantsPath, "utf8"));
-  if (changes.length === 0 ? actual !== pristine : actual !== expectedPatch) {
-    throw new Error("The pinned GB Studio constants contain changes beyond the exact approved Windows compatibility patch.");
+  for (const { file, patched, label, patch } of reviewed) {
+    const pristineResult = await runTrustedGit(git, ["show", `HEAD:${file}`], context, paths.vendor);
+    const pristine = normalizeSourceNewlines(typeof pristineResult === "string" ? pristineResult : String(pristineResult.stdout ?? ""));
+    const sourcePath = path.join(paths.vendor, ...file.split("/"));
+    await requireRealFile(sourcePath, `The verified GB Studio ${label} source`, context.platform);
+    const actual = normalizeSourceNewlines(await readFile(sourcePath, "utf8"));
+    if (changes.includes(file) ? actual !== patched(pristine) : actual !== pristine) {
+      throw new Error(`The pinned GB Studio ${label} contain changes beyond the exact approved ${patch} patch.`);
+    }
   }
 }
 
 async function ensureOfficialCli(local, paths, context) {
   await assertManagedPathSafe(local, paths.vendor, context.platform);
-  if (await metadataIfPresent(paths.cli)) {
+  // A CLI compiled before the repeatable save signature is compiled again from the same checkout.
+  if (await metadataIfPresent(paths.cli) && await cliWorkerCurrent(paths.cli)) {
     await verifyCli(paths.cli, context);
     return;
   }
@@ -1029,8 +1174,9 @@ async function ensureOfficialCli(local, paths, context) {
     await assertExtractedTreeSafe(copiedGbdk, context.platform);
   }
 
-  // Pin both upstream Git identities before making the one narrow source compatibility fix.
+  // Pin both upstream Git identities before making the narrow reviewed source fixes.
   await patchWindowsCliConstants(path.join(paths.vendor, "src", "consts.ts"), { platform: context.platform });
+  await patchSaveSignature(path.join(paths.vendor, ...CLI_SAVE_SIGNATURE_PATCH.source.split("/")), { platform: context.platform });
   await verifyPinnedWorktree(git, paths, context);
 
   const corepack = context.corepackScript ?? await resolveCorepackScript(context.nodeExecutable, context, context.corepackPath);
@@ -1178,8 +1324,9 @@ async function prepareWindowsSetup(options, selected, platform, logger) {
 
 async function resolveInstallPrerequisites(selected, paths, context) {
   if (!selected.withCli) return false;
-  if (selected.useExisting || await metadataIfPresent(paths.cli)) {
+  if (selected.useExisting || (await metadataIfPresent(paths.cli) && await cliWorkerCurrent(paths.cli))) {
     await verifyCli(paths.cli, context);
+    if (!(await cliWorkerCurrent(paths.cli))) throw new Error(OUTDATED_CLI);
     return false;
   }
   context.gitExecutable = await resolveGitExecutable(context);
@@ -1223,6 +1370,7 @@ export async function setupWindowsGbStudio(options = {}) {
   if (selected.useExisting) {
     await verifyCompiler(paths.compiler, paths.versionHeader, context);
     await verifyCli(paths.cli, context);
+    if (!(await cliWorkerCurrent(paths.cli))) throw new Error(OUTDATED_CLI);
     let desktop;
     if (selected.withDesktop) {
       await requireRealDirectory(paths.desktopRoot, "The existing GB Studio desktop application", platform);

@@ -1,12 +1,13 @@
-"""Checkpoints across rebuilds on B's worker: restored onto a rebuild of the unchanged project only with symbols each
-build captured, never onto a changed one, and a branch restored from another build is not replayed past that restore."""
+"""Checkpoints across rebuilds on B's worker: restored onto a build that differs only in GB Studio's save signature
+(an editor-only change) only with symbols each build captured, never onto a changed one, and a branch restored from
+another build is not replayed past that restore."""
 
 import json
 import re
 import shutil
 from pathlib import Path
 
-from tests.acceptance.fixture import OWNER_B, structured
+from tests.acceptance.fixture import OWNER_B, move_scene_on_map, structured
 
 # Each recording reserves its maxBytes against the project's 1 GiB of retained attempts; these need little.
 SMALL = {"maxBytes": 4 * 1024 * 1024}
@@ -26,6 +27,12 @@ def save_signature(rom_path: str) -> int | None:
         re.findall(r"^DEF _save_signature (0x[0-9A-Fa-f]+)$", symbols.read_text(), re.M) if symbols.is_file() else []
     )
     return int(found[0], 16) if len(found) == 1 else None
+
+
+def signature_bytes(rom_path) -> str | None:
+    """The build's 4-byte save signature, found from the symbols the build captured beside its ROM."""
+    offset = save_signature(str(rom_path)) if rom_path else None
+    return Path(rom_path).read_bytes()[offset : offset + 4].hex() if offset is not None else None
 
 
 def stamp_only(before: bytes, after: bytes, signature: int | None) -> list[int] | None:
@@ -50,12 +57,14 @@ def restore(client_b, rom_path: str, checkpoint: dict) -> dict:
     return client_b.call(OWNER_B, "emulator_checkpoint", {"action": "restore", **checkpoint})
 
 
-def check_unchanged_rebuild(suite, client_b, rom_b) -> dict:
-    """A checkpoint saved on one build restores onto a second build of the unchanged project."""
-    # B's last build had batteryless saves on (V4): build the project as it is now, twice.
+def check_signature_only_rebuild(suite, client_b, rom_b) -> dict:
+    """A checkpoint saved on one build restores onto a build that differs from it only in its save signature."""
+    # Build the project as it is now, then again after an editor-only change: a rebuild of the unchanged project gives
+    # the same bytes, which the worker matches by their hash before it looks at any symbols.
     first = structured(client_b.call(OWNER_B, "rom_build", {}))
     saved = save_checkpoint(client_b, rom_b)
     before = Path(rom_b).read_bytes()
+    move_scene_on_map(suite.project_b)
     rebuilt = structured(client_b.call(OWNER_B, "rom_build", {}))
     signature = save_signature(rom_b)
     differing = stamp_only(before, Path(rom_b).read_bytes(), signature)
@@ -65,8 +74,8 @@ def check_unchanged_rebuild(suite, client_b, rom_b) -> dict:
     onward = structured(client_b.call(OWNER_B, "emulator_step", {"inputs": [{"buttons": [], "frames": 2}]}))
     suite.check(
         "M18",
-        "Two builds of an unchanged project differ only in GB Studio's save signature and the global checksum, and a "
-        "checkpoint saved on one restores onto the other",
+        "Two builds an editor-only change apart differ only in GB Studio's save signature and the global checksum, "
+        "and a checkpoint saved on one restores onto the other",
         first.get("success") is not False
         and rebuilt.get("success") is not False
         and bool(saved.get("checkpointId"))
@@ -110,6 +119,8 @@ def check_unverified_symbols(suite, client_b, rom_b, cross: dict):
     """A rebuild whose symbols this session did not capture with it takes no checkpoint of another build, even with
     an earlier build's symbols beside it; a GBDK ROM with copied symbols matches only itself."""
     stale = Path(f"{rom_b}.debug/symbols.noi")
+    # The project as it is would build the bytes whose symbols the last build recorded.
+    move_scene_on_map(suite.project_b)
     plain = structured(client_b.call(OWNER_B, "rom_build", {"captureDebugArtifacts": False}))
     differing = stamp_only(cross["rom"], Path(rom_b).read_bytes(), save_signature(rom_b))
     stale_refusal = restore(client_b, rom_b, cross["checkpoint"])
@@ -161,7 +172,7 @@ def check_archived_checkpoint(suite, client_b, rom_b, cross: dict):
     restored = structured(restored_response)
     suite.check(
         "M23",
-        "A checkpoint in an archived recording restores onto a rebuild of the unchanged project",
+        "A checkpoint in an archived recording restores onto a rebuild that differs only in its save signature",
         archived.get("status") == "archived"
         and rebuilt.get("success") is not False
         and Path(rom_b).read_bytes() != cross["rom"]

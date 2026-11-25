@@ -74,8 +74,10 @@ instead of playing the route again by hand: it stops at the first frame that
 differs and leaves the session where the replay ended. For a game with a test
 plan, `chromatic_playtest {}` replays every check bound to a recording in one
 call ([the test plan, replayed](../../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed)). Checkpoints require
-the same build and worker: a rebuild without an edit takes them when both
-builds captured their debug symbols in this session, one after an edit does not.
+the same build and worker: a rebuild with identical bytes takes them, one that
+differs only in its save signature takes them when both builds captured their
+debug symbols in this session, and one after an edit that changes the ROM
+otherwise does not.
 
 ## What the frames prove
 

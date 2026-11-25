@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from tests.acceptance.checkpoints import SMALL
-from tests.acceptance.fixture import OWNER_B, structured
+from tests.acceptance.fixture import OWNER_B, move_scene_on_map, structured
 
 MENU = {
     "id": "acceptance-live-menu",
@@ -179,6 +179,8 @@ def check_debug_defaults(suite, client_b):
     build and debug results stay short unless asked for in full."""
     built, started = run(client_b, {})
     compact, full = debug(client_b), debug(client_b, detail="full")
+    # The same project would build the same bytes, whose symbols the build above recorded: change its save signature.
+    move_scene_on_map(suite.project_b)
     plain, plain_started = run(client_b, {"captureDebugArtifacts": False})
     refused = client_b.call(OWNER_B, "emulator_debug", {})
     suite.check(

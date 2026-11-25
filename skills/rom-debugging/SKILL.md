@@ -172,9 +172,11 @@ branching an attempt, see [recordings and checkpoints](references/recorded-playt
 Checkpoints need a recording: boot with `recording:{}` before playing to where
 you will save, or every save is refused. Save after a step that ends with `[]`
 for at least one frame, and restore only into the same build and runtime,
-including the worker hash: the identical ROM, or a rebuild with no edit when
-both builds came from `chromatic_rom_build` in this session with their debug
-symbols. After an edit, replay instead.
+including the worker hash: the identical ROM (a rebuild of the unchanged
+project gives the same bytes), or a rebuild that differs only in its save
+signature when both builds came from `chromatic_rom_build` in this session with
+their debug symbols. After an edit that changes the ROM otherwise, replay
+instead.
 
 ## Finishable
 
@@ -187,8 +189,9 @@ with `chromatic_emulator_recording {"action":"stop","outcome":"passed"}` (or
 `failed`, with the reason) and keep its `recordingPath`: it is the evidence.
 Checkpoints are fine while finding a bug, but a route pieced together from them
 shows each part works, not that the game can be finished, and a recording with
-a restore in it is no finishable run. Every rebuild needs the run again; a run
-on an earlier ROM does not count.
+a restore in it is no finishable run. A build whose ROM changed (another
+SHA-256) needs the run again; a run on an earlier ROM does not count, and a
+rebuild with the same bytes keeps it.
 
 From that run, report the difficulty in `chromatic_build_report`: time to
 finish, deaths or retries and where, and what you tuned, and give its

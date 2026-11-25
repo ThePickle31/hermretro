@@ -277,3 +277,26 @@ files, what changed and why.
   live slot is data too; a name no scene has is still refused. `emulator_review` states its 1–8 `maxImages` in the
   field and the tool description. In the benchmark `scene_apply` refused `target.eventId`, a debug read of a later
   level's actor failed twice, and a review asked for 9 images.
+- `scripts/setup-compiler.mjs` (`CLI_SAVE_SIGNATURE_PATCH`, `patchedSaveSignatureSource`, `patchSaveSignature`,
+  `cliWorkerCurrent`, the Windows `ensureOfficialCli`, `resolveInstallPrerequisites`, `--use-existing` and
+  `verifyPinnedWorktree`), `scripts/setup-compiler.sh` (`cli_worker_current`), `scripts/setup-components.mjs` (`cli`,
+  `replaceSource`, `saveSignaturePatch`), `scripts/setup.mjs` (`applySetup`), `scripts/dependency-doctor.mjs`
+  (`detectCli`), `dist/server.js` (`compilerBoundKey`, `rememberNativeRom`, `buildWeb`, the reviewed compiler profile,
+  now `…-native13-v3`), `dist/wrecklight/profiles/base.js`, `docs/wrecklight-remix.md`, `docs/agent-guide.md`: setup
+  compiles GB Studio with one more checked source patch, so the same project builds to the same ROM bytes wherever it is
+  (a copy in another folder, a game installed from its repository on another machine), web copy included, and its
+  battery saves keep loading after a rebuild. GB Studio's `save_signature` hashed `JSON.stringify(projectData)`, which
+  holds its asset loaders' `_v` (the load time) and `inode`, and a new random UUID for an asset without a .gbsres;
+  `src/lib/compiler/compileData.ts` now hashes the project without those two loader fields of asset records (an event
+  arg named `_v` still counts), its UUIDs numbered by first appearance, and the content of the code the project brings
+  (every file in `assets/engine` and `plugins`: engine code, plugin event scripts and their `plugin.json`), which can
+  change what a save holds. An edit to the project's data, engine code or plugins changes the signature; an art-only
+  edit can keep it (a background's pixels). The patch applies only to the exact pinned source, in its own line endings,
+  replacing the file at once, and is recorded in the CLI's setup receipt. A CLI compiled before it is reported
+  `incompatible` by the doctor (with the recovery step for its kind of install) and compiled again by every installer;
+  `--use-existing` reports it and changes nothing. Setup now prepares and verifies a replacement component in staging
+  before it moves the previous one aside (only the emulator, prepared in place, is moved first), so an upgrade that
+  fails offline leaves the old compiler working, and a receipt left by an unfinished install never lets another detected
+  copy count as reused. A cached web export and the native ROM receipt are signed for the compiler that made them (the
+  CLI and its build worker, by content), so after the compiler changes neither is reused. Every rebuild changed the ROM
+  and invalidated the game's saves, and a copy built from the same source could never match its author's ROM.

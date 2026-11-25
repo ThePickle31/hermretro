@@ -191,6 +191,12 @@ verify_cli() {
   fi
 }
 
+# Whether the compiled CLI carries the repeatable save signature (CLI_SAVE_SIGNATURE_PATCH.marker in setup-compiler.mjs).
+cli_worker_current() {
+  [[ -f "$setup_vendor/out/cli/buildWorker.js" && ! -L "$setup_vendor/out/cli/buildWorker.js" ]] &&
+    grep -q 'hermretro-save-signature-v3' "$setup_vendor/out/cli/buildWorker.js"
+}
+
 verify_gbdk() {
   if [[ ! -f "$setup_gbdk_compiler" || ! -x "$setup_gbdk_compiler" ]]; then
     printf 'GBDK %s requires an existing executable compiler: %s\n' \
@@ -221,6 +227,10 @@ verify_gbdk() {
 verify_existing() {
   verify_gbdk
   verify_cli
+  if ! cli_worker_current; then
+    printf '%s\n' 'The existing official GB Studio CLI was compiled without the repeatable save signature; run setup without --use-existing to compile it again.' >&2
+    return 1
+  fi
 }
 
 if [[ "$setup_use_existing" == true ]]; then
@@ -397,7 +407,8 @@ fi
 verify_gbdk
 
 if [[ "$setup_with_cli" == true ]]; then
-  if [[ ! -f "$setup_cli" ]]; then
+  # A CLI compiled before the repeatable save signature is compiled again from its checkout.
+  if [[ ! -f "$setup_cli" ]] || ! cli_worker_current; then
     require_command git
     require_command node
     require_command corepack
@@ -478,6 +489,11 @@ if [[ "$setup_with_cli" == true ]]; then
       elif [[ ! -f node_modules/electron/path.txt ]]; then
         printf 'electron' > node_modules/electron/path.txt
       fi
+
+      # The reviewed compiler patch: a save signature that is the same for an unchanged project.
+      node --input-type=module -e \
+        'const [source, script] = process.argv.slice(1); const { pathToFileURL } = await import("node:url"); await (await import(pathToFileURL(script).href)).patchSaveSignature(source);' \
+        "$PWD/src/lib/compiler/compileData.ts" "$setup_script_directory/setup-compiler.mjs"
 
       NO_TYPE_CHECKING=1 node node_modules/webpack/bin/webpack.js \
         --config ./src/apps/gb-studio-cli/webpack.cli.config.js

@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, readFile, readdir, realpath, rename, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DEPENDENCY_CATALOG, DESKTOP_RELEASES, GBDK_RELEASES, SOURCE_RELEASES, UV_RELEASES } from "./dependency-catalog.mjs";
-import { patchWindowsCliConstants } from "./setup-compiler.mjs";
+import { CLI_SAVE_SIGNATURE_PATCH, patchWindowsCliConstants, patchedSaveSignatureSource } from "./setup-compiler.mjs";
 import {
   SetupIoError, assertOwnedPath, checkSetupAbort, copySetupTree, downloadArchive,
   ensureOwnedDirectory, extractArchive, makeSetupExecutable, runSetupCommand,
@@ -98,6 +98,33 @@ export function patchArchiveBuildMetadata(source) {
   return { source: updated, receipt: { path: BUILD_METADATA_PATH, purpose: "Use pinned release/commit build metadata without a Git checkout; no engine change", beforeSha256: hash(source), afterSha256: hash(updated), version: "v" + DEPENDENCY_CATALOG.cli.installVersion, abbreviatedCommit: DEPENDENCY_CATALOG.cli.commit.slice(0, 7) } };
 }
 
+/** Replace one pinned source file with its reviewed patch (``patch(source)`` gives ``{source, receipt}``),
+ * atomically: a patch can shorten the source, and an r+ write would leave stale trailing bytes behind it. Returns
+ * the receipt with the bytes before and after. */
+async function replaceSource(context, preparedPath, relative, patch) {
+  const filename = path.join(preparedPath, ...relative.split("/"));
+  const original = await ownedText(context, filename);
+  const { source: updated, receipt: described } = patch(original);
+  const receipt = { ...described, path: relative, beforeSha256: hash(original), afterSha256: hash(updated) };
+  const replacement = filename + ".codex-setup-" + randomUUID();
+  await assertOwnedPath(context.setupRoot, replacement, { allowMissing: true });
+  await writeFile(replacement, updated, { flag: "wx", mode: 0o644 });
+  checkSetupAbort(context.signal);
+  await assertOwnedPath(context.setupRoot, filename);
+  if ((await context.io.setupSha256File(filename)).sha256 !== receipt.beforeSha256) throw new SetupIoError("SOURCE_PATCH_MISMATCH", `The pinned source ${relative} changed before its atomic replacement.`);
+  await rename(replacement, filename);
+  if ((await context.io.setupSha256File(filename)).sha256 !== receipt.afterSha256) throw new SetupIoError("SOURCE_PATCH_MISMATCH", `The written patch of ${relative} does not match its recorded bytes.`);
+  return receipt;
+}
+
+/** The CLI's repeatable save signature (``patchedSaveSignatureSource``), as a setup patch with its receipt. */
+export function saveSignaturePatch(source) {
+  let updated;
+  try { updated = patchedSaveSignatureSource(source); }
+  catch (error) { throw new SetupIoError("SOURCE_PATCH_MISMATCH", error.message); }
+  return { source: updated, receipt: { path: CLI_SAVE_SIGNATURE_PATCH.source, purpose: "Leave the load-time _v stamps out of the save signature, so an unchanged project builds the same ROM and keeps its saves" } };
+}
+
 async function cli(context) {
   const source = await fetched(context, SOURCE_RELEASES.cli, "cli-source");
   const preparedPath = await soleDirectory(context, source.root, "gb-studio-" + DEPENDENCY_CATALOG.cli.commit);
@@ -116,19 +143,10 @@ async function cli(context) {
   await emptyPlaceholder(context, copiedCompiler);
   await context.io.copySetupTree(compilerRoot, copiedCompiler, context);
 
-  const metadataFile = path.join(preparedPath, ...BUILD_METADATA_PATH.split("/"));
-  const patched = patchArchiveBuildMetadata(await ownedText(context, metadataFile));
-  // This patch shortens the source. Publish a complete replacement atomically;
-  // an r+ write would leave stale trailing bytes behind the intended patch.
-  const replacement = metadataFile + ".codex-setup-" + randomUUID();
-  await assertOwnedPath(context.setupRoot, replacement, { allowMissing: true });
-  await writeFile(replacement, patched.source, { flag: "wx", mode: 0o644 });
-  checkSetupAbort(context.signal);
-  await assertOwnedPath(context.setupRoot, metadataFile);
-  if ((await context.io.setupSha256File(metadataFile)).sha256 !== patched.receipt.beforeSha256) throw new SetupIoError("SOURCE_PATCH_MISMATCH", "The pinned metadata source changed before its atomic replacement.");
-  await rename(replacement, metadataFile);
-  if ((await context.io.setupSha256File(metadataFile)).sha256 !== patched.receipt.afterSha256) throw new SetupIoError("SOURCE_PATCH_MISMATCH", "The written metadata patch does not match its recorded bytes.");
-  const patches = [patched.receipt];
+  const patches = [
+    await replaceSource(context, preparedPath, BUILD_METADATA_PATH, patchArchiveBuildMetadata),
+    await replaceSource(context, preparedPath, CLI_SAVE_SIGNATURE_PATCH.source, saveSignaturePatch),
+  ];
   if (context.platform === "win32") {
     const constantsPath = path.join(preparedPath, "src", "consts.ts");
     const before = await context.io.setupSha256File(await regular(context, constantsPath));

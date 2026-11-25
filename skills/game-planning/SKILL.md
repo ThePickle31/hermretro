@@ -43,7 +43,7 @@ approved by the user, that the build and test work follows.
   restores, save-state loads, memory writes or debug shortcuts. Every test plan
   has this check with the ID F1, as in the template (the build report ties F1 to
   the run's recording); a route pieced together from checkpoints does not pass
-  it, and every rebuild needs it played again.
+  it, and a build whose ROM changed (another SHA-256) needs it played again.
 - **Label assumptions.** Hardware budgets in the brief are assumptions until
   graphics analysis, a real build and emulator runs confirm them. Hardware
   qualification needs a human observing the flashed cartridge.

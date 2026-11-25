@@ -27,7 +27,7 @@ def check_replay(suite, client_b, rom_b):
     source, played = check_same_rom(suite, client_b, rom_b)
     check_branch_and_cutoff(suite, client_b, rom_b, source)
     check_without_session(suite, client_b, rom_b, source, played)
-    cross = checkpoints.check_unchanged_rebuild(suite, client_b, rom_b)
+    cross = checkpoints.check_signature_only_rebuild(suite, client_b, rom_b)
     checkpoints.check_restored_replay(suite, client_b, rom_b, cross)
     checkpoints.check_unverified_symbols(suite, client_b, rom_b, cross)
     checkpoints.check_archived_checkpoint(suite, client_b, rom_b, cross)

@@ -637,7 +637,9 @@ Use optional [recordings and checkpoints](recorded-playtesting.md) to preserve
 failure evidence, export retained input history, review an interval, or extract
 a supporting clip. Repeat the relevant steps from a comparable fresh boot
 after editing and rebuilding. Checkpoints require matching ROM and worker
-identity; they do not transfer to a rebuild.
+identity: a rebuild with identical bytes takes them, and one that differs only
+in its save signature takes them when both builds' symbols were captured in
+this session.
 
 Inspect actual samples for movement, interactions, collision boundaries, art,
 and readability. They establish only the frames and inputs exercised, not
