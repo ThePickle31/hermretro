@@ -632,8 +632,9 @@ adjacent cartridge saves. Close before switching projects; `chromatic_emulator_c
 also cancels outstanding emulator work and waits for cleanup.
 
 `chromatic_emulator_inspect` provides bounded OAM or allowlisted VRAM, WRAM, OAM, and
-HRAM views: at most 40 objects or 256 bytes. It does not infer named variables.
-Source-mode `chromatic_emulator_debug` requires an exact authenticated official build
+HRAM views: at most 40 objects or 2,048 bytes. It does not infer named variables.
+Source-mode `chromatic_emulator_debug` reads variables by name and live player, actor,
+dialogue, menu and script state; it requires an exact authenticated official build
 and unchanged source. Neither tool permits memory writes, cartridge/boot ROM
 dumps, arbitrary host files, or a shell.
 

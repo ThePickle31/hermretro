@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Broker acceptance run against the real engine, compiler and emulator. Nothing is mocked.
 
-Covers election, identity, private workers, lossless results, art import, writer handoff,
-delegated children, hardware gating, worker and broker crash recovery. It does not cover anything that
-needs Hermes itself (host-injected identity, real compaction, pixels reaching a model).
+Covers election, identity, private workers, lossless results, art import, source-mode live state,
+writer handoff, delegated children, hardware gating, worker and broker crash recovery. It does not cover
+anything that needs Hermes itself (host-injected identity, real compaction, pixels reaching a model).
 
     python tests/acceptance/broker_acceptance.py
 """
@@ -24,7 +24,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend.broker.client import BrokerClient, ensure_broker  # noqa: E402 - direct script entry point
-from tests.acceptance import art, art_limits, ownership, projects, recovery, replay  # noqa: E402 - direct script entry point
+from tests.acceptance import art, art_limits, debugging, ownership, projects, recovery, replay  # noqa: E402 - direct script entry point
 from tests.acceptance.fixture import HANDOFF, BrokerRun  # noqa: E402 - direct script entry point
 
 
@@ -115,6 +115,7 @@ def exercise(suite):
         projects.check_owner_identity(suite, client_a, client_b, first_status)
         art.check_art_import(suite, client_b)
         art_limits.check_art_limits(suite, client_b)
+        debugging.check_live_state(suite, client_b)
         ownership.check_child_lease(suite, client_a, edited_source, last_frame)
         client_c = connections.enter_context(BrokerClient(suite.state))
         ownership.check_writer_handoff(suite, client_a, client_c)

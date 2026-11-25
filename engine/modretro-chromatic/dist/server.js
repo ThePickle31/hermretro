@@ -30471,6 +30471,32 @@ function verifyBuildDebugAbi(headers) {
   ABI_GLOBAL_HEAPS.set(abi, globalHeapWords);
   return abi;
 }
+var LIVE_STATE_LAYOUT = "gbstudio-4.3.0-e1-live-v2";
+var LIVE_STATE_ENGINE_SHA256 = Object.freeze({
+  "include/actor.h": "aaed624fc6755e3200326bb5a1f636cd46432d0ab92c7181586b9451255f4db6",
+  "include/bankdata.h": "42fb6f3540b9744639e74bbeaabd1d5a6a7e0c63a566bca8c72fd6fd08264654",
+  "include/data_manager.h": "299b3c71962dd9914b8b152ea23081584883ff2c003d7f45743e8f74b18572e2",
+  "include/gbs_types.h": "a55bf0eb19d96790459d854108f24c6d27dc5af1603ed3fee3d1fa610ca9bb2e",
+  "include/input.h": "2f13adaeb9e4f31c2def5816633271a209ef19d377bed43aa3400078cf65d693",
+  "include/math.h": "7f1d00b9e9eed911872fa42209c23073c8fcf02f3e39c9aee8a8f2aa27cb2169",
+  "include/ui.h": "2c4c0a0f001bda0e512dc4fafd5b41380302a7347b347c8517a177b6dad0a199",
+  "include/vm.h": "735d2c3ae88ebcf2b4f5cac48f727cc1b2ed5d2db67b1054a6e9050fbeccb607",
+  "include/vm.i": "d07af6798364e4bcbc2b128738d9470d9529f3f4e4516538273b997213ec58f3",
+  "src/core/actor.c": "b7360f4e84c720090e127aa047daa21f7d70517a4a2d9512d2a96f568e9ee5f5",
+  "src/core/core.c": "7978d2147d09294f25886d604fc4093cb1ba2084e809cab46b32d86861bbe353",
+  "src/core/data_manager.c": "2ff20d8a9d3efe6b752d391d988aa9c74e669d87a13dcaf37f64700b5987d190",
+  "src/core/input.c": "7b4db1936abb55f826abfa0cfc1c3cc2b5379b24c6476bf9750fbce370331210",
+  "src/core/ui.c": "2bdb8547aaea5c43b48d90c84a0a06c62a84cdfcd77f58780aa4245c255b9c55",
+  "src/core/vm.c": "7dc77593c03a2354bbfa72a87bdf539c47c62a97a63e744fff58360f8666197c",
+  "src/core/vm_gameboy.c": "a4f89644092f814ac6392331770a7f79713654188b4d21c7e8be076ff3b8ba91",
+  "src/core/vm_ui.c": "435963c667f68afea93c83f1fa39321b2778cad8dd453a98b56c63cca169fdbb",
+  "src/states/adventure.c": "1f48b90a0feaa743ae54311aecadd10f4beb816d0b130b581a533fcfbb07a89b",
+  "src/states/logo.c": "4a0e5f6e8b410a2d21c63de4a5b57ca0d8f2c1c0bd4284261929a752434126ca",
+  "src/states/platform.c": "a3be840ff9fed3cbb6cd879c156f3dcd3784d6050559f16ac546d1f727b3e382",
+  "src/states/pointnclick.c": "e11cbc940de4badd56f4ef5ae9bda701b1432c14198c98b8b8361b5af5a6ec26",
+  "src/states/shmup.c": "1cfb193d1f9f67a1db63613293e01f97e7271fd742def8b233f83e6206274159",
+  "src/states/topdown.c": "58eb9d200fdce227b643ab21623fe70cbc9a086d49aa454f0ecb7ff2c559e668"
+});
 function rememberAuthenticatedSourceBuild(build2, compilerPath, source, abi) {
   if (!build2.success || build2.builder !== "gb-studio-cli" || !build2.debugArtifacts)
     return;
@@ -31198,6 +31224,26 @@ async function assertSafeDebugArtifactDestination(destination) {
       throw error2;
   }
 }
+async function sameBuildLiveStateLayout(buildRoot) {
+  try {
+    for (const [file, sha256] of Object.entries(LIVE_STATE_ENGINE_SHA256)) {
+      if (file.startsWith("src/states/")) {
+        try {
+          await lstat9(path16.join(buildRoot, file));
+        } catch (error2) {
+          if (error2 instanceof Error && "code" in error2 && error2.code === "ENOENT")
+            continue;
+          throw error2;
+        }
+      }
+      if (createHash8("sha256").update(await secureInternalBuildFile(buildRoot, file)).digest("hex") !== sha256)
+        return void 0;
+    }
+    return LIVE_STATE_LAYOUT;
+  } catch {
+    return void 0;
+  }
+}
 async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath) {
   const directory = path16.join(temporaryDirectory, "_gbsbuild", "build", "rom");
   let metadata2;
@@ -31248,6 +31294,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
   }
   let sourceDebugAbi;
   let sourceDebugUnavailableReason;
+  let liveStateLayout;
   try {
     const include = path16.join(temporaryDirectory, "_gbsbuild", "include");
     const [bankdata, dataManager, vm] = await Promise.all([
@@ -31258,6 +31305,8 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
     sourceDebugAbi = verifyBuildDebugAbi({ bankdata, dataManager, vm });
     if (!sourceDebugAbi)
       sourceDebugUnavailableReason = "The same-build engine headers do not match a supported scene-pointer and global-variable layout.";
+    else
+      liveStateLayout = await sameBuildLiveStateLayout(path16.join(temporaryDirectory, "_gbsbuild"));
   } catch {
     sourceDebugUnavailableReason = "The official build did not preserve the engine headers needed to authenticate source-debug memory layouts.";
   }
@@ -31269,7 +31318,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
     noiSha256: hashDebugRom(noi),
     globalsSha256: hashDebugRom(globals),
     internalRomFilename,
-    ...sourceDebugAbi ? { sourceDebugAbi } : { sourceDebugUnavailableReason }
+    ...sourceDebugAbi ? { sourceDebugAbi, ...liveStateLayout ? { liveStateLayout } : {} } : { sourceDebugUnavailableReason }
   };
 }
 async function buildRom(options) {
@@ -34837,7 +34886,7 @@ var RecordingMaintenance = class {
 var MAX_EMULATOR_FRAMES = 3600;
 var MAX_EMULATOR_TIMELINE_ACTIONS = 128;
 var MAX_EMULATOR_TIMELINE_CHECKPOINTS = 64;
-var MAX_EMULATOR_INSPECTION_BYTES = 256;
+var MAX_EMULATOR_INSPECTION_BYTES = 2048;
 var MAX_EMULATOR_OAM_OBJECTS = 40;
 var EMULATOR_CLOCK_HZ = 4194304;
 var EMULATOR_DOTS_PER_FRAME = 70224;
@@ -52531,6 +52580,281 @@ function collisionRegion(scene, region) {
   }
   return { source: "authored", sceneId: scene.id, resourcePath: scene.resourcePath, ...region, cells };
 }
+async function readWramRanges(readWram, ranges) {
+  const spans = [];
+  for (const range of [...ranges].sort((a, b) => a.address - b.address)) {
+    const end = range.address + range.length;
+    const span = spans.at(-1);
+    if (span && end - span.start <= MAX_EMULATOR_INSPECTION_BYTES)
+      span.end = Math.max(span.end, end);
+    else
+      spans.push({ start: range.address, end });
+  }
+  for (const span of spans)
+    span.bytes = await readWram(span.start, span.end - span.start);
+  return (address, length) => {
+    const span = spans.find((candidate) => address >= candidate.start && address + length <= candidate.end);
+    return span.bytes.subarray(address - span.start, address - span.start + length);
+  };
+}
+function variableLabel(variable) {
+  return `${variable.name || variable.symbol || variable.id} (ID ${variable.id})`;
+}
+function boundedList(labels) {
+  const shown = labels.slice(0, MAX_SOURCE_DEBUG_VARIABLES).join(", ");
+  return labels.length > MAX_SOURCE_DEBUG_VARIABLES ? `${shown} and ${labels.length - MAX_SOURCE_DEBUG_VARIABLES} more` : shown || "none";
+}
+function lowerCase(value) {
+  return typeof value === "string" ? value.toLowerCase() : void 0;
+}
+function shortVariableSymbol(value) {
+  return lowerCase(value)?.replace(/^var_/, "");
+}
+var WRAM_BANKED_BASE = WRAM_BASE + 4096;
+var LIVE_ACTOR_BYTES = 56;
+var LIVE_ACTOR_SLOTS = 21;
+var LIVE_SCENE_ACTORS = 20;
+var LIVE_CONTEXT_BYTES = 19;
+var LIVE_CONTEXT_SLOTS = 16;
+var LIVE_WINDOW_HIDDEN_Y = 144;
+var LIVE_DIRECTIONS = ["down", "right", "up", "left"];
+var LIVE_DIRECTION_CODES = { down: 0, right: 1, up: 2, left: 3 };
+var LIVE_BUTTONS = [["right", 1], ["left", 2], ["up", 4], ["down", 8], ["a", 16], ["b", 32], ["select", 64], ["start", 128]];
+var LIVE_DPAD = 15;
+var LIVE_OPCODES = { overlayWait: 68, choice: 72, inputWait: 82 };
+var LIVE_UI_WAIT = { window: 1, text: 2 };
+var LIVE_UI_WAIT_BUTTONS = [["a", 4, 16], ["b", 8, 32], ["any", 16, 255]];
+var LIVE_MENU_CANCEL_B = 2;
+var LIVE_SYMBOLS = {
+  actors: ["_actors", LIVE_ACTOR_BYTES * LIVE_ACTOR_SLOTS],
+  actorsLength: ["_actors_len", 1],
+  playerMoving: ["_player_moving", 1],
+  contexts: ["_CTXS", LIVE_CONTEXT_BYTES * LIVE_CONTEXT_SLOTS],
+  firstContext: ["_first_ctx", 2],
+  executingContext: ["_executing_ctx", 2],
+  lockState: ["_vm_lock_state", 1],
+  exceptionCode: ["_vm_exception_code", 1],
+  windowX: ["_win_pos_x", 1],
+  windowTargetX: ["_win_dest_pos_x", 1],
+  windowY: ["_win_pos_y", 1],
+  windowTargetY: ["_win_dest_pos_y", 1],
+  textDrawn: ["_text_drawn", 1],
+  joyPressed: ["_joy_pressed", 1],
+  frameJoy: ["_frame_joy", 1],
+  lastJoy: ["_last_joy", 1]
+};
+var LIVE_PLATFORM_SYMBOLS = { state: ["_plat_state", 1], velocityX: ["_plat_vel_x", 2], velocityY: ["_plat_vel_y", 2] };
+var LIVE_PLATFORM_STATES = ["fall", "ground", "jump", "dash", "ladder", "wall", "knockback", "blank", "run", "float"];
+function wramAddresses(definitions, symbols) {
+  const addresses = {};
+  for (const [key, [symbol, length]] of Object.entries(symbols)) {
+    const address = definitions.get(symbol);
+    if (address === void 0 || address < WRAM_BASE || address + length > WRAM_BASE + 8192)
+      return void 0;
+    addresses[key] = address;
+  }
+  return Object.freeze(addresses);
+}
+function romOffset(rom, bank, address) {
+  const offset = address < 16384 ? address : bank * 16384 + address - 16384;
+  return address < 32768 && offset >= 0 && offset < rom.length ? offset : void 0;
+}
+function authoredSubpixels(value, coordinateType) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.floor(value * (coordinateType === "pixels" ? 32 : 256)) : void 0;
+}
+function naturalPathCompare(left, right) {
+  const leftParts = String(left).split(/[\\/]/);
+  const rightParts = String(right).split(/[\\/]/);
+  for (let index = 0; index < Math.min(leftParts.length, rightParts.length); index++) {
+    const leftPart = leftParts[index].replace(/\.[^.]*/, "");
+    const rightPart = rightParts[index].replace(/\.[^.]*/, "");
+    if (leftPart !== rightPart)
+      return leftPart.localeCompare(rightPart, void 0, { numeric: true, sensitivity: "base" });
+  }
+  return leftParts.length - rightParts.length;
+}
+function compiledActorOrder(a, b) {
+  return a._index < b._index ? -1 : a._index > b._index ? 1 : naturalPathCompare(a.resourcePath, b.resourcePath);
+}
+function compiledSceneActors(snapshot, scene, definitions, rom) {
+  const sceneActors = Array.isArray(scene.actors) ? scene.actors : [];
+  if (sceneActors.some((actor) => typeof actor.prefabId === "string" && actor.prefabId !== "")) {
+    return { reason: `Scene ${scene.symbol} has prefab actors, whose compiled sprites this build does not map.` };
+  }
+  const authored = [...sceneActors].sort(compiledActorOrder).slice(0, LIVE_SCENE_ACTORS).flatMap((actor) => {
+    const sprite = snapshot.assetsById.get(actor.spriteSheetId);
+    return sprite?.type === "sprite" ? [{ actor, sprite }] : [];
+  });
+  if (authored.length === 0)
+    return { actors: [] };
+  const symbol = `${scene.symbol}_actors`;
+  const encoded2 = definitions.get(`_${symbol}`);
+  const bank = definitions.get(`___bank_${symbol}`);
+  if (encoded2 === void 0 || bank === void 0 || Math.floor(encoded2 / 65536) !== bank) {
+    return { reason: `Scene ${scene.symbol} has no compiled actor table in this build's linker sidecar.` };
+  }
+  const address = encoded2 % 65536;
+  const identities = [];
+  for (const [index, { actor, sprite }] of authored.entries()) {
+    const offset = romOffset(rom, bank, address + index * LIVE_ACTOR_BYTES);
+    const spriteAddress = typeof sprite.symbol === "string" ? definitions.get(`_${sprite.symbol}`) : void 0;
+    const spriteBank = typeof sprite.symbol === "string" ? definitions.get(`___bank_${sprite.symbol}`) : void 0;
+    const x = authoredSubpixels(actor.x, actor.coordinateType);
+    const y = authoredSubpixels(actor.y, actor.coordinateType);
+    const direction = LIVE_DIRECTION_CODES[actor.direction] ?? LIVE_DIRECTION_CODES.down;
+    if (offset === void 0 || offset + LIVE_ACTOR_BYTES > rom.length || spriteAddress === void 0 || spriteBank === void 0 || rom.readUInt16LE(offset + 1) !== x || rom.readUInt16LE(offset + 3) !== y || rom[offset + 5] !== direction || rom[offset + 38] !== spriteBank || rom.readUInt16LE(offset + 39) !== spriteAddress % 65536) {
+      return { reason: `Scene ${scene.symbol}'s compiled actors do not match its authored actors in order.` };
+    }
+    identities.push(`${actor._index}:${x}:${y}:${direction}:${sprite.symbol}`);
+  }
+  return {
+    actors: authored.map(({ actor }, index) => ({
+      id: actor.id,
+      name: typeof actor.name === "string" ? actor.name : "",
+      symbol: typeof actor.symbol === "string" ? actor.symbol : null,
+      slot: index + 1,
+      ...identities.indexOf(identities[index]) !== identities.lastIndexOf(identities[index]) ? { ambiguous: true } : {}
+    }))
+  };
+}
+function liveActor(bytes2, slot) {
+  const offset = slot * LIVE_ACTOR_BYTES;
+  const flags = bytes2[offset];
+  const x = bytes2.readUInt16LE(offset + 1);
+  const y = bytes2.readUInt16LE(offset + 3);
+  const animation = bytes2[offset + 20];
+  return {
+    slot,
+    x: x >> 8,
+    y: y >> 8,
+    pixelX: x >> 5,
+    pixelY: y >> 5,
+    direction: LIVE_DIRECTIONS[bytes2[offset + 5]] ?? "none",
+    moving: animation >= 4 && animation < 8,
+    moveSpeed: bytes2[offset + 19] / 32,
+    active: (flags & 32) !== 0,
+    hidden: (flags & 2) !== 0
+  };
+}
+function livePlayer(read, live, actorBytes, sceneType, locked) {
+  const player = liveActor(actorBytes, 0);
+  if (sceneType !== "PLATFORM")
+    return { ...player, moving: player.moving || read(live.addresses.playerMoving, 1)[0] !== 0 };
+  if (live.platform === void 0)
+    return { ...player, moving: null };
+  const state = LIVE_PLATFORM_STATES[read(live.platform.state, 1)[0]] ?? "unknown";
+  const velocityX = read(live.platform.velocityX, 2).readInt16LE(0);
+  const velocityY = read(live.platform.velocityY, 2).readInt16LE(0);
+  const grounded = state === "ground" || state === "run";
+  return {
+    ...player,
+    moving: !locked && (velocityX !== 0 || !grounded && velocityY !== 0),
+    platform: { state, velocityX: (velocityX >> 8) / 16, velocityY: (velocityY >> 8) / 16 }
+  };
+}
+function buttonNames(mask) {
+  return LIVE_BUTTONS.filter(([, bit]) => (mask & bit) !== 0).map(([name3]) => name3);
+}
+function scriptByte(rom, context, delta) {
+  const offset = romOffset(rom, context.bank, context.pc + delta);
+  return offset === void 0 ? void 0 : rom[offset];
+}
+function modalHandler(rom, context) {
+  const at = (delta) => scriptByte(rom, context, delta);
+  if (at(-5) === LIVE_OPCODES.choice && at(-4) > 0)
+    return { kind: "menu", count: at(-4), cancelB: (at(-3) & LIVE_MENU_CANCEL_B) !== 0 };
+  if (at(-3) === LIVE_OPCODES.overlayWait && at(-1) === 1)
+    return { kind: "overlay", flags: at(-2), modal: true };
+  return void 0;
+}
+function pendingWait(rom, context) {
+  const at = (delta) => scriptByte(rom, context, delta);
+  if (at(0) === LIVE_OPCODES.overlayWait && at(2) === 0)
+    return { kind: "overlay", flags: at(1), modal: false };
+  if (at(0) === LIVE_OPCODES.inputWait)
+    return { kind: "input", mask: at(1) };
+  return void 0;
+}
+function liveScripts(read, addresses, rom) {
+  const contextBytes = read(addresses.contexts, LIVE_CONTEXT_BYTES * LIVE_CONTEXT_SLOTS);
+  const executing = read(addresses.executingContext, 2).readUInt16LE(0);
+  const locked = read(addresses.lockState, 1)[0] !== 0;
+  const joyPressed = read(addresses.joyPressed, 1)[0];
+  const frameJoy = read(addresses.frameJoy, 1)[0];
+  const lastJoy = read(addresses.lastJoy, 1)[0];
+  const windowY = read(addresses.windowY, 1)[0];
+  const overlayOpen = windowY < LIVE_WINDOW_HIDDEN_Y;
+  const windowArrived = read(addresses.windowX, 1)[0] === read(addresses.windowTargetX, 1)[0] && windowY === read(addresses.windowTargetY, 1)[0];
+  const textDrawn = read(addresses.textDrawn, 1)[0] !== 0;
+  const contexts = [];
+  for (let pointer = read(addresses.firstContext, 2).readUInt16LE(0); pointer !== 0 && contexts.length < LIVE_CONTEXT_SLOTS; ) {
+    const index = (pointer - addresses.contexts) / LIVE_CONTEXT_BYTES;
+    if (!Number.isInteger(index) || index < 0 || index >= LIVE_CONTEXT_SLOTS)
+      break;
+    const offset = index * LIVE_CONTEXT_BYTES;
+    contexts.push({ pointer, pc: contextBytes.readUInt16LE(offset), bank: contextBytes[offset + 2], waitable: contextBytes[offset + 16] !== 0 });
+    pointer = contextBytes.readUInt16LE(offset + 3);
+  }
+  const active = contexts.find((context) => context.pointer === executing && !context.waitable);
+  const modal = active === void 0 ? void 0 : modalHandler(rom, active);
+  let waits;
+  if (modal?.kind === "menu") {
+    const choosing = (joyPressed & LIVE_DPAD) === 0 && ((joyPressed & 16) !== 0 || modal.cancelB && (joyPressed & 32) !== 0);
+    waits = choosing ? [] : [modal];
+  } else if (modal) {
+    waits = [modal];
+  } else if (executing !== 0 && !locked) {
+    waits = [];
+  } else {
+    waits = contexts.filter((context) => context.waitable && (!locked || context.pointer === executing)).map((context) => pendingWait(rom, context)).filter(Boolean);
+  }
+  const buttons = /* @__PURE__ */ new Set();
+  let dialogue;
+  let menuOptions;
+  for (const wait of waits) {
+    if (wait.kind === "menu") {
+      dialogue = "menu";
+      menuOptions = wait.count;
+      buttons.add("a");
+      if (wait.cancelB)
+        buttons.add("b");
+    } else if (wait.kind === "input") {
+      if (frameJoy === lastJoy || (frameJoy & wait.mask) === 0)
+        buttonNames(wait.mask).forEach((button) => buttons.add(button));
+    } else {
+      const waited = LIVE_UI_WAIT_BUTTONS.filter(([, flag]) => (wait.flags & flag) !== 0);
+      const ready = (!(wait.flags & LIVE_UI_WAIT.text) || textDrawn) && (!(wait.flags & LIVE_UI_WAIT.window) || windowArrived);
+      if (waited.length === 0 || !ready) {
+        dialogue ??= "drawing";
+      } else if (wait.modal || !waited.every(([, , mask]) => (joyPressed & mask) !== 0)) {
+        if (dialogue !== "menu")
+          dialogue = "waiting";
+        waited.forEach(([button]) => buttons.add(button));
+      }
+    }
+  }
+  return {
+    ui: {
+      overlayOpen,
+      dialogue: dialogue ?? (!textDrawn ? "drawing" : overlayOpen ? "unknown" : "none"),
+      ...menuOptions === void 0 ? {} : { menuOptions },
+      waitingForInput: buttons.size > 0,
+      buttons: [...buttons]
+    },
+    scripts: { running: contexts.length, locked }
+  };
+}
+function liveStateMapping(receipt, snapshot, definitions, rom, scenes) {
+  if (receipt.artifacts.liveStateLayout !== LIVE_STATE_LAYOUT) {
+    return { reason: "Live actor, dialogue and script state is unavailable: this build's engine files differ from the GB Studio engine it is read against." };
+  }
+  const addresses = wramAddresses(definitions, LIVE_SYMBOLS);
+  if (addresses === void 0) {
+    return { reason: "Live actor, dialogue and script state is unavailable: this build's linker sidecar lacks the engine symbols it reads." };
+  }
+  const actorsByScene = new Map(scenes.map(({ id: id3 }) => [id3, compiledSceneActors(snapshot, snapshot.scenesById.get(id3), definitions, rom)]));
+  return { rom, addresses, platform: wramAddresses(definitions, LIVE_PLATFORM_SYMBOLS), actorsByScene };
+}
 var SourceDebugContext = class _SourceDebugContext {
   identity;
   projectPath;
@@ -52541,7 +52865,8 @@ var SourceDebugContext = class _SourceDebugContext {
   #unavailable;
   #limitations;
   #access;
-  constructor(receipt, snapshot, manifest, unavailable, limitations, access4) {
+  #live;
+  constructor(receipt, snapshot, manifest, unavailable, limitations, access4, live) {
     this.#receipt = receipt;
     this.#snapshot = snapshot;
     this.#manifest = manifest;
@@ -52549,6 +52874,7 @@ var SourceDebugContext = class _SourceDebugContext {
     this.#unavailable = unavailable;
     this.#limitations = limitations;
     this.#access = access4;
+    this.#live = live;
     this.projectPath = receipt.source.projectPath;
     this.identity = Object.freeze({
       romSha256: manifest.romSha256,
@@ -52626,7 +52952,7 @@ var SourceDebugContext = class _SourceDebugContext {
       limitations.push(`${unavailableScenes} authored scene(s) have no exact compiled mapping in this build.`);
     if (!options.access)
       limitations.push("Authored event links require the selected project's existing world index.");
-    return new _SourceDebugContext(receipt, snapshot, manifest, unavailable, limitations, options.access);
+    return new _SourceDebugContext(receipt, snapshot, manifest, unavailable, limitations, options.access, liveStateMapping(receipt, snapshot, definitions, rom, scenes));
   }
   async #validateSource() {
     let current;
@@ -52656,7 +52982,7 @@ var SourceDebugContext = class _SourceDebugContext {
     const ids = query.variableIds ?? [];
     const names = query.variableNames ?? [];
     if (!Array.isArray(ids) || !Array.isArray(names) || ids.length + names.length > MAX_SOURCE_DEBUG_VARIABLES || [...ids, ...names].some((value) => !validSelector(value))) {
-      fail2("SOURCE_DEBUG_INVALID_QUERY", `Select at most ${MAX_SOURCE_DEBUG_VARIABLES} variables by bounded ID or exact name.`);
+      fail2("SOURCE_DEBUG_INVALID_QUERY", `Select at most ${MAX_SOURCE_DEBUG_VARIABLES} variables by bounded ID, name or symbol.`);
     }
     if (query.variableIds === void 0 && query.variableNames === void 0) {
       const available = [...this.#variables.keys()];
@@ -52664,22 +52990,86 @@ var SourceDebugContext = class _SourceDebugContext {
     }
     const selected = new Set(ids);
     for (const name3 of names) {
-      const matches2 = [...this.#snapshot.variablesById.values()].filter((variable) => variable.name === name3);
-      if (matches2.length !== 1)
-        fail2("SOURCE_DEBUG_VARIABLE_UNAVAILABLE", `Variable name ${JSON.stringify(name3)} is ${matches2.length ? "ambiguous; select its authored ID" : "not present in the captured source"}.`);
+      const matches2 = this.#variablesNamed(name3);
+      if (matches2.length > 1)
+        fail2("SOURCE_DEBUG_VARIABLE_UNAVAILABLE", `Variable name ${JSON.stringify(name3)} is ambiguous; select one by ID: ${boundedList(matches2.map(variableLabel))}.`);
+      if (matches2.length === 0)
+        fail2("SOURCE_DEBUG_VARIABLE_UNAVAILABLE", `No authored variable is named ${JSON.stringify(name3)}. Authored variables: ${this.#authoredVariables()}.`);
       selected.add(matches2[0].id);
     }
     for (const id3 of selected) {
       if (!this.#variables.has(id3)) {
         const unavailable = this.#unavailable.find((variable) => variable.id === id3);
-        fail2("SOURCE_DEBUG_VARIABLE_UNAVAILABLE", unavailable ? `${unavailable.name || id3}: ${unavailable.reason}` : `No authored global variable with ID ${JSON.stringify(id3)} exists in this build.`);
+        fail2("SOURCE_DEBUG_VARIABLE_UNAVAILABLE", unavailable ? `${unavailable.name || id3}: ${unavailable.reason}` : `No authored global variable with ID ${JSON.stringify(id3)} exists in this build. Authored variables: ${this.#authoredVariables()}.`);
       }
     }
     return { ids: [...selected], truncated: false };
   }
+  #variablesNamed(selector) {
+    const variables2 = [...this.#snapshot.variablesById.values()];
+    const folded = selector.toLowerCase();
+    const tiers = [
+      (variable) => variable.name === selector || variable.symbol === selector,
+      (variable) => lowerCase(variable.name) === folded || lowerCase(variable.symbol) === folded,
+      (variable) => shortVariableSymbol(variable.symbol) === shortVariableSymbol(selector)
+    ];
+    for (const matches2 of tiers) {
+      const found = variables2.filter(matches2);
+      if (found.length > 0)
+        return found;
+    }
+    return [];
+  }
+  #authoredVariables() {
+    return boundedList([...this.#snapshot.variablesById.values()].map(variableLabel));
+  }
+  #liveActorSelection(query, sceneId) {
+    if (query.actors === void 0 || this.#live.reason !== void 0)
+      return void 0;
+    const mapping = this.#live.actorsByScene.get(sceneId);
+    if (mapping === void 0 || mapping.reason !== void 0)
+      return { unavailable: mapping?.reason ?? "The current scene has no compiled actor mapping in this build." };
+    const ambiguous = mapping.actors.filter((actor) => actor.ambiguous);
+    const ambiguity = ambiguous.length === 0 ? void 0 : `Actors ${boundedList(ambiguous.map(variableLabel))} share an _index, start position, direction and sprite, so their runtime slots cannot be told apart.`;
+    if (query.actors === "all")
+      return { sceneActors: mapping.actors.length, actors: mapping.actors.filter((actor) => !actor.ambiguous), ...ambiguity ? { limitation: ambiguity } : {} };
+    const known = boundedList(mapping.actors.map(variableLabel));
+    return { sceneActors: mapping.actors.length, actors: query.actors.map((selector) => {
+      const exact = mapping.actors.filter((actor) => actor.id === selector || actor.symbol === selector || actor.name === selector);
+      const matches2 = exact.length > 0 ? exact : mapping.actors.filter((actor) => actor.name.toLowerCase() === selector.toLowerCase());
+      if (matches2.length === 0)
+        fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", `The current scene has no actor ${JSON.stringify(selector)}. Its actors: ${known}; the player is always reported.`);
+      if (matches2.length > 1)
+        fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", `Actor name ${JSON.stringify(selector)} is ambiguous in the current scene; select one by ID: ${known}.`);
+      if (matches2[0].ambiguous)
+        fail2("SOURCE_DEBUG_ACTOR_UNAVAILABLE", ambiguity);
+      return matches2[0];
+    }) };
+  }
+  #readLive(read, selection, sceneType) {
+    const { addresses, rom } = this.#live;
+    const scripts = liveScripts(read, addresses, rom);
+    if (read(addresses.exceptionCode, 1)[0] !== 0 && read(addresses.firstContext, 2).readUInt16LE(0) === 0) {
+      return { live: { sceneLoading: true, ...scripts }, limitations: ["The scene is still loading, so the player and actors are withheld; step a few frames and retry."] };
+    }
+    const actorBytes = read(addresses.actors, LIVE_ACTOR_BYTES * LIVE_ACTOR_SLOTS);
+    const player = livePlayer(read, this.#live, actorBytes, sceneType, scripts.scripts.locked);
+    let unavailable = selection?.unavailable;
+    if (selection !== void 0 && unavailable === void 0 && read(addresses.actorsLength, 1)[0] !== Math.min(selection.sceneActors + 1, LIVE_ACTOR_SLOTS)) {
+      unavailable = "The loaded actors do not match the current scene yet; step a few frames and retry.";
+    }
+    const actors = selection === void 0 || unavailable !== void 0 ? void 0 : selection.actors.map((actor) => ({ id: actor.id, name: actor.name, symbol: actor.symbol, ...liveActor(actorBytes, actor.slot) }));
+    return {
+      live: { sceneLoading: false, player, ...actors ? { actors } : {}, ...scripts },
+      limitations: [...unavailable ? [unavailable] : [], ...selection?.limitation ? [selection.limitation] : []]
+    };
+  }
   async inspect(emulator, query = {}) {
     if (!query || typeof query !== "object" || query.includeScene !== void 0 && typeof query.includeScene !== "boolean") {
       fail2("SOURCE_DEBUG_INVALID_QUERY", "Source debugging requires a bounded query.");
+    }
+    if (query.actors !== void 0 && query.actors !== "all" && (!Array.isArray(query.actors) || query.actors.length < 1 || query.actors.length > LIVE_SCENE_ACTORS || !query.actors.every(validSelector))) {
+      fail2("SOURCE_DEBUG_INVALID_QUERY", `Select "all" actors or 1 to ${LIVE_SCENE_ACTORS} by name, ID or symbol.`);
     }
     const referenceLimit = query.referenceLimit ?? 16;
     if (!Number.isInteger(referenceLimit) || referenceLimit < 0 || referenceLimit > MAX_SOURCE_DEBUG_REFERENCES) {
@@ -52690,50 +53080,58 @@ var SourceDebugContext = class _SourceDebugContext {
     await this.assertCompatibleRom(initial.romSha256 ?? "");
     if (initial.paused !== true)
       fail2("SOURCE_DEBUG_REQUIRES_PAUSE", "Pause the emulator before reading a coherent source-debug snapshot.");
-    const readWram = async (address, length) => {
-      const result2 = await emulator.inspect({ view: "memory", region: "wram", offset: address - WRAM_BASE, length });
+    const readBank = async (address, length, bank) => {
+      const offset = address - (bank === 1 ? WRAM_BANKED_BASE : WRAM_BASE);
+      const result2 = await emulator.inspect({ view: "memory", region: "wram", offset, length, ...bank === void 0 ? {} : { bank } });
       if (result2.frame !== initial.frame)
         fail2("SOURCE_DEBUG_FRAME_CHANGED", "The emulator advanced during source inspection; pause and retry.");
-      if (result2.view !== "memory" || result2.region !== "wram" || result2.offset !== address - WRAM_BASE || result2.length !== length || !new RegExp(`^[a-fA-F0-9]{${length * 2}}$`).test(result2.hex)) {
+      if (result2.view !== "memory" || result2.region !== "wram" || result2.offset !== offset || result2.length !== length || result2.bank !== bank || !new RegExp(`^[a-fA-F0-9]{${length * 2}}$`).test(result2.hex)) {
         fail2("SOURCE_DEBUG_INVALID_MEMORY", "The emulator did not return the exact bounded WRAM bytes requested by authenticated symbols.");
       }
       return Buffer.from(result2.hex, "hex");
     };
+    const readWram = async (address, length) => {
+      if (initial.cgb !== true)
+        return readBank(address, length);
+      const split = Math.min(Math.max(address, WRAM_BANKED_BASE), address + length);
+      return Buffer.concat([
+        ...split > address ? [await readBank(address, split - address, 0)] : [],
+        ...address + length > split ? [await readBank(split, address + length - split, 1)] : []
+      ]);
+    };
     let scene;
     let authoredScene;
-    if (query.includeScene !== false || query.collisions) {
-      const mapping = decodeCurrentScene(this.#manifest, await readWram(this.#manifest.currentSceneAddress, 3));
-      authoredScene = this.#snapshot.scenesById.get(mapping.sceneId);
-      scene = sourceScene(authoredScene, mapping.sceneSymbol);
-    }
-    const mappings = selected.ids.map((id3) => this.#variables.get(id3)).sort((a, b) => a.address - b.address);
-    const spans = [];
-    for (const mapping of mappings) {
-      let span = spans.at(-1);
-      if (!span || mapping.address + 2 - span.start > 256) {
-        span = { start: mapping.address, end: mapping.address + 2, variables: [] };
-        spans.push(span);
+    const sceneRequired = query.includeScene !== false || query.collisions || query.actors !== void 0;
+    if (sceneRequired || this.#live.reason === void 0) {
+      try {
+        const mapping = decodeCurrentScene(this.#manifest, await readWram(this.#manifest.currentSceneAddress, 3));
+        authoredScene = this.#snapshot.scenesById.get(mapping.sceneId);
+        scene = sourceScene(authoredScene, mapping.sceneSymbol);
+      } catch (error2) {
+        if (sceneRequired || !(error2 instanceof DebugSymbolsError))
+          throw error2;
       }
-      span.end = mapping.address + 2;
-      span.variables.push(mapping);
     }
+    const actorSelection = this.#liveActorSelection(query, scene?.id);
+    const mappings = selected.ids.map((id3) => this.#variables.get(id3));
+    const liveSymbols = this.#live.reason !== void 0 ? [] : [[LIVE_SYMBOLS, this.#live.addresses], ...authoredScene?.type === "PLATFORM" && this.#live.platform ? [[LIVE_PLATFORM_SYMBOLS, this.#live.platform]] : []];
+    const liveRanges = liveSymbols.flatMap(([symbols, addresses]) => Object.entries(symbols).map(([key, [, length]]) => ({ address: addresses[key], length })));
+    const read = await readWramRanges(readWram, [...mappings.map((mapping) => ({ address: mapping.address, length: 2 })), ...liveRanges]);
     const values = /* @__PURE__ */ new Map();
-    for (const span of spans) {
-      const bytes2 = await readWram(span.start, span.end - span.start);
-      for (const mapping of span.variables) {
-        const resource = this.#snapshot.variablesById.get(mapping.variableId);
-        const offset = mapping.address - span.start;
-        values.set(resource.id, {
-          id: resource.id,
-          variableId: resource.id,
-          name: resource.name,
-          symbol: mapping.variableSymbol,
-          value: bytes2.readInt16LE(offset),
-          unsignedValue: bytes2.readUInt16LE(offset),
-          resourcePath: resource.resourcePath
-        });
-      }
+    for (const mapping of mappings) {
+      const resource = this.#snapshot.variablesById.get(mapping.variableId);
+      const bytes2 = read(mapping.address, 2);
+      values.set(resource.id, {
+        id: resource.id,
+        variableId: resource.id,
+        name: resource.name,
+        symbol: mapping.variableSymbol,
+        value: bytes2.readInt16LE(0),
+        unsignedValue: bytes2.readUInt16LE(0),
+        resourcePath: resource.resourcePath
+      });
     }
+    const live = this.#live.reason === void 0 ? this.#readLive(read, actorSelection, authoredScene?.type) : void 0;
     const references = [];
     let referencesTruncated = false;
     if (this.#access && referenceLimit > 0) {
@@ -52775,6 +53173,7 @@ var SourceDebugContext = class _SourceDebugContext {
       identity: this.identity,
       frame: initial.frame,
       ...scene && query.includeScene !== false ? { scene } : {},
+      ...live ? { live: live.live } : {},
       variables: selected.ids.map((id3) => values.get(id3)),
       variablesTruncated: selected.truncated,
       unavailableVariables: this.#unavailable.slice(0, MAX_SOURCE_DEBUG_VARIABLES),
@@ -52782,7 +53181,7 @@ var SourceDebugContext = class _SourceDebugContext {
       ...collisions ? { collisions } : {},
       references,
       referencesTruncated,
-      limitations: [...this.#limitations]
+      limitations: [...this.#limitations, ...live ? live.limitations : [this.#live.reason]]
     };
     while (Buffer.byteLength(JSON.stringify(result)) > PROJECT_RESPONSE_LIMITS.semanticQueryBytes && result.references.length > 0) {
       result.references.pop();
@@ -58166,7 +58565,8 @@ async function reviewedImage(frame3, authorizedRoot) {
 }
 var sourceDebugQuerySchema = external_exports.object({
   variableIds: external_exports.array(identifier).max(32).optional(),
-  variableNames: external_exports.array(identifier).max(32).optional(),
+  variableNames: external_exports.array(identifier).max(32).optional().describe("Authored variable names or symbols: an exact match first, then the full name or symbol in any case, then the symbol without var_ (has_oil). Ambiguous names list their IDs. Omit both variable lists for every variable."),
+  actors: external_exports.union([external_exports.literal("all"), external_exports.array(identifier).min(1).max(20)]).optional().describe("Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."),
   includeScene: external_exports.boolean().optional(),
   collisions: external_exports.object({
     x: external_exports.number().int().min(0).max(255),
@@ -58336,7 +58736,7 @@ function registerPlaytestTools(context) {
   }, async (input) => safely(() => context.runOperation(() => context.emulator().clip(input))));
   server.registerTool("emulator_debug", {
     title: "Inspect authenticated author state",
-    description: "Read the current scene, named variables, authored collision tiles, and resource/event references while paused. First use rom_build with captureDebugArtifacts:true, then emulator_run with debugMode:'source' for that exact ROM. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
+    description: "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. First use rom_build with captureDebugArtifacts:true, then emulator_run with debugMode:'source' for that exact ROM. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
     inputSchema: sourceDebugQuerySchema,
     annotations: readOnly2
   }, async (input) => safely(() => context.runOperation(() => context.sourceDebug(input))));
@@ -68093,7 +68493,7 @@ function createGbStudioServer(options = {}) {
   });
   server.registerTool("emulator_inspect", {
     title: "Inspect bounded emulator state",
-    description: "Read hardware OAM or bounded memory without advancing frames. The memory and vram views require region, offset and length; vram accepts only region:'vram'. visibleOnly, limit and includeScanlineSummary apply only to the oam view. For authored variables or scene names, use emulator_debug.",
+    description: "Read hardware OAM or bounded memory (up to 2,048 bytes) without advancing frames. The memory and vram views require region, offset and length; vram accepts only region:'vram'. visibleOnly, limit and includeScanlineSummary apply only to the oam view. For variables, scene names, actor positions or dialogue state, use emulator_debug.",
     inputSchema: domainSchemas.emulatorInspect,
     annotations: readOnly3
   }, async (input) => safely(() => performEmulatorOperation(async () => {

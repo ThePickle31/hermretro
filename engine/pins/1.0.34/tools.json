@@ -1756,7 +1756,7 @@
     {
       "name": "emulator_inspect",
       "title": "Inspect bounded emulator state",
-      "description": "Read hardware OAM or bounded memory without advancing frames. The memory and vram views require region, offset and length; vram accepts only region:'vram'. visibleOnly, limit and includeScanlineSummary apply only to the oam view. For authored variables or scene names, use emulator_debug.",
+      "description": "Read hardware OAM or bounded memory (up to 2,048 bytes) without advancing frames. The memory and vram views require region, offset and length; vram accepts only region:'vram'. visibleOnly, limit and includeScanlineSummary apply only to the oam view. For variables, scene names, actor positions or dialogue state, use emulator_debug.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1802,7 +1802,7 @@
           "length": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 256,
+            "maximum": 2048,
             "description": "Required for memory and vram: byte count; the full range must fit within the region."
           },
           "bank": {
@@ -2195,7 +2195,7 @@
     {
       "name": "emulator_debug",
       "title": "Inspect authenticated author state",
-      "description": "Read the current scene, named variables, authored collision tiles, and resource/event references while paused. First use rom_build with captureDebugArtifacts:true, then emulator_run with debugMode:'source' for that exact ROM. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
+      "description": "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. First use rom_build with captureDebugArtifacts:true, then emulator_run with debugMode:'source' for that exact ROM. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2213,7 +2213,25 @@
             "items": {
               "$ref": "#/properties/variableIds/items"
             },
-            "maxItems": 32
+            "maxItems": 32,
+            "description": "Authored variable names or symbols: an exact match first, then the full name or symbol in any case, then the symbol without var_ (has_oil). Ambiguous names list their IDs. Omit both variable lists for every variable."
+          },
+          "actors": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "all"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/variableIds/items"
+                },
+                "minItems": 1,
+                "maxItems": 20
+              }
+            ],
+            "description": "Current-scene actors to report live, by authored name, ID or symbol, or 'all'. The player is always reported."
           },
           "includeScene": {
             "type": "boolean"

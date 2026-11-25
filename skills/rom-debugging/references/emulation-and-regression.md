@@ -110,7 +110,7 @@ chromatic_emulator_inspect {"view":"vram","region":"vram","offset":0,"length":32
 
 OAM inspection reads at most 40 hardware objects; its optional scanline summary
 compares with the physical 10-objects-per-scanline limit. Memory reads are
-limited to 256 bytes from named VRAM, WRAM, OAM, or HRAM regions, with bank
+limited to 2,048 bytes from named VRAM, WRAM, OAM, or HRAM regions, with bank
 selection validated against actual hardware mode. Cartridge/boot ROM, arbitrary
 I/O, host files or memory, and target-memory writes are unavailable.
 
@@ -122,13 +122,56 @@ For the selected source project, request a successful official build with
 ```text
 chromatic_rom_build {"captureDebugArtifacts":true}
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","restart":true,"initialFrames":120,"debugMode":"source"}
-chromatic_emulator_debug {"variableNames":["Has key"],"includeScene":true}
+chromatic_emulator_debug {"variableNames":["has_key"],"actors":["Guard"],"includeScene":true}
 ```
 
-Use actual unique names or IDs from the selected project. Supported source
-queries expose signed 16-bit variables, current scene, up to 256 authored
-collision tiles, and bounded resource/event references. Up to 32 variable
-selectors and 64 references are supported. Exact ROM bytes, same-build
+A variable selector matches an exact authored name or symbol first, then the
+full name or symbol in any case (`oil` finds a variable named `Oil`), then the
+symbol without `var_` (`lantern_oil` finds `var_lantern_oil`). A selector that
+matches several variables at the first step that matches any lists their IDs;
+select by ID then. An unknown name or ID lists the authored variables. Supported
+source queries expose signed 16-bit variables, current scene, live state, up to
+256 authored collision tiles, and bounded resource/event references. Up to 32
+variable selectors and 64 references are supported.
+
+`live` is read from the running game at the paused frame:
+
+- `sceneLoading`: a scene change is still loading. The player and actors are
+  left out until it finishes; step a few frames and read again.
+- `player`, and each actor named in `actors` (authored name, ID or symbol in the
+  current scene, or `"all"`): tile `x`/`y` (the units `chromatic_actor_create`
+  uses), `pixelX`/`pixelY`, `direction`, `moving`, `moveSpeed`, `active` (on
+  screen and updating) and `hidden`. `moving` means a walking animation plays
+  (scripted moves, top-down and adventure walking) or the top-down player is
+  between grid cells; `moveSpeed` is the actor's scripted and top-down speed in
+  pixels per frame. A platformer player moves by its own velocities instead,
+  which `moveSpeed` does not set: it reports `platform` (`state`: ground, run,
+  jump, fall, ladder, wall, dash, float, knockback or blank; `velocityX` and
+  `velocityY` in pixels per frame), and `moving` is true only while those
+  velocities move it (standing still on a ladder is not moving; nothing moves it
+  while a script holds the VM locked). Actors map to the game's own actor slots
+  only when the build's actor table matches the authored actors in GB Studio's
+  order; prefab actors, and actors that share an `_index`, start tile,
+  direction and sprite, cannot be mapped, and `limitations` says so.
+- `ui`: `overlayOpen` (the window layer is on screen; a HUD counts), `dialogue`
+  and the `buttons` the script that owns input accepts next. `dialogue` is
+  `waiting` (a text box waits for a button), `drawing` (a text box or menu is
+  opening or its text is still typing), `menu` (with `menuOptions`; up, down,
+  left and right move the cursor), `none` (no overlay and no text), or `unknown`
+  (the overlay is on screen with nothing waiting: a HUD, or a script between
+  steps). While a menu or text box runs it owns input and other scripts' waits
+  do not count; while a script holds the VM locked only its own wait counts.
+  A press the engine has already read but not yet handled (A on a menu, a
+  button for an input wait) means it is not waiting for another one. Direction
+  buttons on a menu are handled before A, so Down with A moves the cursor and
+  keeps the menu open. A script polling buttons in a loop is not detected.
+- `scripts`: how many scripts run and whether one holds the VM `locked` (the
+  player cannot move while it does).
+
+Step until `waitingForInput` is true before pressing, rather than guessing
+frame counts. Live state is read only from a build whose engine files are GB
+Studio's own, unchanged; an ejected or plugin-changed engine leaves `live` out
+and `limitations` says why, while the scene and variables still answer. Exact ROM bytes, same-build
 `symbols.noi` / `globals.i`, supported engine layout, and unchanged source
 and plugins must agree. Missing or optimized-out values stay unavailable.
 Compiler artifacts alone do not guarantee a decodable layout.

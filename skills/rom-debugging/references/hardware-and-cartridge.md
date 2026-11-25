@@ -67,7 +67,7 @@ chromatic_emulator_inspect {"view":"vram","region":"vram","offset":0,"length":64
 ```
 
 OAM reads inspect at most 40 genuine objects; named VRAM/WRAM/OAM/HRAM reads are
-limited to 256 bytes. Cartridge ROM, boot ROM, arbitrary I/O, host memory,
+limited to 2,048 bytes. Cartridge ROM, boot ROM, arbitrary I/O, host memory,
 and target writes are not exposed. This ROM-only hardware surface does not
 infer high-level gameplay state or named variables. For the user's own project,
 the separate explicit source-debugging mode can resolve supported names from
