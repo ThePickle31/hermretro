@@ -125,8 +125,10 @@ def rpc_status(ctx):
                 "profile": studio_profile.describe(host._data_dir().parents[1]),
                 "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT,
             }
-            # Each look at Setup brings the studio profile up to date with the installing profile's providers.
-            studio_providers.sync_soon(host._data_dir().parents[1])
+            # Each look at Setup brings the studio profile up to date with the installing profile's providers; a
+            # caller that only reads (`sync: false`, the benchmark's check) writes nothing.
+            if (params or {}).get("sync", True) is not False:
+                studio_providers.sync_soon(host._data_dir().parents[1])
             client, error = host.try_connect(paths.runtime_dir())  # never starts the broker
             if client is None:
                 if error is not None and not isinstance(error, BrokerNotRunning):

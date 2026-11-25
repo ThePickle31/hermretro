@@ -29,7 +29,7 @@ CREATE TABLE sessions (id TEXT PRIMARY KEY, started_at REAL NOT NULL, ended_at R
 CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL,
     content TEXT, tool_call_id TEXT, tool_calls TEXT, tool_name TEXT, timestamp REAL NOT NULL, finish_reason TEXT,
     _compressed_summary INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
-    compacted INTEGER NOT NULL DEFAULT 0, message_uid TEXT);
+    compacted INTEGER NOT NULL DEFAULT 0, message_uid TEXT, tool_call_uid TEXT);
 CREATE TABLE session_model_usage (session_id TEXT NOT NULL, task TEXT NOT NULL DEFAULT '',
     api_call_count INTEGER NOT NULL DEFAULT 0, estimated_cost_usd REAL NOT NULL DEFAULT 0);
 """
@@ -174,7 +174,7 @@ class ReportTest(Fixture):
 
 class CompactionCopiesTest(Fixture):
     """A compaction stores copies of the messages before it (same `message_uid`, `compacted` 1, a tool result's
-    copy cut short); every count takes each message once."""
+    copy Hermes's summary of it); every count takes each message once."""
 
     def test_copies_count_once(self):
         self.session(ended=1100.0, reason="cli_close")
@@ -189,8 +189,11 @@ class CompactionCopiesTest(Fixture):
             self.message("user", content=PROMPT, message_uid="u-prompt", **stored)
             self.message("assistant", tool_calls=json.dumps(stepping), message_uid="u-a1", **stored)
             self.tool("chromatic_emulator_step", {"result": "Completed"}, tool_call_id="c1", message_uid="u-t1")
-            build = failed if copy == 0 else "[tool_call] pruned: full result at ..."
-            self.tool("chromatic_rom_build", build, tool_call_id="c2", message_uid="u-t2", **stored)
+            if copy == 0:
+                self.tool("chromatic_rom_build", failed, tool_call_id="c2", message_uid="u-t2", **stored)
+            else:  # Hermes's summary of the call, longer than the result it stands for
+                summary = f"[chromatic_rom_build] calls={'x' * 200} (61 chars result) FAILED: compile failed"
+                self.message("tool", tool_name="chromatic_rom_build", content=summary, tool_call_id="c2", **stored)
             self.message("assistant", tool_calls=json.dumps(restoring), message_uid="u-a2", **stored)
             self.tool("chromatic_emulator_checkpoint", {"result": "Restored"}, tool_call_id="c3", **stored)
             self.tool("terminal", {"output": ""}, tool_call_id="c4", message_uid=f"u-t4-{copy}", **stored)
@@ -200,11 +203,57 @@ class CompactionCopiesTest(Fixture):
         found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]
         self.assertEqual(found.tool_calls, 4)
         self.assertEqual(found.steps, 1)
-        self.assertEqual((found.builds, found.failed_builds), (1, 1))  # the original's result, not the cut copy's
+        self.assertEqual((found.builds, found.failed_builds), (1, 1))  # the original's result, not the summary's
         self.assertEqual(found.errors, Counter({"BUILD_FAILED": 1}))
         self.assertEqual((found.restores, found.source_commands), (1, 1))
         self.assertEqual(found.compactions, 1)
         self.assertEqual(found.ended, "yes")
+
+
+class PrunedAndReusedTest(Fixture):
+    """A prune keeps a stub in the original row and puts the full message in a later one; a provider can reuse a
+    tool call id later, each occurrence with its own `tool_call_uid`."""
+
+    def setUp(self):
+        super().setUp()
+        self.session(ended=1100.0, reason="cli_close")
+
+    def test_the_full_result_counts_wherever_it_sits(self):
+        build = [call("chromatic_rom_build", {})]
+        self.message("assistant", tool_calls=json.dumps(build), message_uid="u-a1")
+        failed = {"isError": True, "error": "compile failed", "code": "BUILD_FAILED"}
+        # The stub at the original row, the full result in the prune's later row.
+        stub = "[chromatic_rom_build] pruned: full result at ..."
+        self.message("tool", tool_name="chromatic_rom_build", content=stub, tool_call_id="c1", message_uid="u-t1")
+        self.tool("chromatic_rom_build", failed, tool_call_id="c1", message_uid="u-t1", active=0, compacted=1)
+        # Arguments cut to a stub too: the call with its arguments counts.
+        restore = [call("chromatic_emulator_checkpoint", {"action": "restore", "label": "start"})]
+        stub = [call("chromatic_emulator_checkpoint", {})]
+        self.message("assistant", tool_calls=json.dumps(stub), message_uid="u-a2")
+        self.message("assistant", tool_calls=json.dumps(restore), message_uid="u-a2", active=0, compacted=1)
+        found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]
+        self.assertEqual((found.tool_calls, found.builds, found.failed_builds), (1, 1, 1))
+        self.assertEqual(found.errors, Counter({"BUILD_FAILED": 1}))
+        self.assertEqual(found.restores, 1)
+
+    def test_a_reused_call_id_counts_each_occurrence(self):
+        for occurrence in ("uid-1", "uid-2"):
+            for copy in range(2):  # each occurrence and a compaction's copy of it
+                self.message(
+                    "tool",
+                    tool_name="chromatic_emulator_step",
+                    content='{"result": "Completed"}' if copy == 0 else "[chromatic_emulator_step] (23 chars)",
+                    tool_call_id="call_0",
+                    tool_call_uid=occurrence,
+                    compacted=copy,
+                )
+        self.assertEqual(bench.reports(self.home, ids=[SESSION])[SESSION[:14]].tool_calls, 2)
+
+    def test_a_database_without_occurrence_ids_groups_on_the_call_id(self):
+        self.db.execute("ALTER TABLE messages DROP COLUMN tool_call_uid")
+        self.tool("chromatic_emulator_step", {"result": "Completed"}, tool_call_id="c1")
+        self.message("tool", tool_name="chromatic_emulator_step", content="[cut]", tool_call_id="c1", compacted=1)
+        self.assertEqual(bench.reports(self.home, ids=[SESSION])[SESSION[:14]].tool_calls, 1)
 
 
 class EndingTest(Fixture):

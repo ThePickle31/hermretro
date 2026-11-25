@@ -167,20 +167,17 @@ def plugin_rpc(profile: str, name: str, params: dict | None = None) -> dict:
     return result
 
 
-def stale_plugin(root: Path, profile: str) -> str | None:
-    """Why the gateway serving ``profile`` does not run the hermretro code that profile loads now, or None when it
-    does. Asked of the plugin itself: where it loaded from, and its `restart_needed` (its files changed since it
-    loaded, what the page's update banner shows)."""
-    home = profile_homes(root).get(profile)
-    if home is None:
-        raise GatewayError(f"there is no profile {profile!r} in {root}")
-    status = plugin_rpc(profile, "status")
+def stale_plugin(profile: str, checkout: Path) -> str | None:
+    """Why the gateway serving ``profile`` does not run ``checkout``'s hermretro code as it is now, or None when it
+    does. Asked of the plugin itself, with a status that only reads: where it loaded from, and its `restart_needed`
+    (its files changed since it loaded, what the page's update banner shows)."""
+    status = plugin_rpc(profile, "status", {"sync": False})
     loaded = (status.get("plugin") or {}).get("root")
-    wanted = (home / "plugins" / PLUGIN).resolve()
+    wanted = checkout.resolve()
     if not loaded:
         return "its hermretro does not say where it loaded from, so it predates this checkout"
     if Path(loaded) != wanted:
-        return f"it loaded {loaded}, the profile loads {wanted}"
+        return f"it loaded {loaded}, not {wanted}"
     if status.get("restart_needed"):
         return f"{wanted} changed since it loaded"
     return None

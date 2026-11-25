@@ -12,6 +12,7 @@ Standard library only; development only; Linux and macOS.
 from __future__ import annotations
 
 import json
+import os
 import re
 import signal
 import sqlite3
@@ -38,6 +39,8 @@ SOURCE_READERS = {"read_file", "search_files"}
 NORMAL_ENDS = {"cli_close", "agent_close"}
 DUPLICATE_DROP = "Removed duplicate tool call"
 SESSION_LINE = re.compile(r"^session_id: (\S+)\s*$", re.MULTILINE)
+# Set, `hermes chat` talks to the gateway it names instead of this machine's (Hermes's hermes_cli/gateway_client.py).
+REMOTE_GATEWAY = "HERMES_TUI_GATEWAY_URL"
 
 
 class BenchError(Exception):
@@ -69,17 +72,27 @@ def logged_session(log: Path) -> str | None:
     return found[-1] if found else None
 
 
-def current_gateway(root: Path, profile: str, reload: Callable[[], int]) -> None:
-    """Make sure the gateway that will serve the chats runs the hermretro code ``profile`` loads now: when it does not,
-    ``reload`` it (non-zero when that failed) and ask again; refuse when it still does not."""
+def current_gateway(root: Path, profile: str, checkout: Path, reload: Callable[[], int]) -> None:
+    """Make sure the chats run ``checkout``'s hermretro code as it is now: ``profile`` loads it, and the local gateway
+    that serves the chats has it loaded (when it does not, ``reload`` it, non-zero when that failed, and ask again);
+    refuse when either cannot be made so."""
+    if os.environ.get(REMOTE_GATEWAY, "").strip():
+        raise BenchError(f"{REMOTE_GATEWAY} sends the chats to another gateway than the one checked here: unset it")
+    link = hermes.plugin_links(root).get(profile)
+    loads = link.resolve() if link else None
+    if loads != checkout.resolve():
+        raise BenchError(
+            f"the {profile} profile loads {loads or 'no checkout'}, not {checkout.resolve()}: "
+            "python tools/dev live, then run again"
+        )
     try:
-        stale = hermes.stale_plugin(root, profile)
+        stale = hermes.stale_plugin(profile, checkout)
         if stale is None:
             return
         print(f"the gateway runs older hermretro code ({stale}): reloading", flush=True)
         if reload():
             raise BenchError("the reload failed, so the games would run on older code: restart Hermes, then run again")
-        stale = hermes.stale_plugin(root, profile)
+        stale = hermes.stale_plugin(profile, checkout)
     except hermes.GatewayError as error:
         raise BenchError(f"{error}: the games need a running gateway (hermes -p {profile} gateway ensure)") from error
     if stale is not None:
@@ -311,13 +324,21 @@ def report(db: sqlite3.Connection, session: str, drops: Counter, exited: float |
 
 
 def unique(db: sqlite3.Connection, session: str, role: str, columns: str, where: str = "1") -> list[tuple]:
-    """``columns`` of each of the session's ``role`` messages once, in order. A compaction stores copies of the
-    messages before it (the same `message_uid`, `compacted` 1, a tool result's copy cut short), so each counts as
-    first stored: a tool result once per call (`tool_call_id`), anything else once per `message_uid`."""
-    key = "COALESCE(tool_call_id, message_uid, id)" if role == "tool" else "COALESCE(message_uid, id)"
+    """``columns`` of each of the session's ``role`` messages once, in order. Hermes stores more than one copy of a
+    message: a compaction copies the messages before it (the same `message_uid`, `compacted` 1), and a prune leaves a
+    stub in the original row with the full message in a later one. Each message counts once, as its full copy wherever
+    that sits: for a tool result the first that is not one of Hermes's shortened forms (each starts with `[`, its own
+    test for a summary stub), for tool calls the longest (Hermes cuts oversized arguments short). A tool result is one
+    per call occurrence (`tool_call_uid`; a provider can reuse a `tool_call_id` later), else per `tool_call_id`;
+    anything else is one per `message_uid`."""
+    stored = {column for _cid, column, *_ in db.execute("PRAGMA table_info(messages)")}
+    call = ("tool_call_uid, " if "tool_call_uid" in stored else "") + "tool_call_id, "
+    key = f"COALESCE({call if role == 'tool' else ''}message_uid, id)"
+    full = "COALESCE(content, '') LIKE '[%', LENGTH(COALESCE(tool_calls, '')) DESC, id"
     return db.execute(
-        f"SELECT {columns} FROM messages WHERE id IN (SELECT MIN(id) FROM messages"
-        f" WHERE session_id = ? AND role = ? AND {where} GROUP BY {key}) ORDER BY id",
+        f"SELECT {columns} FROM (SELECT *, MIN(id) OVER (PARTITION BY {key}) AS slot,"
+        f" ROW_NUMBER() OVER (PARTITION BY {key} ORDER BY {full}) AS copy"
+        f" FROM messages WHERE session_id = ? AND role = ? AND {where}) WHERE copy = 1 ORDER BY slot",
         (session, role),
     ).fetchall()
 

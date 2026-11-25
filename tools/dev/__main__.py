@@ -312,11 +312,12 @@ def cmd_bench(args) -> int:
         return 0
     if args.folder or args.sessions:
         raise bench.BenchError("--run and --sessions are for bench report")
+    prompts = bench.games(args.games)  # a bad name ends it before the gateway is asked or reloaded
     for needed in ("hermes", "node"):  # node asks the gateway which code it runs
         if shutil.which(needed) is None:
             raise bench.BenchError(f"needs {needed} on PATH")
-    bench.current_gateway(root, hermes.STUDIO, lambda: reload_profiles(root, hermes.loading_profiles(root)))
-    folder = bench.run(bench.games(args.games), hermes.STUDIO, bench.RUNS, hermes.live_checkout(root))
+    bench.current_gateway(root, hermes.STUDIO, TOP, lambda: reload_profiles(root, hermes.loading_profiles(root)))
+    folder = bench.run(prompts, hermes.STUDIO, bench.RUNS, TOP)
     try:
         print(bench.table(bench.reports(profile, folder)))
     except (bench.BenchError, sqlite3.Error) as error:

@@ -170,22 +170,18 @@ class RootTest(unittest.TestCase):
 
 
 class StalePluginTest(unittest.TestCase):
-    """What the plugin's status says about the code the gateway runs, against the folder the profile loads."""
+    """What the plugin's status says about the code the gateway runs, against the checkout `bench run` runs."""
 
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
-        self.root = Path(temp.name).resolve()
-        self.checkout = self.root / "checkout"
+        self.checkout = Path(temp.name).resolve() / "checkout"
         self.checkout.mkdir()
-        plugins = self.root / "profiles" / "hermretro" / "plugins"
-        plugins.mkdir(parents=True)
-        (plugins / "hermretro").symlink_to(self.checkout)
 
     def stale(self, status):
         with mock.patch.object(local_hermes, "plugin_rpc", return_value=status) as rpc:
-            found = local_hermes.stale_plugin(self.root, "hermretro")
-        rpc.assert_called_once_with("hermretro", "status")
+            found = local_hermes.stale_plugin("hermretro", self.checkout)
+        rpc.assert_called_once_with("hermretro", "status", {"sync": False})  # a status that only reads
         return found
 
     def test_the_loaded_folder_and_its_files(self):
@@ -193,12 +189,8 @@ class StalePluginTest(unittest.TestCase):
         changed = self.stale({"plugin": {"root": str(self.checkout)}, "restart_needed": True})
         self.assertEqual(changed, f"{self.checkout} changed since it loaded")
         elsewhere = self.stale({"plugin": {"root": "/old/checkout"}, "restart_needed": False})
-        self.assertEqual(elsewhere, f"it loaded /old/checkout, the profile loads {self.checkout}")
+        self.assertEqual(elsewhere, f"it loaded /old/checkout, not {self.checkout}")
         self.assertIn("predates", self.stale({"plugin": {"version": "1.0.0"}, "restart_needed": False}))
-
-    def test_an_unknown_profile(self):
-        with self.assertRaisesRegex(local_hermes.GatewayError, "no profile 'other'"):
-            local_hermes.stale_plugin(self.root, "other")
 
 
 class PluginRpcTest(unittest.TestCase):

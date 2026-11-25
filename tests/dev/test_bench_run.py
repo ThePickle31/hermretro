@@ -1,5 +1,5 @@
-"""tools/dev/bench.py `run`: it starts the games only on a gateway that runs the code the studio profile loads,
-reloading it when it does not, then every game at once with the right command, recording each one's session. The
+"""tools/dev/bench.py `run`: it starts the games only when the studio profile loads this checkout and the local
+gateway runs that code, reloading it when it does not, then every game at once with the right command, recording each one's session. The
 gateway and `hermes` are stand-ins here; nothing reaches a real Hermes."""
 
 import importlib.util
@@ -25,12 +25,21 @@ _spec.loader.exec_module(cli)
 
 
 class CurrentGatewayTest(unittest.TestCase):
-    """`run` starts only on a gateway that runs the code the studio profile loads: reloaded when it does not."""
+    """`run` starts only when the studio profile loads this checkout and the gateway runs its code as it is now:
+    reloaded when it does not."""
 
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
+        self.checkout = self.root / "checkout"
+        self.checkout.mkdir()
+        plugins = self.root / "profiles" / "hermretro" / "plugins"
+        plugins.mkdir(parents=True)
+        self.link = plugins / "hermretro"
+        self.link.symlink_to(self.checkout)
+        clean = {key: value for key, value in os.environ.items() if key != bench.REMOTE_GATEWAY}
+        self.enterContext(mock.patch.dict(os.environ, clean, clear=True))
 
     def check(self, answers, reload_result=0):
         reloads = []
@@ -40,13 +49,15 @@ class CurrentGatewayTest(unittest.TestCase):
             return reload_result
 
         with (
-            mock.patch.object(bench.hermes, "stale_plugin", side_effect=answers),
+            mock.patch.object(bench.hermes, "stale_plugin", side_effect=answers) as stale,
             redirect_stdout(io.StringIO()) as output,
         ):
             try:
-                bench.current_gateway(Path("/root"), "hermretro", reload)
+                bench.current_gateway(self.root, "hermretro", self.checkout, reload)
             finally:
                 self.output = output.getvalue()
+        for asked in stale.call_args_list:
+            self.assertEqual(asked.args, ("hermretro", self.checkout))
         return len(reloads)
 
     def test_a_current_gateway_is_left_alone(self):
@@ -69,21 +80,49 @@ class CurrentGatewayTest(unittest.TestCase):
         with self.assertRaisesRegex(bench.BenchError, "no gateway: the games need a running gateway"):
             self.check(error)
 
-    def test_run_starts_no_game_on_a_gateway_it_cannot_bring_current(self):
+    def test_a_profile_on_another_checkout_refuses_before_asking(self):
+        other = self.root / "other"
+        other.mkdir()
+        self.link.unlink()
+        self.link.symlink_to(other)
+        with self.assertRaisesRegex(bench.BenchError, f"loads {other}, not {self.checkout}: python tools/dev live"):
+            self.check(AssertionError("the gateway is not asked"))
+        self.link.unlink()
+        with self.assertRaisesRegex(bench.BenchError, "loads no checkout, not .*python tools/dev live"):
+            self.check(AssertionError("the gateway is not asked"))
+
+    def test_a_remote_gateway_refuses_before_asking(self):
+        with mock.patch.dict(os.environ, {bench.REMOTE_GATEWAY: "wss://elsewhere.example/gateway"}):
+            with self.assertRaisesRegex(bench.BenchError, f"{bench.REMOTE_GATEWAY} sends the chats .*: unset it"):
+                self.check(AssertionError("the gateway is not asked"))
+
+    def cli(self, *arguments):
         error = io.StringIO()
         with (
             mock.patch.object(cli.shutil, "which", return_value="/bin/tool"),
             mock.patch.object(cli.hermes, "hermes_root", return_value=self.root),
-            mock.patch.object(cli.bench.hermes, "stale_plugin", return_value="old"),
+            mock.patch.object(cli, "TOP", self.checkout),
+            mock.patch.object(cli.bench.hermes, "stale_plugin", return_value="old") as stale,
             mock.patch.object(cli, "reload_profiles", return_value=0) as reload,
             mock.patch.object(cli.bench, "run") as run,
             redirect_stdout(io.StringIO()),
             redirect_stderr(error),
         ):
-            self.assertEqual(cli.main(["bench", "run"]), 1)
-        reload.assert_called_once_with(self.root, [])  # every profile that loads hermretro: none in this root
+            self.assertEqual(cli.main(["bench", "run", *arguments]), 1)
         run.assert_not_called()
-        self.assertIn("still runs older hermretro code (old): restart Hermes", error.getvalue())
+        return stale, reload, error.getvalue()
+
+    def test_run_starts_no_game_on_a_gateway_it_cannot_bring_current(self):
+        stale, reload, error = self.cli()
+        reload.assert_called_once_with(self.root, ["hermretro"])  # every profile that loads hermretro
+        self.assertEqual(stale.call_count, 2)
+        self.assertIn("still runs older hermretro code (old): restart Hermes", error)
+
+    def test_an_unknown_game_ends_it_before_the_gateway_is_asked(self):
+        stale, reload, error = self.cli("no-such-game")
+        stale.assert_not_called()
+        reload.assert_not_called()
+        self.assertIn("no game matches no-such-game", error)
 
 
 class RunTest(unittest.TestCase):

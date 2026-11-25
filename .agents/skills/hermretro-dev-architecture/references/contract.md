@@ -57,7 +57,7 @@ The page's copy of these names, `RPC_<NAME>` from `page/app/rpc.js`, is generate
 fails when it is stale); the agent tool names it reacts to are in
 `page/app/tools.js`.
 
-### `status` — params `{ chat?: string }`
+### `status` — params `{ chat?: string, sync?: boolean }`
 
 ```json
 {
@@ -80,7 +80,9 @@ for the conversation named by `chat` (the focused chat's id). When the handshake
 this copy into (the studio profile only links it), where the page runs Hermes's `plugins.manage update`; it is
 `{ "profile": null, "linked": true }` for a checkout linked in from elsewhere, which Hermes does not update.
 `plugin.root` is the folder the running code was loaded from and `restart_needed` says its files changed since:
-together, whether the gateway runs what a profile loads now (`python tools/dev bench run` checks both). It is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
+together, whether the gateway runs what a profile loads now (`python tools/dev bench run` checks both).
+Each call also brings the studio profile's providers up to date in the background; `sync: false` skips that, so
+the call only reads. `chat` is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
 
 ### `doctor` — params `{ probe?: boolean }`
 
