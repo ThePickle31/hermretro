@@ -324,8 +324,9 @@ one or two sentences. It stores nothing: the page reads the tool call and its re
 args   { title (1–48), summary (1–280), changes?: [{ kind: added|changed|removed, text (1–100), asset? }] (≤8),
          tested?: [1–80] (≤6), untested?: [1–80] (≤6),
          checks?: [{ id (1–9), text (1–80), result: passed|failed|not run|blocked|needs review }] (≤100),
-         difficulty? (1–200), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
+         difficulty? (1–200), finishRun? (1–4096), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
 result { ok: true, report: { title, summary, changes[], tested[], untested[], checks[], difficulty /* or null */,
+                             finishRun: { recordingPath, sessionId, status, frames, outcome? } /* or null */,
                              notes[], suggestions[] },
          reportedAt /* Unix time in ms, after image capture */, project /* root or null */, message, warnings? }
      | { ok: false, code: "INVALID_REPORT", problems[], error }
@@ -348,6 +349,16 @@ checks refuses every report with a problem asking to combine related checks thro
 a plan both are optional. The page keeps `checks` as `{ id, text, result }`: the card lists a passed check as
 play-tested, a failed one as failed and any other as not tested (`page/pages/build/chat/report.js`), and the
 play-test checklist keys a check by its ID without case, so its result on a later build replaces it.
+
+`finishRun` names the recording of the one run from power-on to the ending (`backend/library/finish_run.py`): a
+recording folder's path (absolute or relative to the project; the folder or its `recording.json`) or its 32-hex
+session id, looked up in the project's `artifacts/playtests/`. It is refused unless it is a recording inside the
+project (`recording.json` of kind `gb-studio-playtest`, written by the engine's emulator worker), of the game's ROM
+as it is now (its `rom.sha256` against `build/game.gbc` or `build/game.gb`), already ended (not `status:
+"recording"`, since the engine writes branches only when an attempt ends) and with no branch restored from a
+checkpoint. In a game with a test plan, a report giving `F1` (`plan_checks.FINISH_CHECK`, the template's finishable
+check) `passed` or `failed` needs `finishRun`, and a `passed` one needs a recording that ended `stopped` (not
+`failed` or `cancelled`); a report without `finishRun` otherwise adds a warning saying it shows no recorded run.
 
 ## Build history (snapshots)
 

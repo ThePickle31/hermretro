@@ -41,8 +41,9 @@ approved by the user, that the build and test work follows.
 - **Finishable is the bar.** A game is finishable when one run from power-on
   reaches the ending on the exact ROM the user gets, with no checkpoint
   restores, save-state loads, memory writes or debug shortcuts. Every test plan
-  has this check (F1 in the template); a route pieced together from checkpoints
-  does not pass it, and every rebuild needs it played again.
+  has this check with the ID F1, as in the template (the build report ties F1 to
+  the run's recording); a route pieced together from checkpoints does not pass
+  it, and every rebuild needs it played again.
 - **Label assumptions.** Hardware budgets in the brief are assumptions until
   graphics analysis, a real build and emulator runs confirm them. Hardware
   qualification needs a human observing the flashed cartridge.
@@ -91,7 +92,8 @@ approved by the user, that the build and test work follows.
 6. **Report against the plan.** Every `chromatic_build_report` for a game with
    a test plan gives each open check its result on that build's ROM (`checks`)
    and a `difficulty` statement from your own finishable run; the tool refuses
-   the report without them. A check you did not play on this ROM is `not run`,
+   the report without them. When F1 is `passed` or `failed`, `finishRun` names
+   that run's recording, which must be of this ROM with no checkpoint restores. A check you did not play on this ROM is `not run`,
    even if it passed on an earlier build, and the card lists it as untested.
    Update the plan's Status column and Results log in the same turn. When
    there is no finishable run on this ROM, the report says what is true:

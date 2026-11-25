@@ -190,7 +190,8 @@ class BuildReport(unittest.TestCase):
         ]
         answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
         self.assertTrue(answer["ok"], answer)
-        self.assertNotIn("warnings", answer)
+        self.assertEqual(len(answer["warnings"]), 1)
+        self.assertIn("finishRun names no recording", answer["warnings"][0])
 
     def test_every_open_check_fits_a_report_and_a_plan_with_too_many_says_how_to_go_on(self):
         difficulty = "Finished in one run."
@@ -317,6 +318,7 @@ class BuildReport(unittest.TestCase):
                 "untested",
                 "checks",
                 "difficulty",
+                "finishRun",
                 "notes",
                 "suggestions",
                 "project",

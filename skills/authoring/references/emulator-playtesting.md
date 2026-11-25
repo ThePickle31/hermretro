@@ -20,6 +20,11 @@ chromatic_emulator_audio {}
 chromatic_emulator_close {}
 ```
 
+Start every run with `recording:{}`. Checkpoints need an active recording, a
+recorded attempt can be replayed onto a rebuild, and the one run from power-on
+to the ending must be recorded from its first frame: the build report names it
+([finishable](../../rom-debugging/SKILL.md#finishable)).
+
 ## Steps and observations
 
 A step takes one complete held-button set with its frames, or an ordered

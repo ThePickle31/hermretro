@@ -10,7 +10,8 @@ from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
 from . import games as library
-from . import plan_checks
+from . import finish_run, plan_checks
+from .report_plan import plan_problems
 from .tool_args import other_game_refusal, tool_error
 
 logger = host.logger
@@ -62,7 +63,8 @@ BUILD_REPORT_TOOL = {
         "changes (with the images they made or edited), tested and untested checks, notes and suggestions as a "
         "build card, so the written reply after it should be one or two short sentences (for example a "
         "question about a note), not a recap. When the game has a test plan (docs/game/TEST-PLAN.md), checks and "
-        "difficulty are required: a result for every check it lists. Reads the test plan and writes nothing in the "
+        "difficulty are required: a result for every check it lists, and finishRun when its F1 (the run from "
+        "power-on to the ending) passed or failed. Reads the test plan and the recording and writes nothing in the "
         "project; never touches a device."
     ),
     "parameters": {
@@ -143,6 +145,14 @@ BUILD_REPORT_TOOL = {
                 "description": "How hard the game is, from your own play of this build: whether you finished it in "
                 "one run from power-on with no checkpoint restores, where a player fails or gets stuck, and what you "
                 "tuned. Required when the game has a test plan.",
+            },
+            "finishRun": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096,
+                "description": "The recordingPath (or session id) of your one run from power-on to the ending on this "
+                "build's ROM: started with chromatic_emulator_run restart:true and recording:{}, no checkpoint "
+                "restores, then stopped. Checked against the game's ROM.",
             },
             "notes": _report_list("notes", REPORT_LIMITS["notes"], "One note.", "Things the user might notice."),
             "suggestions": _report_list(
@@ -225,44 +235,6 @@ def _report_checks(values, problems: list) -> list[dict]:
         text = _report_text(check.get("text"), f"{where}.text", REPORT_LIMITS["check"], problems)
         checks.append({"id": identifier, "text": text, "result": check.get("result")})
     return checks
-
-
-def _plan_problems(root: Path, checks: list[dict], has_difficulty: bool) -> tuple[list[str], list[str]]:
-    """What the report lacks by the game's test plan (problems), and what the plan itself lacks (warnings). A game
-    without a test plan asks for nothing."""
-    plan = plan_checks.read_plan(root)
-    if plan is None:
-        return [], []
-    where = plan_checks.PLAN_FILE.as_posix()
-    key = plan_checks.check_key
-    problems = [] if has_difficulty else [f"difficulty is required: this game has a test plan ({where})."]
-    warnings = []
-    if plan.unreadable:
-        warnings.append(
-            f"{where} has rows whose ID is no check ID, so they are not checks: {', '.join(plan.unreadable)}. An ID "
-            "is 1 to 4 letters, an optional hyphen, 1 to 3 digits and an optional letter (T1, AUD2, GATE-1, T3b)."
-        )
-    if not plan.checks:
-        warnings.append(f"{where} lists no checks (a table with an ID column, as in the game-planning template).")
-    if len(plan.checks) > plan_checks.MAX_CHECKS:
-        problems.append(
-            f"{where} lists {len(plan.checks)} open checks; a report holds results for at most "
-            f"{plan_checks.MAX_CHECKS}. Keep every approved check: propose in DECISIONS.md combining related rows "
-            "into one check each (their words kept in its Then cell), and report again once the user approves."
-        )
-        return problems, warnings
-    planned = {key(identifier) for identifier in plan.checks}
-    reported = {key(check["id"]) for check in checks if check["id"]}
-    missing = [identifier for identifier in plan.checks if key(identifier) not in reported]
-    if missing:
-        problems.append(
-            f"checks has no result for {', '.join(missing)}: give every open check in {where} its result on this "
-            "build ('not run' when you did not play it on this ROM)."
-        )
-    unknown = [check["id"] for check in checks if check["id"] and key(check["id"]) not in planned]
-    if unknown:
-        problems.append(f"checks names {', '.join(unknown)}, which {where} does not list as an open check.")
-    return problems, warnings
 
 
 def build_report_handler(args: dict, **kwargs) -> str:
@@ -361,8 +333,21 @@ def build_report_handler(args: dict, **kwargs) -> str:
             if "difficulty" in args
             else None
         )
+        report["finishRun"] = None
+        if "finishRun" in args:
+            value = args["finishRun"]
+            if not isinstance(value, str) or not value.strip() or len(value) > 4096:
+                problems.append("finishRun must be a recording's path or session id.")
+            elif root is None:
+                problems.append("finishRun: this chat has no game project to check the recording against.")
+            else:
+                report["finishRun"], why = finish_run.read_run(root, value.strip())
+                if why:
+                    problems.append(why)
         if root is not None:
-            missed, unplanned = _plan_problems(root, report["checks"], "difficulty" in args)
+            missed, unplanned = plan_problems(
+                root, report["checks"], "difficulty" in args, report["finishRun"], "finishRun" in args
+            )
             problems += missed
             warnings += unplanned
         if problems:
