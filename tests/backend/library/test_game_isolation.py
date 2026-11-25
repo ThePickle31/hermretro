@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import report_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import tools as library_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.broker import Denied, Lane  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.broker.bare import EngineStub, bare_broker  # noqa: E402 - the repository root goes on sys.path first
@@ -124,13 +125,13 @@ class TwoGamesAtOnce(unittest.TestCase):
 
     def test_the_build_report_takes_the_chats_own_game(self):
         answer = json.loads(
-            library_tools.build_report_handler(
+            report_tools.build_report_handler(
                 {"title": "Sky", "summary": "Made the sky."}, conversation_id="chat-b", session_id="chat-b"
             )
         )
         self.assertEqual(answer["project"], str(self.root_b))
         refused = json.loads(
-            library_tools.build_report_handler(
+            report_tools.build_report_handler(
                 {"title": "Sky", "summary": "Made the sky.", "project": str(self.root_a)},
                 conversation_id="chat-b",
                 session_id="chat-b",
@@ -152,7 +153,7 @@ class TwoGamesAtOnce(unittest.TestCase):
         picture.write_bytes(b"png")
         with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
             answer = json.loads(
-                library_tools.build_report_handler(
+                report_tools.build_report_handler(
                     {
                         "title": "Sky",
                         "summary": "Made the sky.",

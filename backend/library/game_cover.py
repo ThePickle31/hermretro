@@ -211,20 +211,43 @@ def _check_cover_bytes(data: bytes) -> dict:
     return {"ok": True, **info, "sha256": hashlib.sha256(data).hexdigest()}
 
 
-def copied_asset(root: Path, sha256: str) -> str | None:
-    """The game image (under ``assets/``) the cover is an unchanged copy of, if any: a cover is drawn for
-    the card (characters, title), not an existing background reused."""
+def _pixels(data: bytes) -> list | None:
+    """The RGBA pixels of a cover-sized PNG; None for any other size or a PNG that does not decode."""
+    if data[12:16] != b"IHDR" or struct.unpack(">II", data[16:24]) != (COVER_WIDTH, COVER_HEIGHT):
+        return None
+    try:
+        return decode_png(data)[2]
+    except PngError:
+        return None
+
+
+def copied_asset(root: Path, cover: Path) -> str | None:
+    """The game image (under ``assets/``) the cover is an unchanged copy of, if any: the same file, or the same
+    pixels saved again. A cover is drawn for the card (characters, title), not an existing background reused."""
     assets = Path(root) / "assets"
     if not assets.is_dir():
         return None
+    try:
+        data = Path(cover).read_bytes()
+    except OSError:
+        return None
+    pixels = None
     for count, path in enumerate(assets.rglob("*.png")):
         if count > 2000:
             break
         try:
-            if path.stat().st_size <= MAX_COVER_BYTES and hashlib.sha256(path.read_bytes()).hexdigest() == sha256:
-                return path.relative_to(root).as_posix()
+            if path.stat().st_size > MAX_COVER_BYTES:
+                continue
+            image = path.read_bytes()
         except OSError:
             continue
+        if image == data:
+            return path.relative_to(root).as_posix()
+        copy = _pixels(image)
+        if copy is not None:
+            pixels = _pixels(data) if pixels is None else pixels
+            if copy == pixels:
+                return path.relative_to(root).as_posix()
     return None
 
 
@@ -246,7 +269,7 @@ def _cover(root: Path, strict: bool) -> dict | None:
         return None
     cover = check_cover(path)
     if cover["ok"]:
-        copied = copied_asset(root, cover["sha256"])
+        copied = copied_asset(root, path)
         if copied:
             cover = {**cover, "ok": False, "problem": _copy_problem(copied)}
     return cover

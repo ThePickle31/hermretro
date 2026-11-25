@@ -81,10 +81,10 @@ await runScenario(async ({ answered, buildScenario, button, check, click, key, m
     assert.deepEqual(inert, ['MEDIA:/home/u/games/Lamplight/cover.png'])
   })
   await click('Details', transcript.node.querySelector('.cs-b-bc[data-build="1"]'))
-  check('Details lists what was play-tested, not tested and the notes', () => {
+  check('Details lists what was play-tested, not tested, the difficulty and the notes', () => {
     assert.deepEqual([...transcript.node.querySelectorAll('.cs-b-bc-details .cs-b-bc-changes li')].map(node => node.textContent), ['+Robin sprite, 3 views', '~Camera follows the player'])
     const details = transcript.node.querySelector('.cs-b-bc-details').textContent
-    assert.match(details, /Play-tested.*Robin faces where it flies.*Not tested.*Sound.*You might notice.*only flaps while moving/)
+    assert.match(details, /Play-tested.*Robin faces where it flies.*Not tested.*Sound.*Difficulty.*nothing can hurt the robin.*You might notice.*only flaps while moving/)
   })
   check('a failed compile is build #2 that didn\u2019t finish, with what went wrong, and the pill says so', () => {
     const card = transcript.node.querySelector('.cs-b-bc[data-build="2"]')

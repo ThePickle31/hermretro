@@ -138,10 +138,11 @@ export function BuildCard({ art, primary, replay, play, build, parts, report, to
   const tested = report?.tested ?? []
   const untested = report?.untested ?? []
   const notes = report?.notes ?? []
+  const difficulty = report?.difficulty
   const title = report?.title ?? (failed ? 'The build didn\u2019t finish' : build?.title ?? (primary ? baseName(primary) : 'Done'))
   const summary = (failed && parts.buildFailed) || report?.summary
   const extraArt = edited.filter(path => path !== primary)
-  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || failed
+  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || difficulty || failed
   const compareArt = path => jsx(BeforeAfter, {
     actions: isLast && !chatBusy,
     from: parts.startedAt,
@@ -196,6 +197,7 @@ export function BuildCard({ art, primary, replay, play, build, parts, report, to
               ...extraArt.map(compareArt),
               tested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Play-tested' }), ...tested.map((line, index) => jsxs('p', { children: [jsx('span', { className: 'cs-b-ok', children: '\u2713 ' }), line] }, index))] }) : null,
               untested.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Not tested' }), ...untested.map((line, index) => jsx('p', { className: 'cs-faint', children: `\u25CB ${line}` }, index))] }) : null,
+              difficulty ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'Difficulty' }), jsx('p', { children: difficulty })] }) : null,
               notes.length ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'You might notice' }), ...notes.map((line, index) => jsx('p', { children: line }, index))] }) : null,
               failed && parts.buildFailed ? jsxs('div', { children: [jsx('span', { className: 'cs-eyebrow', children: 'What went wrong' }), jsx('pre', { className: 'cs-b-cmd', children: parts.buildFailed })] }) : null
             ]

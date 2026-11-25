@@ -6,14 +6,16 @@
 - `project.py` handles game IDs, reads project titles, settings, the game's ROM and build files. `freshness.py` says
   whether the playable copy is the current game (`export_freshness`, `source_digest`, `sources_newer_than`).
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
-- `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png`.
+- `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png` (a copy of an image under `assets/`,
+  the same file or the same pixels saved again, is refused).
 - `layout.py` keeps every game folder in the game layout (below); `release.py` says what a publish holds and records.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
 
 - RPCs (`rpcs.py`): `games`, `game_build_status`, `game_thumb`, `player`, `presentations`, `captures`, `capture_image`, `build`.
-- Tools (`tools.py`): `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report`.
+- Tools (`tools.py`): `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report` (in `report_tools.py`,
+  held to the game's test plan by `plan_checks.py`).
 - Hooks (`hooks.py`): `pre_llm_call` — tells a game's Build conversation which game it works on; `pre_tool_call` —
   blocks Hermes's `write_file` and `patch` from writing into a game's `.hermretro/`.
 - Events emitted: `library.build_reported` (`game`: the game's id, `None` when the chat has no project; `assets`: the images the card shows, which assets keeps), `library.game_presented`. Listens to: none.

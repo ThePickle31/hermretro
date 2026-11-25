@@ -25,7 +25,12 @@ approved by the user, that the build and test work follows.
   (who, when, brief revision) in the brief.
 - **Write scope changes down.** Any change to scope, controls, core loop, or an
   acceptance check is written into `DECISIONS.md` and the brief's revision is
-  bumped; build work follows it only after the user approves.
+  bumped; build work follows it only after the user approves. A change made
+  while building (a feature cut or added, other controls, another win
+  condition, fewer rooms) is a scope change too: write its entry, status
+  proposed, before the build report, and name it in the report's notes. The
+  brief and the game card (`chromatic_game_info`) describe the game as it
+  ships, never as first planned.
 - **Never redefine a failing check to make it pass.** If a check in
   `TEST-PLAN.md` fails, keep the original wording and the failing evidence.
   Fix the game, or propose a written, approved scope change that supersedes the
@@ -33,6 +38,11 @@ approved by the user, that the build and test work follows.
 - **The first build is the whole brief.** Its in-scope list is what the first
   build delivers, complete and playable, so keep it to what the user asked for
   and fits a Game Boy game. Ideas beyond it go in the backlog.
+- **Finishable is the bar.** A game is finishable when one run from power-on
+  reaches the ending on the exact ROM the user gets, with no checkpoint
+  restores, save-state loads, memory writes or debug shortcuts. Every test plan
+  has this check (F1 in the template); a route pieced together from checkpoints
+  does not pass it, and every rebuild needs it played again.
 - **Label assumptions.** Hardware budgets in the brief are assumptions until
   graphics analysis, a real build and emulator runs confirm them. Hardware
   qualification needs a human observing the flashed cartridge.
@@ -65,6 +75,10 @@ approved by the user, that the build and test work follows.
      physical cartridge (human-observed).
    - `docs/game/DECISIONS.md`: dated, numbered entries for decisions and scope
      changes, with status (proposed / approved / superseded).
+
+   Before review, go through the [solvability checklist](#solvability-checklist)
+   for every room and hazard, and write what it finds into the brief's
+   Solvability table and the test plan.
 4. **Review with the user.** Summarize the brief in a few lines, list open
    questions, and ask for approval. Do not author scenes, art or scripts, or
    build, on silence: until approval the project holds only its starter and
@@ -74,6 +88,34 @@ approved by the user, that the build and test work follows.
    hand-off. Run `TEST-PLAN.md` checks with `hermretro:rom-debugging` and
    record results against the exact ROM SHA-256; use `hermretro:pixel-art` for
    art and palettes. Present the game only when all of it is in.
+6. **Report against the plan.** Every `chromatic_build_report` for a game with
+   a test plan gives each open check its result on that build's ROM (`checks`)
+   and a `difficulty` statement from your own finishable run; the tool refuses
+   the report without them. A check you did not play on this ROM is `not run`,
+   even if it passed on an earlier build, and the card lists it as untested.
+   Update the plan's Status column and Results log in the same turn.
+
+## Solvability checklist
+
+Check each item on paper while planning, then on the built ROM:
+
+- **Every goal is reachable.** Each required item, switch and exit can be
+  reached from the start; a gate never needs more items than the game holds.
+- **Hazard lanes leave a way through.** For each moving hazard, write its lane
+  (cells it covers), its period and the player's time to cross the lane at
+  their move speed. The safe window must be longer than the crossing, with
+  margin for a human; a required item or exit inside a lane needs a window to
+  reach it and to leave.
+- **Respawn is safe.** Start and respawn points sit outside every lane and
+  hazard, and a respawn mid-move lands on a whole cell.
+- **No dead ends.** No item is used up where another goal still needs it, no
+  door locks behind the player without a way back, and a timer is longer than
+  the shortest route with room to spare.
+- **Failure returns to a winnable state.** Losing restores the counts, items and
+  positions the run needs to continue or restart.
+- **The tuning is written down.** Speeds, timings and counts that set the
+  difficulty are in the brief, and the build report's difficulty says how they
+  played.
 
 ## Hardware budget pointers
 

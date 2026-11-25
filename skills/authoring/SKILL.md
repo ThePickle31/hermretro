@@ -78,6 +78,8 @@ Verify the change at the level the request needs: reread the native resources, b
 - Before presenting, fill in the game card with `chromatic_game_info` (cover art, title, tagline,
   description, genres); `chromatic_present_game` refuses with `GAME_INFO_INCOMPLETE` until it is complete.
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
+  For a game with `docs/game/TEST-PLAN.md` it needs each open check's result on this ROM (`checks`) and a
+  `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused.
 - The references say MCP for the engine behind the `chromatic_*` tools.
 - Links into `../<skill>/` are sibling hermretro skills: open them with
   `skill_view("hermretro:<skill>", file_path="references/<file>")`.

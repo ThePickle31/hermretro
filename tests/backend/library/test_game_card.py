@@ -2,10 +2,12 @@
 
 import json
 import os
+import struct
 import sys
 import tempfile
 import time
 import unittest
+import zlib
 from pathlib import Path
 from unittest import mock
 
@@ -25,6 +27,13 @@ GOOD = {
     "description": "Dodge meteors, grab fuel cells and reach the space station before your tank runs dry.",
     "genres": ["Arcade", "Action"],
 }
+
+
+def with_rows(rows: bytes, level: int = 6) -> bytes:
+    """COVER with these raw scanlines in its one IDAT chunk, compressed at ``level``."""
+    body = zlib.compress(rows, level)
+    idat = struct.pack(">I", len(body)) + b"IDAT" + body + struct.pack(">I", zlib.crc32(b"IDAT" + body))
+    return COVER[:33] + idat + COVER[-12:]
 
 
 class CoverCheck(unittest.TestCase):
@@ -70,6 +79,19 @@ class CoverCheck(unittest.TestCase):
         strict = game_card.status(self.base, GOOD, strict=True)
         self.assertFalse(strict["complete"])
         self.assertIn("unchanged copy of assets/copied.png", strict["problems"][0])
+
+    def test_a_cover_with_an_assets_pixels_saved_again_is_a_copy_and_an_edited_one_is_not(self):
+        self.png("cover.png", COVER)
+        (self.base / "assets" / "backgrounds").mkdir(parents=True)
+        rows = zlib.decompress(COVER[41:-16])  # COVER's one IDAT chunk
+        title = self.png("assets/backgrounds/title.png", with_rows(rows, level=0))  # other bytes, same pixels
+        self.assertNotEqual(title.read_bytes(), COVER)
+        self.png("assets/backgrounds/small.png", encode_png(8, 8, lambda x, y: (0, 0, 0, 255)))
+        self.png("assets/backgrounds/broken.png", COVER[:30])
+        strict = game_card.status(self.base, GOOD, strict=True)
+        self.assertIn("unchanged copy of assets/backgrounds/title.png", strict["problems"][0])
+        edited = self.png("edited.png", with_rows(rows[:1] + bytes((250, 250, 240, 255)) + rows[5:]))
+        self.assertTrue(game_card.update(self.base, {}, cover_source=str(edited))["ok"])
 
     def test_the_wrong_size_too_many_colours_transparency_and_blank_are_refused(self):
         small = encode_png(80, 72, lambda x, y: (x * 3, y * 3, 0, 255))

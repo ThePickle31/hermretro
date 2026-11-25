@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 e231243f4ea6f7714601725e500d58d8c68d17ac232d346aefe6366ef8f30028
- * body: sha256 197759dfa8cdda1fcb1db9de8b4052fd2a77046cc46a29d7dbc4304dcc6f9e17
+ * sources: sha256 7ff293d025e0de798ee75fcb315d7c21f4cbad2be6c751734f2c56e2ed3c43d5
+ * body: sha256 c414ace703485f54b92227b760b6513353628a1cc46a318536ce97d47b3a6b92
  */
 // page/sdk.js
 import {
@@ -483,6 +483,7 @@ var attachmentLine = (item) => item.detail ?? `About ${item.path}:`;
 
 // page/pages/build/chat/report.js
 var REPORT_KINDS = /* @__PURE__ */ new Set(["added", "changed", "removed"]);
+var CHECK_RESULTS = /* @__PURE__ */ new Set(["passed", "failed", "not run", "blocked", "needs review"]);
 function normalizeReport(value) {
   if (!value || typeof value !== "object") {
     return null;
@@ -494,6 +495,8 @@ function normalizeReport(value) {
   if (!title && !summary) {
     return null;
   }
+  const checks = (Array.isArray(value.checks) ? value.checks : []).map((check) => ({ id: line(check?.id, 8), text: line(check?.text, 100), result: CHECK_RESULTS.has(check?.result) ? check.result : "not run" })).filter((check) => check.id && check.text).slice(0, 30);
+  const checkLines = (passed) => checks.filter((check) => check.result === "passed" === passed).map((check) => `${check.id} · ${check.text}${passed || check.result === "not run" ? "" : ` (${check.result})`}`);
   return {
     title,
     summary,
@@ -502,8 +505,9 @@ function normalizeReport(value) {
       text: line(change?.text, 140),
       asset: line(change?.asset, 4096)
     })).filter((change) => change.text).slice(0, 8),
-    tested: lines(value.tested, 6, 100),
-    untested: lines(value.untested, 6, 100),
+    tested: [...lines(value.tested, 6, 100), ...checkLines(true)],
+    untested: [...lines(value.untested, 6, 100), ...checkLines(false)],
+    difficulty: line(value.difficulty, 240),
     notes: lines(value.notes, 3, 200),
     suggestions: lines(value.suggestions, 4, 60)
   };
@@ -7001,10 +7005,11 @@ function BuildCard({ art, primary, replay, play, build, parts: parts2, report, t
   const tested = report?.tested ?? [];
   const untested = report?.untested ?? [];
   const notes = report?.notes ?? [];
+  const difficulty = report?.difficulty;
   const title = report?.title ?? (failed ? "The build didn’t finish" : build?.title ?? (primary ? baseName(primary) : "Done"));
   const summary = failed && parts2.buildFailed || report?.summary;
   const extraArt = edited.filter((path) => path !== primary);
-  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || failed;
+  const hasFoot = changes.length || extraArt.length || tested.length || untested.length || notes.length || difficulty || failed;
   const compareArt = (path) => jsx(BeforeAfter, {
     actions: isLast && !chatBusy,
     from: parts2.startedAt,
@@ -7055,6 +7060,7 @@ function BuildCard({ art, primary, replay, play, build, parts: parts2, report, t
           ...extraArt.map(compareArt),
           tested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Play-tested" }), ...tested.map((line, index) => jsxs("p", { children: [jsx("span", { className: "cs-b-ok", children: "✓ " }), line] }, index))] }) : null,
           untested.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Not tested" }), ...untested.map((line, index) => jsx("p", { className: "cs-faint", children: `○ ${line}` }, index))] }) : null,
+          difficulty ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "Difficulty" }), jsx("p", { children: difficulty })] }) : null,
           notes.length ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "You might notice" }), ...notes.map((line, index) => jsx("p", { children: line }, index))] }) : null,
           failed && parts2.buildFailed ? jsxs("div", { children: [jsx("span", { className: "cs-eyebrow", children: "What went wrong" }), jsx("pre", { className: "cs-b-cmd", children: parts2.buildFailed })] }) : null
         ]

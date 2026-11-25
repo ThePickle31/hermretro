@@ -307,7 +307,7 @@ def update(
         if not cover["ok"]:
             problems.append(cover["problem"])
         else:
-            copied = copied_asset(root, cover["sha256"])
+            copied = copied_asset(root, source)
             if copied:
                 problems.append(_copy_problem(copied))
     if problems:
