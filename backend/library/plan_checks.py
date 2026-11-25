@@ -19,6 +19,9 @@ MAX_CHECKS = 100
 CHECK_LINE = re.compile(r"^\s*(?:[-*+]\s+)?[`*_]*([A-Za-z0-9-]+)[`*_]*\s*:\s+(.*)$")
 LINE_SUPERSEDED = re.compile(r"^\W*superseded\b|\bstatus\s*:\s*superseded\b", re.IGNORECASE)
 STATUS_COLUMNS = ("status", "result")
+# The check every plan has for one run from power-on to the ending (the game-planning template's F1); a report that
+# gives it a played result names that run's recording (report_tools.py, finish_run.py).
+FINISH_CHECK = "F1"
 
 
 @dataclass(frozen=True)

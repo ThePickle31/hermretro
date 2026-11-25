@@ -119,7 +119,8 @@ Verify the change at the level the request needs: reread the native resources, b
   description, genres); `chromatic_present_game` refuses with `GAME_INFO_INCOMPLETE` until it is complete.
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
   For a game with `docs/game/TEST-PLAN.md` it needs each open check's result on this ROM (`checks`) and a
-  `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused.
+  `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused;
+  name that run's recording as `finishRun` (F1 `passed` or `failed` needs it).
   When the ending was unreachable, the run was skipped or the game has no ending, report that (F1 `failed` or
   `not run`, and why in `difficulty`), as `hermretro:game-planning` step 6 says.
 - The references say MCP for the engine behind the `chromatic_*` tools.

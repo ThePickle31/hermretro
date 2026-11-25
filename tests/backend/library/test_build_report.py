@@ -14,7 +14,7 @@ from backend.hermes import workflow  # noqa: E402 - the repository root goes on 
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.assets import versions as host_assets  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import hooks as library_hooks  # noqa: E402 - the repository root goes on sys.path first
-from backend.library import report_tools  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import report_plan, report_tools  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import games, plan_checks, tool_args  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
@@ -74,7 +74,8 @@ class BuildReport(unittest.TestCase):
         self.assertEqual(report["untested"], ["Sound", "Real Chromatic"])
         self.assertEqual(answer["project"], str(self.root))
         self.assertIn("one or two short sentences", answer["message"])
-        self.assertNotIn("warnings", answer)
+        # A game with no test plan needs no recorded run, but the report says it shows none.
+        self.assertEqual(answer["warnings"], [report_plan.NO_RUN])
 
     def test_the_build_event_carries_the_game_and_its_images(self):
         with mock.patch.object(report_tools, "emit") as emit:
@@ -190,7 +191,8 @@ class BuildReport(unittest.TestCase):
         ]
         answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
         self.assertTrue(answer["ok"], answer)
-        self.assertNotIn("warnings", answer)
+        self.assertEqual(len(answer["warnings"]), 1)
+        self.assertIn("finishRun names no recording", answer["warnings"][0])
 
     def test_every_open_check_fits_a_report_and_a_plan_with_too_many_says_how_to_go_on(self):
         difficulty = "Finished in one run."
@@ -260,7 +262,8 @@ class BuildReport(unittest.TestCase):
         )
         self.assertTrue(answer["ok"], answer)
         self.assertEqual(["asset" in change for change in answer["report"]["changes"]], [False, False, False, True])
-        self.assertEqual(len(answer["warnings"]), 3)
+        self.assertEqual(len(answer["warnings"]), 4)
+        self.assertEqual(answer["warnings"][-1], report_plan.NO_RUN)
 
     def test_without_a_project_no_asset_is_kept(self):
         with mock.patch.object(hermes_host, "_chat_project", lambda *_ids: None):
@@ -317,6 +320,7 @@ class BuildReport(unittest.TestCase):
                 "untested",
                 "checks",
                 "difficulty",
+                "finishRun",
                 "notes",
                 "suggestions",
                 "project",

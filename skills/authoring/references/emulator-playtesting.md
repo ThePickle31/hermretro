@@ -20,6 +20,13 @@ chromatic_emulator_audio {}
 chromatic_emulator_close {}
 ```
 
+Record (`recording:{}`) only the runs that need it: the one run from power-on
+to the ending, recorded from its first frame because the build report names it
+([finishable](../../rom-debugging/SKILL.md#finishable)), and an attempt you
+will save checkpoints in or replay onto a rebuild. `recording:{}` always boots
+fresh, and a project's recordings folder holds about 16 at the default 64 MiB
+before new ones are refused, so leave it off for quick looks.
+
 ## Steps and observations
 
 A step takes one complete held-button set with its frames, or an ordered

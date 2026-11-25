@@ -147,27 +147,36 @@ See [replay after a rebuild](references/recorded-playtesting.md#replay-after-a-r
 
 An unchanged ROM reuses its session; use `restart:true` for an intentional fresh
 boot and `chromatic_emulator_close {}` before selecting another project. For
-branching an attempt, see [recordings and checkpoints](references/recorded-playtesting.md):
-save only in a recorded session after a step that ends with `[]` for at least
-one frame, and restore only into the identical ROM and runtime, including the
-worker hash. A checkpoint never crosses a rebuild: replay instead.
+branching an attempt, see [recordings and checkpoints](references/recorded-playtesting.md).
+Checkpoints need a recording: boot with `recording:{}` before playing to where
+you will save, or every save is refused. Save after a step that ends with `[]`
+for at least one frame, and restore only into the identical ROM and runtime,
+including the worker hash. A checkpoint never crosses a rebuild: replay instead.
 
 ## Finishable
 
 A game is **finishable** when one run from power-on reaches its ending on the
 exact ROM the user gets, with no checkpoint restores, save-state loads, memory
-writes or debug shortcuts in between. Prove it once all of the game is in: boot
-that ROM fresh with `restart:true` and `recording:{}`, play to the ending, and
-keep the recording as the evidence. Checkpoints are fine while finding a bug,
-but a route pieced together from them shows each part works, not that the game
-can be finished. Every rebuild needs the run again; a run on an earlier ROM
-does not count.
+writes or debug shortcuts in between. Prove it once all of the game is in.
+Start the recording before the run, never after: boot that ROM fresh with
+`restart:true` and `recording:{}`, play to the ending, then stop the recording
+with `chromatic_emulator_recording {"action":"stop","outcome":"passed"}` (or
+`failed`, with the reason) and keep its `recordingPath`: it is the evidence.
+Checkpoints are fine while finding a bug, but a route pieced together from them
+shows each part works, not that the game can be finished, and a recording with
+a restore in it is no finishable run. Every rebuild needs the run again; a run
+on an earlier ROM does not count.
 
 From that run, report the difficulty in `chromatic_build_report`: time to
-finish, deaths or retries and where, and what you tuned. For a game with a test
-plan, the report gives each open check its result on this ROM (`not run` for
-any you did not play on it) and the run is the plan's finishable check. With no
-such run on this ROM (the ending unreachable, the run skipped, a game with no
+finish, deaths or retries and where, and what you tuned, and give its
+`recordingPath` as `finishRun`. The report checks that recording: it must be in
+the project, made on the game's ROM as it is now, stopped, and free of
+checkpoint restores. For a game with a test plan, the report gives each open
+check its result on this ROM (`not run` for any you did not play on it) and the
+run is the plan's finishable check (F1): an F1 `passed` or `failed` with no
+`finishRun` is refused, and so is a `passed` one whose recording was not stopped
+with `outcome:"passed"` (closing the emulator records no outcome). With no such
+run on this ROM (the ending unreachable, the run skipped, a game with no
 ending), report what happened instead, as `hermretro:game-planning` step 6 says.
 
 ## Diagnose and report

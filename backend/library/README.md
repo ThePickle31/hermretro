@@ -15,7 +15,8 @@
 
 - RPCs (`rpcs.py`): `games`, `game_build_status`, `game_thumb`, `player`, `presentations`, `captures`, `capture_image`, `build`.
 - Tools (`tools.py`): `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report` (in `report_tools.py`,
-  held to the game's test plan by `plan_checks.py`).
+  held to the game's test plan by `report_plan.py` and `plan_checks.py`, its finishable run's recording read by
+  `finish_run.py`).
 - Hooks (`hooks.py`): `pre_llm_call` — tells a game's Build conversation which game it works on; `pre_tool_call` —
   blocks Hermes's `write_file` and `patch` from writing into a game's `.hermretro/`.
 - Events emitted: `library.build_reported` (`game`: the game's id, `None` when the chat has no project; `assets`: the images the card shows, which assets keeps), `library.game_presented`. Listens to: none.
