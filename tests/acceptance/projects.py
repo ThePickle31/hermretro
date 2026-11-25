@@ -15,6 +15,7 @@ from backend import library
 from backend.broker.engine import EngineProcess
 from backend.library import game_card, layout
 from backend.system import paths
+from tests.acceptance import build_output
 from tests.acceptance.fixture import OWNER_A, OWNER_B, diff, snapshot, structured
 
 
@@ -85,6 +86,7 @@ def create_and_edit(suite, client_a, client_b):
         ),
         layout=made,
     )
+    check_new_project_defaults(suite, client_b)
     snap_a0, snap_b0 = snapshot(suite.project_a), snapshot(suite.project_b)
 
     inspect_a = client_a.call(OWNER_A, "variable_inspect")
@@ -110,6 +112,35 @@ def create_and_edit(suite, client_a, client_b):
         edit=structured(edit_a) if len(json.dumps(structured(edit_a))) < 1500 else "large",
     )
     return first_status, edited_source
+
+
+def check_new_project_defaults(suite, client_b):
+    authors = {
+        root.name: json.loads((root / "project.gbsproj").read_text()).get("author")
+        for root in (suite.project_a, suite.project_b)
+    }
+    fields = {
+        item["id"]: item["value"]
+        for item in json.loads((suite.project_b / "project" / "engine_field_values.gbsres").read_text())[
+            "engineFieldValues"
+        ]
+    }
+    speed = client_b.call(OWNER_B, "settings_update", {"settings": {"startMoveSpeed": 2}})
+    settings = json.loads((suite.project_b / "project" / "settings.gbsres").read_text())
+    platformer = {key: fields.get(key) for key in ("FEAT_PLATFORM_COYOTE_TIME", "FEAT_PLATFORM_DROP_THROUGH")}
+    suite.check(
+        "N1",
+        "A new game has no template author and GB Studio's platformer defaults, and settings_update sets the "
+        "player's move speed",
+        set(authors.values()) == {""}
+        and set(platformer.values()) == {1}
+        and speed.get("ok")
+        and not speed["result"].get("isError")
+        and settings.get("startMoveSpeed") == 2,
+        authors=authors,
+        platformer=platformer,
+        start_move_speed=settings.get("startMoveSpeed"),
+    )
 
 
 def build_roms(suite, client_a, client_b):
@@ -154,6 +185,7 @@ def build_roms(suite, client_a, client_b):
     )
 
     plain = structured(builds["A"]["response"])
+    build_output.check(suite, client_b, plain)
     live_1 = client_a.call(OWNER_A, "rom_build", {}, policy={"live_player": True})
     live_1["played"] = played_hash(suite.project_a)
     live_2 = client_a.call(OWNER_A, "rom_build", {}, policy={"live_player": True})

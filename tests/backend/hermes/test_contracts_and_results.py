@@ -57,7 +57,15 @@ class ContractTests(unittest.TestCase):
         self.assertNotIn("Codex", preview)
         # The physical feed has no Studio surface: it keeps the in-app browser wording.
         self.assertIn("desktop_preview tool", schemas["chromatic_device_capture"])
-        self.assertNotIn("Codex", schemas["chromatic_device_capture"])
+        # The engine's own text names Hermes: no tool or parameter description sends the agent to Codex.
+        for schema in contracts.hermes_schemas():
+            self.assertNotIn("Codex", json.dumps(schema), schema["name"])
+            self.assertNotIn("built-in browser", json.dumps(schema), schema["name"])
+
+    def test_settings_update_sets_the_player_start_move_speed(self):
+        schemas = {s["name"]: s["parameters"] for s in contracts.hermes_schemas()}
+        speed = schemas["chromatic_settings_update"]["properties"]["settings"]["properties"]["startMoveSpeed"]
+        self.assertEqual((speed["type"], speed["minimum"], speed["maximum"]), ("number", 1 / 32, 255 / 32))
 
     def test_bundled_engine_matches_its_manifest(self):
         check = paths.verify_engine()
