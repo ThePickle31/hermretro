@@ -35,24 +35,27 @@ def isolated_home(test) -> SimpleNamespace:
     ``HERMRETRO_HOME``), ``data`` (what ``host._data_dir()`` returns, created; its profile home is
     ``data.parents[1]``, so session lookups read nothing real either) and ``runtime`` (its own short
     ``HERMRETRO_RUNTIME_DIR`` under /tmp, removed afterwards)."""
-    tmp = tempfile.TemporaryDirectory()
-    test.addCleanup(tmp.cleanup)
-    base = Path(tmp.name).resolve()
-    home, data = base / "hermretro", base / "profile" / "plugin-data" / "hermretro"
-    data.mkdir(parents=True)
-    # Its own runtime folder, short enough for the broker socket wherever the temp base is (paths falls back
-    # to the shared /tmp/hermretro-<uid> for a deep home, and an inherited HERMRETRO_RUNTIME_DIR would win).
-    runtime = tempfile.mkdtemp(prefix="hrt-", dir="/tmp")
-    test.addCleanup(shutil.rmtree, runtime, ignore_errors=True)
-    environ = {key: value for key, value in os.environ.items() if key not in FOLDER_OVERRIDES}
-    environ.update(HERMRETRO_HOME=str(home), HERMRETRO_RUNTIME_DIR=runtime)
-    for patch in (
-        mock.patch.dict(os.environ, environ, clear=True),
-        throwaway_profile(base),
-    ):
-        patch.start()
-        test.addCleanup(patch.stop)
-    return SimpleNamespace(base=base, home=home, data=data, runtime=Path(runtime))
+    return test.enterContext(home_isolation())
+
+
+@contextmanager
+def home_isolation():
+    """``isolated_home`` as a context manager, for code that is not a test case (the acceptance suite's studio
+    chat)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp).resolve()
+        home, data = base / "hermretro", base / "profile" / "plugin-data" / "hermretro"
+        data.mkdir(parents=True)
+        # Its own runtime folder, short enough for the broker socket wherever the temp base is (paths falls back
+        # to the shared /tmp/hermretro-<uid> for a deep home, and an inherited HERMRETRO_RUNTIME_DIR would win).
+        runtime = tempfile.mkdtemp(prefix="hrt-", dir="/tmp")
+        environ = {key: value for key, value in os.environ.items() if key not in FOLDER_OVERRIDES}
+        environ.update(HERMRETRO_HOME=str(home), HERMRETRO_RUNTIME_DIR=runtime)
+        try:
+            with mock.patch.dict(os.environ, environ, clear=True), throwaway_profile(base):
+                yield SimpleNamespace(base=base, home=home, data=data, runtime=Path(runtime))
+        finally:
+            shutil.rmtree(runtime, ignore_errors=True)
 
 
 def throwaway_profile(base: Path):
