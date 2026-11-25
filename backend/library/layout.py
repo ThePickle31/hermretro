@@ -6,7 +6,7 @@ alone, or the game with its source) and updated without being reshaped. Standard
       build/game.gbc  (build/game.gb for a monochrome project)              game: its one ROM
       <name>.gbsproj  project/  assets/  plugins/  art/                     source: a publish with the source
       .hermretro/                                                           this machine's record, never published
-      docs/ and everything else (build/'s other files, captures/, …)       local, never published
+      docs/ scratch/ and everything else (build/'s other files, captures/, …)  local, never published
 
 A game installed without its source holds only the game files; ``game.json``'s ``rom`` names its ROM.
 
@@ -29,8 +29,9 @@ from .project import GAME_FILES, ROM_STEM, _json, canonical_rom, project_file, p
 
 # What a publish with the source adds: the folders below and the project's .gbsproj.
 SOURCE_FOLDERS = ("project", "assets", "plugins", "art")
-# Folders hermretro, the engine and the agent write that stay on this machine (docs/ holds the agent's plans).
-LOCAL_FOLDERS = ("build", "captures", "save-states", "artifacts", "node_modules", "docs", ".hermretro")
+# Folders hermretro, the engine and the agent write that stay on this machine (docs/ holds the agent's plans,
+# scratch/ its helper scripts and working files).
+LOCAL_FOLDERS = ("build", "captures", "save-states", "artifacts", "node_modules", "docs", "scratch", ".hermretro")
 # The only names a game's ROM has.
 GAME_ROMS = (ROM_STEM + ".gbc", ROM_STEM + ".gb")
 
@@ -122,8 +123,9 @@ def new_identity(root: Path) -> str:
 def ensure(root: Path) -> list[str]:
     """Fill in what the game lacks: its id (kept in ``.hermretro/``, copied into ``game.json``), ``gameVersion``
     and ``rom`` in ``game.json``, a README made from the card, ``CHANGELOG.md`` and ``.gitignore``. Rewrites only
-    files it made itself and changes nothing that is already right; never moves or deletes anything. A game
-    installed without its source only has its id kept. Returns the names it wrote."""
+    files it made itself (a ``.gitignore`` of the user's own only gains ``/scratch/``) and changes nothing that is
+    already right; never moves or deletes anything. A game installed without its source only has its id kept. Returns
+    the names it wrote."""
     root = Path(root)
     card = game_card.load(root)
     project = project_file(root) is not None
@@ -157,9 +159,25 @@ def ensure(root: Path) -> list[str]:
             written.append("README.md")
     if not (root / "CHANGELOG.md").exists() and write_text(root / "CHANGELOG.md", CHANGELOG_HEAD):
         written.append("CHANGELOG.md")
-    if replaceable(root / ".gitignore") and write_text(root / ".gitignore", gitignore(root)):
+    ignore = root / ".gitignore"
+    wrote = write_text(ignore, gitignore(root)) if replaceable(ignore) else _ignore_scratch(ignore)
+    if wrote:
         written.append(".gitignore")
     return written
+
+
+def _ignore_scratch(path: Path) -> bool:
+    """Add ``/scratch/`` to a ``.gitignore`` of the user's own that has no line for ``scratch`` (a link or an unreadable
+    file is left alone). Returns whether it wrote."""
+    if path.is_symlink():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return False
+    if any(line.strip().lstrip("!").strip("/") == "scratch" for line in text.splitlines()):
+        return False
+    return write_text(path, text + ("\n" if text and not text.endswith("\n") else "") + "/scratch/\n")
 
 
 def replaceable(path: Path) -> bool:

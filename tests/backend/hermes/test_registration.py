@@ -3,6 +3,7 @@ in every profile the plugin is on (the profile it was installed into sets the st
 
 import hashlib
 import importlib.util
+import json
 import os
 import re
 import sys
@@ -75,6 +76,10 @@ class Registration(unittest.TestCase):
         patch = plugin_storage(self.plugin, self.profile_home)
         patch.start()
         self.addCleanup(patch.stop)
+        # Registering never writes a config through a Hermes these tests may run beside.
+        patch = mock.patch.object(self.plugin.studio_profile.hermes_api, "write_profile_config")
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def recorded(self, profile, env=None):
         ctx = Recorder(profile)
@@ -139,6 +144,29 @@ class Registration(unittest.TestCase):
             soul.write_text("edited by the user")
             self.register("hermretro")
             self.assertEqual(soul.read_text(), "edited by the user")
+
+    def test_the_studio_profile_gets_this_releases_compaction_cap_in_place_of_an_older_one(self):
+        studio = self.plugin.studio_profile
+        config = {"compression": {"threshold_tokens": 200000}}
+
+        def write(home, changed):
+            self.assertEqual(home, self.profile_home)
+            config.update(changed)
+
+        with (
+            mock.patch.object(studio.hermes_api, "read_profile_config", lambda _home: json.loads(json.dumps(config))),
+            mock.patch.object(studio.hermes_api, "write_profile_config", side_effect=write) as written,
+        ):
+            self.register("default")
+            self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+            self.assertEqual(written.call_count, 0, "only the hermretro profile's own config, even when opted in")
+            self.register("hermretro")
+            self.assertEqual(config, {"compression": {"threshold_tokens": studio.COMPACT_AT_TOKENS}})
+            config["compression"]["threshold_tokens"] = None  # the user's: the ratio alone decides
+            self.register("hermretro")
+            self.assertEqual(written.call_count, 1)
+        with mock.patch.object(studio.hermes_api, "read_profile_config", side_effect=ImportError("no Hermes")):
+            self.assertEqual(len(self.register("hermretro")["tool"]), len(DECLARED_TOOLS))
 
     def test_registration_goes_on_when_hermes_storage_cannot_be_asked(self):
         def no_storage():

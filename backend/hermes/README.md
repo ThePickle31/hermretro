@@ -1,6 +1,6 @@
 # backend/hermes
 
-The Hermes layer: the one door to Hermes itself (`api.py`, every Hermes name in `USED`), how features declare what they add (`declare.py`), the helpers every feature's Hermes side shares and the engine tool handler (`host.py`), the engine's pinned tool contracts (`contracts.py`), result shaping (`results.py`) and the helpers any feature's tool uses (`tool_args.py`: `tool_error`, `tool_project`). Importing it hands Hermes's answer for its home to `backend.system` (`__init__.py`).
+The Hermes layer: the one door to Hermes itself (`api.py`, every Hermes name in `USED`), how features declare what they add (`declare.py`), the helpers every feature's Hermes side shares and the engine tool handler (`host.py`), the engine's pinned tool contracts (`contracts.py`), result shaping (`results.py`), where a chat stands after a compaction (`chat_state.py`) and the helpers any feature's tool uses (`tool_args.py`: `tool_error`, `tool_project`). Importing it hands Hermes's answer for its home to `backend.system` (`__init__.py`).
 
 Edit Build instructions in `workflow.py`. The system prompt, per-game hook and engine results share its wording. Bundling derives the Desktop fallback for older backends from its two start modes. The bundle watch rebuilds it when `workflow.py` changes. The studio personality lives in `profile/SOUL.md`.
 
@@ -8,7 +8,7 @@ Edit Build instructions in `workflow.py`. The system prompt, per-game hook and e
 
 - RPCs: none.
 - Tools (`tools.py`): the 85 engine tools from `engine/pins/<version>/tools.json`, each as `chromatic_<name>`.
-- Hooks (`hooks.py`): `pre_tool_call` (hardware approvals), `subagent_start`, `subagent_stop`.
+- Hooks (`hooks.py`): `pre_tool_call` (hardware approvals), `subagent_start`, `subagent_stop`; `post_tool_call` and `post_compaction` (`chat_state.py`: after a context compaction, the chat's next engine tool result leads with `hermretroContext`, where it stands: project, last build, emulator ROM and frame, recording, skill pages; the engine tool handler adds it).
 - Skills and the prompt section (`prompt.py`): every `skills/<name>/SKILL.md`, the `hermretro.guide` section.
 - Events: none.
 

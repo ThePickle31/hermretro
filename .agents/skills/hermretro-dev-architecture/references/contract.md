@@ -10,9 +10,22 @@
   replaces a `SOUL.md` an earlier release shipped (`studio_profile.refresh_soul`: its hash is in `OLDER_SOULS`; an
   edited one or a link is kept). Fresh creation seeds `agent.max_turns` to 1000 and installs the studio SOUL
   before publishing the profile. Repair keeps any existing turn limit, including a cleared one, and any custom
-  or missing SOUL. Creation and repair set `compression.threshold_tokens` to 200,000 (`COMPACT_AT_TOKENS`) unless the
-  profile has its own value, `null` included. Checked by `tests/backend/setup/test_studio_profile.py` and
+  or missing SOUL. The compaction cap `compression.threshold_tokens` (Hermes compacts at the lower of it and its
+  ratio) is set to 300,000 (`COMPACT_AT_TOKENS`) where the profile's raw config has no such key or a value an earlier
+  release set (`OLDER_COMPACT_AT`): by creation and repair, and by registering in the `hermretro` profile
+  (`studio_profile.refresh_compaction_cap`, through `api.write_profile_config`), so a Studio-only or
+  `hermes plugins update` gets it too. Any other value is the user's and is kept, an explicit `null` (the ratio alone
+  decides) included. Checked by `tests/backend/setup/test_studio_profile.py` and
   `tests/backend/hermes/test_registration.py`.
+- After a context compaction (any kind but `prune_tool_results`), the chat's next engine tool result that reached the
+  engine leads with `hermretroContext`, images or not: the project, the last build and its SHA-256, the live
+  emulator session's ROM and frame, its recording (path, session id, branch, status) and the skill pages loaded with
+  `skill_view`, after that result is taken in (`backend/hermes/chat_state.py`, per process; the engine tool handler
+  adds it, `results.encode`). Emulator state follows the tool and action: `emulator_run`, `emulator_status` and a
+  checkpoint restore describe the whole session (no recording in them clears it), `emulator_replay` the ROM it was
+  given, `emulator_recording` only `stop` or the live attempt, and `emulator_close` ends the session and leaves its
+  recording stopped. A delegated subagent has a state of its own (`subagent_start`). Checked by
+  `tests/backend/hermes/test_chat_state.py`.
 - Who declares what: each backend feature, in its own folder (`backend/<feature>/rpcs.py`, `tools.py`,
   `hooks.py`; the table in `.agents/skills/hermretro-dev-architecture/references/architecture.md`, "The agent half"). Adding an RPC: `@rpc("name")` in the feature's
   `rpcs.py` and a section below; `node tools/bundle/bundle.mjs` regenerates the page's name list. Adding a plugin tool: a `Tool(...)` in the
@@ -371,7 +384,8 @@ and `structuredContent.success === true`, not a `sourcePath` build) of a game in
 copies the project to `<plugin data>/snapshots/<game id>/<ms>/files/` with `<ms>/snapshot.json`
 `{ at, game, root, files, bytes, reason: "build" | "before-restore", from?, backup?, fingerprint, builds: [ms…], buildRefs? }`.
 Never copied, compared, deleted or restored: top-level `build/`, `artifacts/`, `.git/`, `node_modules/`,
-`captures/`, `save-states/`, temporary files (`*.part`, `*.tmp`, …), every symlink, and every folder below the
+`captures/`, `save-states/`, `scratch/` (the agent's helper scripts and working files; on a volume that ignores case,
+each of these top-level folders in any spelling, `snapshots.ignores_case`), temporary files (`*.part`, `*.tmp`, …), every symlink, and every folder below the
 project that holds a `.gbsproj` of its own (in any case, a file or a link, as the engine finds a project: another
 game's project, which restoring this one never changes, even
 when an older snapshot holds files there from before it was a game). A project over 64 MB

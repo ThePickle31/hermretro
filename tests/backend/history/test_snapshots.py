@@ -42,7 +42,7 @@ class Snapshots(unittest.TestCase):
         self.store = self.base / "snapshots"
         (self.root / "assets" / "sprites").mkdir(parents=True)
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"robin-1")
-        for folder in ("artifacts", ".git", "node_modules", "captures"):
+        for folder in ("artifacts", ".git", "node_modules", "captures", "scratch"):
             (self.root / folder).mkdir(exist_ok=True)
             (self.root / folder / "junk.bin").write_bytes(b"x")
         (self.root / "assets" / "half.png.part").write_bytes(b"temp")
@@ -79,6 +79,24 @@ class Snapshots(unittest.TestCase):
         snapshots.take(self.store, "g", self.root, "build", now_ms=3000)
         kept = [name for item in snapshots.list_snapshots(self.store, "g") for name in self.files_of(item["id"])]
         self.assertFalse(any(name.startswith(".hermretro") for name in kept))
+
+    def test_on_a_volume_that_ignores_case_an_excluded_folder_is_excluded_in_any_spelling(self):
+        swapped = self.root.parent / self.root.name.swapcase()
+        self.assertEqual(snapshots.ignores_case(self.root), swapped.exists(), "judged by the volume itself")
+        self.assertFalse(snapshots.ignores_case(Path("/")), "a name without letter case")
+        (self.root / "scratch").rename(self.root / "Scratch")
+        with mock.patch.object(snapshots, "ignores_case", return_value=False):
+            snapshots.take(self.store, "g", self.root, "build", now_ms=1000)  # Scratch/ is its own folder here
+        self.assertIn("Scratch/junk.bin", self.files_of("1000"))
+        (self.root / "Scratch" / "junk.bin").write_bytes(b"working")
+        (self.root / "Scratch" / "tiles.py").write_text("# helper")
+        with mock.patch.object(snapshots, "ignores_case", return_value=True):
+            snapshots.take(self.store, "g", self.root, "build", now_ms=2000)
+            answer = snapshots.restore(self.store, "g", self.root, "1000", now_ms=3000)
+        self.assertNotIn("Scratch/junk.bin", self.files_of("2000"))
+        self.assertNotIn("problems", answer)
+        self.assertEqual((self.root / "Scratch" / "junk.bin").read_bytes(), b"working")
+        self.assertTrue((self.root / "Scratch" / "tiles.py").is_file())
 
     def test_an_unchanged_project_adds_its_build_to_the_newest_snapshot(self):
         snapshots.take(self.store, "g", self.root, "build", now_ms=1000)
@@ -131,9 +149,10 @@ class Snapshots(unittest.TestCase):
         self.assertFalse((self.root / "project" / "new").exists())  # emptied folder gone
         self.assertTrue(os.path.islink(self.root / "assets" / "link.png"))  # links untouched
         self.assertEqual((self.base / "outside.txt").read_text(), "keep me")
-        for folder in ("artifacts", ".git", "node_modules", "captures", "build"):
+        for folder in ("artifacts", ".git", "node_modules", "captures", "scratch", "build"):
             self.assertTrue((self.root / folder).is_dir(), folder)
         self.assertTrue((self.root / "captures" / "junk.bin").is_file())
+        self.assertTrue((self.root / "scratch" / "junk.bin").is_file())
         backup = json.loads((self.store / "g" / "5000" / "snapshot.json").read_text())
         self.assertEqual((backup["reason"], backup["from"], backup["builds"]), ("before-restore", "1000", []))
         self.assertIn("assets/sprites/hawk.png", self.files_of("5000"))

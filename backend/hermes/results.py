@@ -19,6 +19,8 @@ from uuid import uuid4
 from .workflow import CHECKPOINT, DELIVER
 
 
+# Where the chat stands after a context compaction (``chat_state``), carried by the next result.
+CONTEXT_KEY = "hermretroContext"
 # What an agent does about an unexpected failure inside the plugin, whichever tool it came from.
 ADAPTER_ERROR_NEXT_STEP = (
     "This is a fault in hermretro, not in the game. Tell the user what failed; do not retry the same call blindly, "
@@ -51,8 +53,9 @@ def save_images(result: dict, directory: Path) -> list[dict]:
     return records
 
 
-def encode(response: dict, tool: str, image_dir: Path | None, attach_images: bool):
-    """Return a JSON string, or the Hermes multimodal envelope when images are attached."""
+def encode(response: dict, tool: str, image_dir: Path | None, attach_images: bool, context: str | None = None):
+    """Return a JSON string, or the Hermes multimodal envelope when images are attached. ``context`` (where the chat
+    stands, after a compaction) leads a result that reached the engine as ``hermretroContext``."""
     if response.get("denied"):
         denied = response["denied"]
         return json.dumps(
@@ -87,7 +90,8 @@ def encode(response: dict, tool: str, image_dir: Path | None, attach_images: boo
     result = response["result"]
     texts = [block.get("text", "") for block in result.get("content") or [] if block.get("type") == "text"]
     other = [block.get("type") for block in result.get("content") or [] if block.get("type") not in ("text", "image")]
-    payload: dict = {}
+    # First, so a preview or a shortened result still holds it.
+    payload: dict = {CONTEXT_KEY: context} if context else {}
     text = "\n".join(t for t in texts if t)
     structured = result.get("structuredContent")
     if result.get("isError"):

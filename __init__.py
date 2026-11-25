@@ -2,7 +2,8 @@
 
 Registration is fast and offline. It starts no process, downloads nothing and touches no USB:
 the broker and engine workers start lazily on the first tool call. In the hermretro profile it also puts this
-release's SOUL in place of an unedited older one.
+release's SOUL in place of an unedited older one, and its compaction cap where the profile has none or an earlier
+release's.
 
 Every backend feature declares what it adds (backend/<feature>/rpcs.py, tools.py, hooks.py, prompt.py; see
 backend/hermes/declare.py); this file registers them in the order of backend/features.py.
@@ -48,7 +49,7 @@ def register(ctx):
     if studio_profile.is_studio(profile):
         _register_agent(ctx, declared)
     if profile == studio_profile.STUDIO_PROFILE:  # never another profile, even one opted in for development
-        _refresh_soul()
+        _refresh_studio()
 
 
 def _register_agent(ctx, declared):
@@ -71,12 +72,16 @@ def _register_agent(ctx, declared):
             register_section(name, text, **options)
 
 
-def _refresh_soul():
-    """New chats read SOUL.md, so one an earlier release shipped is replaced however the plugin was updated. It never
-    stops registration."""
-    try:
-        studio_profile.refresh_soul(hermes_host._data_dir().parents[1])
-    except OSError:
-        logger.warning("hermretro could not update the hermretro profile's SOUL.md", exc_info=True)
-    except Exception:  # noqa: BLE001 - no Hermes storage to ask (an older Hermes, a test): the SOUL stays as it is
-        logger.debug("hermretro could not find the hermretro profile's SOUL.md", exc_info=True)
+def _refresh_studio():
+    """New chats read SOUL.md and the profile's config, so what an earlier release pinned there is replaced however the
+    plugin was updated. It never stops registration."""
+    for what, refresh in (
+        ("SOUL.md", studio_profile.refresh_soul),
+        ("compaction cap", studio_profile.refresh_compaction_cap),
+    ):
+        try:
+            refresh(hermes_host._data_dir().parents[1])
+        except OSError:
+            logger.warning("hermretro could not update the hermretro profile's %s", what, exc_info=True)
+        except Exception:  # noqa: BLE001 - no Hermes storage or config to ask (an older Hermes, a test): it stays as it is
+            logger.debug("hermretro could not find the hermretro profile's %s", what, exc_info=True)
