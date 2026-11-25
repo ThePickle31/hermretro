@@ -164,7 +164,7 @@ class StudioProfile(unittest.TestCase):
                 (staging, ("config", "set", "auxiliary.background_review.enabled", "false")),
                 (staging, ("config", "set", "curator.enabled", "false")),
                 (staging, ("config", "set", "approvals.mode", "smart")),
-                (staging, ("config", "set", "compression.threshold_tokens", "200000")),
+                (staging, ("config", "set", "compression.threshold_tokens", "300000")),
                 (staging, ("config", "set", "terminal.cwd", str((self.target / "workspace").resolve()))),
             ],
         )
@@ -173,7 +173,7 @@ class StudioProfile(unittest.TestCase):
             {
                 "model": {"provider": "example"},
                 "agent": {"max_turns": 1000},
-                "compression": {"threshold_tokens": 200000},
+                "compression": {"threshold_tokens": 300000},
             },
         )
         self.assertEqual(self.notifications, [self.target])
@@ -247,11 +247,12 @@ class StudioProfile(unittest.TestCase):
     def test_an_existing_studio_gets_the_compaction_cap_and_a_cap_of_its_own_is_kept(self):
         self.created()
         self.finish()
-        self.assertEqual(self.read_config(self.target)["compression"], {"threshold_tokens": 200000})
-        for unset in ({"threshold": 0.7}, {"threshold_tokens": None, "threshold": 0.7}):
+        self.assertEqual(self.read_config(self.target)["compression"], {"threshold_tokens": 300000})
+        # Unset, or the cap an earlier release set: the current one.
+        for unset in ({"threshold": 0.7}, {"threshold_tokens": None, "threshold": 0.7}, {"threshold_tokens": 200000}):
             (self.target / "config.yaml").write_text(json.dumps({"compression": unset}))
             self.finish()
-            self.assertEqual(self.read_config(self.target)["compression"], {**unset, "threshold_tokens": 200000})
+            self.assertEqual(self.read_config(self.target)["compression"], {**unset, "threshold_tokens": 300000})
         own = {"threshold_tokens": 350000, "threshold": 0.7}
         (self.target / "config.yaml").write_text(json.dumps({"compression": own}))
         self.commands.clear()

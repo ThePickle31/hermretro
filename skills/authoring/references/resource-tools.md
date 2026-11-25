@@ -91,9 +91,9 @@ atomicity. Concurrent external rollback conflicts surface as
 `TRANSACTION_RECOVERY_CONFLICT` instead of overwriting user changes.
 
 For a long batch, write the operations to a JSON file (a list of operations, or an object whose `operations` is
-that list) and pass its path as `operationsPath` instead of `operations`. The file must be inside the game's project
-or the profile's scratch folder (`<Hermes home>/cache/scratch`), at most 1 MiB; a relative path is read from the
-project folder. hermretro reads it in place of inline `operations`; everything else about the call is the same.
+that list) and pass its path as `operationsPath` instead of `operations`. Write it in the game's `scratch/` folder
+and pass the relative path (`scratch/ops.json`): a relative path is read from the project folder. The file must be
+inside the game's project (or the profile's shared scratch folder, `<Hermes home>/cache/scratch`), at most 1 MiB. hermretro reads it in place of inline `operations`; everything else about the call is the same.
 Leave the file unchanged between the `dryRun` call and the one that applies it, so what is applied is what was checked.
 
 ## Dialogue, assets and custom events

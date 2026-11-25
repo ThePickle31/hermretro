@@ -49,6 +49,7 @@ class Layout(unittest.TestCase):
         self.assertIn("/build/*", ignored)
         self.assertIn("!/build/game.gbc", ignored)
         self.assertIn("/.hermretro/", ignored)
+        self.assertIn("/scratch/", ignored)
         self.assertEqual(layout.ensure(self.root), [], "a second pass changes nothing")
         self.assertEqual(layout.check(self.root), {"ok": True, "problems": [], "warnings": []})
 
@@ -91,6 +92,7 @@ class Layout(unittest.TestCase):
         layout.ensure(self.root)
         (self.root / "notes.txt").write_text("ideas")
         (self.root / "captures").mkdir()
+        (self.root / "scratch").mkdir()  # the agent's helper scripts: a known local folder
         report = layout.check(self.root)
         self.assertTrue(report["ok"])
         self.assertEqual(
@@ -98,6 +100,7 @@ class Layout(unittest.TestCase):
         )
         self.assertEqual(layout.kind_of(self.root, "notes.txt"), "local")
         self.assertNotIn("notes.txt", release.files(self.root, source=True))
+        self.assertEqual(layout.kind_of(self.root, "scratch"), "local")
 
     def test_a_missing_project_or_unreadable_card_is_a_problem(self):
         (self.root / "game.json").write_text("{")

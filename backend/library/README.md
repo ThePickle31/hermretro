@@ -91,7 +91,8 @@ source, and updated without being reshaped:
   (`project.GAME_FILES`) and the ROM, `layout.game_rom(root)`: `project.canonical_rom(root)`, or for a game
   installed without its source the `build/game.gb[c]` its `game.json` names.
 - **source** (a publish with the source): the `.gbsproj`, `project/`, `assets/`, `plugins/`, `art/`.
-- **local** (never published): `build/` but the ROM, `docs/` (the agent's plans), `captures/`, `save-states/`,
+- **local** (never published): `build/` but the ROM, `docs/` (the agent's plans), `scratch/` (its helper scripts and
+  working files), `captures/`, `save-states/`,
   `artifacts/`, `node_modules/`, `.hermretro/`, and anything else (`check` warns about an unknown top-level entry).
 
 `layout.ensure(root)` runs when a project is created (`Registry.observe`), whenever the shelf describes a game

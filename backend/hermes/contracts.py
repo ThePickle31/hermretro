@@ -114,8 +114,8 @@ def hermes_schema(tool: dict) -> dict:
             "type": "string",
             "description": (
                 "Instead of operations: a JSON file holding them (a list, or an object with operations), inside the "
-                "game's project or Hermes's scratch folder (<Hermes home>/cache/scratch). A relative path is read "
-                "from the project folder."
+                "game's project (write it in its scratch/ folder) or Hermes's scratch folder (<Hermes home>/cache/"
+                "scratch). A relative path such as scratch/ops.json is read from the project folder."
             ),
         }
         parameters["required"] = [key for key in parameters.get("required", []) if key != "operations"]

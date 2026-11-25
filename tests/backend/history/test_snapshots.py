@@ -42,7 +42,7 @@ class Snapshots(unittest.TestCase):
         self.store = self.base / "snapshots"
         (self.root / "assets" / "sprites").mkdir(parents=True)
         (self.root / "assets" / "sprites" / "robin.png").write_bytes(b"robin-1")
-        for folder in ("artifacts", ".git", "node_modules", "captures"):
+        for folder in ("artifacts", ".git", "node_modules", "captures", "scratch"):
             (self.root / folder).mkdir(exist_ok=True)
             (self.root / folder / "junk.bin").write_bytes(b"x")
         (self.root / "assets" / "half.png.part").write_bytes(b"temp")
@@ -131,9 +131,10 @@ class Snapshots(unittest.TestCase):
         self.assertFalse((self.root / "project" / "new").exists())  # emptied folder gone
         self.assertTrue(os.path.islink(self.root / "assets" / "link.png"))  # links untouched
         self.assertEqual((self.base / "outside.txt").read_text(), "keep me")
-        for folder in ("artifacts", ".git", "node_modules", "captures", "build"):
+        for folder in ("artifacts", ".git", "node_modules", "captures", "scratch", "build"):
             self.assertTrue((self.root / folder).is_dir(), folder)
         self.assertTrue((self.root / "captures" / "junk.bin").is_file())
+        self.assertTrue((self.root / "scratch" / "junk.bin").is_file())
         backup = json.loads((self.store / "g" / "5000" / "snapshot.json").read_text())
         self.assertEqual((backup["reason"], backup["from"], backup["builds"]), ("before-restore", "1000", []))
         self.assertIn("assets/sprites/hawk.png", self.files_of("5000"))

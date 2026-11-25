@@ -38,14 +38,19 @@ Work in the creator's genuine `.gbsproj` / `.gbsres` project so the result stays
   `tool_call`: one `chromatic_*` call per `tool_call`. No `tool_search` is needed for a name you know. Independent
   `tool_call`s can go in one turn; one that needs another's result (a revision, the emulator's state) waits for the
   next turn.
-- After a context compaction, load this skill and the reference pages you were using again: the summary keeps
-  what you did, not how the tools work.
+- Read the table above, then open a reference page only when you reach the step that needs it, not every page up
+  front: whatever you load fills the context until a compaction drops it.
+- After a context compaction, your next tool result carries `hermretroContext`: the project, the last build, the
+  emulator's frame, the recording and the skill pages you had loaded. Load this skill again and, of those pages, only
+  the ones your next step needs: the summary keeps what you did, not how the tools work.
 - Read game data through the inspect tools above, never with `cat`, `grep` or a script over `.gbsres` or
   `.gbsproj` files, and never open another game's project as an example: the event cookbook and
   `chromatic_event_describe` have working events. The game's other files (`docs/game/`, your PNGs, captures) are
   yours to open.
-- For any helper code (drawing a PNG, computing collision rectangles), write a script file in Hermes's scratch
-  folder (`<Hermes home>/cache/scratch`, also `$TMPDIR`) and run it. One-shot chats refuse `python -c` and heredocs.
+- For any helper code (drawing a PNG, computing collision rectangles, writing a `chromatic_scene_apply`
+  operations file), write a script file in the game's own `scratch/` folder and run it; create the project first.
+  `scratch/` stays on this machine and out of builds, publishes and build history, and no other chat writes there.
+  One-shot chats refuse `python -c` and heredocs.
 
 If the plugin needs setup or its tools cannot start, use the [setup skill](../setup/SKILL.md) first. Creating or iterating a playable game needs `runtime,build`, including its browser preview. Use runtime alone only for source inspection or edits that do not require a build; add `emulator` for local stepped play. Carry necessary authorized setup through installation and callable tools, then return to the requested game. Do not stop at a passive doctor report or ask the user to install Node/npm manually.
 
@@ -80,6 +85,8 @@ unknown outcomes first. Do not arbitrarily reload or autoplay.
 For example, to make a door go to another room: find both scene IDs, inspect the trigger and destination collision, insert a typed `chromatic_script_transition` using a valid landing tile, then build and directly check that entering and leaving the door works if gameplay verification is in scope.
 
 ## Choose the relevant detail
+
+Open each page when a step needs it.
 
 - [Native resource layout and tool examples](references/project-authoring.md): scenes, actors, events, variables, collision, palettes, settings, and focused edits.
 - [Resource tools](references/resource-tools.md): every authoring tool by resource, relationship queries, `chromatic_scene_apply` batches and operations files.

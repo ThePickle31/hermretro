@@ -6,7 +6,7 @@ alone, or the game with its source) and updated without being reshaped. Standard
       build/game.gbc  (build/game.gb for a monochrome project)              game: its one ROM
       <name>.gbsproj  project/  assets/  plugins/  art/                     source: a publish with the source
       .hermretro/                                                           this machine's record, never published
-      docs/ and everything else (build/'s other files, captures/, …)       local, never published
+      docs/ scratch/ and everything else (build/'s other files, captures/, …)  local, never published
 
 A game installed without its source holds only the game files; ``game.json``'s ``rom`` names its ROM.
 
@@ -29,8 +29,9 @@ from .project import GAME_FILES, ROM_STEM, _json, canonical_rom, project_file, p
 
 # What a publish with the source adds: the folders below and the project's .gbsproj.
 SOURCE_FOLDERS = ("project", "assets", "plugins", "art")
-# Folders hermretro, the engine and the agent write that stay on this machine (docs/ holds the agent's plans).
-LOCAL_FOLDERS = ("build", "captures", "save-states", "artifacts", "node_modules", "docs", ".hermretro")
+# Folders hermretro, the engine and the agent write that stay on this machine (docs/ holds the agent's plans,
+# scratch/ its helper scripts and working files).
+LOCAL_FOLDERS = ("build", "captures", "save-states", "artifacts", "node_modules", "docs", "scratch", ".hermretro")
 # The only names a game's ROM has.
 GAME_ROMS = (ROM_STEM + ".gbc", ROM_STEM + ".gb")
 
