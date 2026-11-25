@@ -24,7 +24,13 @@ from ..system import paths
 from . import api as hermes_api, chat_state, contracts, results
 
 # try_connect is used by the feature modules as host.try_connect, so a test's patch here reaches them.
-from ..broker import BrokerUnavailable, OtherCopyBusy, ensure_broker, try_connect  # noqa: F401 - used as host.try_connect (above)
+from ..broker import (  # noqa: F401 - used as host.try_connect (above)
+    BrokerRestarting,
+    BrokerUnavailable,
+    OtherCopyBusy,
+    ensure_broker,
+    try_connect,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +122,33 @@ def _deliver(response: dict, name: str, context: str | None = None):
 # How many numbered folders a new game tries when other chats keep taking the free one.
 NAME_ATTEMPTS = 5
 
+# How long, in all, a tool call waits for a broker of older code to finish its work after an update (it then stops,
+# and this call starts the new one), and how often it asks.
+RESTART_WAIT = 120.0
+RESTART_POLL = 1.0
+
+
+def _broker_for_call():
+    """The broker for an engine tool call. While one of older code finishes its work and makes way, this waits for the
+    next one, up to RESTART_WAIT in all; a connection lost meanwhile is part of that handoff."""
+    deadline = time.monotonic() + RESTART_WAIT
+    restarting = None
+    while True:
+        try:
+            return ensure_broker(deadline=deadline)
+        except OtherCopyBusy:
+            raise
+        except BrokerRestarting as error:
+            if not error.waits:
+                raise
+            restarting = error
+        except BrokerUnavailable:
+            if restarting is None:
+                raise
+        if deadline - time.monotonic() <= RESTART_POLL:
+            raise restarting
+        time.sleep(RESTART_POLL)
+
 
 def _destination_taken(response: dict) -> bool:
     result = response.get("result") if response.get("ok") else None
@@ -204,7 +237,7 @@ def make_tool_handler(ctx, tool: dict):
                 policy["scratch_dir"] = str(scratch) if scratch else None
             # New games live in the Studio's games folder unless the user asked for another place.
             automatic = original in contracts.CREATORS and not args.get("destinationPath")
-            with ensure_broker() as client:
+            with _broker_for_call() as client:
                 for _attempt in range(NAME_ATTEMPTS):
                     if automatic:
                         paths.games_dir(create=True)
@@ -230,6 +263,17 @@ def make_tool_handler(ctx, tool: dict):
             return _deliver(response, name, context)
         except OtherCopyBusy as error:
             return json.dumps(_other_copy_busy(error, conversation_id, session_id))
+        except BrokerRestarting as error:
+            again = "in a minute" if error.waits else "in a few minutes; if it still answers this, tell the user"
+            return json.dumps(
+                {
+                    "error": f"{error} Nothing was run.",
+                    "code": "RESTARTING",
+                    "dispatched": False,
+                    "nextStep": f"Call it again {again}. Do not stop or restart hermretro's background processes "
+                    "yourself. " + _STAY_IN_TOOLS,
+                }
+            )
         except BrokerUnavailable as error:
             return json.dumps(
                 {

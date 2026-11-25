@@ -33,7 +33,7 @@ class Handler(socketserver.StreamRequestHandler):
             broker.connections += 1
         try:
             for raw in self.rfile:
-                request = None
+                request, admitted = None, False
                 broker.last_activity = time.monotonic()
                 try:
                     request = json.loads(raw)
@@ -65,11 +65,13 @@ class Handler(socketserver.StreamRequestHandler):
                             "install_start_monotonic": True,
                             "temp_ok": host_os.engine_temp_ready(sanitized_environment()),
                         }
-                    elif request.get("op") == "call":
-                        request["_client_pid"] = peer_pid  # kernel-reported, for the trace only
-                        response = broker.call(request)
                     else:
-                        response = broker.control(request)
+                        admitted = broker.admit(request)  # counted until its answer is written (below)
+                        if request.get("op") == "call":
+                            request["_client_pid"] = peer_pid  # kernel-reported, for the trace only
+                            response = broker.call(request)
+                        else:
+                            response = broker.control(request)
                 except Denied as denial:
                     broker.trace(
                         event="denied",
@@ -84,8 +86,14 @@ class Handler(socketserver.StreamRequestHandler):
                 except Exception as error:  # surface, never hide
                     broker.trace(event="broker_error", error=f"{type(error).__name__}: {error}"[:300])
                     response = {"ok": False, "dispatched": None, "error": f"{type(error).__name__}: {error}"}
-                self.wfile.write((json.dumps(response, separators=(",", ":")) + "\n").encode())
-                self.wfile.flush()
+                delivered = False
+                try:
+                    self.wfile.write((json.dumps(response, separators=(",", ":")) + "\n").encode())
+                    self.wfile.flush()
+                    delivered = True
+                finally:
+                    if admitted:
+                        broker.answered(response, delivered)
                 if not authenticated or broker.stopping.is_set():
                     break
         except (BrokenPipeError, ConnectionResetError):

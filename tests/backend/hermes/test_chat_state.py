@@ -125,7 +125,7 @@ class ChatState(unittest.TestCase):
         ctx = mock.Mock()
         ctx.get_config = lambda key, default=None: default
         with (
-            mock.patch.object(host, "ensure_broker", lambda: FakeBrokerClient(step)),
+            mock.patch.object(host, "ensure_broker", lambda **_: FakeBrokerClient(step)),
             mock.patch.object(host, "_attach_images", lambda: True),
             mock.patch.object(host, "_chat_project", return_value="/games/Lantern 2") as chat_project,
         ):

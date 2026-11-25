@@ -2,7 +2,7 @@
 
 Every worker inherits the broker's Node.js and temporary folder. A versioned Node replaced at another path, or a
 TMPDIR fixed and Hermes restarted, leaves a broker that survived the restart (Linux keeps it in its own scope)
-failing every new worker: its handshake says so, and the client replaces it unless it still runs someone's game.
+failing every new worker: its handshake says so, and the client replaces it, after the work it still runs.
 """
 
 import os
@@ -15,10 +15,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.broker import client, server  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker import client, lifecycle, server  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.lane import Denied  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.broker.test_broker_fingerprint import Running  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.broker.test_broker_fingerprint import Running, launched  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 
@@ -45,6 +45,7 @@ class StaleWorkerSetup(unittest.TestCase):
             mock.patch.dict(os.environ, {"HERMRETRO_HOME": str(self.base / "home"), "TMPDIR": str(self.base)}),
             mock.patch.object(paths, "verify_engine", lambda: {"verified": True}),
             mock.patch.object(paths, "find_node", lambda: self.found),
+            mock.patch.object(lifecycle, "RETIRE_RECHECK", 0.05),
             # The broker reads its workers' environment (sanitized_environment), the client the one it would pass.
             mock.patch.object(server, "sanitized_environment", lambda: {"TMPDIR": "/broker-temp"}),
             mock.patch.object(
@@ -65,10 +66,7 @@ class StaleWorkerSetup(unittest.TestCase):
 
     def spawn(self, _state, node, *, deadline):  # what ensure_broker starts: a broker of the Node it found now
         self.temp_broken = False  # a fresh broker inherits the client's (fixed) TMPDIR
-        self.started.append(self.start(Path(node)))
-        process = mock.Mock()
-        process.poll.return_value = None
-        return process
+        return launched(lambda: self.start(Path(node)), self.started)
 
     def connect(self) -> client.BrokerClient:
         with mock.patch.object(client, "spawn_broker", self.spawn):
@@ -94,15 +92,17 @@ class StaleWorkerSetup(unittest.TestCase):
             self.assertEqual(self.started, [])
             self.assertEqual(connection.hello["broker_generation"], old.broker.generation)
 
-    def test_a_busy_broker_keeps_its_games_and_its_next_worker_says_what_to_do(self):
+    def test_a_busy_broker_finishes_its_work_first_and_its_next_worker_says_what_to_do(self):
         old = self.start(self.old_node)
         shutil.rmtree(self.old_node.parent.parent)
         with old.broker.install_lock:
-            old.broker.install["state"] = "running"  # busy: shutdown is refused
-        with self.connect() as connection:
-            self.assertEqual(self.started, [])
-            self.assertEqual(connection.hello["broker_generation"], old.broker.generation)
+            old.broker.install["state"] = "running"  # busy: it is not stopped under the install
+        with self.assertRaisesRegex(client.BrokerRestarting, "toolchain install"):
+            self.connect()
+        self.assertEqual(self.started, [])
         self.assertFalse(old.stopped.is_set())
+        self.assertTrue(old.broker.retiring)  # it admits no new call meanwhile
+        # A client of older code still uses it (it never asks it to make way): a new worker says what to do.
         with (
             mock.patch.object(
                 paths, "select_engine", return_value={"check": {"verified": True}, "root": paths.ENGINE_ROOT}
@@ -113,6 +113,9 @@ class StaleWorkerSetup(unittest.TestCase):
         self.assertEqual(denied.exception.code, "NODE_MISSING")
         self.assertIn(str(self.old_node), str(denied.exception))
         self.assertIn("close the chats that are running games", str(denied.exception))
+        with old.broker.install_lock:
+            old.broker.install["state"] = "done"
+        self.assertTrue(old.stopped.wait(5), "it did not stop once the install had ended")
 
     def test_an_idle_broker_whose_temp_folder_cannot_work_is_replaced_once_the_clients_can(self):
         old = self.start(self.new_node)

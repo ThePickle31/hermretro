@@ -51,7 +51,9 @@ line, never the attach ticket: `{ profile, method, result, error }` cut to 1800 
    time or closed it.
 2. The trace (`trace.jsonl` in the run folder, above) has one JSON record per line with `t` and
    `broker_generation`: `dispatch` when a call goes to a worker, `outcome_unknown` when it timed out,
-   `denied`, `broker_error`, `worker_closed`, `broker_started`, `broker_stopped`, `broker_idle_exit` and others
+   `denied`, `broker_error`, `worker_closed`, `broker_started`, `broker_stopped`, `broker_idle_exit`,
+   `broker_retiring` and `broker_retired` (a client of newer code asked it to make way), `preview_in_use` (a
+   retiring broker's preview refused to close: someone records or saves in it) and others
    (`grep -o 'trace(event="[a-z_]*"' backend/broker/*.py` lists them all).
 3. The broker's own stderr goes to `broker.stderr.log` in the same run folder (`backend/broker/client.py`
    `spawn_broker`; kept to 5 MB, the previous one as `broker.stderr.log.1`).
@@ -88,6 +90,13 @@ trace (above), not these logs.
 - **No `chromatic_*` tools in a chat.** They exist only in the `hermretro` profile (or everywhere with
   `HERMRETRO_EVERY_PROFILE=1` in the gateway's environment). `hermes plugins doctor` cannot show them: it
   registers the plugin in a temporary home. Use `hermes -p hermretro tools list`.
+- **A chat's calls answer `RESTARTING` ("hermretro was updated, and its game tools restart as soon as …").** The
+  plugin's code changed under a broker that still runs work in some chat (a build, a replay, the page's install, a
+  call that timed out, a recording, a preview someone records in). It admits nothing new and stops once that work
+  has ended; tool calls wait up to two minutes in all for the new one. The trace shows `broker_retiring`, then
+  `broker_retired`. "the version before it still has game workers open" means the broker answering is from before
+  this replacement (it ignores `replace`): nothing is dispatched to it, and it goes once its workers have closed; a
+  worker with an emulator open keeps it (stop it by hand, below).
 - **"hermretro is still running an older session for a game in a chat."** A broker from older code is kept
   alive by a live game; it retires when that chat's game closes. A forced restart kills open players.
 - **The player stays black.** Open the app's developer console: errors inside the player frame arrive as

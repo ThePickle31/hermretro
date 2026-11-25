@@ -9,7 +9,8 @@ lazily started engine worker. The engine binds a worker to one project root,
 so a lane is "conversation -> its project worker".
 
 Stdlib only and no Hermes imports: this runs as `python -m backend.broker`. The lane work lives in
-lane.py, control operations and housekeeping in control.py, the socket server and main() in server.py.
+lane.py, control operations and housekeeping in control.py, admission and stopping in lifecycle.py, the socket server
+and main() in server.py.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from .. import library, setup
 from ..system import paths
 from . import leases
 from .control import ControlMixin
+from .lifecycle import LifecycleMixin, Notices
 from .lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
 from .engine import EngineError
 from .operations_file import scene_apply_arguments
@@ -94,7 +96,7 @@ def _same_path(root: Path, asked, wanted: Path) -> bool:
     return first == second or (sys.platform == "darwin" and first.lower() == second.lower())
 
 
-class Broker(LaneMixin, ControlMixin):
+class Broker(LaneMixin, ControlMixin, LifecycleMixin):
     def __init__(self, state_dir: Path, node: str):
         self.state_dir = state_dir
         self.node = node
@@ -112,10 +114,17 @@ class Broker(LaneMixin, ControlMixin):
         except OSError:  # files already moving under it: any client replaces it
             self.code_fingerprint = None
         self.engine_check = paths.verify_engine()
+        # Set once a client of newer code asks this broker to make way (LifecycleMixin.retire): from then on it admits
+        # no work, and it stops once the work it must finish has ended.
+        self.retiring = False
+        self.retire_started = 0.0
+        self.running = 0  # admitted requests whose answer is not written yet (LifecycleMixin.admit)
+        self.notices = Notices(state_dir)  # for conversations whose worker a stopped broker closed
         self.games = library.Registry(paths.library_dir_for(state_dir))
         self.lanes: dict[tuple[str, str], Lane] = {}
         self.writer_leases: dict[str, tuple[str, str]] = {}
         self.table_lock = threading.RLock()
+        self.settled = threading.Condition(self.table_lock)  # notified as each admitted request is answered
         self.hardware_lock = threading.Lock()
         self.prepare_lock = threading.Lock()
         # The desktop page's own toolchain install (op install_start / install_status).
@@ -173,6 +182,7 @@ class Broker(LaneMixin, ControlMixin):
             if lane is None and create:
                 lane = self.lanes[owner] = Lane(owner)
                 lane.observer = self.record_game
+                lane.pending_notice = self.notices.get(lane.key)
             return lane
 
     def record_game(self, lane: Lane, tool: str, arguments: dict, structured: dict, failed: bool) -> None:
@@ -208,6 +218,7 @@ class Broker(LaneMixin, ControlMixin):
         return "project-write"
 
     def call(self, request: dict) -> dict:
+        """Run one admitted call (LifecycleMixin.admit)."""
         owner = self.owner_of(request)
         tool = request.get("tool")
         arguments = request.get("arguments") or {}
@@ -343,10 +354,8 @@ class Broker(LaneMixin, ControlMixin):
                     selected = result.get("structuredContent")
                     if selects_project(tool, arguments) and isinstance(selected, dict) and selected.get("projectRoot"):
                         self._apply_selection(lane, selected)
-            if tool in ("web_preview", "device_capture") and not result.get("isError"):
-                lane.live_surface = True
-            elif tool == "web_preview_close" and not result.get("isError"):
-                lane.live_surface = False
+            if not result.get("isError"):
+                lane.note_surface(tool, arguments)
         finally:
             if guard is not None:
                 guard.release()
