@@ -67,7 +67,9 @@ failure evidence, export retained input history, review an interval, or extract
 a supporting clip. After editing and rebuilding, replay a recorded attempt onto
 the new ROM with `chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}`
 instead of playing the route again by hand: it stops at the first frame that
-differs and leaves the session where the replay ended. Checkpoints require
+differs and leaves the session where the replay ended. For a game with a test
+plan, `chromatic_playtest {}` replays every check bound to a recording in one
+call ([the test plan, replayed](../../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed)). Checkpoints require
 the same build and worker: a rebuild without an edit takes them when both
 builds captured their debug symbols in this session, one after an edit does not.
 

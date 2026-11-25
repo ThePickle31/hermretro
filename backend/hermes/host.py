@@ -1,7 +1,7 @@
 """The helpers every feature's Hermes side shares, and the engine tool handler.
 
 Shared helpers (the data folder, the profile, the library registry, the chat's project, the broker client,
-subagent tracking, and for a post_tool_call hook an engine tool's result payload and its library game) live here; feature modules call them as ``host.<name>`` at call time, so one
+subagent tracking, ``engine_call`` for a plugin tool that calls the engine, and for a post_tool_call hook an engine tool's result payload and its library game) live here; feature modules call them as ``host.<name>`` at call time, so one
 ``mock.patch.object(host, ...)`` reaches every module. The approval hook is declared in hooks.py, the engine
 tools in tools.py, the prompt section and skills in prompt.py. Each feature declares its own RPCs, tools and
 hooks in its folder (backend/hermes/declare.py).
@@ -177,7 +177,7 @@ def _broker_activity(ids: list[str]) -> dict:
         return {}
 
 
-def _other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str) -> dict:
+def other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str) -> dict:
     """The answer when another copy of the plugin's broker still runs games: whether one of them is this very
     chat's (hermretro's folder changed while the chat was working), only other chats', or, when that copy cannot
     be asked (an older version), unknown."""
@@ -212,20 +212,56 @@ def _other_copy_busy(error: OtherCopyBusy, conversation_id: str, session_id: str
     return {"error": message, "code": "UNAVAILABLE", "dispatched": False, "nextStep": next_step}
 
 
+def engine_call(tool: str, args: dict, kwargs: dict, policy: dict | None = None) -> tuple[dict, str | None]:
+    """Send one engine tool call (``tool``, its engine name) to the broker as the chat that Hermes's tool ``kwargs``
+    name, and fold the answer into the chat's state: ``(the broker's response, chat_state's note for the result)``.
+    ``policy`` holds the plugin settings the broker applies (hardware, the live player, the scratch folder); a plugin
+    tool calling engine tools that use none of them passes none. Raises OtherCopyBusy, BrokerRestarting and
+    BrokerUnavailable."""
+    conversation_id = str(kwargs.get("conversation_id") or "")
+    session_id = str(kwargs.get("session_id") or "")
+    owner = {"profile": _profile_identity(), "conversation_id": conversation_id} if conversation_id else None
+    origin = {
+        "session_id": session_id,
+        "task_id": str(kwargs.get("task_id") or ""),
+        "delegated": _is_child(session_id),
+    }
+    # New games live in the Studio's games folder unless the user asked for another place.
+    automatic = tool in contracts.CREATORS and not args.get("destinationPath")
+    with _broker_for_call() as client:
+        for _attempt in range(NAME_ATTEMPTS):
+            if automatic:
+                paths.games_dir(create=True)
+                args = {**args, "destinationPath": contracts.default_destination(args.get("name"))}
+            response = client.call(owner, tool, args, origin=origin, policy=policy or {})
+            # Two chats making games of the same name can both pick the same free folder; the
+            # engine refuses the second, which then takes the next free number.
+            if not (automatic and _destination_taken(response)):
+                break
+    if conversation_id and session_id and session_id != conversation_id and not origin["delegated"]:
+        try:  # a game's conversation keeps its game when compression rotates the session id
+            _registry().note_alias(_profile_identity(), conversation_id, session_id)
+        except Exception:
+            logger.debug("hermretro: could not record the session alias", exc_info=True)
+    context = chat_state.engine_result(
+        tool,
+        args,
+        response,
+        session_id=session_id,
+        conversation_id=conversation_id,
+        project=lambda: _chat_project(conversation_id, session_id),
+    )
+    return response, context
+
+
 def make_tool_handler(ctx, tool: dict):
     original = tool["name"]
     name = contracts.hermes_name(original)
 
     def handler(args: dict, **kwargs) -> object:
+        conversation_id = str(kwargs.get("conversation_id") or "")
+        session_id = str(kwargs.get("session_id") or "")
         try:
-            conversation_id = str(kwargs.get("conversation_id") or "")
-            session_id = str(kwargs.get("session_id") or "")
-            owner = {"profile": _profile_identity(), "conversation_id": conversation_id} if conversation_id else None
-            origin = {
-                "session_id": session_id,
-                "task_id": str(kwargs.get("task_id") or ""),
-                "delegated": _is_child(session_id),
-            }
             policy = {
                 "hardware_enabled": bool(ctx.get_config("hardware_enabled", False)),
                 "live_player": bool(ctx.get_config("live_player", True)),
@@ -235,54 +271,14 @@ def make_tool_handler(ctx, tool: dict):
                 # The broker reads an operations file only from the project or this profile's scratch folder.
                 scratch = hermes_api.scratch_dir()
                 policy["scratch_dir"] = str(scratch) if scratch else None
-            # New games live in the Studio's games folder unless the user asked for another place.
-            automatic = original in contracts.CREATORS and not args.get("destinationPath")
-            with _broker_for_call() as client:
-                for _attempt in range(NAME_ATTEMPTS):
-                    if automatic:
-                        paths.games_dir(create=True)
-                        args = {**args, "destinationPath": contracts.default_destination(args.get("name"))}
-                    response = client.call(owner, original, args, origin=origin, policy=policy)
-                    # Two chats making games of the same name can both pick the same free folder; the
-                    # engine refuses the second, which then takes the next free number.
-                    if not (automatic and _destination_taken(response)):
-                        break
-            if conversation_id and session_id and session_id != conversation_id and not origin["delegated"]:
-                try:  # a game's conversation keeps its game when compression rotates the session id
-                    _registry().note_alias(_profile_identity(), conversation_id, session_id)
-                except Exception:
-                    logger.debug("hermretro: could not record the session alias", exc_info=True)
-            context = chat_state.engine_result(
-                original,
-                args,
-                response,
-                session_id=session_id,
-                conversation_id=conversation_id,
-                project=lambda: _chat_project(conversation_id, session_id),
-            )
+            response, context = engine_call(original, args, kwargs, policy)
             return _deliver(response, name, context)
         except OtherCopyBusy as error:
-            return json.dumps(_other_copy_busy(error, conversation_id, session_id))
+            return json.dumps(other_copy_busy(error, conversation_id, session_id))
         except BrokerRestarting as error:
-            again = "in a minute" if error.waits else "in a few minutes; if it still answers this, tell the user"
-            return json.dumps(
-                {
-                    "error": f"{error} Nothing was run.",
-                    "code": "RESTARTING",
-                    "dispatched": False,
-                    "nextStep": f"Call it again {again}. Do not stop or restart hermretro's background processes "
-                    "yourself. " + _STAY_IN_TOOLS,
-                }
-            )
+            return json.dumps(broker_restarting(error))
         except BrokerUnavailable as error:
-            return json.dumps(
-                {
-                    "error": str(error),
-                    "code": "UNAVAILABLE",
-                    "dispatched": False,
-                    "nextStep": "Load the skill hermretro:setup for how to prepare this machine. " + _STAY_IN_TOOLS,
-                }
-            )
+            return json.dumps(broker_unavailable(error))
         except Exception as error:  # a handler must never raise
             logger.exception("Chromatic tool %s failed in the host adapter", name)
             return json.dumps(
@@ -294,6 +290,28 @@ def make_tool_handler(ctx, tool: dict):
             )
 
     return handler
+
+
+def broker_restarting(error: BrokerRestarting) -> dict:
+    """The answer while a broker of older code makes way for this one after an update."""
+    again = "in a minute" if error.waits else "in a few minutes; if it still answers this, tell the user"
+    return {
+        "error": f"{error} Nothing was run.",
+        "code": "RESTARTING",
+        "dispatched": False,
+        "nextStep": f"Call it again {again}. Do not stop or restart hermretro's background processes yourself. "
+        + _STAY_IN_TOOLS,
+    }
+
+
+def broker_unavailable(error: BrokerUnavailable) -> dict:
+    """The answer when the broker cannot run engine tools on this machine."""
+    return {
+        "error": str(error),
+        "code": "UNAVAILABLE",
+        "dispatched": False,
+        "nextStep": "Load the skill hermretro:setup for how to prepare this machine. " + _STAY_IN_TOOLS,
+    }
 
 
 # -- the games library, shared by the RPC and tool modules ---------------------------

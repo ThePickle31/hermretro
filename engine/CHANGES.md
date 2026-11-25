@@ -246,3 +246,12 @@ files, what changed and why.
   away and replaced kept its files in the inventory), and the index reads the project again when the project folder
   itself was moved or replaced (on macOS the watch names that event by the folder's own name, which the index
   ignored). Replacing a build's debug folder with a file stopped the engine.
+- `scripts/emulator_worker.py` (`replay`), `dist/server.js` (`emulator_replay`, `EmulatorService.replay`,
+  `replayVerdict`, `replayExpectSchema`): a replay takes the attempt's `sessionId` and is refused, leaving the current
+  session running, when its folder now holds another attempt; it names the session it ended (`replay.endedSession`,
+  with that session's recording and whether it was still recording); `expect` (`frames`, `scene`, `variables`) gives a
+  `verdict` (passed, failed, or needs-review when the scene or variables could not be read) read where the replay
+  ended; and `finishRecording` stops the replay's recording with that verdict as its outcome. The verdict and the stop
+  run in the replay's own queued emulator operation, so no step, restart or other replay comes between. hermretro's
+  `chromatic_playtest` made the replay, the state read and the stop three calls, so another call could come between
+  them, a reused folder replayed another attempt, and a live attempt was ended without saying so.

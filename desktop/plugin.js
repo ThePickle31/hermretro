@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 c4e3ffdef7f66a59723ba2bf30df87c5c82949b8b74e8815020dac53629dfdfb
- * body: sha256 ffba7d318f213f6bed5fda278b2cf1b973b0731377fbbfd9778fb2379fa05083
+ * sources: sha256 77d47a8e3cbfb18580d2ea49798e5af5480f8d4b283a8fa720fcc9859e11ea45
+ * body: sha256 29e41c1d08429b099a824e3774314475ea43c497c45471f457c39e9a311213e2
  */
 import{atom,Button,Codicon,CopyButton,host,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";
 import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";import{jsx,jsxs}from"react/jsx-runtime";var ID="hermretro";var ROUTE="/hermretro";var DEMO_ID="demo";var DEMO_GAME={id:DEMO_ID,title:"Hello Color",kind:"gbdk",note:"ModRetro example"};var STUDIO_PROFILE="hermretro";var ENABLE_COMMAND=`herme\
@@ -1096,24 +1096,24 @@ emulator_replay:["Replaying the playtest","Replayed the playtest"],emulator_step
 "Saving a checkpoint","Saved a checkpoint"],emulator_clip:["Recording a clip","Recorded a clip"],emulator_review:["Reviewing the playtest","Reviewed the playtest"],emulator_recording:["Saving the reco\
 rding","Saved the recording"],emulator_status:["Checking the emulator","Checked the emulator"],emulator_close:["Closing the emulator","Closed the emulator"],toolchain_prepare:["Installing the toolchai\
 n","Installed the toolchain"],toolchain_doctor:["Checking the toolchain","Checked the toolchain"],studio_device_cli:["Setting up the Chromatic tools","Set up the Chromatic tools"],game_info:["Writing \
-the game card","Wrote the game card"],device:["Checking the Chromatic","Checked the Chromatic"],device_capture:["Opening the Chromatic feed","Opened the Chromatic feed"],play:["Streaming to the Chroma\
-tic","Streamed to the Chromatic"],flash:["Writing the cartridge","Wrote the cartridge"],setup:["Setting up the Chromatic","Set up the Chromatic"],skill_view:args=>[`Reading the ${guideName(args)} guid\
-e`,`Read the ${guideName(args)} guide`],terminal:["Running a command","Ran a command"],execute_code:["Running some code","Ran some code"],write_file:fileWords("Writing","Wrote"),patch:fileWords("Editi\
-ng","Edited"),read_file:fileWords("Reading","Read"),search_files:["Searching the files","Searched the files"],vision_analyze:args=>{const name=baseName(args?.image_url)||"an image";return[`Looking at ${name}`,
-`Looked at ${name}`]},web_search:["Searching the web","Searched the web"],web_extract:["Reading a web page","Read a web page"],browser_exec:["Using the browser","Used the browser"],delegate_task:["Han\
-ding a task to a helper","A helper finished a task"],image_generate:["Generating an image","Generated an image"],desktop_preview:["Opening a preview","Opened a preview"],clarify:args=>{const count=Array.
-isArray(args?.questions)?args.questions.length:1;return["Asking you",`Asked you ${count===1?"a question":`${count} questions`}`]}};var HIDDEN_STEPS=new Set(["tool_describe","tool_search","todo","memor\
-y","skill_manage","skills_list","session_search","tool_call","session_status","build_report"]);var BUILD_STEPS=new Set(["rom_build","web_build","web_preview","present_game"]);var shortTool=name=>String(
-name??"").replace(/^chromatic_/,"");function stepWords(tool){const short=shortTool(tool.name);const words=STEP_WORDS[short];const pair2=typeof words==="function"?words(tool.args??{}):words;if(tool.state===
-"unknown"){return[pair2?.[0]??"Building","Build outcome unknown"]}if(pair2){return pair2}const plain=short.replace(/[_.]/g," ");return[`Using ${plain}`,`Used ${plain}`]}function stepDetail(tool){if(tool.
-state==="failed"&&tool.info?.error){return tool.info.error}if(tool.progress?.message){return tool.progress.message}if(shortTool(tool.name)==="terminal"&&tool.args?.command){return tool.args.command.split(
-"\n")[0]}const text2=tool.summary??tool.preview??"";return typeof text2==="string"?text2:""}function imagePath(value,root){if(typeof value!=="string"||!/\.(png|gif|jpe?g|webp)$/i.test(value)){return null}
-return isAbsolute(value)?value.replace(/^file:\/\//,""):joinPath(root,value)}function capturedFrames(tool,root){if(tool.state!=="done"||!shortTool(tool.name).startsWith("emulator_")){return[]}return(tool.
-info?.images??[]).map(value=>imagePath(value,root)).filter(path=>path&&assetKind(path)==="Playtest frame")}function stepImages(tool,root){const found=[];const add=value=>{const path=imagePath(value,root);
-if(path&&!found.includes(path)){found.push(path)}};add(tool.image);for(const image of tool.info?.images??[]){add(image)}add(tool.args?.image_url);add(tool.info?.assetPath??tool.args?.assetPath);for(const path of tool.
-info?.assetPaths??[]){add(path)}add(tool.info?.outputPath??tool.args?.outputPath);return tool.state==="failed"?[]:found}function assetKind(path){const value=String(path??"");if(/[\\/]assets[\\/]sprites[\\/]/.
-test(value)){return"Sprite"}if(/[\\/]assets[\\/]backgrounds[\\/]/.test(value)){return"Background"}if(/[\\/]assets[\\/](ui|fonts)[\\/]/.test(value)){return"Interface"}if(/[\\/](playtests|frames)[\\/]/.
-test(value)){return"Playtest frame"}return"Image"}function BuildStatus({chat,onStop}){const now=useNow(Boolean(chat?.busy));if(!chat?.busy){return null}const quietFor=now-(chat.lastEventAt??now);const running=[...chat.items].reverse().find(item=>item.
+the game card","Wrote the game card"],playtest:["Running the test plan","Ran the test plan"],device:["Checking the Chromatic","Checked the Chromatic"],device_capture:["Opening the Chromatic feed","Ope\
+ned the Chromatic feed"],play:["Streaming to the Chromatic","Streamed to the Chromatic"],flash:["Writing the cartridge","Wrote the cartridge"],setup:["Setting up the Chromatic","Set up the Chromatic"],
+skill_view:args=>[`Reading the ${guideName(args)} guide`,`Read the ${guideName(args)} guide`],terminal:["Running a command","Ran a command"],execute_code:["Running some code","Ran some code"],write_file:fileWords(
+"Writing","Wrote"),patch:fileWords("Editing","Edited"),read_file:fileWords("Reading","Read"),search_files:["Searching the files","Searched the files"],vision_analyze:args=>{const name=baseName(args?.image_url)||
+"an image";return[`Looking at ${name}`,`Looked at ${name}`]},web_search:["Searching the web","Searched the web"],web_extract:["Reading a web page","Read a web page"],browser_exec:["Using the browser",
+"Used the browser"],delegate_task:["Handing a task to a helper","A helper finished a task"],image_generate:["Generating an image","Generated an image"],desktop_preview:["Opening a preview","Opened a p\
+review"],clarify:args=>{const count=Array.isArray(args?.questions)?args.questions.length:1;return["Asking you",`Asked you ${count===1?"a question":`${count} questions`}`]}};var HIDDEN_STEPS=new Set(["\
+tool_describe","tool_search","todo","memory","skill_manage","skills_list","session_search","tool_call","session_status","build_report"]);var BUILD_STEPS=new Set(["rom_build","web_build","web_preview",
+"present_game"]);var shortTool=name=>String(name??"").replace(/^chromatic_/,"");function stepWords(tool){const short=shortTool(tool.name);const words=STEP_WORDS[short];const pair2=typeof words==="func\
+tion"?words(tool.args??{}):words;if(tool.state==="unknown"){return[pair2?.[0]??"Building","Build outcome unknown"]}if(pair2){return pair2}const plain=short.replace(/[_.]/g," ");return[`Using ${plain}`,
+`Used ${plain}`]}function stepDetail(tool){if(tool.state==="failed"&&tool.info?.error){return tool.info.error}if(tool.progress?.message){return tool.progress.message}if(shortTool(tool.name)==="termina\
+l"&&tool.args?.command){return tool.args.command.split("\n")[0]}const text2=tool.summary??tool.preview??"";return typeof text2==="string"?text2:""}function imagePath(value,root){if(typeof value!=="str\
+ing"||!/\.(png|gif|jpe?g|webp)$/i.test(value)){return null}return isAbsolute(value)?value.replace(/^file:\/\//,""):joinPath(root,value)}function capturedFrames(tool,root){if(tool.state!=="done"||!shortTool(
+tool.name).startsWith("emulator_")){return[]}return(tool.info?.images??[]).map(value=>imagePath(value,root)).filter(path=>path&&assetKind(path)==="Playtest frame")}function stepImages(tool,root){const found=[];
+const add=value=>{const path=imagePath(value,root);if(path&&!found.includes(path)){found.push(path)}};add(tool.image);for(const image of tool.info?.images??[]){add(image)}add(tool.args?.image_url);add(
+tool.info?.assetPath??tool.args?.assetPath);for(const path of tool.info?.assetPaths??[]){add(path)}add(tool.info?.outputPath??tool.args?.outputPath);return tool.state==="failed"?[]:found}function assetKind(path){
+const value=String(path??"");if(/[\\/]assets[\\/]sprites[\\/]/.test(value)){return"Sprite"}if(/[\\/]assets[\\/]backgrounds[\\/]/.test(value)){return"Background"}if(/[\\/]assets[\\/](ui|fonts)[\\/]/.test(
+value)){return"Interface"}if(/[\\/](playtests|frames)[\\/]/.test(value)){return"Playtest frame"}return"Image"}function BuildStatus({chat,onStop}){const now=useNow(Boolean(chat?.busy));if(!chat?.busy){return null}const quietFor=now-(chat.lastEventAt??now);const running=[...chat.items].reverse().find(item=>item.
 kind==="tools"&&item.tools.some(tool2=>tool2.state==="running"));const tool=running?[...running.tools].reverse().find(entry=>entry.state==="running"):null;const waiting=chat.waiting||chat.items.some(item=>(item.
 kind==="clarify"||item.kind==="approval")&&!item.answered);const slow=tool&&/rom_build|web_build|toolchain_prepare|emulator_step|emulator_replay|flash/.test(tool.name);let tone="";let headline;let detail=null;
 if(waiting){tone="wait";headline=`${AGENT} is waiting for your answer`}else if((chat.unreachable??0)>=3){tone="warn";headline="Reconnecting to Hermes…";detail="The work carries on; this page catches\

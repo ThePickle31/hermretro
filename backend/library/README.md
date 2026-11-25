@@ -9,14 +9,18 @@
 - `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png` (a byte-identical copy of a PNG
   under `assets/` is refused).
 - `layout.py` keeps every game folder in the game layout (below); `release.py` says what a publish holds and records.
+- `playtest.py` keeps the test plan's checks bound to recorded attempts and the last run's results
+  (`.hermretro/playtest.json`), each result tied to its ROM, binding and check words; `playtest_run.py` replays them
+  on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
 
 - RPCs (`rpcs.py`): `games`, `game_build_status`, `game_thumb`, `player`, `presentations`, `captures`, `capture_image`, `build`.
-- Tools (`tools.py`): `chromatic_present_game`, `chromatic_game_info`, `chromatic_build_report` (in `report_tools.py`,
-  held to the game's test plan by `report_plan.py` and `plan_checks.py`, its finishable run's recording read by
-  `finish_run.py`).
+- Tools (`tools.py`): `chromatic_present_game`, `chromatic_game_info`, `chromatic_playtest` (in `playtest_tools.py`:
+  binds test-plan checks to recordings and replays them through the engine), `chromatic_build_report` (in
+  `report_tools.py`, held to the game's test plan and the last playtest run by `report_plan.py` and `plan_checks.py`,
+  its finishable run's recording read by `finish_run.py`).
 - Hooks (`hooks.py`): `pre_llm_call` — tells a game's Build conversation which game it works on; `pre_tool_call` —
   blocks Hermes's `write_file` and `patch` (`file_guard.py`) from writing into a game's `.hermretro/` (wherever a link
   takes it), into a library game's folder from any chat but that game's own conversation, and into a game without its

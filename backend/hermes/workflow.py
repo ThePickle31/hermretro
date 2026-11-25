@@ -41,8 +41,9 @@ GAME_RULES = (
 BUILD_REPORT_GUIDANCE = (
     "At the end of a turn that changed or built the game (after building, your own playtest and presenting), "
     "call chromatic_build_report once (title, summary, changes with asset paths, tested/untested, notes, up to 4 "
-    "suggestions; for a game with docs/game/TEST-PLAN.md also every open check's result on this ROM and the "
-    "difficulty from your own run; finishRun names the recording of your one run from power-on), then keep the "
+    "suggestions; for a game with docs/game/TEST-PLAN.md also every open check's result on this ROM, as "
+    "chromatic_playtest last replayed the checks you bound to recordings after the rebuild, and the difficulty "
+    "from your own run; finishRun names the recording of your one run from power-on), then keep the "
     "written reply to one or two short sentences."
 )
 

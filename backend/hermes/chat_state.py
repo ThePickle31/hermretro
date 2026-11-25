@@ -180,9 +180,14 @@ def _take(state: dict, tool: str, args: dict, structured: dict) -> None:
         _session(state, structured.get("romPath"), structured)
         _live_recording(state, _recording(structured.get("recording")))
     elif tool == "emulator_replay":
-        # A replay boots the ROM it was given; its result names that ROM's hash but not its path.
+        # A replay boots the ROM it was given; its result names that ROM's hash but not its path. Its recording is
+        # live unless finishRecording stopped it in the same call (then the result gives its status).
         _session(state, args.get("romPath"), structured)
-        _live_recording(state, _recording(structured.get("recording"), "recording"))
+        recording = structured.get("recording")
+        _live_recording(
+            state,
+            _recording(recording, None if isinstance(recording, dict) and recording.get("status") else "recording"),
+        )
     elif tool in ("emulator_step", "emulator_observe"):
         if _frame(structured) is not None:
             state.setdefault("emulator", {})["frame"] = _frame(structured)

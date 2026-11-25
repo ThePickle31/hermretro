@@ -42,6 +42,7 @@ provides_tools:
   - chromatic_studio_device_cli
   - chromatic_present_game
   - chromatic_game_info
+  - chromatic_playtest
   - chromatic_build_report
   - chromatic_session_status
   - chromatic_project_discover

@@ -210,6 +210,11 @@ class ChatState(unittest.TestCase):
         text = self.note()
         self.assertIn(f"Emulator: frame 900 of build/game.gbc (sha256 {OLDER_SHA[:12]}…), not the last build.", text)
         self.assertIn(f"Recording: {RECORDING}-replay (session {'c' * 32}, branch-0001, recording).", text)
+        # finishRecording stopped it in the same call.
+        replayed["recording"] = {**replayed["recording"], "status": "stopped", "outcome": "passed"}
+        self.engine("emulator_replay", replayed, args={"romPath": "build/game.gbc", "finishRecording": True})
+        chat_state.compacted(session_id="s1", kind="summarize")
+        self.assertIn(f"Recording: {RECORDING}-replay (session {'c' * 32}, branch-0001, stopped).", self.note())
         self.engine("emulator_replay", {"romSha256": OLDER_SHA, "frame": 40}, args={"recording": False})
         chat_state.compacted(session_id="s1", kind="summarize")
         text = self.note()

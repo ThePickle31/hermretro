@@ -29,7 +29,7 @@ Work in the creator's genuine `.gbsproj` / `.gbsres` project so the result stays
 | Music and sound | `chromatic_music_compose`, `chromatic_asset_import` (`.uge`, `.mod`, `.wav`, `.vgm`), `chromatic_emulator_audio` | [music and sound](references/music-and-sound.md) |
 | Build | `chromatic_rom_build`, `chromatic_rom_inspect` | [building](references/building.md) |
 | Play and check | `chromatic_emulator_run`, `chromatic_emulator_step` (one `inputs` list per sequence, `scale`), `chromatic_emulator_observe` (look without advancing), `chromatic_emulator_debug` (live player, actors, dialogue, variables by name; works on the ROM a `chromatic_rom_build` in this engine session returned, unless it had `captureDebugArtifacts: false`), `chromatic_emulator_inspect` | [emulator playtesting](references/emulator-playtesting.md), [stepped playtesting](../rom-debugging/references/stepped-playtesting.md) |
-| Retest after a rebuild | `chromatic_emulator_replay` (replays a recording on the new ROM, stops where frames differ) | [replay after a rebuild](../rom-debugging/references/recorded-playtesting.md#replay-after-a-rebuild) |
+| Retest after a rebuild | `chromatic_playtest` (replays every test-plan check bound to a recording on the new ROM: passed, sampled, failed or error each); `chromatic_emulator_replay` for one recording | [the test plan, replayed](../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed), [replay after a rebuild](../rom-debugging/references/recorded-playtesting.md#replay-after-a-rebuild) |
 | Hand the game over | `chromatic_game_info`, `chromatic_present_game`, `chromatic_build_report` | [In hermretro](#in-hermretro) |
 
 ## Working in the studio
@@ -129,7 +129,9 @@ Verify the change at the level the request needs: reread the native resources, b
 - Before presenting, fill in the game card with `chromatic_game_info` (cover art, title, tagline,
   description, genres); `chromatic_present_game` refuses with `GAME_INFO_INCOMPLETE` until it is complete.
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
-  For a game with `docs/game/TEST-PLAN.md` it needs each open check's result on this ROM (`checks`) and a
+  For a game with `docs/game/TEST-PLAN.md`, bind each check to its recording as it passes and run
+  `chromatic_playtest {}` after every rebuild ([the test plan, replayed](../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed)).
+  The report needs each open check's result on this ROM (`checks`, agreeing with the last playtest run) and a
   `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused;
   name that run's recording as `finishRun` (F1 `passed` or `failed` needs it).
   When the ending was unreachable, the run was skipped or the game has no ending, report that (F1 `failed` or

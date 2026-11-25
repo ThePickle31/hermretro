@@ -27,6 +27,8 @@ a row with any other ID is not read as a check.
 
 Every build report gives each check not superseded its result on that build's
 ROM: a check not played on that ROM is not run, even if it passed before.
+Bind each check to the recording that passed it (`chromatic_playtest`, action
+`bind`); `chromatic_playtest {}` replays every bound check on a new ROM.
 
 ## Difficulty
 
