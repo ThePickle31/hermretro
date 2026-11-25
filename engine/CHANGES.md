@@ -231,3 +231,18 @@ files, what changed and why.
   deprecated one in place of its deprecation warning, instead of generic `COMPILER_ERROR`s. Before,
   `EVENT_WEAPON_ATTACK` was written without complaint and the build failed with GB Studio's raw `weaponAttack is not
   a function`.
+- `dist/server.js` (new `dist/project-tree-watcher.js` module, `dist/project-world-index.js`): on Linux the project
+  index watches the project with one watch per folder of its own (`ProjectTreeWatcher`) instead of Node's recursive
+  `fs.watch`. Node 24.22, 26.9 and newer on Linux (also Node's main branch; 22, 25 and earlier 24 and 26 do not) throw
+  from the recursive watch's own event handlers, outside any `error` event, when a watched folder becomes a file
+  (`ENOTDIR`) or a new folder cannot be watched (`EACCES`, `ENOSPC`), which ended the engine and every chat's tools
+  with it; the engine runs on Hermes's Node, 26.12 today. Every failure of a watch is now an `error` event that closes
+  it; a folder is watched only when it is the same folder (not a link) before the watch and after its listing, and an
+  event about a folder itself, or from one no longer at its path, watches that path again. macOS and Windows keep
+  Node's native recursive watch. After a watch `error` the index closes the watcher, reads the project in full on each
+  call, and starts a watch again at a full read, waiting from 1 s, doubling to 1 min, after each failure (it went back
+  to ready with the dead watcher and missed later edits, and a watch that could not start was never tried again). A
+  changed path that is now gone, a file or another folder drops what the index held at and below it (a folder moved
+  away and replaced kept its files in the inventory), and the index reads the project again when the project folder
+  itself was moved or replaced (on macOS the watch names that event by the folder's own name, which the index
+  ignored). Replacing a build's debug folder with a file stopped the engine.

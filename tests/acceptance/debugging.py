@@ -184,8 +184,7 @@ def check_debug_fallbacks(suite, client_b):
     built, _ = run(client_b, {})
     rom = Path(built["outputPath"])
     folder = Path(built["debugArtifacts"]["directory"])
-    # Read-only, so no capture can write there. (Replacing the folder with a file would instead stop the engine:
-    # Node's recursive project watcher throws on a watched folder that becomes a file.)
+    # Read-only, so no capture can write there.
     folder.chmod(0o500)
     try:
         blocked = structured(client_b.call(OWNER_B, "rom_build", {}))

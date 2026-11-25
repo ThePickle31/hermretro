@@ -1,15 +1,17 @@
-"""Worker restart, broker crash, recording-lease recovery and clean shutdown."""
+"""Worker restart, broker crash, recording-lease recovery, replaced watched folders and clean shutdown."""
 
 import json
 import os
+import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 from unittest import mock
 
 from backend.broker.client import ensure_broker
-from tests.acceptance.fixture import OWNER_A, alive, diff, fallback_dirs, snapshot, structured, wait_gone
+from tests.acceptance.fixture import OWNER_A, OWNER_B, alive, diff, fallback_dirs, snapshot, structured, wait_gone
 
 
 def session_processes(leader: int) -> list[dict]:
@@ -38,6 +40,139 @@ def check_worker_restart(suite, client_a):
         and structured(after_crash).get("emulatorActive") is False
         and "restarted" in (after_crash.get("notice") or ""),
         notice=after_crash.get("notice"),
+    )
+
+
+def until(read, done, seconds: float = 15.0):
+    """`read()` again until `done` accepts its value or `seconds` pass; the last value."""
+    deadline = time.monotonic() + seconds
+    value = read()
+    while not done(value) and time.monotonic() < deadline:
+        time.sleep(0.1)
+        value = read()
+    return value
+
+
+def check_watched_folder_replaced(suite, client_b):
+    """Project folders the engine watches that become files, other folders or unwatchable leave the same engine
+    serving. The build's debug folder removed for a file; an asset folder moved away and replaced by another folder,
+    then by a file, whose sprites follow each time; a folder that cannot be watched (unreadable: on Linux the watch
+    fails) leaves the project read in full until it goes, then the watch starts again and sees the next outside edit;
+    the project folder replaced by a copy is read again. Node's own recursive watcher on Linux (Node 24.22, 26.9 and
+    newer) threw on these and ended the engine."""
+
+    def sprites():
+        """The inventory's sprite paths, or None when the call fails."""
+        response = client_b.call(
+            OWNER_B, "project_inventory", {"resourceTypes": ["asset"], "assetTypes": ["sprite"], "limit": 250}
+        )
+        listed = structured(response).get("assets")
+        if (response.get("result") or {}).get("isError") or not isinstance(listed, list):
+            return None
+        return {asset.get("resourcePath") for asset in listed}
+
+    def refreshed_state():
+        return (structured(client_b.call(OWNER_B, "project_refresh", {"mode": "strong"})).get("indexStats") or {}).get(
+            "state"
+        )
+
+    def index_stats():
+        status = client_b.call(OWNER_B, "session_status", {"includeIndexStats": True})
+        return structured(status).get("indexStats") or {}
+
+    def listing(*present, absent=()):
+        return lambda found: (
+            found is not None and all(p in found for p in present) and not any(p in found for p in absent)
+        )
+
+    watched, replacement, fresh, copied = (
+        "assets/sprites/watched/watched.png",
+        "assets/sprites/watched/replacement.png",
+        "assets/sprites/fresh.png",
+        "assets/sprites/copied.png",
+    )
+    engine = client_b.call(OWNER_B, "session_status")["lane"]["engine_pid"]
+    debug = Path(structured(client_b.call(OWNER_B, "rom_build", {}))["debugArtifacts"]["directory"])
+    shutil.rmtree(debug)
+    debug.write_text("not a folder")
+    sprite_folder = suite.project_b / "assets" / "sprites"
+    sprite = next(sprite_folder.glob("*.png"))
+    folder = sprite_folder / "watched"
+    folder.mkdir()
+    shutil.copy(sprite, folder / "watched.png")
+    added = until(sprites, listing(watched))
+    folder.rename(suite.work / "watched-away")
+    folder.mkdir()
+    shutil.copy(sprite, folder / "replacement.png")
+    replaced = until(sprites, listing(replacement, absent=[watched]))
+    folder.rename(suite.work / "replacement-away")
+    folder.write_text("not a folder")
+    after = until(sprites, listing(absent=[watched, replacement]))
+
+    locked = debug.parent / "locked"
+    locked.mkdir(mode=0)
+    can_fail = sys.platform == "linux" and not os.access(locked, os.R_OK)  # root reads it; macOS watches natively
+    expected = "invalidated" if can_fail else "ready"
+    while_locked = until(refreshed_state, lambda state: state == expected)
+    locked.rmdir()
+    watched_again = until(refreshed_state, lambda state: state == "ready")
+    before_edit = index_stats()
+    shutil.copy(sprite, sprite_folder / "fresh.png")
+    edited = until(sprites, listing(fresh))
+    after_edit = index_stats()
+    seen_by_watch = after_edit.get("dirtyEvents", 0) > before_edit.get("dirtyEvents", 0) and after_edit.get(
+        "fallbackFullRebuilds"
+    ) == before_edit.get("fallbackFullRebuilds")
+
+    copy = suite.work / "projB-copy"
+    shutil.copytree(suite.project_b, copy, symlinks=True)
+    shutil.copy(sprite, copy / copied)
+    suite.project_b.rename(suite.work / "projB-replaced")
+    copy.rename(suite.project_b)
+    root_replaced = until(sprites, listing(copied))
+
+    status = client_b.call(OWNER_B, "session_status")
+    debug.unlink()
+    folder.unlink()
+    for name in (fresh, copied):
+        (suite.project_b / name).unlink()
+    restored = until(sprites, listing(absent=[fresh, copied]))
+    rebuilt = structured(client_b.call(OWNER_B, "rom_build", {}))
+    suite.check(
+        "R6",
+        "Watched folders that become files or other folders, or cannot be watched, and a replaced project folder leave "
+        "the same engine serving: the inventory follows each change, an unwatchable folder leaves the project read in "
+        "full until it goes, the watch then sees an outside edit, and the next build succeeds",
+        status.get("ok") is True
+        and status["lane"]["engine_pid"] == engine
+        and listing(watched)(added)
+        and listing(replacement, absent=[watched])(replaced)
+        and listing(absent=[watched, replacement])(after)
+        and while_locked == expected
+        and watched_again == "ready"
+        and listing(fresh)(edited)
+        and seen_by_watch
+        and listing(copied)(root_replaced)
+        and listing(absent=[fresh, copied])(restored)
+        and rebuilt.get("success") is True,
+        engine_pid={"before": engine, "after": (status.get("lane") or {}).get("engine_pid")},
+        status=status.get("denied") or status.get("notice"),
+        inventory={
+            name: None if found is None else sorted(found)
+            for name, found in {
+                "added": added,
+                "replaced": replaced,
+                "after": after,
+                "edited": edited,
+                "root_replaced": root_replaced,
+                "restored": restored,
+            }.items()
+        },
+        index_state={"while_locked": while_locked, "expected": expected, "after": watched_again},
+        edit_stats={
+            key: (before_edit.get(key), after_edit.get(key)) for key in ("dirtyEvents", "fallbackFullRebuilds")
+        },
+        rebuilt={key: rebuilt.get(key) for key in ("success", "error")},
     )
 
 
