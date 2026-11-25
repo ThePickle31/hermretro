@@ -189,6 +189,24 @@ class TheRealBuild(Refresh):
         self.assertTrue(source.exists())
         self.assertEqual(list(paths.DEPS_ROOT.glob("engine.*")), [], "no staging or old folder left")
 
+    def test_bytecode_beside_the_bundled_engine_stays_out_of_the_copy(self):
+        self.earlier_copy("1.0.33")
+        for rel in ("scripts/__pycache__/worker.cpython-314.pyc", "scripts/old.pyc"):
+            (paths.ENGINE_ROOT / rel).parent.mkdir(parents=True, exist_ok=True)
+            (paths.ENGINE_ROOT / rel).write_bytes(b"bytecode")
+        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertEqual(
+            [p.name for p in paths.PREPARED_ENGINE.rglob("*") if p.name == "__pycache__" or p.suffix == ".pyc"], []
+        )
+
+    def test_a_bytecode_link_in_the_bundled_engine_is_refused_before_any_copy(self):
+        self.earlier_copy("1.0.33")
+        (paths.ENGINE_ROOT / "scripts" / "gone.pyc").symlink_to(self.base / "nowhere.pyc")
+        selection = provision.select_engine("/usr/bin/node")
+        self.assertFalse(selection["prepared"])
+        self.assertIn("unexpected symlink scripts/gone.pyc", selection["check"]["detail"])
+        self.assertFalse(paths.PREPARED_ENGINE.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,30 +7,19 @@ Run alone: python -m unittest tests.backend.setup.test_compaction_cap
 
 import json
 import unittest
-from unittest import mock
 
 from backend.setup import studio_profile as sp
-from tests.support import isolated_home
+from tests.support import fake_profile_config, isolated_home
 
 
 class CompactionCap(unittest.TestCase):
     def setUp(self):
         self.profile = isolated_home(self).base / "profiles" / sp.STUDIO_PROFILE
         self.profile.mkdir(parents=True)
-        self.written = []
-        for name, effect in (("read_profile_config", self.read), ("write_profile_config", self.write)):
-            patch = mock.patch.object(sp.hermes_api, name, side_effect=effect)
-            patch.start()
-            self.addCleanup(patch.stop)
+        self.written = fake_profile_config(self)
 
-    @staticmethod
-    def read(home):
-        """The tests' profiles write config.yaml as JSON (YAML reads it the same)."""
+    def read(self, home):
         return json.loads((home / "config.yaml").read_text())
-
-    def write(self, home, config):
-        self.written.append(config)
-        (home / "config.yaml").write_text(json.dumps(config))
 
     def refreshed(self, config) -> bool:
         (self.profile / "config.yaml").write_text(json.dumps(config))
@@ -48,6 +37,7 @@ class CompactionCap(unittest.TestCase):
             with self.subTest(config=config):
                 self.assertTrue(self.refreshed(config))
                 self.assertEqual(self.read(self.profile), expected)
+        self.assertEqual({key for key, _value in self.written}, {"compression.threshold_tokens"}, "only the one key")
 
     def test_the_users_own_cap_or_an_explicit_null_is_kept(self):
         for config in (

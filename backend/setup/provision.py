@@ -318,7 +318,7 @@ def _prepare(
             paths.ENGINE_ROOT,
             stage,
             symlinks=False,
-            ignore=lambda folder, names: [n for n in names if str(Path(folder) / n) in skipped or n == "__pycache__"],
+            ignore=lambda folder, names: [n for n in names if str(Path(folder) / n) in skipped or paths.is_bytecode(n)],
         )
         for rel, data, mode in (
             (exe_rel, executable, int(pins["executable"]["mode"], 8)),

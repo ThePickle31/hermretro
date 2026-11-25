@@ -28,11 +28,9 @@ LEFT_OUT = frozenset(paths.VENDOR_ARCHIVES + paths.CAPTURE_FFMPEG)
 
 def scan(root: Path) -> list[dict]:
     entries = []
-    for path in sorted(root.rglob("*")):
+    for path in paths.engine_entries(root):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
-        if paths.is_python_cache(rel):
-            continue
         if stat.S_ISLNK(info.st_mode):
             entries.append({"path": rel, "type": "symlink", "target": str(path.readlink())})
         elif stat.S_ISREG(info.st_mode):

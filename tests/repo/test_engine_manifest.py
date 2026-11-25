@@ -68,7 +68,9 @@ class EngineManifestTests(unittest.TestCase):
     def test_no_committed_manifest_lists_python_bytecode(self):
         for pin in sorted(PINS.glob("*/manifest.json")):
             listed = [
-                e["path"] for e in json.loads(pin.read_text())["entries"] if manifest.paths.is_python_cache(e["path"])
+                e["path"]
+                for e in json.loads(pin.read_text())["entries"]
+                if any(manifest.paths.is_bytecode(name) for name in e["path"].split("/"))
             ]
             self.assertEqual(
                 listed,

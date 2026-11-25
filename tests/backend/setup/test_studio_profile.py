@@ -186,7 +186,11 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(list((self.target / "workspace").iterdir()), [])
         self.assertEqual(result["workspace"], str((self.target / "workspace").resolve()))
         self.assertIn("You are hermretro", (self.target / "SOUL.md").read_text())
-        self.assertEqual(json.loads((self.target / sp.MARKER).read_text())["from_profile"], "work")
+        marker = json.loads((self.target / sp.MARKER).read_text())
+        self.assertEqual(marker["from_profile"], "work")
+        self.assertEqual(
+            marker["disabled_toolsets"], list(sp.DISABLED_TOOLSETS), "the list given, so it is migrated once"
+        )
         self.assertEqual(
             sp.describe(self.home, self.target)["studio"],
             {

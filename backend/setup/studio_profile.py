@@ -31,8 +31,9 @@ DESCRIPTION = "hermretro: Game Boy Color development for the ModRetro Chromatic"
 # refuse execute_code (nobody is there to approve it) and the chromatic_* tools refuse calls from inside it, so helper
 # code runs from a script file in the game's scratch/ folder.
 DISABLED_TOOLSETS = ("tts", "connections", "computer_use", "cronjob", "code_execution")
-# Every disabled_toolsets an earlier release set. A profile that still has exactly one of them gets this release's
-# when the plugin registers in it (refresh_disabled_toolsets); any other list, or none, is the user's.
+# The profile's marker records the disabled_toolsets the plugin gave it; one from before it did stands for these.
+# A profile that still has exactly that list gets this release's when the plugin registers in it
+# (refresh_disabled_toolsets); any other list, or none, is the user's.
 OLDER_DISABLED_TOOLSETS = frozenset({frozenset({"tts", "connections", "computer_use", "cronjob"})})
 SOUL_FILE = paths.PLUGIN_ROOT / "profile" / "SOUL.md"
 # SHA-256 of every SOUL.md this plugin shipped before the current one. A profile whose SOUL is still
@@ -84,16 +85,12 @@ def refresh_compaction_cap(profile_home: Path) -> bool:
     """Set the compaction cap in the studio profile's config where ``compaction_cap_due``, so the profile gets each
     release's cap however the plugin was updated, as ``refresh_soul`` does the SOUL. Answers whether it was
     written."""
-    config = hermes_api.read_profile_config(profile_home)
-    compression = config.get("compression")
-    if not compaction_cap_due(compression):
-        return False
-    if compression is None:
-        config["compression"] = {"threshold_tokens": COMPACT_AT_TOKENS}
-    else:
-        compression["threshold_tokens"] = COMPACT_AT_TOKENS
-    hermes_api.write_profile_config(profile_home, config)
-    return True
+    return _update_config(
+        profile_home,
+        "compression.threshold_tokens",
+        COMPACT_AT_TOKENS,
+        lambda config: compaction_cap_due(config.get("compression")),
+    )
 
 
 def _toolset_names(value) -> frozenset[str] | None:
@@ -109,15 +106,48 @@ def _toolset_names(value) -> frozenset[str] | None:
 
 
 def refresh_disabled_toolsets(profile_home: Path) -> bool:
-    """Put ``DISABLED_TOOLSETS`` in place of a list an earlier release set (``OLDER_DISABLED_TOOLSETS``), as
-    ``refresh_compaction_cap`` does the cap. Answers whether it was written."""
-    config = hermes_api.read_profile_config(profile_home)
-    agent = config.get("agent")
-    if not isinstance(agent, dict) or _toolset_names(agent.get("disabled_toolsets")) not in OLDER_DISABLED_TOOLSETS:
+    """Put ``DISABLED_TOOLSETS`` in place of the list the plugin gave the profile before, as ``refresh_compaction_cap``
+    does the cap, at most once: the marker records the list given (by creation, repair or this), so a list the user
+    sets afterwards stays theirs, an earlier release's included. Answers whether it was written."""
+    marker = _read_marker(profile_home)
+    if marker is None:
         return False
-    agent["disabled_toolsets"] = list(DISABLED_TOOLSETS)
-    hermes_api.write_profile_config(profile_home, config)
+    given = _toolset_names(marker.get("disabled_toolsets"))
+    if given == frozenset(DISABLED_TOOLSETS):
+        return False
+    givens = OLDER_DISABLED_TOOLSETS if given is None else {given}
+
+    def due(config: dict) -> bool:
+        agent = config.get("agent")
+        return isinstance(agent, dict) and _toolset_names(agent.get("disabled_toolsets")) in givens
+
+    if not _update_config(profile_home, "agent.disabled_toolsets", list(DISABLED_TOOLSETS), due):
+        return False
+    paths.write_json_atomic(
+        profile_home / MARKER, {**marker, "disabled_toolsets": list(DISABLED_TOOLSETS)}, indent=None
+    )
     return True
+
+
+def _update_config(profile_home: Path, key: str, value, due: Callable[[dict], bool]) -> bool:
+    """Set one dotted ``key`` in the profile's config.yaml where ``due`` holds for the config as written. Never through
+    a link (Hermes would write its target, maybe another profile's config) nor over a change made meanwhile: Hermes
+    has no lock on the file, so it is read again just before the write and, if it changed, left for the next time."""
+    read = hermes_api.read_profile_config(profile_home)
+    if not due(read):
+        return False
+    if hermes_api.read_profile_config(profile_home) != read or (profile_home / "config.yaml").is_symlink():
+        return False
+    hermes_api.write_profile_config_key(profile_home, key, value)
+    return True
+
+
+def _read_marker(profile_home: Path) -> dict | None:
+    try:
+        marker = json.loads((profile_home / MARKER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return marker if isinstance(marker, dict) else None
 
 
 def _read_soul(soul: str | Path, directory: int | None = None) -> bytes | None:
@@ -538,6 +568,7 @@ def _configure(
                 "version": paths.PLUGIN_VERSION,
                 "from_profile": profile_name(home),
                 "at": int(time.time()),
+                "disabled_toolsets": list(DISABLED_TOOLSETS),
             }
         ),
         encoding="utf-8",

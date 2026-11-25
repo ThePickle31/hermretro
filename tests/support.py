@@ -20,6 +20,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from backend.hermes import api as hermes_api
 from backend.hermes import host as hermes_host
 from backend.system import paths
 
@@ -62,6 +63,36 @@ def throwaway_profile(base: Path):
     or use it as a context manager); Hermes itself does not need to be importable."""
     data = Path(base) / "profile" / "plugin-data" / "hermretro"
     return mock.patch.object(hermes_host, "_data_dir", lambda: data)
+
+
+def fake_profile_config(test, api=hermes_api) -> list[tuple[str, object]]:
+    """Stand in for Hermes's profile config reads and one-key writes (``api``, backend/hermes/api.py or a loaded copy's)
+    for the rest of ``test``. A profile's config.yaml is JSON here (YAML reads it the same) and, as in Hermes, a write
+    goes through a link to its target. Returns the (key, value) pairs written, in order."""
+    written = []
+
+    def read(home):
+        try:
+            return json.loads((home / "config.yaml").read_text())
+        except FileNotFoundError:
+            return {}
+
+    def write_key(home, key, value):
+        written.append((key, value))
+        config = section = read(home)
+        *parents, last = key.split(".")
+        for name in parents:
+            if not isinstance(section.get(name), dict):
+                section[name] = {}
+            section = section[name]
+        section[last] = value
+        (home / "config.yaml").write_text(json.dumps(config))
+
+    for name, effect in (("read_profile_config", read), ("write_profile_config_key", write_key)):
+        patch = mock.patch.object(api, name, side_effect=effect)
+        patch.start()
+        test.addCleanup(patch.stop)
+    return written
 
 
 @contextmanager

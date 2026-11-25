@@ -22,7 +22,7 @@ USED = (
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
     ("hermes_cli.config", "read_user_config_raw"),
-    ("hermes_cli.config", "atomic_config_write"),
+    ("hermes_cli.config_backend", "write_config_key"),
     ("hermes_cli.auth", "PROVIDER_REGISTRY"),
     ("agent.secret_scope", "load_env_file"),
     # Private: Hermes's .env writer for an explicit path. Its public save_env_value also changes os.environ, which here
@@ -119,12 +119,12 @@ def read_profile_config(profile_home: Path) -> dict:
     return read_user_config_raw(profile_home / "config.yaml")
 
 
-def write_profile_config(profile_home: Path, config: dict) -> None:
-    """Write back a profile's config.yaml as ``read_profile_config`` read it, changed. Hermes keeps its comments and
-    refuses a write that would drop a setting."""
-    from hermes_cli.config import atomic_config_write
+def write_profile_config_key(profile_home: Path, key: str, value) -> None:
+    """Set one dotted key in a profile's config.yaml: Hermes reads the file afresh and changes only that key, keeping
+    its comments. A config.yaml that is a link is written through to its target."""
+    from hermes_cli.config_backend import write_config_key
 
-    atomic_config_write(profile_home / "config.yaml", config)
+    write_config_key(profile_home / "config.yaml", key, value)
 
 
 def read_profile_env(profile_home: Path) -> dict[str, str]:
