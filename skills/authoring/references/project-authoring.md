@@ -161,10 +161,26 @@ chromatic_actor_update {"sceneId":"<scene-id>","actorId":"<actor-id>","x":9,"y":
 chromatic_trigger_create {"sceneId":"<scene-id>","name":"North Gate","x":10,"y":0,"width":2,"height":1}
 ```
 
-Actor and trigger updates preserve the existing resource ID, `_index`, symbol,
+Actor and trigger updates preserve the existing resource ID, `_index`,
 filename, unrelated script arrays, and unknown metadata. Scene tile bounds and
 trigger rectangle footprints are validated; actor sprite references must refer
 to actual registered assets. Deletion rejects detectable authored references.
+
+An actor's or trigger's `symbol` names its compiled scripts (`actor_door` compiles
+`actor_door_interact`, `actor_door_update`, …), so it is unique across the whole
+project, compiled names included, and follows the name: a new one gets
+`actor_<name>` or `trigger_<name>` (`_2`, `_3`, … when taken, as for two doors in
+two scenes), and renaming it gives it a new one when the name's symbol changes or
+its current symbol is shared. Setting `symbol` yourself is refused with
+`INVALID_PROPERTY`. A project made before this can hold two resources with one
+symbol, or a custom script whose symbol matches an actor's compiled name, which
+GB Studio compiles as one script: each is a `DUPLICATE_SYMBOL` diagnostic naming
+the owners and their ids, and `chromatic_rom_build` refuses to build until all
+but one are renamed. `chromatic_project_inspect` shows only its first five
+diagnostics (`health.byCode` counts them all); list every one with
+`chromatic_project_inventory {"resourceTypes":["diagnostic"]}`, following
+`nextCursor`. These three read the whole project from disk first, so they check
+a file edited outside the tools at once.
 
 `chromatic_scene_inspect` returns both the whole-project `revision` for `chromatic_scene_apply` or
 `chromatic_scene_delete` and the exact `sceneRevision` for `chromatic_trigger_create` or a scene-owned
@@ -176,7 +192,9 @@ subsequent edit. A project revision does not guard an individual script resource
 For related edits, `chromatic_scene_apply` accepts 1–100 ordered typed operations such as
 `actor.create`, `trigger.update`, `event.edit`, `collision.edit`, or
 `variable.upsert`; later operations can refer to resources created earlier in
-the same batch. Use `dryRun` for validation and `expectedRevision` when guarding
+the same batch; deleting a resource and creating one with the same `id` in one
+batch replaces it. `changedPaths` lists only files whose content changes. Use
+`dryRun` for validation and `expectedRevision` when guarding
 against external edits. Its returned `transactionGuarantee` distinguishes
 `legacy-single-file-atomic` from `distributed-best-effort-rollback`; distributed
 resource edits are not instantaneously atomic across files. An external change
@@ -220,10 +238,26 @@ hexadecimal byte-run collision edit:
 
 ```text
 chromatic_variable_set {"name":"gate_open","symbol":"var_gate_open"}
-chromatic_script_edit {"action":"insert","target":{"sceneId":"<scene-id>","actorId":"<actor-id>"},"event":{"command":"EVENT_TEXT","args":{"text":"The gate is open."}}}
+chromatic_script_edit {"action":"insert","target":{"sceneId":"<scene-id>","actorId":"<actor-id>"},"event":{"command":"EVENT_IF_TRUE","args":{"variable":"<variable-id>"},"children":{"true":[{"command":"EVENT_TEXT","args":{"text":"The gate is open."}}],"false":[{"command":"EVENT_ACTOR_SET_DIRECTION","args":{"actorId":"$self$","direction":{"type":"direction","value":"up"}}}]}}}
 chromatic_script_transition {"target":{"sceneId":"<scene-id>","triggerId":"<trigger-id>"},"destinationSceneId":"<destination-id>","x":10,"y":13,"direction":"up"}
 chromatic_collision_edit {"sceneId":"<scene-id>","edits":[{"shape":"rectangle","x":2,"y":3,"width":4,"height":1,"value":15}]}
 ```
+
+Every tool that writes a script (`chromatic_script_edit`, `chromatic_scene_apply`,
+the create and update tools' `properties`) gives each event without an `id`,
+nested ones included, a stable unique one (read it back from the result or
+`chromatic_script_inspect`); supply your own only to name an event you refer to
+later. Arguments GB Studio compiles as script
+values must be typed: an actor direction is `{"type":"direction","value":"up"}`
+and a position `{"type":"number","value":3}` in `EVENT_ACTOR_SET_DIRECTION`,
+`EVENT_IF_ACTOR_DIRECTION`, `EVENT_ACTOR_SET_POSITION`,
+`EVENT_ACTOR_SET_POSITION_RELATIVE`, `EVENT_ACTOR_MOVE_TO`,
+`EVENT_ACTOR_MOVE_RELATIVE`, `EVENT_IF_ACTOR_AT_POSITION` and the
+`EVENT_SWITCH_SCENE` coordinates. A plain value there, a direction other than
+`up`, `down`, `left` or `right`, or an actor direction event without its
+`direction` is refused with `INVALID_EVENT` instead of failing the build later;
+a variable or expression value is accepted, and a commented-out event is not
+checked. `EVENT_SWITCH_SCENE`'s own `direction` stays a plain string.
 
 `chromatic_script_edit` also supports `update`, `delete`, and `move`, including
 `branchPath` segments identified by stable event ID and branch name. Preserve
@@ -303,7 +337,7 @@ Upstream resource files represent ordinary dialogue as:
 }
 ```
 
-Existing interactions may contain a dialogue event followed by flags, conditionals, custom-event calls, or branching child events. Update the existing text event in place when possible. If adding a new event, allocate a unique ID and preserve event order and unrelated branches. Never replace the entire `script` merely to rewrite a sentence.
+Existing interactions may contain a dialogue event followed by flags, conditionals, custom-event calls, or branching child events. Update the existing text event in place when possible. A new event gets its unique ID from the tool that adds it; preserve event order and unrelated branches. Never replace the entire `script` merely to rewrite a sentence.
 
 `chromatic_dialogue_analyze` recursively scans native `EVENT_TEXT` events within scene,
 actor, trigger, and nested branch scripts. It resolves the actual

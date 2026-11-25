@@ -146,7 +146,9 @@ run that before committing.
 The real-engine run starts in `tests/acceptance/broker_acceptance.py`. Under `tests/acceptance/`,
 `projects.py` covers builds and emulation, `replay.py` replaying a recorded attempt onto a rebuild, `art.py` art
 import, sprite palettes and previews, `debugging.py` source-mode live state, `ownership.py` leases and the Desktop
-view, and `recovery.py` worker and broker restarts. Each stage uses the same two games.
+view, and `recovery.py` worker and broker restarts; these stages use the same two games. `authoring.py` covers the
+engine's authoring rules (project-unique symbols, scene transactions, script event ids and typed arguments) on a
+third game of its own.
 
 Shared helpers are `tests/support.py`, imported as `from tests.support import ...`; a test reaches another test's
 helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/` itself on `sys.path` (only the

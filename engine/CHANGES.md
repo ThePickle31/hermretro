@@ -100,3 +100,20 @@ files, what changed and why.
   in any case, then the symbol without `var_`; an unknown name or ID lists the authored variables.
   `emulator_inspect` reads up to 2,048 bytes instead of 256. Agents decoded `_actors` from raw WRAM by hand, hit the
   256-byte limit, and guessed variable names that the tool only rejected.
+- `dist/server.js` (`actors.js`, `triggers.js`, `project.js`, `scene-batch.js`, `native-script-events.js`,
+  `game-scripts.js`, the project inventories and `rom_build`): actor and trigger symbols are unique across the whole
+  project, as GB Studio's `ensureSymbolsUnique` keeps them (they were `actor_<name>` per scene folder, so two scenes'
+  same-named actors compiled as one script), including the script names they compile to (`actor_door_interact`) and
+  custom script symbols, and a rename gives a new one when the slug changes or the symbol is shared; the inventories
+  report a shared scene, actor or trigger symbol or compiled name as a `DUPLICATE_SYMBOL` error naming each owner's
+  id, which `project_inspect` and `project_inventory`'s diagnostic listing list and `rom_build` (after its path
+  containment check) refuses to build past, each after a strong refresh, so a file edited outside the engine is
+  checked before the file watcher reports it (macOS reports it late).
+  Setting `symbol` (or another reserved key) in `scene_apply` or `actor_create` is an error instead of being dropped
+  or taken, a `scene_apply` `id` that differs from its `actorId`/`triggerId` is an error, and `changedPaths` lists
+  only files whose bytes change. Deleting and recreating one id in a `scene_apply` replaces the resource. Every
+  script-writing path, `dialogue_update` included, gives each event without an id, nested ones included, a stable
+  unique one (inserting the same event twice no longer collides). Actor direction and position arguments that GB
+  Studio compiles as script values must be typed ScriptValues on write, like the scene-switch coordinates already
+  were; an active actor direction event needs a `direction` that is a variable, an expression or up/down/left/right,
+  commented-out events are not checked, and an unchanged older id-less event stays accepted once it gets an id.
