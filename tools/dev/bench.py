@@ -3,7 +3,9 @@ of what each chat cost and where its time went, read from Hermes's own records.
 
 `run` starts every game at once (`hermes -p hermretro chat --query-file <prompt> --oneshot -Q --reasoning high`),
 each with its log in a run folder under `notes/bench/`, and waits for them all; `run.json` there records each game's
-process, start, exit and session. `report` reads the studio profile's `state.db` (read-only) and `logs/errors.log`.
+process, start, exit and session. The running gateway serves those chats with the plugin code it loaded, so `run`
+first makes sure that is the code the profile loads now (`current_gateway`). `report` reads the studio profile's
+`state.db` (read-only) and `logs/errors.log`.
 Standard library only; development only; Linux and macOS.
 """
 
@@ -18,10 +20,13 @@ import sys
 import threading
 import time
 from collections import Counter
+from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
+
+import local_hermes as hermes
 
 GAMES = Path(__file__).resolve().parent / "bench_games"
 RUNS = Path(__file__).resolve().parents[2] / "notes" / "bench"
@@ -62,6 +67,23 @@ def logged_session(log: Path) -> str | None:
     """The session id a quiet chat prints after its answer (`session_id: ...`), when it got that far."""
     found = SESSION_LINE.findall(log.read_text(encoding="utf-8", errors="replace")) if log.is_file() else []
     return found[-1] if found else None
+
+
+def current_gateway(root: Path, profile: str, reload: Callable[[], int]) -> None:
+    """Make sure the gateway that will serve the chats runs the hermretro code ``profile`` loads now: when it does not,
+    ``reload`` it (non-zero when that failed) and ask again; refuse when it still does not."""
+    try:
+        stale = hermes.stale_plugin(root, profile)
+        if stale is None:
+            return
+        print(f"the gateway runs older hermretro code ({stale}): reloading", flush=True)
+        if reload():
+            raise BenchError("the reload failed, so the games would run on older code: restart Hermes, then run again")
+        stale = hermes.stale_plugin(root, profile)
+    except hermes.GatewayError as error:
+        raise BenchError(f"{error}: the games need a running gateway (hermes -p {profile} gateway ensure)") from error
+    if stale is not None:
+        raise BenchError(f"after a reload the gateway still runs older hermretro code ({stale}): restart Hermes")
 
 
 def run(prompts: list[Path], profile: str, runs: Path, checkout: Path | None) -> Path:
@@ -194,6 +216,7 @@ class Report:
     model_calls: int = 0
     auxiliary_calls: int = 0
     tool_calls: int = 0
+    steps: int = 0
     builds: int = 0
     failed_builds: int = 0
     compactions: int = 0
@@ -266,10 +289,8 @@ def report(db: sqlite3.Connection, session: str, drops: Counter, exited: float |
     found.model_calls = usage[0] or row["api_call_count"] or 0
     found.auxiliary_calls = usage[1] or 0
     found.cost = usage[2] or row["estimated_cost_usd"] or 0.0
-    # Rows, not the session's counts: those count only what is still active after a compaction.
-    for tool, content in db.execute(
-        "SELECT tool_name, content FROM messages WHERE session_id = ? AND role = 'tool'", (session,)
-    ):
+    # Stored messages, not the session's counts: those count only what is still active after a compaction.
+    for tool, content in unique(db, session, "tool", "tool_name, content"):
         found.tool_calls += 1
         code = error_code(tool, content)
         if code:
@@ -277,20 +298,28 @@ def report(db: sqlite3.Connection, session: str, drops: Counter, exited: float |
         if tool == "chromatic_rom_build":
             found.builds += 1
             found.failed_builds += bool(code)
-    for (tool_calls,) in db.execute(
-        "SELECT tool_calls FROM messages WHERE session_id = ? AND role = 'assistant' AND tool_calls IS NOT NULL",
-        (session,),
-    ):
+    for (tool_calls,) in unique(db, session, "assistant", "tool_calls", "tool_calls IS NOT NULL"):
         for tool, arguments in calls(tool_calls):
             source = any(marker in json.dumps(arguments) for marker in SOURCE_MARKERS)
+            found.steps += tool == "chromatic_emulator_step"
             found.source_commands += tool == "terminal" and source
             found.source_reads += tool in SOURCE_READERS and source
             found.restores += tool == "chromatic_emulator_checkpoint" and arguments.get("action") == "restore"
-    found.compactions = db.execute(
-        "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user' AND _compressed_summary = 1", (session,)
-    ).fetchone()[0]
+    found.compactions = len(unique(db, session, "user", "id", "_compressed_summary = 1"))
     found.ended = ending(db, session, row["end_reason"], found.running)
     return found
+
+
+def unique(db: sqlite3.Connection, session: str, role: str, columns: str, where: str = "1") -> list[tuple]:
+    """``columns`` of each of the session's ``role`` messages once, in order. A compaction stores copies of the
+    messages before it (the same `message_uid`, `compacted` 1, a tool result's copy cut short), so each counts as
+    first stored: a tool result once per call (`tool_call_id`), anything else once per `message_uid`."""
+    key = "COALESCE(tool_call_id, message_uid, id)" if role == "tool" else "COALESCE(message_uid, id)"
+    return db.execute(
+        f"SELECT {columns} FROM messages WHERE id IN (SELECT MIN(id) FROM messages"
+        f" WHERE session_id = ? AND role = ? AND {where} GROUP BY {key}) ORDER BY id",
+        (session, role),
+    ).fetchall()
 
 
 def ending(db: sqlite3.Connection, session: str, reason: str | None, running: bool) -> str:
@@ -329,6 +358,7 @@ ROWS = (
         lambda r: f"{r.model_calls} ({r.auxiliary_calls} auxiliary)" if r.auxiliary_calls else str(r.model_calls),
     ),
     ("tool calls", lambda r: str(r.tool_calls)),
+    ("step calls", lambda r: str(r.steps)),
     ("builds", lambda r: f"{r.builds} ({r.failed_builds} failed)" if r.failed_builds else str(r.builds)),
     ("compactions", lambda r: str(r.compactions)),
     ("duplicate drops", lambda r: str(r.duplicate_drops)),

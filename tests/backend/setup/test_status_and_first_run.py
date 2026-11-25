@@ -171,6 +171,7 @@ class UpdatedOnDisk(Home):
     def test_status_says_when_hermes_must_restart(self):
         status = setup_rpcs.rpc_status(CTX)
         self.assertFalse(status({})["restart_needed"])
+        self.assertEqual(status({})["plugin"]["root"], str(paths.PLUGIN_ROOT))  # with it, where the code came from
         with mock.patch.object(paths, "code_fingerprint", return_value="changed-on-disk"):
             self.assertTrue(status({})["restart_needed"])
 

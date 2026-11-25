@@ -1,11 +1,13 @@
-"""tools/dev/local_hermes.py: the profile links `live` moves, Hermes Desktop's copy of the page, and the gateway's
-control socket `reload` talks to (a stand-in gateway here)."""
+"""tools/dev/local_hermes.py: the profile links `live` moves, Hermes Desktop's copy of the page, the gateway's
+control socket `reload` talks to (a stand-in gateway here), and the plugin RPC `bench run` asks which code the gateway
+runs."""
 
 import importlib.util
 import json
 import os
 import shutil
 import socket
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -165,6 +167,65 @@ class RootTest(unittest.TestCase):
         ):
             with mock.patch.dict(os.environ, {"HERMES_HOME": configured}):
                 self.assertEqual(local_hermes.hermes_root(), root, configured)
+
+
+class StalePluginTest(unittest.TestCase):
+    """What the plugin's status says about the code the gateway runs, against the folder the profile loads."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name).resolve()
+        self.checkout = self.root / "checkout"
+        self.checkout.mkdir()
+        plugins = self.root / "profiles" / "hermretro" / "plugins"
+        plugins.mkdir(parents=True)
+        (plugins / "hermretro").symlink_to(self.checkout)
+
+    def stale(self, status):
+        with mock.patch.object(local_hermes, "plugin_rpc", return_value=status) as rpc:
+            found = local_hermes.stale_plugin(self.root, "hermretro")
+        rpc.assert_called_once_with("hermretro", "status")
+        return found
+
+    def test_the_loaded_folder_and_its_files(self):
+        self.assertIsNone(self.stale({"plugin": {"root": str(self.checkout)}, "restart_needed": False}))
+        changed = self.stale({"plugin": {"root": str(self.checkout)}, "restart_needed": True})
+        self.assertEqual(changed, f"{self.checkout} changed since it loaded")
+        elsewhere = self.stale({"plugin": {"root": "/old/checkout"}, "restart_needed": False})
+        self.assertEqual(elsewhere, f"it loaded /old/checkout, the profile loads {self.checkout}")
+        self.assertIn("predates", self.stale({"plugin": {"version": "1.0.0"}, "restart_needed": False}))
+
+    def test_an_unknown_profile(self):
+        with self.assertRaisesRegex(local_hermes.GatewayError, "no profile 'other'"):
+            local_hermes.stale_plugin(self.root, "other")
+
+
+class PluginRpcTest(unittest.TestCase):
+    """The RPC goes through tools/debug/gateway_rpc.mjs, whose last line is the answer."""
+
+    def answer(self, stdout, stderr=""):
+        done = subprocess.CompletedProcess([], 0, stdout, stderr)
+        with mock.patch.object(local_hermes.subprocess, "run", return_value=done) as run:
+            result = local_hermes.plugin_rpc("hermretro", "status")
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "node")
+        self.assertEqual(command[2:], ["hermretro", "plugin.hermretro.status", "{}"])
+        self.assertEqual(run.call_args.kwargs["env"]["GATEWAY_RPC_FULL"], "1")
+        return result
+
+    def test_the_result(self):
+        line = json.dumps({"profile": "hermretro", "result": {"ok": True, "restart_needed": False}})
+        self.assertEqual(self.answer(f"noise\n{line}\n"), {"ok": True, "restart_needed": False})
+
+    def test_no_gateway_or_a_failed_call(self):
+        for stdout, said in (
+            (json.dumps({"profile": "hermretro", "error": "no gateway: not running"}), "no gateway: not running"),
+            (json.dumps({"result": {"ok": False, "error": "boom"}}), "boom"),
+            ("", "no answer"),
+        ):
+            with self.assertRaisesRegex(local_hermes.GatewayError, said):
+                self.answer(stdout)
 
 
 if __name__ == "__main__":

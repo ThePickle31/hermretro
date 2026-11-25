@@ -1,5 +1,6 @@
 """The parts of Hermes the development loop touches: each profile's link to a hermretro checkout, the gateway's
-control socket (to reload the plugin without a restart) and Hermes Desktop's copy of the page.
+control socket (to reload the plugin without a restart), the plugin's RPCs in the gateway and Hermes Desktop's copy
+of the page.
 
 Standard library only; development only (nothing here runs inside Hermes).
 """
@@ -9,10 +10,12 @@ from __future__ import annotations
 import json
 import os
 import socket
+import subprocess
 from pathlib import Path
 
 PLUGIN = "hermretro"
 STUDIO = "hermretro"
+GATEWAY_RPC = Path(__file__).resolve().parents[1] / "debug" / "gateway_rpc.mjs"
 
 
 class GatewayError(Exception):
@@ -137,6 +140,50 @@ def reload(root: Path, profile: str) -> dict:
     if not result.get("reloaded"):
         raise GatewayError(f"the gateway did not reload {profile}: {result.get('error') or result}")
     return result
+
+
+def plugin_rpc(profile: str, name: str, params: dict | None = None) -> dict:
+    """One of hermretro's RPCs in the gateway serving ``profile``, called as the page calls it
+    (tools/debug/gateway_rpc.mjs, which needs Node); its result."""
+    method = f"plugin.{PLUGIN}.{name}"
+    try:
+        done = subprocess.run(
+            ["node", str(GATEWAY_RPC), profile, method, json.dumps(params or {})],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "GATEWAY_RPC_FULL": "1"},
+            timeout=90,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise GatewayError(f"could not call {method}: {error}") from error
+    try:
+        answer = json.loads(done.stdout.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        answer = None
+    result = answer.get("result") if isinstance(answer, dict) else None
+    if not isinstance(result, dict) or result.get("ok") is False:
+        said = (answer.get("error") if isinstance(answer, dict) else None) or (result or {}).get("error")
+        raise GatewayError(f"the gateway did not answer {method}: {said or done.stderr.strip() or 'no answer'}")
+    return result
+
+
+def stale_plugin(root: Path, profile: str) -> str | None:
+    """Why the gateway serving ``profile`` does not run the hermretro code that profile loads now, or None when it
+    does. Asked of the plugin itself: where it loaded from, and its `restart_needed` (its files changed since it
+    loaded, what the page's update banner shows)."""
+    home = profile_homes(root).get(profile)
+    if home is None:
+        raise GatewayError(f"there is no profile {profile!r} in {root}")
+    status = plugin_rpc(profile, "status")
+    loaded = (status.get("plugin") or {}).get("root")
+    wanted = (home / "plugins" / PLUGIN).resolve()
+    if not loaded:
+        return "its hermretro does not say where it loaded from, so it predates this checkout"
+    if Path(loaded) != wanted:
+        return f"it loaded {loaded}, the profile loads {wanted}"
+    if status.get("restart_needed"):
+        return f"{wanted} changed since it loaded"
+    return None
 
 
 def refresh_desktop(root: Path, checkout: Path) -> bool:

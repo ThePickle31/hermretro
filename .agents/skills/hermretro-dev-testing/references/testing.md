@@ -120,16 +120,26 @@ output and `run.json` (process, start, exit, session, checkout and commit) in `n
 the report (if that fails, the run stays there for `report`). `run bolt tide` runs only the games whose names contain
 those words. The chats and the report use the same Hermes root: `HERMES_HOME`'s, by Hermes's own rule.
 
+The running gateway serves those chats with the plugin code it loaded, not what is on disk, so `run` first asks
+hermretro's `status` there (with Node) where its code came from (`plugin.root`) and whether it changed since
+(`restart_needed`, what the page's update banner shows). When the gateway runs other code it reloads every profile
+that loads hermretro, as `python tools/dev reload` does, and asks again; it starts no game when no gateway answers,
+the reload fails or the code is still old (restart Hermes then).
+
 `python tools/dev bench report` prints the newest run's report again; `--run <folder>` reports another run,
 `--sessions <id> ...` any sessions. It reads the profile's `state.db` (read-only) and `logs/errors.log*`, and gives
 each game: wall time, estimated cost and model calls (auxiliary ones such as compaction summaries included, and
 counted apart), tool calls (counted from the stored results: the session's own count leaves out what a compaction
-removed), builds and failed builds (`success: false` from the compiler counts), compactions, the identical tool
-calls Hermes dropped (`Removed duplicate tool call`), terminal commands and file reads into GB Studio's or the
-engine's source (apart), checkpoint restores, whether the chat ended with a final answer, and the tool errors by
-code. A chat stopped before it printed its session id is found by its prompt: the one session with it that started
+removed), `chromatic_emulator_step` calls, builds and failed builds (`success: false` from the compiler counts),
+compactions, the identical tool calls Hermes dropped (`Removed duplicate tool call`, one log line each), terminal
+commands and file reads into GB Studio's or the engine's source (apart), checkpoint restores, whether the chat ended
+with a final answer, and the tool errors by code. Every compaction stores copies of the messages before it (the same
+`message_uid`, `compacted` 1, a tool result's copy cut short), so the report takes each message once, as first
+stored: a tool result once per `tool_call_id`, anything else once per `message_uid` (Bolt's 3,107 rows are 1,425
+messages). A chat stopped before it printed its session id is found by its prompt: the one session with it that started
 while that chat ran, else none; a session the stopped chat left open ends when the chat exited. Its tests use a
-fixture database (`tests/dev/test_bench.py`).
+fixture database (`tests/dev/test_bench.py`) and, for `run`, a stand-in gateway and `hermes`
+(`tests/dev/test_bench_run.py`): no test reloads or reaches the real gateway.
 
 ## Where tests live
 

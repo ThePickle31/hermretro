@@ -63,7 +63,7 @@ fails when it is stale); the agent tool names it reacts to are in
 {
   "ok": true,
   "plugin": { "id": "hermretro", "version": "<plugin.yaml version>",
-              "installed_in": { "profile": "default", "linked": false } },
+              "installed_in": { "profile": "default", "linked": false }, "root": "/abs/path" },
   "platform": { "system": "linux | darwin", "machine": "x64 | arm64", "rosetta": false, "supported": true,
                 "qualified": true },
   "node": { "found": true, "version": "26.13.0", "required": "22" },
@@ -78,7 +78,9 @@ fails when it is stale); the agent tool names it reacts to are in
 for the conversation named by `chat` (the focused chat's id). When the handshake cannot be confirmed,
 `broker.running` is `null`. `plugin.installed_in` names the profile Hermes installed
 this copy into (the studio profile only links it), where the page runs Hermes's `plugins.manage update`; it is
-`{ "profile": null, "linked": true }` for a checkout linked in from elsewhere, which Hermes does not update. It is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
+`{ "profile": null, "linked": true }` for a checkout linked in from elsewhere, which Hermes does not update.
+`plugin.root` is the folder the running code was loaded from and `restart_needed` says its files changed since:
+together, whether the gateway runs what a profile loads now (`python tools/dev bench run` checks both). It is not called `session_id` on purpose: the gateway authorizes that name as a live session and rejects the call (`not_found`) for a draft chat. It never starts a worker.
 
 ### `doctor` — params `{ probe?: boolean }`
 

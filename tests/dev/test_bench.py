@@ -1,11 +1,10 @@
-"""tools/dev/bench.py: the benchmark starts each game's one-shot chat with the right command and records its session,
-and the report counts from a fixture state.db and errors.log what Hermes's own session columns get wrong."""
+"""tools/dev/bench.py: the report counts from a fixture state.db and errors.log what Hermes's own session columns get
+wrong, each message once however many compactions copied it, and finds each game's session (`run` itself:
+test_bench_run.py)."""
 
 import importlib.util
 import io
 import json
-import os
-import shutil
 import sqlite3
 import sys
 import tempfile
@@ -28,9 +27,9 @@ SCHEMA = """
 CREATE TABLE sessions (id TEXT PRIMARY KEY, started_at REAL NOT NULL, ended_at REAL, end_reason TEXT,
     api_call_count INTEGER DEFAULT 0, estimated_cost_usd REAL);
 CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL,
-    content TEXT, tool_calls TEXT, tool_name TEXT, timestamp REAL NOT NULL, finish_reason TEXT,
+    content TEXT, tool_call_id TEXT, tool_calls TEXT, tool_name TEXT, timestamp REAL NOT NULL, finish_reason TEXT,
     _compressed_summary INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
-    compacted INTEGER NOT NULL DEFAULT 0);
+    compacted INTEGER NOT NULL DEFAULT 0, message_uid TEXT);
 CREATE TABLE session_model_usage (session_id TEXT NOT NULL, task TEXT NOT NULL DEFAULT '',
     api_call_count INTEGER NOT NULL DEFAULT 0, estimated_cost_usd REAL NOT NULL DEFAULT 0);
 """
@@ -173,6 +172,41 @@ class ReportTest(Fixture):
         self.assertEqual((self.home / "state.db").read_bytes(), before)
 
 
+class CompactionCopiesTest(Fixture):
+    """A compaction stores copies of the messages before it (same `message_uid`, `compacted` 1, a tool result's
+    copy cut short); every count takes each message once."""
+
+    def test_copies_count_once(self):
+        self.session(ended=1100.0, reason="cli_close")
+        stepping = [call("chromatic_emulator_step", {"buttons": ["a"]}), call("chromatic_rom_build", {})]
+        restoring = [
+            call("chromatic_emulator_checkpoint", {"action": "restore"}),
+            call("terminal", {"command": "cat vendor/gb-studio/src/lib/compiler/compileData.ts"}),
+        ]
+        failed = {"isError": True, "error": "compile failed", "code": "BUILD_FAILED"}
+        for copy in range(3):  # the originals, then two compactions' copies
+            stored = {"active": 0, "compacted": int(copy > 0)}
+            self.message("user", content=PROMPT, message_uid="u-prompt", **stored)
+            self.message("assistant", tool_calls=json.dumps(stepping), message_uid="u-a1", **stored)
+            self.tool("chromatic_emulator_step", {"result": "Completed"}, tool_call_id="c1", message_uid="u-t1")
+            build = failed if copy == 0 else "[tool_call] pruned: full result at ..."
+            self.tool("chromatic_rom_build", build, tool_call_id="c2", message_uid="u-t2", **stored)
+            self.message("assistant", tool_calls=json.dumps(restoring), message_uid="u-a2", **stored)
+            self.tool("chromatic_emulator_checkpoint", {"result": "Restored"}, tool_call_id="c3", **stored)
+            self.tool("terminal", {"output": ""}, tool_call_id="c4", message_uid=f"u-t4-{copy}", **stored)
+            if copy:
+                self.message("user", content="[CONTEXT COMPACTION] summary", _compressed_summary=1, message_uid="u-s")
+        self.message("assistant", content="Done.", finish_reason="stop", message_uid="u-end")
+        found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]
+        self.assertEqual(found.tool_calls, 4)
+        self.assertEqual(found.steps, 1)
+        self.assertEqual((found.builds, found.failed_builds), (1, 1))  # the original's result, not the cut copy's
+        self.assertEqual(found.errors, Counter({"BUILD_FAILED": 1}))
+        self.assertEqual((found.restores, found.source_commands), (1, 1))
+        self.assertEqual(found.compactions, 1)
+        self.assertEqual(found.ended, "yes")
+
+
 class EndingTest(Fixture):
     def test_a_session_still_open_runs_until_its_last_message(self):
         self.session()
@@ -263,56 +297,6 @@ class RunSessionsTest(Fixture):
         self.assertEqual(bench.latest_run(runs).name, "20261125-090000")
 
 
-class RunTest(unittest.TestCase):
-    """`run` with a stand-in `hermes` on PATH that prints its arguments and a session id, as a quiet chat does."""
-
-    def setUp(self):
-        folder = Path(tempfile.mkdtemp()).resolve()
-        self.addCleanup(shutil.rmtree, folder, ignore_errors=True)
-        self.folder = folder
-        bin_ = folder / "bin"
-        bin_.mkdir()
-        hermes = bin_ / "hermes"
-        # Each stand-in waits (up to 10 s) until both have started, so they finish only when run side by side.
-        hermes.write_text(
-            '#!/bin/sh\necho "$@"\npwd\nprompt="$5"\nname=$(basename "$prompt" .txt)\n'
-            'touch "$BENCH_STARTED/$name"\ni=0\n'
-            'while [ "$(ls "$BENCH_STARTED" | wc -l)" -lt 2 ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done\n'
-            'if [ "$(ls "$BENCH_STARTED" | wc -l)" -lt 2 ]; then echo alone; exit 4; fi\n'
-            'if [ "$name" = "2-fails" ]; then echo boom >&2; exit 3; fi\n'
-            'echo "Done."\necho\necho "session_id: local-$name"\n',
-            encoding="utf-8",
-        )
-        started = folder / "started"
-        started.mkdir()
-        hermes.chmod(0o755)
-        patcher = mock.patch.dict(
-            os.environ, {"PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}", "BENCH_STARTED": str(started)}
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        self.prompts = []
-        for name in ("1-works", "2-fails"):
-            prompt = folder / f"{name}.txt"
-            prompt.write_text(f"Make {name}.\n", encoding="utf-8")
-            self.prompts.append(prompt)
-
-    def test_runs_every_game_at_once_and_records_each_session(self):
-        with mock.patch("sys.stdout"):
-            folder = bench.run(self.prompts, "hermretro", self.folder / "runs", None)
-        record = json.loads((folder / "run.json").read_text(encoding="utf-8"))
-        works, fails = record["games"]["1-works"], record["games"]["2-fails"]
-        self.assertEqual((works["exit"], works["session"]), (0, "local-1-works"))
-        self.assertEqual((fails["exit"], fails["session"]), (3, None))
-        self.assertEqual(works["prompt"], "Make 1-works.\n")
-        self.assertLessEqual(works["started"], works["ended"])
-        log = (folder / "1-works.log").read_text(encoding="utf-8").splitlines()
-        prompt = self.prompts[0]
-        self.assertEqual(log[0], f"-p hermretro chat --query-file {prompt} --oneshot -Q --reasoning high")
-        self.assertEqual(Path(log[1]).resolve(), folder)  # each chat starts in the run folder
-        self.assertIn("boom", (folder / "2-fails.log").read_text(encoding="utf-8"))
-
-
 class CommandTest(Fixture):
     """`python tools/dev bench report` against a profile home of its own."""
 
@@ -358,6 +342,7 @@ class CommandTest(Fixture):
         error = io.StringIO()
         with (
             mock.patch.object(self.cli.shutil, "which", return_value="/bin/hermes"),
+            mock.patch.object(self.cli.bench, "current_gateway"),
             mock.patch.object(self.cli.bench, "run", return_value=folder),
             mock.patch.object(self.cli.bench, "reports", side_effect=sqlite3.OperationalError("no such column")),
             redirect_stderr(error),
