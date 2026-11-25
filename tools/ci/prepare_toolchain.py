@@ -137,6 +137,8 @@ def connect(state: Path, process: subprocess.Popen) -> client.BrokerClient:
     while True:
         broker, error = client.try_connect(state, deadline=deadline)
         if broker is not None:
+            # The start deadline bounds connecting only, as in client.ensure_broker; the install runs for minutes.
+            broker.startup_deadline = None
             return broker
         if process.poll() is not None:
             raise client.BrokerUnavailable(f"the broker exited with {process.returncode}: {error}")

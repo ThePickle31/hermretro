@@ -27,8 +27,15 @@ class FakeBroker:
 
     def __init__(self, outcome: str, on_status=None):
         self.outcome, self.on_status, self.asked, self.closed = outcome, on_status, [], False
+        self.startup_deadline = 0.0  # what try_connect leaves from the connect deadline
+        self.deadline_at_status = None
 
     def request(self, message):
+        if message["op"] == "install_status":
+            self.deadline_at_status = self.startup_deadline
+        return self._answer(message)
+
+    def _answer(self, message):
         self.asked.append(message["op"])
         if message["op"] == "install_status":
             if self.on_status:
@@ -139,6 +146,8 @@ class PrepareToolchain(unittest.TestCase):
         self.assertEqual(state.parent, self.parent)
         self.assertNotEqual(state, paths.default_runtime_dir())
         self.assertEqual(broker.asked, ["install_start", "install_status"])
+        # The connect deadline must not cap the install's requests (a cold macOS install outlasts it).
+        self.assertIsNone(broker.deadline_at_status)
         self.assertTrue(broker.closed)
         self.assertEqual(process.signals, ["SIGTERM"])
         self.assertFalse(state.exists())
