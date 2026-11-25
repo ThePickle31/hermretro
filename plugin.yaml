@@ -112,6 +112,7 @@ provides_tools:
   - chromatic_script_inspect
   - chromatic_script_edit
   - chromatic_script_transition
+  - chromatic_event_describe
   - chromatic_variable_inspect
   - chromatic_variable_set
   - chromatic_variable_delete

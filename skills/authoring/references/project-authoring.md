@@ -241,7 +241,7 @@ hexadecimal byte-run collision edit:
 
 ```text
 chromatic_variable_set {"name":"gate_open","symbol":"var_gate_open"}
-chromatic_script_edit {"action":"insert","target":{"sceneId":"<scene-id>","actorId":"<actor-id>"},"event":{"command":"EVENT_IF_TRUE","args":{"variable":"<variable-id>"},"children":{"true":[{"command":"EVENT_TEXT","args":{"text":"The gate is open."}}],"false":[{"command":"EVENT_ACTOR_SET_DIRECTION","args":{"actorId":"$self$","direction":{"type":"direction","value":"up"}}}]}}}
+chromatic_script_edit {"action":"insert","target":{"sceneId":"<scene-id>","actorId":"<actor-id>"},"event":{"command":"EVENT_IF","args":{"condition":{"type":"eq","valueA":{"type":"variable","value":"<variable-id>"},"valueB":{"type":"number","value":1}}},"children":{"true":[{"command":"EVENT_TEXT","args":{"text":"The gate is open."}}],"false":[{"command":"EVENT_ACTOR_SET_DIRECTION","args":{"actorId":"$self$","direction":{"type":"direction","value":"up"}}}]}}}
 chromatic_script_transition {"target":{"sceneId":"<scene-id>","triggerId":"<trigger-id>"},"destinationSceneId":"<destination-id>","x":10,"y":13,"direction":"up"}
 chromatic_collision_edit {"sceneId":"<scene-id>","edits":[{"shape":"rectangle","x":2,"y":3,"width":4,"height":1,"value":15}]}
 ```
@@ -261,6 +261,17 @@ and a position `{"type":"number","value":3}` in `EVENT_ACTOR_SET_DIRECTION`,
 `direction` is refused with `INVALID_EVENT` instead of failing the build later;
 a variable or expression value is accepted, and a commented-out event is not
 checked. `EVENT_SWITCH_SCENE`'s own `direction` stays a plain string.
+
+`chromatic_event_describe` answers what an event takes, from GB Studio's own event definitions: with no arguments
+its categories, with `query`, `category` or `includeDeprecated` matching events (40 at a time; `nextCursor` gives
+the rest), with `events` (up to five) every arg's type, default, allowed values and the conditions under which it is
+used, child branches, warnings, deprecation with the replacement and how to convert, what the event needs first
+(`requires`), and an example event (`detail: "compact"` for the shapes alone). The
+[event cookbook](event-cookbook.md) has working scripts for HUDs, pickups, hazards, gated exits, menus, threads,
+held buttons and sound effects; [GB Studio behaviours](gb-studio-behaviours.md) lists what builds but misbehaves in
+play. `chromatic_rom_build` adds warnings for text in a `LOGO` scene (`TEXT_IN_LOGO_SCENE`), a `$0$` text token
+(`TEXT_VARIABLE_TOKEN`), actors or the player under a right-hand menu (`ACTORS_OVER_MENU`) and deprecated events
+(`DEPRECATED_EVENT`), following custom scripts and prefabs; the ROM still builds.
 
 `chromatic_script_edit` also supports `update`, `delete`, and `move`, including
 `branchPath` segments identified by stable event ID and branch name. Preserve
@@ -377,7 +388,8 @@ Existing templates use these identifiers:
   (`FEAT_PLATFORM_DROP_THROUGH`) on.
 - `SHMUP`: horizontal or vertical scrolling shooters, depending on settings.
 - `POINTNCLICK`: cursor-driven scenes and object interactions.
-- `LOGO`: title, splash, or transition-style scenes.
+- `LOGO`: a still full-screen picture (a splash or logo). Text there draws with glitches, so a title, menu or
+  ending with words is another type, such as `TOPDOWN` with the player hidden.
 
 These modes are starting behaviors, not hard genre ceilings. Existing project settings can also disable scene modes or register plugin-defined modes. Inspect the project's actual available types before choosing.
 

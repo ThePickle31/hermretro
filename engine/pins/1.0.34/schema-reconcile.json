@@ -1,8 +1,8 @@
 {
   "pinned_file": "engine/pins/1.0.34/tools.json",
-  "pinned_file_sha256": "785f2af024d4bb4f8956bfa0a8f5a1ca745ca81cf4bff21a5ee49bc26e3426f8",
-  "pinned_tools_canonical_sha256": "88418a9eaea070bb31dd0863e1cdc5c6da9168279ce2705594d6e95f527b08cf",
-  "live_tools_canonical_sha256": "88418a9eaea070bb31dd0863e1cdc5c6da9168279ce2705594d6e95f527b08cf",
+  "pinned_file_sha256": "b04544eda134b1c62465c7712524601fef555b4beebc80132c3ed994b7e288be",
+  "pinned_tools_canonical_sha256": "1fde70e52556f66faa5ddb5810a66fc7979d1f42fd65819015997eb7268bf2b1",
+  "live_tools_canonical_sha256": "1fde70e52556f66faa5ddb5810a66fc7979d1f42fd65819015997eb7268bf2b1",
   "live_server_info": {
     "name": "modretro-chromatic",
     "title": "ModRetro Chromatic",
@@ -13,11 +13,11 @@
     "title": "ModRetro Chromatic",
     "version": "1.0.34"
   },
-  "engine_ready_seconds": 0.397,
+  "engine_ready_seconds": 0.381,
   "pages": 1,
-  "pinned_count": 84,
-  "live_count": 84,
-  "live_unique": 84,
+  "pinned_count": 85,
+  "live_count": 85,
+  "live_unique": 85,
   "duplicates": [],
   "missing_from_live": [],
   "extra_in_live": [],

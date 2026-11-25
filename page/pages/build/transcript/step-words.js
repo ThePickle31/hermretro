@@ -43,6 +43,7 @@ const STEP_WORDS = {
   script_edit: ['Writing a script', 'Wrote a script'],
   script_inspect: ['Reading a script', 'Read a script'],
   script_transition: ['Linking two scenes', 'Linked two scenes'],
+  event_describe: ['Looking up script events', 'Looked up script events'],
   dialogue_update: ['Writing dialogue', 'Wrote dialogue'],
   dialogue_analyze: ['Checking the dialogue fits', 'Checked the dialogue fits'],
   dialogue_preview: ['Previewing dialogue', 'Previewed dialogue'],

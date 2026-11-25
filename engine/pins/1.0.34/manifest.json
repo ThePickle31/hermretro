@@ -3,15 +3,15 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 516,
+ "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36009297,
+ "total_bytes": 36200160,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
   ".md": 94,
   ".gbsres": 42,
-  ".json": 22,
+  ".json": 23,
   ".mjs": 20,
   ".png": 19,
   ".txt": 8,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "221040e7471af846c0ecf7bd804f5b81ead816a34ed3f5273fe727eb4bd8fda0",
+ "aggregate_sha256": "9406559c614444face3e0a2fc1f6e1423a6ba911b4d3d4c6eb9090998244b5e0",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -647,6 +647,13 @@
    "sha256": "20c1e825b832564f28be8a1bc1275f6244a77bdd464272d7f57c01971b50d1d3"
   },
   {
+   "path": "dist/gb-studio-events.json",
+   "type": "file",
+   "size": 164335,
+   "mode": "0o644",
+   "sha256": "1fcb3e821e642e96810ea1e4557897de870020100f706a69d8a840b816636e86"
+  },
+  {
    "path": "dist/graphics-palette-packing.js",
    "type": "file",
    "size": 6240,
@@ -1041,9 +1048,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2997137,
+   "size": 3023665,
    "mode": "0o644",
-   "sha256": "aef8aee1e97d759fec70e8066a0b48ac4c012bbe6149a3a154213f03970ae471"
+   "sha256": "edce06662b2cdd6a65200f7b6f5a0d5b0afb6fe86541a297645e77ae82a0942b"
   },
   {
    "path": "dist/server.js.map",

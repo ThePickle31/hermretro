@@ -48,6 +48,8 @@ For example, to make a door go to another room: find both scene IDs, inspect the
 ## Choose the relevant detail
 
 - [Native resource layout and tool examples](references/project-authoring.md): scenes, actors, events, variables, collision, palettes, settings, and focused edits.
+- [Event cookbook](references/event-cookbook.md): working event JSON for a HUD, pickups, hazards and collision groups, gated exits, menus, threads, held buttons, sound effects and scene switches. `chromatic_event_describe` gives any other event's args, defaults and an example; never read GB Studio's source for them.
+- [GB Studio behaviours](references/gb-studio-behaviours.md): what builds but misbehaves in play (sprite palette entry 2, text in `LOGO` scenes, locked start scripts, sprites over menus, `$00$` text tokens, top-down respawns, collision boxes, button presses).
 - [Native tilemaps](references/tilemaps.md): fixed-size rooms built from named 8 × 8 tiles. Capture exact existing patterns or deliberately fill; mutations need the current revision. Ordinary edits preserve protected cells; exclusive replacement operations require inspected preimages. Decoration must not infer or clear collisions.
 - [Music and sound](references/music-and-sound.md): write songs from note lists or a bundled track (`chromatic_music_compose`), import `.uge`, `.mod`, `.wav` and `.vgm` files with `chromatic_asset_import`, play them from events, and check the sound hardware with `chromatic_emulator_audio`.
 - [Extensions and builds](references/extensions-and-build.md): custom events, scene modes, project-local plugins, official CLI and GBDK. Use existing visual events and scene modes when they express the mechanic; engine ejection needs authorization.

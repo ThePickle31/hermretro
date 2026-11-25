@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 ad45278ed85f37be1e8204e0611e07e7c640cac26552686df452044bcd37c5a9
- * body: sha256 a61c6c867d0f85ff36fac3a9382ab686a6d76375a6802bbdd3dc87e170eba4a8
+ * sources: sha256 fc7a115c3b3f3ae8d2f7d6b358c567e993433aaad3d205741690b97161c903e9
+ * body: sha256 1dc226e82bcefaac2c7def18d84165eefde47228c2564e9e642303ee02ba9e65
  */
 // page/sdk.js
 import {
@@ -5393,6 +5393,7 @@ var STEP_WORDS = {
   script_edit: ["Writing a script", "Wrote a script"],
   script_inspect: ["Reading a script", "Read a script"],
   script_transition: ["Linking two scenes", "Linked two scenes"],
+  event_describe: ["Looking up script events", "Looked up script events"],
   dialogue_update: ["Writing dialogue", "Wrote dialogue"],
   dialogue_analyze: ["Checking the dialogue fits", "Checked the dialogue fits"],
   dialogue_preview: ["Previewing dialogue", "Previewed dialogue"],
