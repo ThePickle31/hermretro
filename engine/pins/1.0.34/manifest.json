@@ -5,11 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 511,
  "symlink_count": 0,
-<<<<<<< HEAD
- "total_bytes": 35865741,
-=======
- "total_bytes": 35858675,
->>>>>>> 1cef32b (fix(engine): build logs in build/logs, errors first, Wrecklight author kept)
+ "total_bytes": 35866748,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -32,11 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
-<<<<<<< HEAD
- "aggregate_sha256": "75c9cff485643ca539741195308d9d333317be13ade06eeb11dae2eb9f8076f3",
-=======
- "aggregate_sha256": "9bf3b09bab8147713e2b93dbdc9be96de4a459bea47e2d751f1b5e73ea159c2e",
->>>>>>> 1cef32b (fix(engine): build logs in build/logs, errors first, Wrecklight author kept)
+ "aggregate_sha256": "e99b5d752013c1ce0bfc1f000a98bc529848cfcfcfd5a8af51f372edbc41f56b",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -1014,15 +1006,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-<<<<<<< HEAD
-   "size": 2879285,
+   "size": 2880292,
    "mode": "0o644",
-   "sha256": "9eb0b031b10fe74f6722e57b29feb16088c72eb54bd94c85988513de9e410374"
-=======
-   "size": 2873868,
-   "mode": "0o644",
-   "sha256": "40360cd228497acb56cfb79f80a0f087c73b32f73fd499ebc1f643a8cbf8c5be"
->>>>>>> 1cef32b (fix(engine): build logs in build/logs, errors first, Wrecklight author kept)
+   "sha256": "b2efe115dd19a54e001720e9b6ec8d998dcd4cbe27da3ce63be56b386294e0a2"
   },
   {
    "path": "dist/server.js.map",
