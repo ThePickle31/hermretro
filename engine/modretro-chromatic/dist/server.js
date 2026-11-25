@@ -34849,6 +34849,7 @@ var MAX_EMULATOR_REVIEW_METADATA_BYTES = 2 * 1024 * 1024;
 var MAX_EMULATOR_STEP_SAMPLES = 8;
 var MAX_EMULATOR_STEP_INPUTS = 64;
 var MAX_EMULATOR_SAMPLE_BYTES = 128 * 1024;
+var MAX_EMULATOR_REPLAY_MS = 6e5;
 var EMULATOR_BUTTONS = [
   "a",
   "b",
@@ -34979,10 +34980,7 @@ var EmulatorService = class {
   async run(romPath, options = {}, signal) {
     if (signal?.aborted)
       throw new EmulatorError("The emulator open request was cancelled before execution");
-    const validatedRom = this.#resolvePath(romPath, { existing: true });
-    if (![".gb", ".gbc"].includes(extname(validatedRom).toLowerCase())) {
-      throw new EmulatorError("The emulator requires an existing .gb or .gbc ROM");
-    }
+    const validatedRom = this.#resolveRom(romPath);
     const initialFrames = options.initialFrames ?? 120;
     this.#validateFrames(initialFrames, 0);
     if (options.cgb !== void 0 && typeof options.cgb !== "boolean") {
@@ -34992,21 +34990,85 @@ var EmulatorService = class {
       throw new EmulatorError("The restart option must be a boolean");
     }
     const recording = this.#validateRecordingOptions(options.recording);
-    let romDigest;
+    const romDigest = this.#romDigest(validatedRom);
+    this.#assertWorkerOpen();
+    if (options.restart !== true && recording === void 0 && this.active && this.#activeRomPath === validatedRom && this.#activeRomDigest === romDigest && (options.cgb === void 0 || options.cgb === this.#activeColorMode)) {
+      return this.status();
+    }
+    return this.#openSession("open", {
+      romPath: validatedRom,
+      initialFrames,
+      ...options.cgb === void 0 ? {} : { cgb: options.cgb },
+      ...recording === void 0 ? {} : { recording }
+    }, { validatedRom, romDigest, recording, signal });
+  }
+  /** Boot a ROM as a recorded attempt booted and play its inputs again; the session stays open where it ends. */
+  async replay(romPath, options = {}, signal) {
+    if (signal?.aborted)
+      throw new EmulatorError("The emulator replay request was cancelled before execution");
+    if (options === null || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["recordingPath", "branchId", "toActionIndex", "onDivergence", "recording"].includes(key))) {
+      throw new EmulatorError("Replay accepts recordingPath, branchId, toActionIndex, onDivergence and recording");
+    }
+    const validatedRom = this.#resolveRom(romPath);
+    if (options.toActionIndex !== void 0)
+      this.#validateInteger(options.toActionIndex, "toActionIndex", 0, Number.MAX_SAFE_INTEGER);
+    if (options.onDivergence !== void 0 && !["stop", "continue"].includes(options.onDivergence)) {
+      throw new EmulatorError("onDivergence must be stop or continue");
+    }
+    const source = this.#recordingSelection(options);
+    const recording = this.#validateRecordingOptions(options.recording ?? {});
+    const romDigest = this.#romDigest(validatedRom);
+    this.#assertWorkerOpen();
+    const replayed = await this.#openSession("replay", {
+      romPath: validatedRom,
+      ...source,
+      ...options.toActionIndex === void 0 ? {} : { toActionIndex: options.toActionIndex },
+      ...options.onDivergence === void 0 ? {} : { onDivergence: options.onDivergence },
+      ...recording === void 0 ? {} : { recording }
+    }, { validatedRom, romDigest, recording, signal, timeoutMs: Math.max(this.#requestTimeoutMs, MAX_EMULATOR_REPLAY_MS) });
+    this.#validateReplay(replayed);
+    return replayed;
+  }
+  #assertWorkerOpen() {
+    if (this.#worker !== void 0 && this.#workerClosures.has(this.#worker)) {
+      throw new EmulatorError("The emulator worker is closing; wait for cleanup before opening a ROM");
+    }
+  }
+  #resolveRom(romPath) {
+    const validatedRom = this.#resolvePath(romPath, { existing: true });
+    if (![".gb", ".gbc"].includes(extname(validatedRom).toLowerCase())) {
+      throw new EmulatorError("The emulator requires an existing .gb or .gbc ROM");
+    }
+    return validatedRom;
+  }
+  #romDigest(validatedRom) {
     try {
-      romDigest = createHash17("sha256").update(readFileSync(validatedRom)).digest("hex");
+      return createHash17("sha256").update(readFileSync(validatedRom)).digest("hex");
     } catch (error2) {
       throw new EmulatorError(`The emulator ROM could not be read: ${validatedRom}`, {
         cause: error2
       });
     }
-    if (this.#worker !== void 0 && this.#workerClosures.has(this.#worker)) {
-      throw new EmulatorError("The emulator worker is closing; wait for cleanup before opening a ROM");
+  }
+  #validateReplay(result) {
+    const replay = result?.replay;
+    if (replay === null || typeof replay !== "object" || !["matched", "diverged"].includes(replay.status) || replay.status === "diverged" !== (replay.divergence !== void 0) || !Number.isSafeInteger(replay.comparedFrames) || !Number.isSafeInteger(replay.replayedActions) || replay.replayedActions > replay.toActionIndex) {
+      throw new EmulatorError("The replay returned an inconsistent report");
     }
-    if (options.restart !== true && recording === void 0 && this.active && this.#activeRomPath === validatedRom && this.#activeRomDigest === romDigest && (options.cgb === void 0 || options.cgb === this.#activeColorMode)) {
-      return this.status();
+    if (!Array.isArray(result.samples) || result.samples.length < 1 || result.samples.length > 3) {
+      throw new EmulatorError("The replay did not return its bounded images");
     }
+    for (const sample of result.samples) {
+      const bytes2 = typeof sample?.pngBase64 === "string" ? Buffer.from(sample.pngBase64, "base64") : Buffer.alloc(0);
+      if (!["expected", "actual", "end"].includes(sample.role) || !Number.isSafeInteger(sample.frame) || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash17("sha256").update(bytes2).digest("hex") !== sample.sha256) {
+        throw new EmulatorError("The replay returned an image that failed PNG dimension or SHA-256 verification");
+      }
+    }
+  }
+  /** End the current session and start the worker's next one: a ROM opened or a recording replayed. */
+  async #openSession(method, params, { validatedRom, romDigest, recording, signal, timeoutMs }) {
     const generation = ++this.#sessionGeneration;
+    const previous = this.#sessionBinding();
     this.#clearActiveSession();
     this.#recordingRequested = recording !== void 0;
     if (recording !== void 0) {
@@ -35022,12 +35084,7 @@ var EmulatorService = class {
     };
     signal?.addEventListener("abort", cancel, { once: true });
     try {
-      const opening = this.#request("open", {
-        romPath: validatedRom,
-        initialFrames,
-        ...options.cgb === void 0 ? {} : { cgb: options.cgb },
-        ...recording === void 0 ? {} : { recording }
-      });
+      const opening = this.#request(method, params, timeoutMs);
       openingWorker = this.#worker;
       const state3 = await opening;
       if (signal?.aborted || generation !== this.#sessionGeneration) {
@@ -35043,6 +35100,11 @@ var EmulatorService = class {
       return state3;
     } catch (error2) {
       operationFailure = error2 instanceof EmulatorError ? error2 : new EmulatorError(error2 instanceof Error ? error2.message : String(error2), { cause: error2 });
+      if (method === "replay" && operationFailure.execution?.status === "pre-execution-rejected" && generation === this.#sessionGeneration && this.#worker === openingWorker) {
+        // The worker refuses a replay before ending its session: that session goes on.
+        this.#restoreSessionBinding(previous);
+        throw operationFailure;
+      }
       if (generation === this.#sessionGeneration && (this.#worker === openingWorker || this.#worker === void 0)) {
         try {
           await this.close();
@@ -35651,6 +35713,17 @@ var EmulatorService = class {
         clearTimeout(timer);
     }
   }
+  #sessionBinding() {
+    return { romPath: this.#activeRomPath, romDigest: this.#activeRomDigest, colorMode: this.#activeColorMode, recordingPath: this.#activeRecordingPath, lastRecordingPath: this.#lastRecordingPath, recordingRequested: this.#recordingRequested };
+  }
+  #restoreSessionBinding(binding) {
+    this.#activeRomPath = binding.romPath;
+    this.#activeRomDigest = binding.romDigest;
+    this.#activeColorMode = binding.colorMode;
+    this.#activeRecordingPath = binding.recordingPath;
+    this.#lastRecordingPath = binding.lastRecordingPath;
+    this.#recordingRequested = binding.recordingRequested;
+  }
   #clearActiveSession() {
     this.#activeRomPath = void 0;
     this.#activeRomDigest = void 0;
@@ -35996,7 +36069,7 @@ var EmulatorService = class {
       request.resolve(response.result);
     }
   }
-  async #request(method, params) {
+  async #request(method, params, timeoutMs = this.#requestTimeoutMs) {
     const artifactOnly = ["recording_status", "recording_export", "recording_review", "clip"].includes(method) && typeof params.recordingPath === "string";
     if (method !== "open" && !artifactOnly && this.#worker === void 0) {
       throw new EmulatorError("No emulator session is running; run a ROM first");
@@ -36008,7 +36081,7 @@ var EmulatorService = class {
         const error2 = new EmulatorError(`The emulator ${method} request timed out`);
         this.#failWorker(worker, error2);
         void this.#terminateWorker(worker);
-      }, this.#requestTimeoutMs);
+      }, timeoutMs);
       timeout.unref();
       this.#pending.set(id3, {
         resolve: resolveRequest,
@@ -66931,7 +67004,13 @@ function createGbStudioServer(options = {}) {
     await context.assertCompatibleRom(digest8);
     return context;
   }
-  async function runEmulator(romPath, options2, debugMode = "rom", signal) {
+  async function runEmulator(romPath, options2, debugMode, signal) {
+    return openEmulator(romPath, debugMode, signal, () => emulator.run(romPath, options2, signal));
+  }
+  async function replayEmulator(romPath, options2, debugMode, signal) {
+    return openEmulator(romPath, debugMode, signal, () => emulator.replay(romPath, options2, signal));
+  }
+  async function openEmulator(romPath, debugMode = "rom", signal, open) {
     await initialized;
     authorizedEmulatorRoot();
     const running = await runWithSourceDebugState(activeSourceDebug, (source) => {
@@ -66941,7 +67020,7 @@ function createGbStudioServer(options = {}) {
       run: async () => {
         if (signal?.aborted)
           throw new PlaytestError("EMULATOR_OPERATION_CANCELLED", "The emulator open request was cancelled before execution.");
-        return emulator.run(romPath, options2, signal);
+        return open();
       },
       isActive: () => signal?.aborted !== true && emulatorCancellation === void 0 && emulator.active,
       status: () => emulator.status()
@@ -67535,6 +67614,49 @@ function createGbStudioServer(options = {}) {
     }).strict(),
     annotations: { ...changeSession2, destructiveHint: true }
   }, async ({ romPath, debugMode, ...options2 }, extra) => safely(() => performEmulatorOperation((signal) => runEmulator(romPath, options2, debugMode, signal), extra.signal)));
+  server.registerTool("emulator_replay", {
+    title: "Replay a recorded attempt on a ROM",
+    description: "Boot a ROM, usually one rom_build just rebuilt, the way a recorded attempt booted and play that attempt's inputs again in one call, comparing every frame it retained. Use it after each rebuild instead of replaying a route by hand. By default the replay stops at the first retained frame that differs and returns the recorded and replayed images; onDivergence:'continue' plays every input and reports the first difference; toActionIndex replays only up to that action (a recordingSpan's toActionIndex). A replay that starts ends the current session (a refused one leaves it running); the new session stays open where the replay ended, with the last recorded buttons still held, and is recorded as a new attempt (recording:false records nothing), so emulator_step, checkpoints and review continue from there. Images are the source's retained frame (expected), the replay's frame at the difference (actual) and the final frame (end).",
+    inputSchema: external_exports.object({
+      romPath: boundedPath2.describe("The ROM to replay on: the exact cartridge path returned by rom_build or rom_inspect."),
+      recordingPath: boundedPath2.optional().describe("The recorded attempt to replay; defaults to the current or most recent recording, which after a replay is the replay's own."),
+      branchId: external_exports.string().max(100).regex(/^branch-[0-9]{4,}$/u).optional().describe("The attempt's branch to replay; defaults to its current branch."),
+      toActionIndex: external_exports.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional().describe("Replay the attempt's actions up to and including this index, such as a recordingSpan's toActionIndex; defaults to all of them."),
+      onDivergence: external_exports.enum(["stop", "continue"]).optional().describe("stop (default) ends the replay at the first retained frame that differs; continue plays every input anyway."),
+      recording: external_exports.union([external_exports.literal(false), recordingOptionsSchema]).optional().describe("The replay is recorded with the source attempt's limits; an options object overrides them; false records nothing."),
+      debugMode: external_exports.enum(["rom", "source"]).optional().describe("Defaults to rom; source requires rom_build with captureDebugArtifacts:true for this exact cartridge."),
+      includeImages: external_exports.boolean().optional().describe("Set false to receive the report without images."),
+      scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels; image hashes stay those of the native frames.")
+    }).strict(),
+    annotations: { ...changeSession2, destructiveHint: true }
+  }, async ({ romPath, debugMode, includeImages = true, scale, ...options2 }, extra) => {
+    try {
+      return await performEmulatorOperation(async (signal) => {
+        const replayed = await replayEmulator(romPath, options2, debugMode, signal);
+        const result = toolResult({
+          romSha256: replayed.romSha256,
+          frame: replayed.frame,
+          activeButtons: replayed.activeButtons,
+          debugMode: replayed.debugMode,
+          replay: replayed.replay,
+          ...replayed.recording === void 0 ? {} : {
+            recording: { recordingPath: replayed.recording.recordingPath, sessionId: replayed.recording.sessionId, branchId: replayed.recording.branchId }
+          },
+          images: replayed.samples.map(({ role, frame: frame3, sha256 }) => ({ role, frame: frame3, sha256 })),
+          imageDelivery: { status: includeImages ? "available" : "omitted", ...includeImages && scale !== void 0 ? { scale } : {} }
+        });
+        if (includeImages) {
+          for (const sample of replayed.samples) {
+            const png = Buffer.from(sample.pngBase64, "base64");
+            result.content.push({ type: "image", data: (scale === void 0 || scale === 1 ? png : magnifyPng(png, scale)).toString("base64"), mimeType: "image/png" });
+          }
+        }
+        return result;
+      }, extra.signal);
+    } catch (error2) {
+      return errorResult(error2);
+    }
+  });
   function compactObservation(observation) {
     const { fromPrefixPin: _fromPrefixPin, ...recordingSpan } = observation.recordingSpan ?? {};
     return {

@@ -65,6 +65,7 @@ provides_tools:
   - chromatic_toolchain_prepare
   - chromatic_toolchain_doctor
   - chromatic_emulator_run
+  - chromatic_emulator_replay
   - chromatic_emulator_step
   - chromatic_emulator_observe
   - chromatic_emulator_inspect

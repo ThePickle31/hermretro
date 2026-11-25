@@ -74,6 +74,7 @@ const STEP_WORDS = {
   web_preview_close: ['Closing the player', 'Closed the player'],
   present_game: ['Handing you the game', 'Handed you the game'],
   emulator_run: ['Starting the emulator', 'Started the emulator'],
+  emulator_replay: ['Replaying the playtest', 'Replayed the playtest'],
   emulator_step: ['Playing the game', 'Played the game'],
   emulator_observe: ['Looking at the screen', 'Looked at the screen'],
   emulator_inspect: ['Reading the game\u2019s memory', 'Read the game\u2019s memory'],

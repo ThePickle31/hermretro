@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 7a6d1d7bbece12ef61f461607123303a49cf54e0a147b2732cd96391bdf7e49f
- * body: sha256 df444f063f8441adbf6aebf29a71d3cc6565283ca4c1c27dff451dad814a5a2d
+ * sources: sha256 b86f31839c16b8417469a575a440b5e28614b95ddd2a5bcd2c4c38a207204809
+ * body: sha256 79c8f194cefbe498114929b39da60dfea8f7b6e9d2f449f127e5b7bf6665986a
  */
 // page/sdk.js
 import {
@@ -5421,6 +5421,7 @@ var STEP_WORDS = {
   web_preview_close: ["Closing the player", "Closed the player"],
   present_game: ["Handing you the game", "Handed you the game"],
   emulator_run: ["Starting the emulator", "Started the emulator"],
+  emulator_replay: ["Replaying the playtest", "Replayed the playtest"],
   emulator_step: ["Playing the game", "Played the game"],
   emulator_observe: ["Looking at the screen", "Looked at the screen"],
   emulator_inspect: ["Reading the game’s memory", "Read the game’s memory"],

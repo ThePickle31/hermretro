@@ -51,3 +51,13 @@ files, what changed and why.
   of stderr and no longer counts as a warning (the `warnings` field is gone: it held only that notice), and GB
   Studio's deprecation notices (for example `EVENT_IF_VALUE` compiled with `ifVariableValue`) are
   `DEPRECATED_EVENT` diagnostics, once each, instead of lines only in stderr.
+- `dist/server.js` (`dist/emulator.js` and the new `emulator_replay` tool), `scripts/emulator_worker.py` (`replay`,
+  `open` split into `load` and `boot`): `emulator_replay` boots a ROM, usually a rebuild, the way a recorded attempt
+  booted (its boot frames and hardware mode) and plays the attempt's normalized inputs again in one call, comparing
+  every frame the attempt retained with the same moment of the replay. It stops at the first frame that differs
+  and returns the recorded and replayed images (`onDivergence:"continue"` plays on and reports the first
+  difference); `toActionIndex` replays part of the attempt. The session stays open where the replay ended,
+  recorded as a new attempt with the source's limits unless `recording:false`, so play, checkpoints and review
+  continue there; a replay refused before it starts leaves the current session running. Checkpoints bind to the
+  exact ROM, so every fix used to mean playing the whole route again by hand (several full playthroughs per game
+  in the five-game audit).

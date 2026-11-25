@@ -1053,6 +1053,55 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
     return result
 
 
+class ReplayComparison:
+    """The frames a recorded attempt retained, compared in order with the same moments of a replay of its inputs."""
+
+    def __init__(self, evidence: list[dict[str, Any]], actions: list[dict[str, Any]], initial_frames: int) -> None:
+        # Every retained frame lies on an action boundary (recording flushes steps before it keeps a frame),
+        # except the boot's, which lie within the initial frames before the first action.
+        boundaries = [initial_frames]
+        for action in actions:
+            boundaries.append(boundaries[-1] + (action["frames"] if action["type"] == "step" else 0))
+        previous = (0, 0)
+        for item in evidence:
+            moment = (item["actionIndex"], item["frame"])
+            if (moment < previous or item["actionIndex"] >= len(boundaries)
+                    or (item["frame"] > initial_frames if item["actionIndex"] == 0
+                        else item["frame"] != boundaries[item["actionIndex"]])):
+                raise ValueError("The recording's retained frames do not line up with its inputs")
+            previous = moment
+        self.boot_frames = sorted({item["frame"] for item in evidence if item["actionIndex"] == 0} | {initial_frames})
+        self.pending = deque(evidence)
+        self.compared = 0
+        self.differing = 0
+        self.last_matched_frame: int | None = None
+        self.divergence: dict[str, Any] | None = None
+        self.expected: dict[str, Any] | None = None
+        self.actual: Any | None = None
+
+    def check(self, action_index: int, frame: int, image: Any) -> bool:
+        """Compare every retained frame due at this moment; True when the first difference is found here."""
+        first = False
+        actual = None
+        while self.pending and (self.pending[0]["actionIndex"], self.pending[0]["frame"]) == (action_index, frame):
+            item = self.pending.popleft()
+            self.compared += 1
+            if actual is None:
+                rgba = image().convert("RGBA")
+                actual = (rgba, digest(rgba.tobytes()))
+            if actual[1] == item["rgbaSha256"]:
+                if self.divergence is None:
+                    self.last_matched_frame = frame
+                continue
+            self.differing += 1
+            if self.divergence is None:
+                self.divergence = {"frame": frame, "actionIndex": action_index,
+                                   "lastMatchedFrame": self.last_matched_frame}
+                self.expected, self.actual = item, actual[0]
+                first = True
+        return first
+
+
 class TimelineExecutionError(RuntimeError):
     def __init__(
         self,
@@ -1089,6 +1138,23 @@ class TimelineExecutionError(RuntimeError):
             **({"sampledButtons": self.sampled_buttons} if self.sampled_buttons is not None else {}),
             **({"recordingSpan": self.recording_span} if self.recording_span is not None else {}),
         }
+
+
+def png_sample(image: Any) -> dict[str, Any]:
+    """A native framebuffer as a returned PNG: its base64 bytes and the SHA-256 of the PNG and of its RGBA pixels."""
+    rgba = image.convert("RGBA")
+    if rgba.size != (160, 144):
+        raise RuntimeError("The emulator framebuffer must have native 160 x 144 dimensions")
+    buffer = io.BytesIO()
+    rgba.save(buffer, format="PNG")
+    data = buffer.getvalue()
+    return {"width": rgba.width, "height": rgba.height, "sha256": digest(data), "rgbaSha256": digest(rgba.tobytes()),
+            "pngBase64": base64.b64encode(data).decode("ascii")}
+
+
+def cartridge_cgb(rom: bytes) -> bool:
+    """Whether the cartridge header asks for colour hardware."""
+    return rom[0x143:0x144] in {b"\x80", b"\xc0"}
 
 
 def create_pyboy(rom: bytes, cgb: bool | None) -> Any:
@@ -1275,6 +1341,11 @@ class EmulatorWorker:
         }
 
     def open(self, params: dict[str, Any]) -> dict[str, Any]:
+        self.boot(self.load(params))
+        return self.state()
+
+    def load(self, params: dict[str, Any]) -> int:
+        """Start a clean session for a ROM, recorded when asked, before its boot frames; returns those frames."""
         rom_path = self.resolve_project_path(params.get("romPath"), existing=True)
         if not rom_path.is_file() or rom_path.suffix.lower() not in {".gb", ".gbc"}:
             raise ValueError("The ROM must be an existing .gb or .gbc file")
@@ -1308,8 +1379,7 @@ class EmulatorWorker:
         self.rom_sha256 = rom_sha256
         self.runtime = {"name": "PyBoy", "version": importlib.metadata.version("pyboy"),
                         "protocolVersion": PROTOCOL_VERSION, "workerSha256": WORKER_SHA256}
-        cartridge_mode = raw[0x143:0x144]
-        self.cgb = cgb if cgb is not None else cartridge_mode in {b"\x80", b"\xc0"}
+        self.cgb = cgb if cgb is not None else cartridge_cgb(raw)
         self.frame = 0
         self.total_frames = 0
         self.active_buttons.clear()
@@ -1329,11 +1399,96 @@ class EmulatorWorker:
                                        initial_frames=initial_frames, resolve_path=self.resolve_project_path)
             self.last_recording_path = recording_path
             self.record_current("boot")
-        self.advance(initial_frames, initial=limits is not None)
+        return initial_frames
+
+    def boot(self, frames: int) -> None:
+        """Run a loaded session's remaining boot frames and mark its recording's boot complete."""
+        self.advance(frames - self.frame, initial=self.recording is not None)
         if self.recording is not None:
             self.recording.boot_complete()
             self.record_current("boot-complete")
-        return self.state()
+
+    def replay(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Boot a ROM as a recorded attempt booted and play its inputs again, comparing each frame it retained.
+
+        Stops at the first retained frame that differs unless asked to continue; the session stays open where the
+        replay ended, recorded as a new attempt unless recording is false."""
+        if not isinstance(params, dict) or not {"romPath", "recordingPath"} <= set(params) or set(params) - {
+                "romPath", "recordingPath", "branchId", "toActionIndex", "onDivergence", "recording"}:
+            raise RequestValidationError("Replay requires romPath and recordingPath, with optional branchId, "
+                                         "toActionIndex, onDivergence and recording")
+        on_divergence = params.get("onDivergence", "stop")
+        if on_divergence not in {"stop", "continue"}:
+            raise RequestValidationError("onDivergence must be stop or continue")
+        recording = params.get("recording", False)
+        if recording is not False and not isinstance(recording, dict):
+            raise RequestValidationError("The recording option must be an object or false")
+        try:
+            # Checked before the current session ends, so a refusal leaves it running.
+            source = self.recording_data({"recordingPath": params["recordingPath"]})
+            branch_id = params.get("branchId", source["branchId"])
+            branch = source["branchesById"].get(branch_id)
+            if branch is None:
+                raise ValueError("The requested recording branch does not exist")
+            condition = branch["startingCondition"]
+            if condition.get("type") != "clean-boot":
+                raise ValueError("Only an attempt recorded from a clean boot can be replayed")
+            count = len(branch["actions"])
+            end = bounded_integer(params.get("toActionIndex", count), "toActionIndex", 0, count)
+            # Copies: loading the ROM finishes an active source recording, which appends to its live branch.
+            actions = [dict(action) for action in branch["actions"][:end]]
+            comparison = ReplayComparison([dict(item) for item in branch["evidence"] if item["actionIndex"] <= end],
+                                          actions, condition["initialFrames"])
+            rom = self.resolve_project_path(params["romPath"], existing=True).read_bytes()
+        except (OSError, ValueError, RuntimeError) as error:
+            raise RequestValidationError(str(error)) from error
+        if recording is not False:
+            recording = {**source["limits"], **recording}
+        self.load({"romPath": params["romPath"], "initialFrames": condition["initialFrames"], "recording": recording,
+                   # The cartridge default unless the attempt chose other hardware, as its own boot did.
+                   **({} if condition["cgb"] == cartridge_cgb(rom) else {"cgb": condition["cgb"]})})
+        stop = on_divergence == "stop"
+        recorded = self.recording is not None
+        replayed = 0
+        for frame in comparison.boot_frames:
+            self.advance(frame - self.frame, initial=recorded)
+            if comparison.check(0, self.frame, self.current_image) and stop:
+                break
+        self.boot(self.frame if stop and comparison.divergence else condition["initialFrames"])
+        if not (stop and comparison.divergence):
+            for index, action in enumerate(actions, 1):
+                if action["type"] == "step":
+                    self.advance(action["frames"])
+                else:
+                    self.set_buttons(set(action["buttons"]))
+                replayed = index
+                if comparison.check(index, self.frame, self.current_image) and stop:
+                    break
+        report: dict[str, Any] = {
+            "status": "diverged" if comparison.divergence else "matched",
+            "source": {"recordingPath": source["recordingPath"], "sessionId": source["sessionId"],
+                       "branchId": branch_id, "romSha256": source["rom"]["sha256"],
+                       "actionCount": len(branch["actions"]), "sameRuntime": source["runtime"] == self.runtime},
+            "toActionIndex": end, "replayedActions": replayed, "comparedFrames": comparison.compared,
+        }
+        samples = []
+        if comparison.divergence is not None:
+            report["divergence"] = {**comparison.divergence, "differingFrames": comparison.differing,
+                                    "expectedSha256": comparison.expected["sha256"]}
+            expected = comparison.expected
+            try:
+                data = self.verified_evidence_bytes(expected)[1]
+                samples.append({"role": "expected", "frame": expected["frame"], "width": expected["width"],
+                                "height": expected["height"], "sha256": expected["sha256"],
+                                "rgbaSha256": expected["rgbaSha256"], "pngBase64": base64.b64encode(data).decode("ascii")})
+            except (OSError, ValueError):
+                # The source's retained file is supporting evidence; the comparison used its recorded hash.
+                pass
+            samples.append({**png_sample(comparison.actual), "role": "actual", "frame": comparison.divergence["frame"]})
+            report["divergence"]["actualSha256"] = samples[-1]["sha256"]
+        if comparison.divergence is None or self.frame != comparison.divergence["frame"]:
+            samples.append({**png_sample(self.current_image()), "role": "end", "frame": self.frame})
+        return {**self.state(), "replay": report, "samples": samples}
 
     def step(self, params: dict[str, Any]) -> dict[str, Any]:
         self.require_paused()
@@ -1342,16 +1497,7 @@ class EmulatorWorker:
 
     def frame_sample(self) -> dict[str, Any]:
         """Encode the current real framebuffer without capture or journal writes."""
-        image = self.current_image().convert("RGBA")
-        if image.size != (160, 144):
-            raise RuntimeError("The emulator framebuffer must have native 160 x 144 dimensions")
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-        data = buffer.getvalue()
-        result = {"frame": self.frame, "width": image.width, "height": image.height,
-                  "sha256": digest(data), "rgbaSha256": digest(image.tobytes()),
-                  "pngBase64": base64.b64encode(data).decode("ascii"),
-                  "sampledButtons": sorted(self.sampled_buttons)}
+        result = {"frame": self.frame, **png_sample(self.current_image()), "sampledButtons": sorted(self.sampled_buttons)}
         if self.recording is not None:
             evidence = self.recording.branches[self.recording.branch_id]["evidence"]
             if evidence:
@@ -2581,6 +2727,8 @@ class EmulatorWorker:
             return result
         if method == "open":
             return self.open(params)
+        if method == "replay":
+            return self.replay(params)
         if method == "observe":
             return self.observe(params)
         if method == "screenshot":
