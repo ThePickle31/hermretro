@@ -11,6 +11,10 @@ root and reuses a healthy environment. It never changes global Python or a live
 binding. Do not rerun setup merely to start another session; an import probe
 still does not establish that the user's ROM has run.
 
+The run starts in source mode when the last `chromatic_rom_build` built this
+ROM (it captures debug artifacts by default), so `chromatic_emulator_debug`
+reads named variables and live state with no second build.
+
 ```text
 chromatic_emulator_run {"romPath":"<returned ROM outputPath>","initialFrames":120,"recording":{}}
 chromatic_emulator_observe {}

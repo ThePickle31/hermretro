@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36200160,
+ "total_bytes": 36204252,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "9406559c614444face3e0a2fc1f6e1423a6ba911b4d3d4c6eb9090998244b5e0",
+ "aggregate_sha256": "000348d1963a0b5f1e51b471516611513fa5f0e767c9d78462f97bb486535f46",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -1048,9 +1048,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3023665,
+   "size": 3027498,
    "mode": "0o644",
-   "sha256": "edce06662b2cdd6a65200f7b6f5a0d5b0afb6fe86541a297645e77ae82a0942b"
+   "sha256": "b73b973dc18cf719fffbe952819382af69cded939f0ba6982b28ba61c81860bf"
   },
   {
    "path": "dist/server.js.map",
@@ -2147,9 +2147,9 @@
   {
    "path": "docs/native-sprite-import.md",
    "type": "file",
-   "size": 6409,
+   "size": 6682,
    "mode": "0o644",
-   "sha256": "74f850a1d42ef1d35375752f271cedc0e16eff7bb1424ef594b0a6f941ea2301"
+   "sha256": "4c7d462dc6208f1739f5ab4f42a3d7d4a3cd7c4b24a25cf22dd71be426504458"
   },
   {
    "path": "docs/native-title-atlas.md",
@@ -3008,9 +3008,9 @@
   {
    "path": "examples/starter/project/engine_field_values.gbsres",
    "type": "file",
-   "size": 557,
+   "size": 543,
    "mode": "0o644",
-   "sha256": "d1e4a1d9e4c46131ca7ad05526a12fecd50afc168304748253349584b73b6717"
+   "sha256": "f93040b971a9c2b6c42d5569e8eb438e534b111910b2d477948992301d5e96bc"
   },
   {
    "path": "examples/starter/project/palettes/default_bg_1.gbsres",

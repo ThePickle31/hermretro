@@ -15841,8 +15841,6 @@ async function deleteScene(projectPath, input, indexedAccess) {
 }
 
 // dist/server.js
-import { createHash as createHash43 } from "node:crypto";
-import { readFile as readFile15 } from "node:fs/promises";
 import os7 from "node:os";
 import path45 from "node:path";
 import { fileURLToPath as fileURLToPath3, pathToFileURL as pathToFileURL2 } from "node:url";
@@ -31632,10 +31630,18 @@ async function buildRom(options) {
   let compilerStderr = "";
   let buildFailed = false;
   let sourceProvenance;
+  let debugSkipped;
+  const debugOptional = () => options.debugArtifactsOptional === true && options.signal?.aborted !== true;
   try {
     try {
       if (options.captureDebugArtifacts) {
-        sourceProvenance = await captureBuildSourceProvenance(source, args[0], options.signal);
+        try {
+          sourceProvenance = await captureBuildSourceProvenance(source, args[0], options.signal);
+        } catch (error2) {
+          if (!debugOptional())
+            throw error2;
+          debugSkipped = error2 instanceof Error ? error2.message : String(error2);
+        }
       }
       const result2 = await runBuildCommand(command, args, {
         cwd: root,
@@ -31689,7 +31695,7 @@ async function buildRom(options) {
     }
     let debugArtifacts;
     buildFailed = rom?.valid !== true;
-    if (!buildFailed && options.captureDebugArtifacts && temporaryDirectory) {
+    if (!buildFailed && options.captureDebugArtifacts && debugSkipped === void 0 && temporaryDirectory) {
       try {
         debugArtifacts = await captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath);
         const after = await captureBuildSourceProvenance(source, args[0], options.signal);
@@ -31698,9 +31704,14 @@ async function buildRom(options) {
         }
         debugArtifacts.sourceProvenance = sourceProvenance;
       } catch (error2) {
-        buildFailed = true;
         debugArtifacts = void 0;
-        stderr = [stderr, error2 instanceof Error ? error2.message : String(error2)].filter(Boolean).join("\n");
+        const reason = error2 instanceof Error ? error2.message : String(error2);
+        if (debugOptional()) {
+          debugSkipped = reason;
+        } else {
+          buildFailed = true;
+          stderr = [stderr, reason].filter(Boolean).join("\n");
+        }
       }
     }
     const cancelled = options.signal?.aborted === true;
@@ -31724,7 +31735,8 @@ async function buildRom(options) {
       outputPath,
       ...log,
       rom,
-      ...debugArtifacts ? { debugArtifacts } : {}
+      ...debugArtifacts ? { debugArtifacts } : {},
+      ...!buildFailed && debugSkipped !== void 0 ? { sourceDebug: { available: false, code: "SOURCE_DEBUG_UNAVAILABLE", reason: `No debug artifacts were captured: ${debugSkipped}` } } : {}
     };
     if (sourceProvenance)
       rememberAuthenticatedSourceBuild(result, args[0], sourceProvenance, debugArtifacts?.sourceDebugAbi);
@@ -35346,6 +35358,10 @@ var EmulatorService = class {
     if (this.#worker !== void 0 && this.#workerClosures.has(this.#worker)) {
       throw new EmulatorError("The emulator worker is closing; wait for cleanup before opening a ROM");
     }
+  }
+  /** The SHA-256 of the ROM run and replay would open for romPath, validated as they validate it. */
+  romSha256(romPath) {
+    return this.#romDigest(this.#resolveRom(romPath));
   }
   #resolveRom(romPath) {
     const validatedRom = this.#resolvePath(romPath, { existing: true });
@@ -53343,7 +53359,8 @@ var SourceDebugContext = class _SourceDebugContext {
     if (query.actors !== void 0 && query.actors !== "all" && (!Array.isArray(query.actors) || query.actors.length < 1 || query.actors.length > LIVE_SCENE_ACTORS || !query.actors.every(validSelector))) {
       fail2("SOURCE_DEBUG_INVALID_QUERY", `Select "all" actors or 1 to ${LIVE_SCENE_ACTORS} by name, ID or symbol.`);
     }
-    const referenceLimit = query.referenceLimit ?? 16;
+    const full = query.detail === "full";
+    const referenceLimit = query.referenceLimit ?? (full ? 16 : 0);
     if (!Number.isInteger(referenceLimit) || referenceLimit < 0 || referenceLimit > MAX_SOURCE_DEBUG_REFERENCES) {
       fail2("SOURCE_DEBUG_INVALID_QUERY", `referenceLimit must be between 0 and ${MAX_SOURCE_DEBUG_REFERENCES}.`);
     }
@@ -53440,9 +53457,10 @@ var SourceDebugContext = class _SourceDebugContext {
       fail2("SOURCE_DEBUG_ROM_MISMATCH", "The emulator ROM changed during source inspection.");
     if (final.paused !== true || final.frame !== initial.frame)
       fail2("SOURCE_DEBUG_FRAME_CHANGED", "The emulator advanced during source inspection; pause and retry.");
+    const limitations = [...full ? this.#limitations : [], ...live ? live.limitations : [this.#live.reason]];
     const result = {
       mode: "source",
-      identity: this.identity,
+      ...full ? { identity: this.identity } : {},
       frame: initial.frame,
       ...scene && query.includeScene !== false ? { scene } : {},
       ...live ? { live: live.live } : {},
@@ -53453,7 +53471,7 @@ var SourceDebugContext = class _SourceDebugContext {
       ...collisions ? { collisions } : {},
       references,
       referencesTruncated,
-      limitations: [...this.#limitations, ...live ? live.limitations : [this.#live.reason]]
+      ...limitations.length > 0 ? { limitations } : {}
     };
     while (Buffer.byteLength(JSON.stringify(result)) > PROJECT_RESPONSE_LIMITS.semanticQueryBytes && result.references.length > 0) {
       result.references.pop();
@@ -55108,11 +55126,13 @@ async function findAssetMetadata(projectRoot, input, access4) {
     metadata: await readProjectJson(root, asset.metadataPath)
   };
 }
-async function importAsset(projectRoot, input, access4) {
+async function importAsset(projectRoot, { detail = "compact", ...input }, access4) {
   if (input.assets !== void 0)
     return importAssetBatch(projectRoot, input, access4);
-  if (input.sprite?.profile === "native_metadata")
-    return importNativeMetadata(projectRoot, input, access4);
+  if (input.sprite?.profile === "native_metadata") {
+    const { idMap, patternAccounting, ...imported } = await importNativeMetadata(projectRoot, input, access4);
+    return detail === "full" ? { ...imported, idMap, patternAccounting } : imported;
+  }
   const root = await assertDistributedProject(projectRoot, access4);
   const prepared = await prepareImport(root, input, await importContext(root, access4), access4);
   await writePreparedImports([prepared]);
@@ -57963,7 +57983,8 @@ var domainSchemas = {
       sprite: simpleSpriteImport.optional()
     }).strict()).min(1).max(32).optional().describe("Import several assets in one call instead of the single-asset fields; all are checked before any is written. native_metadata is not allowed here."),
     expectedRevision: revision.optional().describe("Required whole-project revision for native_metadata only."),
-    dryRun: external_exports.boolean().optional().describe("Validate the complete native_metadata import without publishing; defaults false.")
+    dryRun: external_exports.boolean().optional().describe("Validate the complete native_metadata import without publishing; defaults false."),
+    detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default) returns each asset's id, paths and analysis; full adds a native_metadata import's ID map and pattern accounting.")
     // Keep a ZodObject: the MCP SDK cannot publish a top-level ZodEffects schema.
     // importAsset enforces the cross-field requirements before preparing any writes.
   }).strict(),
@@ -59748,7 +59769,7 @@ function registerProjectDomains(server, context) {
   }, async (input) => mutate((project2, access4) => deleteTrigger(project2.projectPath, input, access4)));
   server.registerTool("asset_import", {
     title: "Import an image or audio asset",
-    description: "Register project-local PNGs, music and sound effects as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Music is a hUGETracker .uge or a four-channel .mod; a sound is a .wav (up to about 3.6 s) or a Game Boy .vgm/.vgz. The tool checks an audio file, writes its sidecar with an ID that stays the same, and returns a playEvent (EVENT_MUSIC_PLAY or EVENT_SOUND_PLAY_EFFECT) to add to a script; to write music from notes, use music_compose. Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
+    description: "Register project-local PNGs, music and sound effects as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Music is a hUGETracker .uge or a four-channel .mod; a sound is a .wav (up to about 3.6 s) or a Game Boy .vgm/.vgz. The tool checks an audio file, writes its sidecar with an ID that stays the same, and returns a playEvent (EVENT_MUSIC_PLAY or EVENT_SOUND_PLAY_EFFECT) to add to a script; to write music from notes, use music_compose. Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map with detail:'full'. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
     inputSchema: domainSchemas.assetImport,
     annotations: createOnly
   }, async (input) => input.sprite?.profile === "native_metadata" ? transact((project2, access4) => importAsset(project2.projectRoot, input, access4)) : mutate((project2, access4) => importAsset(project2.projectRoot, input, access4), (result) => (result.imported ?? [result]).flatMap((asset) => [asset.assetPath, asset.metadataPath])));
@@ -60161,7 +60182,8 @@ var sourceDebugQuerySchema = external_exports.object({
     width: external_exports.number().int().min(1).max(256),
     height: external_exports.number().int().min(1).max(256)
   }).strict().optional(),
-  referenceLimit: external_exports.number().int().min(0).max(64).optional()
+  referenceLimit: external_exports.number().int().min(0).max(64).optional().describe("Authored references to the scene and selected variables; defaults to 0 (compact) or 16 (full)."),
+  detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default): frame, scene, live state, variables and what you ask for. full adds the build identity, the standing limitations and references.")
 }).strict();
 function registerPlaytestTools(context) {
   const { server, safely } = context;
@@ -60323,7 +60345,7 @@ function registerPlaytestTools(context) {
   }, async (input) => safely(() => context.runOperation(() => context.emulator().clip(input))));
   server.registerTool("emulator_debug", {
     title: "Inspect authenticated author state",
-    description: "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. First use rom_build with captureDebugArtifacts:true, then emulator_run with debugMode:'source' for that exact ROM. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
+    description: "Read the current scene, variable values, live state and authored collision tiles and references while paused. live reports the player (and named actors) tile and pixel position, direction, moving and moveSpeed (scripted moves and top-down walking; a platformer player reports platform state and velocities in pixels per frame instead), withheld while sceneLoading; ui: overlayOpen, dialogue (none, drawing, waiting, menu or unknown) and the buttons the script that owns input accepts next; scripts: running count and whether the VM is locked. Works on a ROM rom_build built in this session (it captures debug artifacts by default) once emulator_run starts it. Rejects stale source/artifacts or different ROM bytes; unavailable in ROM-only mode.",
     inputSchema: sourceDebugQuerySchema,
     annotations: readOnly2
   }, async (input) => safely(() => context.runOperation(() => context.sourceDebug(input))));
@@ -69088,7 +69110,11 @@ async function runWithSourceDebugState(current, setContext, operation) {
     const next = await operation.resolve();
     const running = await operation.run();
     if (next !== void 0 && running.romSha256 !== next.identity.romSha256) {
-      throw new PlaytestError("SOURCE_DEBUG_ROM_MISMATCH", "The loaded emulator ROM does not match the authenticated build.");
+      const mismatch = new PlaytestError("SOURCE_DEBUG_ROM_MISMATCH", "The loaded emulator ROM does not match the authenticated build.");
+      if (operation.mismatched === void 0)
+        throw mismatch;
+      operation.mismatched(mismatch);
+      return running;
     }
     setContext(next);
     return running;
@@ -69104,6 +69130,13 @@ async function runWithSourceDebugState(current, setContext, operation) {
     }
     throw error2;
   }
+}
+function compactBuildDebug({ debugArtifacts, sourceDebug, ...result }) {
+  return {
+    ...result,
+    ...debugArtifacts ? { debugArtifacts: { directory: debugArtifacts.directory } } : {},
+    ...sourceDebug ? { sourceDebug: sourceDebug.available ? { available: true } : sourceDebug } : {}
+  };
 }
 function createGbStudioServer(options = {}) {
   const configuredToolchain = process.env.GB_STUDIO_TOOLCHAIN_ROOT;
@@ -69295,7 +69328,7 @@ function createGbStudioServer(options = {}) {
       };
     }
   }
-  async function buildSelectedRom(input) {
+  async function buildSelectedRom({ detail = "compact", ...input }) {
     if (input.sourcePath) {
       if (input.projectPath)
         throw new Error("Provide either projectPath or sourcePath, not both.");
@@ -69311,24 +69344,23 @@ function createGbStudioServer(options = {}) {
       const duplicates = inventory.diagnostics.filter((diagnostic) => diagnostic.code === "DUPLICATE_SYMBOL");
       if (duplicates.length > 0)
         throw new GameStudioProjectError("DUPLICATE_SYMBOL", duplicates.map((diagnostic) => diagnostic.message).join(". "), duplicates[0].resourcePath);
-      const result = await buildRom({ ...input, projectRoot: project2.projectRoot, projectPath, authoringWarnings: authoringWarnings(inventory, await authoringScripts(inventory)) });
+      const result = await buildRom({ ...input, captureDebugArtifacts: input.captureDebugArtifacts ?? true, debugArtifactsOptional: input.captureDebugArtifacts === void 0, projectRoot: project2.projectRoot, projectPath, authoringWarnings: authoringWarnings(inventory, await authoringScripts(inventory)) });
       if (before && result.success !== false && typeof result.outputPath === "string" && result.rom)
         await rememberNativeRom(before, project2.projectPath, { path: result.outputPath, sha256: result.rom.sha256 }, configuredToolchain).catch(() => {
         });
       const relative6 = path45.relative(project2.projectRoot, result.outputPath).split(path45.sep).join("/");
       if (relative6.startsWith("project/") || relative6.startsWith("assets/"))
         await access4.noteCommittedPaths([result.outputPath]);
-      return rememberSourceBuild(result, project2.projectPath, access4);
+      const remembered = await rememberSourceBuild(result, project2.projectPath, access4);
+      return detail === "full" ? remembered : compactBuildDebug(remembered);
     });
   }
   async function sourceContextForRom(romPath) {
-    assertSafePlatformPath(romPath, process.platform);
-    const filename = (await inspectRom(romPath, authorizedEmulatorRoot())).path;
-    const digest8 = createHash43("sha256").update(await readFile15(filename)).digest("hex");
+    authorizedEmulatorRoot();
+    const digest8 = emulator.romSha256(romPath);
     const context = sourceBuilds.get(digest8);
-    const selected = await selectedProject();
-    if (context === void 0 || context.projectPath !== selected.projectPath) {
-      throw new PlaytestError("SOURCE_DEBUG_UNAVAILABLE", "No authenticated source build for this ROM is available in the selected project. Run rom_build with captureDebugArtifacts:true first.");
+    if (context === void 0 || context.projectPath !== (await selectedProject()).projectPath) {
+      throw new PlaytestError("SOURCE_DEBUG_UNAVAILABLE", "No build in this session captured debug artifacts for this ROM in the selected project. Rebuild it with rom_build (it captures them unless captureDebugArtifacts is false) and run the ROM it returns.");
     }
     await context.assertCompatibleRom(digest8);
     return context;
@@ -69339,13 +69371,32 @@ function createGbStudioServer(options = {}) {
   async function replayEmulator(romPath, options2, debugMode, signal) {
     return openEmulator(romPath, debugMode, signal, () => emulator.replay(romPath, options2, signal));
   }
-  async function openEmulator(romPath, debugMode = "rom", signal, open) {
+  function sourceDebugUnavailable(error2) {
+    return { unavailable: { available: false, code: error2.code, reason: error2.message } };
+  }
+  async function automaticSourceContext(romPath) {
+    try {
+      return { context: await sourceContextForRom(romPath) };
+    } catch (error2) {
+      if (!(error2 instanceof PlaytestError || error2 instanceof SourceDebugError) || !error2.code.startsWith("SOURCE_DEBUG_"))
+        throw error2;
+      return sourceDebugUnavailable(error2);
+    }
+  }
+  async function openEmulator(romPath, debugMode, signal, open) {
     await initialized;
     authorizedEmulatorRoot();
+    let chosen = { context: void 0 };
     const running = await runWithSourceDebugState(activeSourceDebug, (source) => {
       activeSourceDebug = source;
     }, {
-      resolve: async () => debugMode === "source" ? sourceContextForRom(romPath) : void 0,
+      resolve: async () => {
+        chosen = debugMode === "rom" ? { context: void 0 } : debugMode === "source" ? { context: await sourceContextForRom(romPath) } : await automaticSourceContext(romPath);
+        return chosen.context;
+      },
+      ...debugMode === void 0 ? { mismatched: (error2) => {
+        chosen = sourceDebugUnavailable(error2);
+      } } : {},
       run: async () => {
         if (signal?.aborted)
           throw new PlaytestError("EMULATOR_OPERATION_CANCELLED", "The emulator open request was cancelled before execution.");
@@ -69354,11 +69405,12 @@ function createGbStudioServer(options = {}) {
       isActive: () => signal?.aborted !== true && emulatorCancellation === void 0 && emulator.active,
       status: () => emulator.status()
     });
-    return { ...running, debugMode };
+    const fallback = chosen.unavailable?.code === "SOURCE_DEBUG_UNAVAILABLE" ? void 0 : chosen.unavailable;
+    return { ...running, debugMode: chosen.context === void 0 ? "rom" : "source", ...fallback ? { sourceDebug: fallback } : {} };
   }
   async function inspectSource(input) {
     if (activeSourceDebug === void 0) {
-      throw new PlaytestError("SOURCE_DEBUG_DISABLED", "Source debugging is unavailable in ROM-only mode. Build with captureDebugArtifacts:true and explicitly run with debugMode:'source'.");
+      throw new PlaytestError("SOURCE_DEBUG_DISABLED", "This emulator session runs without source debugging. Rebuild with rom_build (it captures debug artifacts unless captureDebugArtifacts is false) and start the ROM it returns with emulator_run.");
     }
     return activeSourceDebug.inspect(emulator, input);
   }
@@ -69891,14 +69943,15 @@ function createGbStudioServer(options = {}) {
   }));
   server.registerTool("rom_build", {
     title: "Build an actual Game Boy ROM",
-    description: "Build the selected native game project with the official CLI by default, or compile standalone C with GBDK. Supply only one input path. Debug artifacts are available only for native game source debugging; pass the returned outputPath to rom_inspect or emulator_run.",
+    description: "Build the selected native game project with the official CLI by default, or compile standalone C with GBDK. Supply only one input path. A project build also captures the debug artifacts emulator_run uses for source debugging, so emulator_debug works on the ROM it returns; pass the returned outputPath to rom_inspect or emulator_run.",
     inputSchema: external_exports.object({
       projectPath: boundedPath2.optional().describe("Omit to build the selected .gbsproj. An override must stay within that project; do not combine with sourcePath."),
       sourcePath: boundedPath2.optional().describe("Standalone .c source inside the authorized workspace; incompatible with projectPath and debug artifact capture."),
       outputPath: boundedPath2.optional().describe("Optional .gb or .gbc output, relative to the selected project for native project builds or to the authorized workspace for standalone C."),
       colorMode: external_exports.enum(["dmg", "gbc", "gbc-only"]).optional(),
       timeoutMs: external_exports.number().int().min(1e3).max(6e5).optional(),
-      captureDebugArtifacts: external_exports.boolean().optional().describe("Request matching symbols for emulator_run debugMode:'source'; supported only for official native game project builds.")
+      captureDebugArtifacts: external_exports.boolean().optional().describe("Project builds default to true: matching symbols (about 30 KB in build/<rom>.debug) for emulator_run's source debugging; false skips them. Not for standalone C builds."),
+      detail: external_exports.enum(["compact", "full"]).optional().describe("compact (default) reports the debug artifacts' folder and whether source debugging is available; full adds their files, hashes and the build identity.")
     }).strict(),
     annotations: updateExisting2
   }, async (input, extra) => safely(() => performEmulatorOperation((signal) => buildSelectedRom({ ...input, signal }), extra.signal)));
@@ -69932,14 +69985,14 @@ function createGbStudioServer(options = {}) {
   })));
   server.registerTool("emulator_run", {
     title: "Run an actual GB/GBC ROM",
-    description: "Start or reuse an isolated headless PyBoy session for the intended genuine ROM. Use it for gameplay checks even when the browser is unavailable, locked or unreachable; no browser session is required. If PyBoy is missing, follow the setup skill's emulator component. Continue with emulator_step/emulator_observe and use emulator_review for retained evidence. Unchanged ROMs retain their live frame and controller state; recording starts a clean bounded recorded boot. Source debugging is explicit and requires authenticated artifacts from rom_build. This does not verify browser UI or drive physical hardware.",
+    description: "Start or reuse an isolated headless PyBoy session for the intended genuine ROM. Use it for gameplay checks even when the browser is unavailable, locked or unreachable; no browser session is required. If PyBoy is missing, follow the setup skill's emulator component. Continue with emulator_step/emulator_observe and use emulator_review for retained evidence. Unchanged ROMs retain their live frame and controller state; recording starts a clean bounded recorded boot. Source debugging (emulator_debug) is on when rom_build captured debug artifacts for this exact ROM in this session. This does not verify browser UI or drive physical hardware.",
     inputSchema: external_exports.object({
       romPath: boundedPath2.describe("Use the exact cartridge path returned by rom_build or rom_inspect."),
       cgb: external_exports.boolean().optional().describe("On a fresh boot, omit to follow the cartridge default; false forces monochrome DMG, true requests color hardware."),
       initialFrames: initialFrameCount.optional().describe("Frames to advance on a fresh boot only; defaults to 120. Reusing a running ROM does not advance it."),
       restart: external_exports.boolean().optional().describe("Set true for an intentional fresh boot; otherwise an unchanged ROM reuses its current frame and inputs."),
       recording: external_exports.union([external_exports.literal(false), recordingOptionsSchema]).optional().describe("Use an options object (including {}) for a fresh recorded boot; omit or use false to leave recording off for a new boot."),
-      debugMode: external_exports.enum(["rom", "source"]).optional().describe("Defaults to rom; source requires rom_build with captureDebugArtifacts:true for this exact cartridge.")
+      debugMode: external_exports.enum(["rom", "source"]).optional().describe("Omit for source when rom_build captured debug artifacts for this exact cartridge in this session, else rom; source requires them; rom turns source debugging off.")
     }).strict(),
     annotations: { ...changeSession2, destructiveHint: true }
   }, async ({ romPath, debugMode, ...options2 }, extra) => safely(() => performEmulatorOperation((signal) => runEmulator(romPath, options2, debugMode, signal), extra.signal)));
@@ -69953,7 +70006,7 @@ function createGbStudioServer(options = {}) {
       toActionIndex: external_exports.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional().describe("Replay the attempt's actions up to and including this index, such as a recordingSpan's toActionIndex; defaults to all of them."),
       onDivergence: external_exports.enum(["stop", "continue"]).optional().describe("stop (default) ends the replay at the first frame that differs; continue plays every input anyway."),
       recording: external_exports.union([external_exports.literal(false), recordingOptionsSchema]).optional().describe("The replay is recorded with the source attempt's limits; an options object overrides them; false records nothing."),
-      debugMode: external_exports.enum(["rom", "source"]).optional().describe("Defaults to rom; source requires rom_build with captureDebugArtifacts:true for this exact cartridge."),
+      debugMode: external_exports.enum(["rom", "source"]).optional().describe("Omit for source when rom_build captured debug artifacts for this exact cartridge in this session, else rom; source requires them; rom turns source debugging off."),
       includeImages: external_exports.boolean().optional().describe("Set false to receive the report without images."),
       scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels; image hashes stay those of the native frames."),
       colorCorrection: emulatorColorCorrection.optional()
@@ -69969,6 +70022,7 @@ function createGbStudioServer(options = {}) {
           frame: replayed.frame,
           activeButtons: replayed.activeButtons,
           debugMode: replayed.debugMode,
+          ...replayed.sourceDebug === void 0 ? {} : { sourceDebug: replayed.sourceDebug },
           replay: replayed.replay,
           ...replayed.recording === void 0 ? {} : {
             recording: { recordingPath: replayed.recording.recordingPath, sessionId: replayed.recording.sessionId, branchId: replayed.recording.branchId }

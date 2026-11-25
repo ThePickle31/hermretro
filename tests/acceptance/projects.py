@@ -130,15 +130,17 @@ def check_new_project_defaults(suite, client_b):
     platformer = {key: fields.get(key) for key in ("FEAT_PLATFORM_COYOTE_TIME", "FEAT_PLATFORM_DROP_THROUGH")}
     suite.check(
         "N1",
-        "A new game has no template author and GB Studio's platformer defaults, and settings_update sets the "
-        "player's move speed",
+        "A new game has no template author and GB Studio's platformer and shoot-'em-up defaults, and "
+        "settings_update sets the player's move speed",
         set(authors.values()) == {""}
         and set(platformer.values()) == {1}
+        and fields.get("SHOOTER_MOVEMENT_TYPE") == "MOVEMENT_TYPE_FREE"
         and speed.get("ok")
         and not speed["result"].get("isError")
         and settings.get("startMoveSpeed") == 2,
         authors=authors,
         platformer=platformer,
+        shooter_movement=fields.get("SHOOTER_MOVEMENT_TYPE"),
         start_move_speed=settings.get("startMoveSpeed"),
     )
 

@@ -111,20 +111,17 @@ chromatic_rom_build {"projectPath":"<path-to-project.gbsproj>"}
 chromatic_rom_inspect {"romPath":"<returned-rom-path>"}
 ```
 
-When the investigation requires authenticated same-build debug information,
-request it explicitly from an official project build:
-
-```text
-chromatic_rom_build {"projectPath":"<path-to-project.gbsproj>","captureDebugArtifacts":true}
-```
-
-The returned `debugArtifacts` identify the generated `symbols.noi`, `globals.i`,
-and SHA-256 digests for both files and their exact ROM. Missing, malformed, or
-mismatched artifacts fail the request instead of silently reusing another
-build. A direct GBDK C-source probe cannot capture project-build artifacts.
-Use those authenticated artifacts with the explicit source-aware mode described
+An official project build captures authenticated same-build debug information
+by default (`captureDebugArtifacts:false` skips it). The returned
+`debugArtifacts` name the folder holding the generated `symbols.noi` and
+`globals.i`; with `detail:"full"` they also give the SHA-256 digests for both
+files and their exact ROM. When the default capture fails (for example the
+folder cannot be written), the build still succeeds, without `debugArtifacts`,
+and `sourceDebug` says why; with `captureDebugArtifacts:true` missing, malformed,
+or mismatched artifacts fail the build. Neither reuses another build. A direct GBDK C-source probe cannot capture project-build artifacts.
+`chromatic_emulator_run` uses those artifacts by itself for the source-aware mode described
 in [Stepped playtesting](../../rom-debugging/references/stepped-playtesting.md). ROM-only
-testing remains available without them. Supported build layouts additionally
+testing remains available without them. With `detail:"full"`, supported build layouts additionally
 return `sourceProvenance` and `sourceDebugAbi`; otherwise inspect
 `sourceDebugUnavailableReason` instead of guessing an engine layout.
 

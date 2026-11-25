@@ -124,15 +124,20 @@ before sound emulation runs as that attempt did, without it, and cannot be
 checked for audio; open the ROM with `chromatic_emulator_run` instead.
 
 ROM-only mode does not infer high-level game state or named variable addresses.
-For the selected source project, request a successful official build with
-`captureDebugArtifacts:true`, then explicitly start its exact ROM with
-`debugMode:"source"` in the same MCP session:
+A successful official build of the selected project captures debug artifacts,
+and `chromatic_emulator_run` or `chromatic_emulator_replay` starts its exact ROM
+in source mode in the same MCP session (`"debugMode"` in its result says which; a `sourceDebug` there says
+why source mode is off, such as source edited since the build):
 
 ```text
-chromatic_rom_build {"captureDebugArtifacts":true}
-chromatic_emulator_run {"romPath":"<returned ROM outputPath>","restart":true,"initialFrames":120,"debugMode":"source"}
+chromatic_rom_build {}
+chromatic_emulator_run {"romPath":"<returned ROM outputPath>","restart":true,"initialFrames":120}
 chromatic_emulator_debug {"variableNames":["has_key"],"actors":["Guard"],"includeScene":true}
 ```
+
+A debug read is compact: frame, scene, live state, variables and what you ask
+for (`collisions`, or references with `referenceLimit`). `detail:"full"` adds
+the build identity, the standing limitations and 16 references.
 
 A variable selector matches an exact authored name or symbol first, then the
 full name or symbol in any case (`oil` finds a variable named `Oil`), then the
