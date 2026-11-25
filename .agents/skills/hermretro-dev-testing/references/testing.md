@@ -148,7 +148,9 @@ The real-engine run starts in `tests/acceptance/broker_acceptance.py`. Under `te
 import, sprite palettes and previews, `debugging.py` source-mode live state, `audio.py` music and sound import,
 `music_compose` and a song the sound hardware plays, `ownership.py` leases and the Desktop view, and `recovery.py`
 worker and broker restarts; these stages use the same two games. `authoring.py` covers the engine's authoring rules
-(project-unique symbols, scene transactions, script event ids and typed arguments) on a third game of its own.
+(project-unique symbols, scene transactions, script event ids and typed arguments) on a third game of its own, and
+`events.py` the event catalog (against the toolchain's GB Studio), `event_describe`, the authoring skill's cookbook
+recipes and `rom_build`'s authoring warnings on a fourth.
 
 Shared helpers are `tests/support.py`, imported as `from tests.support import ...`; a test reaches another test's
 helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/` itself on `sys.path` (only the

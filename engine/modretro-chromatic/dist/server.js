@@ -31019,6 +31019,12 @@ function summarizeBuildDiagnostics(input) {
     add({ severity: "error", code: "BUILD_CANCELLED", message: "The build was cancelled.", suggestedAction: "The cancelled attempt cannot authenticate new debug artifacts. Rerun the build when ready." });
   else if (input.timedOut)
     add({ severity: "error", code: "BUILD_TIMEOUT", message: "The compiler exceeded the requested time limit.", suggestedAction: "Inspect the retained compiler output, fix any reported source error, then retry with a bounded larger timeoutMs if needed." });
+  const authoredDeprecations = /* @__PURE__ */ new Set();
+  for (const diagnostic of input.authoring ?? []) {
+    if (diagnostic.code === "DEPRECATED_EVENT")
+      authoredDeprecations.add(diagnostic.event);
+    add(diagnostic);
+  }
   if (input.outputLimit)
     add({ severity: "error", code: "BUILD_OUTPUT_LIMIT", message: "Compiler output exceeded its 8 MiB per-stream limit and was truncated.", suggestedAction: "Inspect the retained output prefix and fix a repeatedly emitted compiler error or overly verbose project plugin before retrying." });
   for (const raw of `${input.stderr}
@@ -31029,6 +31035,8 @@ ${input.stdout}`.split(/\r?\n/)) {
     const deprecated = GB_STUDIO_DEPRECATION.exec(line);
     if (deprecated) {
       const [, helper, replacement, event] = deprecated;
+      if (authoredDeprecations.has(event))
+        continue;
       add({
         severity: "warning",
         code: "DEPRECATED_EVENT",
@@ -31667,7 +31675,8 @@ async function buildRom(options) {
           exitCode,
           timedOut: failure.buildTimedOut,
           cancelled: cancelled2,
-          outputLimit: failure.buildOutputLimit
+          outputLimit: failure.buildOutputLimit,
+          authoring: options.authoringWarnings
         }),
         durationMs: Math.round(performance.now() - startedAt),
         outputPath,
@@ -31713,7 +31722,7 @@ async function buildRom(options) {
       ...buildFailed ? { stdout, stderr } : successfulBuildOutput(stdout, stderr, log.logPath !== void 0),
       ...compilerStderr === stderr ? {} : { compilerStderr },
       ...cancelled ? { cancelled: true } : {},
-      ...summarizeBuildDiagnostics({ stdout, stderr, success: !buildFailed, exitCode, cancelled }),
+      ...summarizeBuildDiagnostics({ stdout, stderr, success: !buildFailed, exitCode, cancelled, authoring: options.authoringWarnings }),
       durationMs: Math.round(performance.now() - startedAt),
       outputPath,
       ...log,
@@ -58089,6 +58098,12 @@ var domainSchemas = {
     index: external_exports.number().int().min(0).max(1e4).optional(),
     expectedRevision: revision.optional().describe("Owner-resource revision from script_inspect for the same source target.")
   }).strict(),
+  eventDescribe: external_exports.object({
+    events: external_exports.array(external_exports.string().trim().min(1).max(64)).min(1).max(5).optional().describe('Up to 5 event commands to describe in full, e.g. ["EVENT_IF","EVENT_SET_VALUE"].'),
+    query: external_exports.string().trim().min(1).max(100).optional().describe("Words to find in an event's command, name, summary, category or arg names, e.g. sound or actor position."),
+    category: external_exports.string().trim().min(1).max(64).optional().describe("A category from the listing, e.g. Actor or Dialogue & Menus."),
+    includeDeprecated: external_exports.boolean().optional().describe("List deprecated events too (default false).")
+  }).strict(),
   variableInspect: external_exports.object({ variableId: variableId.optional() }).strict(),
   variableSet: external_exports.object({ variableId: variableId.optional(), name: boundedName.optional().describe("Required when creating a new variable; omit only to retain an existing name."), symbol: variableSymbol.optional(), expectedRevision: revision.optional().describe("Variable-resource revision returned by variable_inspect or the preceding successful variable edit.") }).strict(),
   variableDelete: external_exports.object({ variableId, expectedRevision: revision.optional().describe("Variable-resource revision returned by variable_inspect or the preceding successful variable edit.") }).strict(),
@@ -59179,6 +59194,226 @@ function registerTilemapTools(server, context) {
   }, (input) => context.safely(() => context.runTransaction((project2, access4) => compileTilemap(project2.projectPath, input, access4))));
 }
 
+// dist/event-catalog.js
+import { readFileSync as readEventCatalogFile } from "node:fs";
+var EVENT_CATALOG_URL = new URL("./gb-studio-events.json", import.meta.url);
+var EVENT_LIST_LIMIT = 40;
+var EVENT_FIELD_TYPES = {
+  value: 'A typed ScriptValue object, never a bare number or string: {"type":"number","value":3}, {"type":"variable","value":"<variable id>"}, {"type":"direction","value":"up"}, {"type":"expression","value":"$00$ + 1"}, or an operator such as {"type":"add","valueA":{...},"valueB":{...}} (eq, ne, lt, lte, gt, gte, and, or, not, add, sub, mul, div, mod, min, max, rnd).',
+  constvalue: 'A constant ScriptValue: {"type":"number","value":3}.',
+  variable: 'A variable id string: a global variable\'s id ("0", "12"; variable_inspect lists them), "L0"\u2026 for the actor\'s or trigger\'s locals, "T0"/"T1" for temporaries, "V0"\u2026"V9" for a custom script\'s parameters.',
+  actor: 'An actor id, "player", or "$self$" (the actor whose script runs).',
+  number: "A plain number.",
+  checkbox: "true or false.",
+  select: "One of options.",
+  togglebuttons: "One of options.",
+  units: "One of options: the units of this event's coordinate, distance or time args.",
+  textarea: 'A string. A field with multiple:true also takes an array of strings, one per text box. $00$ (two digits or more) prints global variable 0, $L0$ a local, $T0$ a temporary; never $0$.',
+  text: "A string.",
+  direction: 'A plain string: "up", "down", "left" or "right" ("" keeps the current direction).',
+  scene: "A scene id (project_inventory).",
+  sprite: "A sprite asset id (project_inventory).",
+  avatar: 'A sprite asset id shown beside the text, or "" for none.',
+  music: "A music asset id.",
+  soundEffect: '"beep", "crash", "tone", or a sound asset id.',
+  input: 'An array of buttons: "a", "b", "start", "select", "up", "down", "left", "right".',
+  collisionMask: 'An array of collision groups: "player", "1", "2", "3".',
+  palette: "A palette id (palette_inspect).",
+  engineField: "An engine field key (engine_field_inspect).",
+  customEvent: "A custom script id."
+};
+var EVENT_NOTES = {
+  EVENT_SWITCH_SCENE: "Create it with script_transition, which checks the destination scene and landing tile."
+};
+var eventCatalogCache;
+function eventCatalog() {
+  eventCatalogCache ??= JSON.parse(readEventCatalogFile(EVENT_CATALOG_URL, "utf8"));
+  return eventCatalogCache;
+}
+function eventSummaryLine(entry) {
+  const summary = entry.summary ?? entry.name;
+  const sentence = /^.*?[.!?](?=\s|$)/.exec(summary)?.[0] ?? summary;
+  return sentence.length > 140 ? `${sentence.slice(0, 139)}\u2026` : sentence;
+}
+function eventListing(id, entry) {
+  return {
+    event: id,
+    name: entry.name,
+    summary: eventSummaryLine(entry),
+    ...entry.deprecated ? { deprecated: true, ...entry.replacement ? { replacement: entry.replacement } : {} } : {}
+  };
+}
+function searchWords(text) {
+  return text.toLowerCase().split(/[^a-z0-9$]+/).filter(Boolean);
+}
+function eventSearchWords(id, entry) {
+  return searchWords([id, entry.name, entry.summary ?? "", ...entry.groups, ...entry.fields.map((field) => field.key)].join(" "));
+}
+function describeEvents(input) {
+  const { gbStudioVersion, events } = eventCatalog();
+  if (input.events !== void 0) {
+    if (input.query !== void 0 || input.category !== void 0) {
+      throw new GameStudioProjectError("INVALID_INPUT", "Give events to describe them, or query/category to search; not both.");
+    }
+    const unknown = input.events.filter((id) => !Object.hasOwn(events, id.toUpperCase()));
+    if (unknown.length > 0) {
+      const words = unknown.flatMap((id) => id.toLowerCase().replace(/^event_/, "").split("_")).filter((word) => word.length > 1);
+      const near = Object.keys(events).filter((id) => words.some((word) => id.toLowerCase().includes(word))).slice(0, 12);
+      throw new GameStudioProjectError("EVENT_NOT_FOUND", `GB Studio ${gbStudioVersion} has no event ${unknown.join(", ")}${near.length > 0 ? `; similar: ${near.join(", ")}` : ""}. Search with query.`);
+    }
+    const described = [...new Set(input.events.map((id) => id.toUpperCase()))].map((id) => {
+      const { groups, ...entry } = events[id];
+      return { event: id, ...entry, categories: groups, ...EVENT_NOTES[id] ? { note: EVENT_NOTES[id] } : {} };
+    });
+    const types = new Set(described.flatMap((entry) => entry.fields.map((field) => field.type)));
+    return {
+      gbStudioVersion,
+      events: described,
+      fieldTypes: Object.fromEntries([...types].filter((type) => Object.hasOwn(EVENT_FIELD_TYPES, type)).map((type) => [type, EVENT_FIELD_TYPES[type]])),
+      ...described.some((entry) => entry.branches) ? { branches: "Each branch is an array of events under the event's children, e.g. children.true." } : {},
+      ids: "Omit event ids: script_edit, scene_apply and dialogue_update give every event, nested ones included, a unique id."
+    };
+  }
+  if (input.query === void 0 && input.category === void 0) {
+    const counts = /* @__PURE__ */ new Map();
+    for (const entry of Object.values(events)) {
+      if (entry.deprecated)
+        continue;
+      for (const group of entry.groups)
+        counts.set(group, (counts.get(group) ?? 0) + 1);
+    }
+    return {
+      gbStudioVersion,
+      eventCount: Object.keys(events).length,
+      deprecatedCount: Object.values(events).filter((entry) => entry.deprecated).length,
+      categories: [...counts].sort(([left], [right]) => left.localeCompare(right)).map(([name, count3]) => ({ name, count: count3 })),
+      nextStep: "Search with category or query, then describe up to 5 events by name."
+    };
+  }
+  const category = input.category?.toLowerCase();
+  const words = searchWords(input.query ?? "");
+  const matches = [];
+  let deprecatedHidden = 0;
+  for (const [id, entry] of Object.entries(events)) {
+    if (category !== void 0 && !entry.groups.some((group) => group.toLowerCase() === category))
+      continue;
+    const text = eventSearchWords(id, entry);
+    if (!words.every((word) => text.some((candidate) => candidate.startsWith(word))))
+      continue;
+    if (entry.deprecated && input.includeDeprecated !== true && id !== input.query?.toUpperCase()) {
+      deprecatedHidden += 1;
+      continue;
+    }
+    const title = searchWords(`${id} ${entry.name}`);
+    matches.push({ id, entry, score: words.filter((word) => title.includes(word)).length, length: title.length });
+  }
+  matches.sort((left, right) => right.score - left.score || left.length - right.length || left.id.localeCompare(right.id));
+  if (matches.length === 0 && category !== void 0 && !Object.values(events).some((entry) => entry.groups.some((group) => group.toLowerCase() === category))) {
+    throw new GameStudioProjectError("INVALID_INPUT", `No category ${input.category}; call event_describe with no arguments to list them.`);
+  }
+  return {
+    matches: matches.slice(0, EVENT_LIST_LIMIT).map(({ id, entry }) => eventListing(id, entry)),
+    total: matches.length,
+    ...matches.length > EVENT_LIST_LIMIT ? { truncated: true } : {},
+    ...deprecatedHidden > 0 ? { deprecatedHidden } : {}
+  };
+}
+var MENU_RIGHT_COLUMN = 10;
+var SCREEN_TILES_WIDE = 20;
+var SCREEN_TILES_HIGH = 18;
+var TEXT_TOKEN = /\$L[0-9]\$|\$T[0-1]\$|\$V[0-9]\$|\$[0-9]+\$/g;
+function textArgValues(value) {
+  return typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+function actorsUnderMenu(scene, items) {
+  const top = SCREEN_TILES_HIGH - items - 2;
+  return (scene.actors ?? []).filter((actor) => {
+    const x = Number(actor.x);
+    const y = Number(actor.y);
+    return Number.isFinite(x) && Number.isFinite(y) && x + 1 >= MENU_RIGHT_COLUMN && y >= top;
+  });
+}
+function scriptEventWarnings(context, event, args) {
+  const { entry, where, resource, scene } = context;
+  const warnings = [];
+  const located = (code, message2, suggestedAction) => ({ severity: "warning", code, message: message2, suggestedAction, event: event.command, resourcePath: resource.resourcePath });
+  if (context.sceneType === "LOGO" && entry.warnings?.some((warning) => warning.sceneTypes?.includes("LOGO"))) {
+    warnings.push(located("TEXT_IN_LOGO_SCENE", `${event.command} in ${where} shows text in a LOGO scene, which GB Studio draws with glitches.`, "Give the scene another type (scene_update type TOPDOWN), or show the text in a scene that is not LOGO."));
+  }
+  const textFields = entry.fields.filter((field) => field.type === "textarea" || field.type === "text");
+  if (textFields.some((field) => textArgValues(args[field.key]).some((text) => [...text.matchAll(TEXT_TOKEN)].some((token) => token[0] === "$0$")))) {
+    warnings.push(located("TEXT_VARIABLE_TOKEN", `${event.command} in ${where} prints $0$, which GB Studio reads as no variable and fills from another one.`, "Write global variable 0 as $00$: variable tokens need two digits or more."));
+  }
+  if (event.command === "EVENT_MENU" && args.layout === "menu" && context.colorProject && context.fixedCamera && !context.spritesHidden) {
+    const covered = actorsUnderMenu(scene, Math.min(8, Math.max(2, Number(args.items) || 2)));
+    if (covered.length > 0) {
+      const names = covered.slice(0, 4).map((actor) => actor.name || actor.id).join(", ");
+      warnings.push(located("ACTORS_OVER_MENU", `The menu in ${where} opens over ${names}${covered.length > 4 ? ` and ${covered.length - 4} more` : ""}; on Game Boy Color, actor sprites draw over a menu with layout menu.`, "Put EVENT_HIDE_SPRITES before the menu and EVENT_SHOW_SPRITES after it, or use layout dialogue (full width, which hides the sprites below it)."));
+    }
+  }
+  return warnings;
+}
+function authoringWarnings(inventory) {
+  const { events: catalog } = eventCatalog();
+  const settings = inventory.settings ?? {};
+  const colorProject = settings.colorMode === "color" || settings.colorMode === "mixed";
+  const warnings = [];
+  const deprecated = /* @__PURE__ */ new Map();
+  function visit(context, events, depth) {
+    if (!Array.isArray(events) || depth > MAXIMUM_EVENT_DEPTH)
+      return;
+    for (const event of events) {
+      if (!isObject2(event) || typeof event.command !== "string")
+        continue;
+      const args = isObject2(event.args) ? event.args : {};
+      if (args.__comment)
+        continue;
+      if (event.command === "EVENT_HIDE_SPRITES" || event.command === "EVENT_SHOW_SPRITES")
+        context.spritesHidden = event.command === "EVENT_HIDE_SPRITES";
+      const entry = catalog[event.command];
+      if (entry?.deprecated) {
+        const found = deprecated.get(event.command) ?? { count: 0, where: context.where, resourcePath: context.resource.resourcePath, replacement: entry.replacement };
+        found.count += 1;
+        deprecated.set(event.command, found);
+      }
+      if (entry)
+        warnings.push(...scriptEventWarnings({ ...context, entry }, event, args));
+      if (isObject2(event.children)) {
+        for (const branch of Object.values(event.children))
+          visit(context, branch, depth + 1);
+      }
+    }
+  }
+  for (const scene of inventory.scenes ?? []) {
+    const sceneName = scene.name || scene.id;
+    const shared = {
+      scene,
+      sceneType: String(scene.type || settings.defaultSceneTypeId || "TOPDOWN").toUpperCase(),
+      fixedCamera: Number(scene.width) <= SCREEN_TILES_WIDE && Number(scene.height) <= SCREEN_TILES_HIGH,
+      colorProject
+    };
+    const owners = [["scene", scene], ...(scene.actors ?? []).map((actor) => ["actor", actor]), ...(scene.triggers ?? []).map((trigger) => ["trigger", trigger])];
+    for (const [kind, resource] of owners) {
+      const where = kind === "scene" ? `scene ${sceneName}` : `${kind} ${resource.name || resource.id} in scene ${sceneName}`;
+      for (const [key, events] of Object.entries(resource)) {
+        if (SCRIPT_KEYS.test(key))
+          visit({ ...shared, resource, where, spritesHidden: false }, events, 0);
+      }
+    }
+  }
+  for (const [command, found] of deprecated) {
+    warnings.push({
+      severity: "warning",
+      code: "DEPRECATED_EVENT",
+      message: `${command} is deprecated in GB Studio (${found.count} in the project, first in ${found.where}).`,
+      suggestedAction: found.replacement ? `Replace it with ${found.replacement} (event_describe shows its args).` : "Replace it with a current event (event_describe lists them).",
+      event: command,
+      resourcePath: found.resourcePath
+    });
+  }
+  return warnings;
+}
+
 // dist/tool-domains/register.js
 var readOnly = {
   readOnlyHint: true,
@@ -59428,6 +59663,12 @@ function registerProjectDomains(server, context) {
     inputSchema: domainSchemas.scriptTransition,
     annotations: updateExisting
   }, async (input) => mutate((project2, access4) => createSceneTransition(project2.projectPath, input, access4)));
+  server.registerTool("event_describe", {
+    title: "Describe GB Studio events",
+    description: "Look up GB Studio's script events. With no arguments, list the categories; with query or category, list matching events (command, name, one-line summary); with events, describe up to 5: every arg with its type, default and allowed values, child branches, scene-type warnings, deprecation with its replacement, and an example event to adapt. Read from GB Studio's own event definitions; needs no project.",
+    inputSchema: domainSchemas.eventDescribe,
+    annotations: readOnly
+  }, async (input) => context.safely(() => describeEvents(input)));
   server.registerTool("variable_inspect", {
     title: "Inspect named game variables",
     description: "Read authored global variable metadata and its resource revision. Use emulator_debug for live values; this tool does not read runtime memory.",
@@ -68849,7 +69090,7 @@ function createGbStudioServer(options = {}) {
       const duplicates = inventory.diagnostics.filter((diagnostic) => diagnostic.code === "DUPLICATE_SYMBOL");
       if (duplicates.length > 0)
         throw new GameStudioProjectError("DUPLICATE_SYMBOL", duplicates.map((diagnostic) => diagnostic.message).join(". "), duplicates[0].resourcePath);
-      const result = await buildRom({ ...input, projectRoot: project2.projectRoot, projectPath });
+      const result = await buildRom({ ...input, projectRoot: project2.projectRoot, projectPath, authoringWarnings: authoringWarnings(inventory) });
       if (before && result.success !== false && typeof result.outputPath === "string" && result.rom)
         await rememberNativeRom(before, project2.projectPath, { path: result.outputPath, sha256: result.rom.sha256 }, configuredToolchain).catch(() => {
         });

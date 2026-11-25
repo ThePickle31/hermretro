@@ -137,8 +137,11 @@ replaced by the next build of that ROM): read it only when the returned lines ar
 not enough. A successful build returns the last 20 lines of compiler stdout
 (`stdoutOmittedLines` counts the rest) and its stderr; a failed build returns all
 of both, and so does a build whose log could not be written (`logError` says why). A `DEPRECATED_EVENT` warning names a GB Studio event (`event`) that
-still compiles but uses an API GB Studio will remove, for example `EVENT_IF_VALUE`
-(replace it with `EVENT_IF`); the ROM is fine. Node's `[DEP0190]` notice from the
+still compiles but that GB Studio will remove, for example `EVENT_IF_VALUE`, with
+its replacement (`EVENT_IF`), how often the project uses it and where first; the
+ROM is fine. The build also warns about scripts that build but misbehave in play:
+`TEXT_IN_LOGO_SCENE`, `TEXT_VARIABLE_TOKEN` and `ACTORS_OVER_MENU` (see
+[GB Studio behaviours](gb-studio-behaviours.md)). Node's `[DEP0190]` notice from the
 official CLI is left out. A nonzero compiler exit, missing output ROM, invalid
 cartridge header, or bad Nintendo logo remains a failure.
 

@@ -20,6 +20,7 @@ OWNER_A = {"profile": "s01-profile", "conversation_id": "conv-A"}
 OWNER_B = {"profile": "s01-profile", "conversation_id": "conv-B"}
 OWNER_C = {"profile": "s01-profile", "conversation_id": "conv-C"}
 OWNER_S = {"profile": "s01-profile", "conversation_id": "conv-S"}
+OWNER_E = {"profile": "s01-profile", "conversation_id": "conv-E"}
 
 
 class BrokerRun:

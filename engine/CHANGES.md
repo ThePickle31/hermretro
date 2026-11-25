@@ -153,3 +153,14 @@ files, what changed and why.
   recorded before it replays without them. Without a sidecar GB Studio gives a song a new random ID on every load,
   so no event could name it; agents had no way to import audio and four of the five audit games had beeps only (one
   played its song through a raw GBVM line).
+- `dist/gb-studio-events.json` (new), `dist/server.js` (`event-catalog.js` module, `rom_build`, the tool domains):
+  a catalog of GB Studio's script events, written by `tools/engine/event_catalog.py` from the event definitions of
+  the GB Studio the toolchain compiles with: each event's args (type, default, allowed values, conditions), child
+  branches, scene-type warnings, deprecation with its replacement, and the example event GB Studio's editor adds.
+  A new tool `event_describe` lists the categories, searches events (command, name, one-line summary) and
+  describes up to five. `rom_build` adds warnings for scene, actor and trigger scripts that build but misbehave:
+  text in a LOGO scene (`TEXT_IN_LOGO_SCENE`), a `$0$` text token (GB Studio prints another variable;
+  `TEXT_VARIABLE_TOKEN`), a menu with layout `menu` opening over actors in a Game Boy Color scene no larger than the
+  screen without `EVENT_HIDE_SPRITES` before it (`ACTORS_OVER_MENU`), and each deprecated event in the project, in
+  place of GB Studio's own notice for it (`DEPRECATED_EVENT`). Agents read GB Studio's source about 160 times in
+  the five-game audit to find event args, and met each of these only when playing the game.

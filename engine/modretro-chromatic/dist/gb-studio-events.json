@@ -1,0 +1,7088 @@
+{
+ "gbStudioVersion": "4.3.2",
+ "events": {
+  "EVENT_ACTOR_ACTIVATE": {
+   "name": "Activate Actor",
+   "summary": "Activate an actor, causing it to become visible (if not also hidden) and for its OnUpdate script to start.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to activate."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_ACTIVATE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_COLLISIONS_DISABLE": {
+   "name": "Set Actor Collisions Disable",
+   "summary": "Disable all collision checks for an actor allowing the player and all other actor's to pass through it while moving.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_COLLISIONS_DISABLE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_COLLISIONS_ENABLE": {
+   "name": "Set Actor Collisions Enable",
+   "summary": "Re-enable collisions for an actor causing it to become solid again if collisions had previously been disabled.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_COLLISIONS_ENABLE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_DEACTIVATE": {
+   "name": "Deactivate Actor",
+   "summary": "Deactivate an actor, causing it to act as if it had gone offscreen. It will become invisible and its OnUpdate script will be stopped.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to deactivate."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_DEACTIVATE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_EFFECTS": {
+   "name": "Actor Effects",
+   "summary": "Play an actor effect animation on a selected actor.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "effect",
+     "type": "select",
+     "default": "flicker",
+     "options": [
+      "flicker",
+      "splitIn",
+      "splitOut"
+     ],
+     "description": "The actor effect to play."
+    },
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to be animated."
+    },
+    {
+     "key": "distance",
+     "type": "number",
+     "default": 20,
+     "min": 1,
+     "max": 80,
+     "description": "The distance value.",
+     "when": [
+      {
+       "key": "effect",
+       "in": [
+        "splitIn",
+        "splitOut"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "pixels",
+     "options": [
+      "tiles",
+      "pixels"
+     ],
+     "when": [
+      {
+       "key": "effect",
+       "in": [
+        "splitIn",
+        "splitOut"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "speed",
+     "type": "moveSpeed",
+     "default": 2,
+     "description": "The movement speed.",
+     "when": [
+      {
+       "key": "effect",
+       "in": [
+        "splitIn",
+        "splitOut"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "time",
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "max": 60,
+     "description": "The length of time to play the actor effect.",
+     "when": [
+      {
+       "key": "effect",
+       "in": [
+        "flicker"
+       ]
+      },
+      {
+       "key": "timeUnits",
+       "ne": "frames"
+      }
+     ]
+    },
+    {
+     "key": "timeUnits",
+     "type": "units",
+     "default": "time",
+     "options": [
+      "time",
+      "frames"
+     ],
+     "when": [
+      {
+       "key": "effect",
+       "in": [
+        "flicker"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "frames",
+     "type": "number",
+     "default": 30,
+     "min": 0,
+     "max": 3600,
+     "description": "The length of time to play the actor effect.",
+     "when": [
+      {
+       "key": "effect",
+       "in": [
+        "flicker"
+       ]
+      },
+      {
+       "key": "timeUnits",
+       "eq": "frames"
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_EFFECTS",
+    "args": {
+     "effect": "flicker",
+     "actorId": "$self$",
+     "time": 0.5,
+     "timeUnits": "time"
+    }
+   }
+  },
+  "EVENT_ACTOR_EMOTE": {
+   "name": "Show Emote Bubble",
+   "summary": "Show an emote image above a specified actor. The image will be positioned centrally above the actor's collision bounding box.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to display an emote image above."
+    },
+    {
+     "key": "emoteId",
+     "type": "emote",
+     "default": "<emote>",
+     "description": "The emote image to display."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_EMOTE",
+    "args": {
+     "actorId": "$self$",
+     "emoteId": "<emote>"
+    }
+   }
+  },
+  "EVENT_ACTOR_GET_DIRECTION": {
+   "name": "Store Actor Direction In Variable",
+   "summary": "Store the current direction of an actor within a variable.\nDown: 0\nRight: 1\nUp: 2\nLeft: 3",
+   "groups": [
+    "Actor",
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to check."
+    },
+    {
+     "key": "direction",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use for the direction."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_GET_DIRECTION",
+    "args": {
+     "actorId": "$self$",
+     "direction": "<variable>"
+    }
+   }
+  },
+  "EVENT_ACTOR_GET_POSITION": {
+   "name": "Store Actor Position In Variables",
+   "summary": "Store the current position of an actor within two variables, one to store the horizontal position and another to store the vertical position.",
+   "groups": [
+    "Actor",
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to check."
+    },
+    {
+     "key": "vectorX",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use for the horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "vectorY",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use for the vertical position."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_GET_POSITION",
+    "args": {
+     "actorId": "$self$",
+     "vectorX": "<variable>",
+     "units": "tiles",
+     "vectorY": "<variable>"
+    }
+   }
+  },
+  "EVENT_ACTOR_HIDE": {
+   "name": "Hide Actor",
+   "summary": "Hide an actor, causing it to become invisible. Its OnUpdate script will continue to run while hidden.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to hide."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_HIDE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_INVOKE": {
+   "name": "Invoke Actor Script",
+   "groups": [
+    "Actor"
+   ],
+   "deprecated": true,
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "Executes the scripts attached to Actor"
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_INVOKE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_MOVE_CANCEL": {
+   "name": "Actor Move Cancel",
+   "summary": "Cancel any currently running \"Actor Move\" events affecting this actor. Causes the actor to stop in its current location.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to cancel movement for."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_MOVE_CANCEL",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_MOVE_RELATIVE": {
+   "name": "Actor Move Relative",
+   "summary": "Move an actor relative to its current position.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to move."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -31,
+     "max": 31,
+     "description": "The horizontal offset relative to the current position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -31,
+     "max": 31,
+     "description": "The vertical offset relative to the current position."
+    },
+    {
+     "key": "collideWith",
+     "type": "togglebuttons",
+     "default": [
+      "walls"
+     ],
+     "options": [
+      "walls",
+      "actors"
+     ],
+     "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
+    },
+    {
+     "key": "lockDirection",
+     "type": "togglebuttons",
+     "default": [],
+     "options": [
+      "x",
+      "y"
+     ],
+     "description": "Prevents the actor from changing facing direction along the selected axis while moving."
+    },
+    {
+     "key": "moveType",
+     "type": "moveType",
+     "default": "horizontal",
+     "description": "Choose if should move in horizontal/vertical axis first or if it should move diagonally to destination."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_MOVE_RELATIVE",
+    "args": {
+     "actorId": "$self$",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "collideWith": [
+      "walls"
+     ],
+     "lockDirection": [],
+     "moveType": "horizontal"
+    }
+   }
+  },
+  "EVENT_ACTOR_MOVE_TO": {
+   "name": "Actor Move To",
+   "summary": "Move an actor to a new position.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to move."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The vertical position."
+    },
+    {
+     "key": "collideWith",
+     "type": "togglebuttons",
+     "default": [
+      "walls"
+     ],
+     "options": [
+      "walls",
+      "actors"
+     ],
+     "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
+    },
+    {
+     "key": "lockDirection",
+     "type": "togglebuttons",
+     "default": [],
+     "options": [
+      "x",
+      "y"
+     ],
+     "description": "Prevents the actor from changing facing direction along the selected axis while moving."
+    },
+    {
+     "key": "moveType",
+     "type": "moveType",
+     "default": "horizontal",
+     "description": "Choose if should move in horizontal/vertical axis first or if it should move diagonally to destination."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_MOVE_TO",
+    "args": {
+     "actorId": "$self$",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "collideWith": [
+      "walls"
+     ],
+     "lockDirection": [],
+     "moveType": "horizontal"
+    }
+   }
+  },
+  "EVENT_ACTOR_MOVE_TO_VALUE": {
+   "name": "Actor Move To Using Variables",
+   "groups": [
+    "Actor"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_ACTOR_MOVE_TO",
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "Actor"
+    },
+    {
+     "key": "vectorX",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "X"
+    },
+    {
+     "key": "vectorY",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "Y"
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_MOVE_TO_VALUE",
+    "args": {
+     "actorId": "$self$",
+     "vectorX": "<variable>",
+     "vectorY": "<variable>"
+    }
+   }
+  },
+  "EVENT_ACTOR_PUSH": {
+   "name": "Push Actor Away From Player",
+   "summary": "Causes the specified actor to be moved in the direction that the player is currently facing. Useful for creating block puzzles.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "continue",
+     "type": "checkbox",
+     "default": false,
+     "description": "Set to make the actor continue to move until a collision with another actor or the scene occurs."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_PUSH",
+    "args": {
+     "continue": false
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_ANIMATE": {
+   "name": "Set Actor Animate While Stationary",
+   "groups": [
+    "Actor"
+   ],
+   "deprecated": true,
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$"
+    },
+    {
+     "key": "animate",
+     "type": "checkbox",
+     "default": true,
+     "description": "Animate while stationary"
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_ANIMATE",
+    "args": {
+     "actorId": "$self$",
+     "animate": true
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_ANIMATION_SPEED": {
+   "name": "Set Actor Animation Speed",
+   "summary": "Set the animation speed of an actor to a new value.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "speed",
+     "type": "animSpeed",
+     "default": 15,
+     "description": "The animation speed."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_ANIMATION_SPEED",
+    "args": {
+     "actorId": "$self$",
+     "speed": 15
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_COLLISION_BOX": {
+   "name": "Set Actor Collision Bounding Box",
+   "summary": "Set the collision bounding box of an actor to a position and size.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -96,
+     "max": 96,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "pixels",
+     "options": [
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": -8
+     },
+     "min": -96,
+     "max": 96,
+     "description": "The vertical position."
+    },
+    {
+     "key": "width",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 16
+     },
+     "min": 0,
+     "max": 128,
+     "description": "The box width."
+    },
+    {
+     "key": "height",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 16
+     },
+     "min": 0,
+     "max": 128,
+     "description": "The box height."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_COLLISION_BOX",
+    "args": {
+     "actorId": "$self$",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "pixels",
+     "y": {
+      "type": "number",
+      "value": -8
+     },
+     "width": {
+      "type": "number",
+      "value": 16
+     },
+     "height": {
+      "type": "number",
+      "value": 16
+     }
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_DIRECTION": {
+   "name": "Set Actor Direction",
+   "summary": "Change the direction that an actor is currently facing.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "direction",
+     "type": "value",
+     "default": {
+      "type": "direction",
+      "value": "up"
+     },
+     "description": "The actor direction."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_DIRECTION",
+    "args": {
+     "actorId": "$self$",
+     "direction": {
+      "type": "direction",
+      "value": "up"
+     }
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_FRAME": {
+   "name": "Set Actor Animation Frame",
+   "summary": "Set an actor's animation to a specified frame value.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "frame",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "description": "The animation frame value."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_FRAME",
+    "args": {
+     "actorId": "$self$",
+     "frame": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_FRAME_TO_VALUE": {
+   "name": "Set Actor Animation Frame Using Variable",
+   "groups": [
+    "Actor"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_ACTOR_SET_FRAME",
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$"
+    },
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>"
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_FRAME_TO_VALUE",
+    "args": {
+     "actorId": "$self$",
+     "variable": "<variable>"
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_MOVEMENT_SPEED": {
+   "name": "Set Actor Movement Speed",
+   "summary": "Set the movement speed of an actor to a new value.",
+   "groups": [
+    "Actor"
+   ],
+   "warnings": [
+    {
+     "sceneTypes": [
+      "PLATFORM",
+      "ADVENTURE"
+     ],
+     "message": "To set the Player Movement speed in Platformer or Adventure scene types, you must use the \"Engine Field Update\" event to set the Walk Velocity or Run Velocity fields."
+    }
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "speed",
+     "type": "moveSpeed",
+     "default": 1,
+     "description": "The movement speed."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_MOVEMENT_SPEED",
+    "args": {
+     "actorId": "$self$",
+     "speed": 1
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_POSITION": {
+   "name": "Set Actor Position",
+   "summary": "Set the position of an actor, causing it to instantly move to the new location.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The vertical position."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_POSITION",
+    "args": {
+     "actorId": "$self$",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_POSITION_RELATIVE": {
+   "name": "Set Actor Relative Position",
+   "summary": "Set the position of an actor relative to it's previous position, causing it to instantly move to the new location.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -31,
+     "max": 31,
+     "description": "The horizontal offset relative to the current position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -31,
+     "max": 31,
+     "description": "The vertical offset relative to the current position."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_POSITION_RELATIVE",
+    "args": {
+     "actorId": "$self$",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_POSITION_TO_VALUE": {
+   "name": "Set Actor Position Using Variables",
+   "groups": [
+    "Actor"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_ACTOR_SET_POSITION",
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$"
+    },
+    {
+     "key": "vectorX",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "X"
+    },
+    {
+     "key": "vectorY",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "Y"
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_POSITION_TO_VALUE",
+    "args": {
+     "actorId": "$self$",
+     "vectorX": "<variable>",
+     "vectorY": "<variable>"
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_SPRITE": {
+   "name": "Set Actor Sprite Sheet",
+   "summary": "Set the sprite that should be used to render an actor.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "spriteSheetId",
+     "type": "sprite",
+     "default": "<sprite>",
+     "description": "The sprite to use for rendering the actor."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_SPRITE",
+    "args": {
+     "actorId": "$self$",
+     "spriteSheetId": "<sprite>"
+    }
+   }
+  },
+  "EVENT_ACTOR_SET_STATE": {
+   "name": "Set Actor Animation State",
+   "summary": "Change the sprite animation state for a specified actor.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    },
+    {
+     "key": "spriteStateId",
+     "type": "animationstate",
+     "default": "",
+     "description": "The sprite animation state to use."
+    },
+    {
+     "key": "loopAnim",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if animation should loop."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SET_STATE",
+    "args": {
+     "actorId": "$self$",
+     "spriteStateId": "",
+     "loopAnim": true
+    }
+   }
+  },
+  "EVENT_ACTOR_SHOW": {
+   "name": "Show Actor",
+   "summary": "Unhide a previously hidden actor.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to show."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_SHOW",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_START_UPDATE": {
+   "name": "Start Actor's \"On Update\" Script",
+   "summary": "Start an actors OnUpdate script if it is not currently running. If the actor is currently offscreen its script may become deactivated causing the script to stop running again, to prevent this set the 'Keep Running While Offscreen' setting for the actor's OnUpdate script.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_START_UPDATE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ACTOR_STOP_UPDATE": {
+   "name": "Stop Actor's \"On Update\" Script",
+   "summary": "Stop an actors OnUpdate script if it was currently running.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to update."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ACTOR_STOP_UPDATE",
+    "args": {
+     "actorId": "$self$"
+    }
+   }
+  },
+  "EVENT_ADD_FLAGS": {
+   "name": "Variable Flags Add",
+   "summary": "Set selected flags to true on a variable. All unselected flags will keep their previous value.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "flag1",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 1 to true."
+    },
+    {
+     "key": "flag2",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 2 to true."
+    },
+    {
+     "key": "flag3",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 3 to true."
+    },
+    {
+     "key": "flag4",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 4 to true."
+    },
+    {
+     "key": "flag5",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 5 to true."
+    },
+    {
+     "key": "flag6",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 6 to true."
+    },
+    {
+     "key": "flag7",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 7 to true."
+    },
+    {
+     "key": "flag8",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 8 to true."
+    },
+    {
+     "key": "flag9",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 9 to true."
+    },
+    {
+     "key": "flag10",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 10 to true."
+    },
+    {
+     "key": "flag11",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 11 to true."
+    },
+    {
+     "key": "flag12",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 12 to true."
+    },
+    {
+     "key": "flag13",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 13 to true."
+    },
+    {
+     "key": "flag14",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 14 to true."
+    },
+    {
+     "key": "flag15",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 15 to true."
+    },
+    {
+     "key": "flag16",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 16 to true."
+    }
+   ],
+   "example": {
+    "command": "EVENT_ADD_FLAGS",
+    "args": {
+     "variable": "<variable>",
+     "flag1": false,
+     "flag2": false,
+     "flag3": false,
+     "flag4": false,
+     "flag5": false,
+     "flag6": false,
+     "flag7": false,
+     "flag8": false,
+     "flag9": false,
+     "flag10": false,
+     "flag11": false,
+     "flag12": false,
+     "flag13": false,
+     "flag14": false,
+     "flag15": false,
+     "flag16": false
+    }
+   }
+  },
+  "EVENT_ADVENTURE_STATE_SET": {
+   "name": "Set Adventure State",
+   "summary": "Set the current state of an adventure scene.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "sceneTypes": [
+    "ADVENTURE"
+   ],
+   "fields": [
+    {
+     "key": "state",
+     "type": "select",
+     "default": "ground",
+     "options": [
+      "ground",
+      "dash",
+      "knockback",
+      "blank",
+      "run",
+      "push"
+     ],
+     "description": "State"
+    }
+   ],
+   "example": {
+    "command": "EVENT_ADVENTURE_STATE_SET",
+    "args": {
+     "state": "ground"
+    }
+   }
+  },
+  "EVENT_AWAIT_INPUT": {
+   "name": "Pause Script Until Button Pressed",
+   "summary": "Pauses the script until one of the specified joypad buttons are pressed.",
+   "groups": [
+    "Joypad Input"
+   ],
+   "fields": [
+    {
+     "key": "input",
+     "type": "input",
+     "default": [
+      "a",
+      "b"
+     ],
+     "description": "The input buttons to check."
+    }
+   ],
+   "example": {
+    "command": "EVENT_AWAIT_INPUT",
+    "args": {
+     "input": [
+      "a",
+      "b"
+     ]
+    }
+   }
+  },
+  "EVENT_CALL_CUSTOM_EVENT": {
+   "name": "Call Script",
+   "summary": "Call one of your custom scripts. Once you have chosen a script you will be able to hook up any parameters required.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "customEventId",
+     "type": "customEvent",
+     "description": "The script to run."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CALL_CUSTOM_EVENT",
+    "args": {}
+   }
+  },
+  "EVENT_CAMERA_LOCK": {
+   "name": "Camera Move To Lock On Player",
+   "summary": "Move the camera back to centering on the player, locking into position when the player moves. Optionally allows locking to follow player in only horizontal or vertical axis.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "speed",
+     "type": "moveSpeed",
+     "default": 1,
+     "description": "The movement speed, use 'Instant' to immediately move to the new location."
+    },
+    {
+     "key": "axis",
+     "type": "togglebuttons",
+     "default": [
+      "x",
+      "y"
+     ],
+     "options": [
+      "x",
+      "y"
+     ],
+     "description": "Set if either horizontal axis, vertical axis or both should be locked."
+    },
+    {
+     "key": "preventScroll",
+     "type": "direction",
+     "description": "Prevents camera from scrolling in selected directions."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_LOCK",
+    "args": {
+     "speed": 1,
+     "axis": [
+      "x",
+      "y"
+     ]
+    }
+   }
+  },
+  "EVENT_CAMERA_MOVE_TO": {
+   "name": "Camera Move To",
+   "summary": "Move the camera to a new position.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 2047,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 2047,
+     "description": "The vertical position."
+    },
+    {
+     "key": "speed",
+     "type": "moveSpeed",
+     "default": 1,
+     "description": "The movement speed, use 'Instant' to immediately move to the new location."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_MOVE_TO",
+    "args": {
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "speed": 1
+    }
+   }
+  },
+  "EVENT_CAMERA_PROPERTY_SET": {
+   "name": "Set Camera Property",
+   "summary": "Update a property of the game camera.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "property",
+     "type": "select",
+     "default": "camera_deadzone_x",
+     "options": [
+      "camera_deadzone_x",
+      "camera_deadzone_y",
+      "camera_offset_x",
+      "camera_offset_y"
+     ],
+     "description": "The camera property to update."
+    },
+    {
+     "key": "value",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -128,
+     "max": 127,
+     "description": "The value to set the selected variable to."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_PROPERTY_SET",
+    "args": {
+     "property": "camera_deadzone_x",
+     "value": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_CAMERA_SET_BOUNDS": {
+   "name": "Set Camera Bounds",
+   "summary": "Set the bounds of the camera, preventing it from moving outside of the specified area.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 2040,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 2040,
+     "description": "The vertical position."
+    },
+    {
+     "key": "width",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 20
+     },
+     "min": 20,
+     "max": 2040,
+     "description": "The box width."
+    },
+    {
+     "key": "height",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 18
+     },
+     "min": 18,
+     "max": 2040,
+     "description": "The box height."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_SET_BOUNDS",
+    "args": {
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "width": {
+      "type": "number",
+      "value": 20
+     },
+     "height": {
+      "type": "number",
+      "value": 18
+     }
+    }
+   }
+  },
+  "EVENT_CAMERA_SET_LOCK": {
+   "name": "Set Camera Lock On Player",
+   "summary": "Set the camera to center on the player, locking into position when the player moves. Optionally allows locking to follow player in only horizontal or vertical axis.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "axis",
+     "type": "togglebuttons",
+     "default": [
+      "x",
+      "y"
+     ],
+     "options": [
+      "x",
+      "y"
+     ],
+     "description": "Set if either horizontal axis, vertical axis or both should be locked."
+    },
+    {
+     "key": "preventScroll",
+     "type": "direction",
+     "description": "Prevents camera from scrolling in selected directions."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_SET_LOCK",
+    "args": {
+     "axis": [
+      "x",
+      "y"
+     ]
+    }
+   }
+  },
+  "EVENT_CAMERA_SET_POSITION": {
+   "name": "Set Camera Position",
+   "summary": "Move the camera to a new position.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 2047,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 2047,
+     "description": "The vertical position."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_SET_POSITION",
+    "args": {
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_CAMERA_SHAKE": {
+   "name": "Camera Shake",
+   "summary": "Shake the camera for a period of time.",
+   "groups": [
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "time",
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "max": 60,
+     "description": "The length of time to shake camera for in seconds or frames.",
+     "when": [
+      {
+       "key": "units",
+       "ne": "frames"
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "time",
+     "options": [
+      "time",
+      "frames"
+     ]
+    },
+    {
+     "key": "frames",
+     "type": "number",
+     "default": 30,
+     "min": 0,
+     "max": 3600,
+     "description": "The length of time to shake camera for in seconds or frames.",
+     "when": [
+      {
+       "key": "units",
+       "eq": "frames"
+      }
+     ]
+    },
+    {
+     "key": "shakeDirection",
+     "type": "moveType",
+     "default": "horizontal",
+     "description": "Choose if camera should shake only in horizontal or vertical axis or if should shake in both directions."
+    },
+    {
+     "key": "magnitude",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 5
+     },
+     "min": 1,
+     "max": 255,
+     "description": "The amount of camera movement during a camera shake."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CAMERA_SHAKE",
+    "args": {
+     "time": 0.5,
+     "units": "time",
+     "shakeDirection": "horizontal",
+     "magnitude": {
+      "type": "number",
+      "value": 5
+     }
+    }
+   }
+  },
+  "EVENT_CHOICE": {
+   "name": "Display Multiple Choice",
+   "summary": "Present two options to player allowing them to make a choice, will set the specified variable to true if the first option is chosen and to false if the second option is chosen.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "warnings": [
+    {
+     "sceneTypes": [
+      "LOGO"
+     ],
+     "message": "Rendering text in Logo scenes will cause graphical glitches."
+    }
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "trueText",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to 'true'."
+    },
+    {
+     "key": "falseText",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to 'false'."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CHOICE",
+    "args": {
+     "variable": "<variable>",
+     "trueText": "",
+     "falseText": ""
+    }
+   }
+  },
+  "EVENT_CLEAR_DATA": {
+   "name": "Game Data Remove",
+   "summary": "Remove any previously saved game data in the selected slot.",
+   "groups": [
+    "Save Data"
+   ],
+   "fields": [
+    {
+     "key": "saveSlot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2
+     ],
+     "description": "The save slot to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CLEAR_DATA",
+    "args": {
+     "saveSlot": 0
+    }
+   }
+  },
+  "EVENT_CLEAR_FLAGS": {
+   "name": "Variable Flags Clear",
+   "summary": "Set selected flags to false on a variable. All unselected flags will keep their previous value.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "flag1",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 1 to false."
+    },
+    {
+     "key": "flag2",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 2 to false."
+    },
+    {
+     "key": "flag3",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 3 to false."
+    },
+    {
+     "key": "flag4",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 4 to false."
+    },
+    {
+     "key": "flag5",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 5 to false."
+    },
+    {
+     "key": "flag6",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 6 to false."
+    },
+    {
+     "key": "flag7",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 7 to false."
+    },
+    {
+     "key": "flag8",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 8 to false."
+    },
+    {
+     "key": "flag9",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 9 to false."
+    },
+    {
+     "key": "flag10",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 10 to false."
+    },
+    {
+     "key": "flag11",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 11 to false."
+    },
+    {
+     "key": "flag12",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 12 to false."
+    },
+    {
+     "key": "flag13",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 13 to false."
+    },
+    {
+     "key": "flag14",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 14 to false."
+    },
+    {
+     "key": "flag15",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 15 to false."
+    },
+    {
+     "key": "flag16",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 16 to false."
+    }
+   ],
+   "example": {
+    "command": "EVENT_CLEAR_FLAGS",
+    "args": {
+     "variable": "<variable>",
+     "flag1": false,
+     "flag2": false,
+     "flag3": false,
+     "flag4": false,
+     "flag5": false,
+     "flag6": false,
+     "flag7": false,
+     "flag8": false,
+     "flag9": false,
+     "flag10": false,
+     "flag11": false,
+     "flag12": false,
+     "flag13": false,
+     "flag14": false,
+     "flag15": false,
+     "flag16": false
+    }
+   }
+  },
+  "EVENT_COMMENT": {
+   "name": "Comment",
+   "summary": "Allows you to leave notes within your scripts. Provides no functionality in-game. The text you type automatically gets set in the event title, so you can collapse the comment and still read its content.",
+   "groups": [
+    "Miscellaneous"
+   ],
+   "fields": [
+    {
+     "key": "text",
+     "type": "textarea",
+     "default": ""
+    }
+   ],
+   "example": {
+    "command": "EVENT_COMMENT",
+    "args": {
+     "text": ""
+    }
+   }
+  },
+  "EVENT_DATA_TABLE": {
+   "name": "Data Table Lookup",
+   "summary": "Define a 2D array of static values that can be looked up by index, with each column loaded into a variable.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "indexVariable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable that stores the row index to fetch."
+    },
+    {
+     "key": "data",
+     "type": "dataTable",
+     "default": [
+      {
+       "variable": "0",
+       "values": [
+        {
+         "type": "number",
+         "value": 0
+        }
+       ]
+      }
+     ],
+     "description": "A table of values to fetch data from based on the Index Variable. The values are loaded into the specified variable for each column."
+    }
+   ],
+   "example": {
+    "command": "EVENT_DATA_TABLE",
+    "args": {
+     "indexVariable": "<variable>",
+     "data": [
+      {
+       "variable": "0",
+       "values": [
+        {
+         "type": "number",
+         "value": 0
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "EVENT_DEC_VALUE": {
+   "name": "Variable Decrement By 1",
+   "summary": "Decrease the value of the specified variable by one.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_DEC_VALUE",
+    "args": {
+     "variable": "<variable>"
+    }
+   }
+  },
+  "EVENT_DEFINE_LABEL": {
+   "name": "Label: Define",
+   "groups": [],
+   "deprecated": true,
+   "replacement": "EVENT_LOOP_WHILE",
+   "fields": [
+    {
+     "key": "label",
+     "type": "text",
+     "description": "Label"
+    }
+   ],
+   "example": {
+    "command": "EVENT_DEFINE_LABEL",
+    "args": {}
+   }
+  },
+  "EVENT_DIALOGUE_CLOSE_NONMODAL": {
+   "name": "Close Non-Modal Dialogue",
+   "summary": "Close any dialogue box or overlay currently on screen and reset the overlay scanline cutoff value.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "fields": [
+    {
+     "key": "speed",
+     "type": "overlaySpeed",
+     "default": -3,
+     "description": "The movement speed."
+    }
+   ],
+   "example": {
+    "command": "EVENT_DIALOGUE_CLOSE_NONMODAL",
+    "args": {
+     "speed": -3
+    }
+   }
+  },
+  "EVENT_ENGINE_FIELD_SET": {
+   "name": "Engine Field Update",
+   "summary": "Change the value of an Engine Field.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "fields": [
+    {
+     "key": "engineFieldKey",
+     "type": "engineField",
+     "default": "<engine field>",
+     "description": "The engine field to update."
+    },
+    {
+     "key": "value",
+     "type": "engineFieldValue",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "when": [
+      {
+       "key": "engineFieldKey",
+       "set": true
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_ENGINE_FIELD_SET",
+    "args": {
+     "engineFieldKey": "<engine field>",
+     "value": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_ENGINE_FIELD_STORE": {
+   "name": "Store Engine Field In Variable",
+   "summary": "Store the value of an Engine Field in a variable.",
+   "groups": [
+    "Engine Fields",
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "engineFieldKey",
+     "type": "engineField",
+     "default": "<engine field>",
+     "description": "The engine field to read the value of."
+    },
+    {
+     "key": "value",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use.",
+     "when": [
+      {
+       "key": "engineFieldKey",
+       "set": true
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_ENGINE_FIELD_STORE",
+    "args": {
+     "engineFieldKey": "<engine field>",
+     "value": "<variable>"
+    }
+   }
+  },
+  "EVENT_FADE_IN": {
+   "name": "Fade Screen In",
+   "summary": "Fade the scene from a blank screen.",
+   "groups": [
+    "Screen",
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "speed",
+     "type": "fadeSpeed",
+     "default": "2",
+     "description": "The speed of the fade animation."
+    }
+   ],
+   "example": {
+    "command": "EVENT_FADE_IN",
+    "args": {
+     "speed": "2"
+    }
+   }
+  },
+  "EVENT_FADE_OUT": {
+   "name": "Fade Screen Out",
+   "summary": "Fade the scene to a blank screen.",
+   "groups": [
+    "Screen",
+    "Camera"
+   ],
+   "fields": [
+    {
+     "key": "speed",
+     "type": "fadeSpeed",
+     "default": "2",
+     "description": "The speed of the fade animation."
+    }
+   ],
+   "example": {
+    "command": "EVENT_FADE_OUT",
+    "args": {
+     "speed": "2"
+    }
+   }
+  },
+  "EVENT_GBVM_SCRIPT": {
+   "name": "GBVM Script",
+   "summary": "Run a GBVM script.",
+   "groups": [
+    "Miscellaneous"
+   ],
+   "fields": [
+    {
+     "key": "script",
+     "type": "code",
+     "description": "A valid GBVM Script to execute."
+    },
+    {
+     "key": "references",
+     "type": "references",
+     "description": "A list of the assets and entities used in your GBVM script. Use this to let GB Studio know that a file is needed by your script, preventing it from being excluded in the final build."
+    }
+   ],
+   "example": {
+    "command": "EVENT_GBVM_SCRIPT",
+    "args": {}
+   }
+  },
+  "EVENT_GOTO_LABEL": {
+   "name": "Label: Goto",
+   "groups": [],
+   "deprecated": true,
+   "replacement": "EVENT_LOOP_WHILE",
+   "fields": [
+    {
+     "key": "label",
+     "type": "text",
+     "description": "Label"
+    }
+   ],
+   "example": {
+    "command": "EVENT_GOTO_LABEL",
+    "args": {}
+   }
+  },
+  "EVENT_GROUP": {
+   "name": "Event Group",
+   "summary": "Alows you to group together parts of your script for organizational purposes.",
+   "groups": [
+    "Miscellaneous"
+   ],
+   "fields": [],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_GROUP",
+    "args": {},
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_HIDE_SPRITES": {
+   "name": "Hide All Sprites",
+   "summary": "Disable rendering of sprite layer causing all sprites to become hidden until sprite rendering is reenabled.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_HIDE_SPRITES",
+    "args": {}
+   }
+  },
+  "EVENT_IDLE": {
+   "name": "Idle",
+   "summary": "Pause the script for a single frame.",
+   "groups": [
+    "Timer"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_IDLE",
+    "args": {}
+   }
+  },
+  "EVENT_IF": {
+   "name": "If",
+   "summary": "Conditionally run part of the script if the specified value evaluates to true.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "condition",
+     "type": "value",
+     "default": {
+      "type": "eq",
+      "valueA": {
+       "type": "variable",
+       "value": "<variable>"
+      },
+      "valueB": {
+       "type": "number",
+       "value": 1
+      }
+     },
+     "description": "The condition to evaluate."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF",
+    "args": {
+     "condition": {
+      "type": "eq",
+      "valueA": {
+       "type": "variable",
+       "value": "<variable>"
+      },
+      "valueB": {
+       "type": "number",
+       "value": 1
+      }
+     }
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_ACTOR_AT_POSITION": {
+   "name": "If Actor At Position",
+   "summary": "Conditionally run part of the script if an actor is at a specified position.",
+   "groups": [
+    "Control Flow",
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to check."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles",
+     "options": [
+      "tiles",
+      "pixels"
+     ]
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The vertical position."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_ACTOR_AT_POSITION",
+    "args": {
+     "actorId": "$self$",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "units": "tiles",
+     "y": {
+      "type": "number",
+      "value": 0
+     }
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_ACTOR_DIRECTION": {
+   "name": "If Actor Facing Direction",
+   "summary": "Conditionally run part of the script if an actor is facing in a specified direction.",
+   "groups": [
+    "Control Flow",
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor you want to check."
+    },
+    {
+     "key": "direction",
+     "type": "value",
+     "default": {
+      "type": "direction",
+      "value": "up"
+     },
+     "description": "The actor direction."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_ACTOR_DIRECTION",
+    "args": {
+     "actorId": "$self$",
+     "direction": {
+      "type": "direction",
+      "value": "up"
+     }
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_ACTOR_DISTANCE_FROM_ACTOR": {
+   "name": "If Actor Distance From Actor",
+   "summary": "Conditionally run part of the script if an actor is within a certain distance of another actor.",
+   "groups": [
+    "Control Flow",
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "player",
+     "description": "The actor you want to check."
+    },
+    {
+     "key": "operator",
+     "type": "operator",
+     "default": "<=",
+     "description": "The comparison operator to use e.g. 'Less Than' or 'Greater Than'."
+    },
+    {
+     "key": "distance",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 181,
+     "description": "The distance value."
+    },
+    {
+     "key": "otherActorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to compare distance with."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_ACTOR_DISTANCE_FROM_ACTOR",
+    "args": {
+     "actorId": "player",
+     "operator": "<=",
+     "distance": {
+      "type": "number",
+      "value": 0
+     },
+     "otherActorId": "$self$"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_ACTOR_RELATIVE_TO_ACTOR": {
+   "name": "If Actor Relative To Actor",
+   "summary": "Conditionally run part of the script based on the position of one actor relative to another.",
+   "groups": [
+    "Control Flow",
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "player",
+     "description": "The actor you want to check."
+    },
+    {
+     "key": "operation",
+     "type": "select",
+     "default": "up",
+     "options": [
+      "up",
+      "down",
+      "left",
+      "right"
+     ],
+     "description": "The relative position comparison to use e.g. 'Is Above' or 'Is Below'."
+    },
+    {
+     "key": "otherActorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to compare position with."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_ACTOR_RELATIVE_TO_ACTOR",
+    "args": {
+     "actorId": "player",
+     "operation": "up",
+     "otherActorId": "$self$"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_COLOR_SUPPORTED": {
+   "name": "If Color Mode Is Available",
+   "summary": "Conditionally run part of the script if the game is being played on a device or emulator that supports color games. Only functions if [Color Options](/docs/settings/#color-options) in Settings is set to `Color + Monochrome` or `Color Only`.",
+   "groups": [
+    "Control Flow",
+    "Color"
+   ],
+   "fields": [],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_COLOR_SUPPORTED",
+    "args": {},
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_CURRENT_SCENE_IS": {
+   "name": "If Current Scene Is",
+   "groups": [
+    "Control Flow",
+    "Scene"
+   ],
+   "fields": [
+    {
+     "key": "sceneId",
+     "type": "scene",
+     "default": "<scene>",
+     "description": "Scene"
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_CURRENT_SCENE_IS",
+    "args": {
+     "sceneId": "<scene>"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_DEVICE_GBA": {
+   "name": "If GBA Mode Is Available",
+   "summary": "Conditionally run part of the script if the game is being played on a device or emulator that supports GBA games. Only functions if [Color Options](/docs/settings/#color-options) in Settings is set to `Color + Monochrome` or `Color Only`.",
+   "groups": [
+    "Control Flow",
+    "Color"
+   ],
+   "fields": [],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_DEVICE_GBA",
+    "args": {},
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_DEVICE_SGB": {
+   "name": "If Super GB Mode Is Available",
+   "summary": "Conditionally run part of the script if the game is being played on a device or emulator that supports Super GB games.",
+   "groups": [
+    "Control Flow",
+    "Color"
+   ],
+   "fields": [],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_DEVICE_SGB",
+    "args": {},
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_EXPRESSION": {
+   "name": "If Math Expression",
+   "summary": "Conditionally execute part of the script if the specified math expression evaluates to true.",
+   "groups": [
+    "Math",
+    "Control Flow"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_IF",
+   "fields": [
+    {
+     "key": "expression",
+     "type": "matharea",
+     "default": "",
+     "description": "The expression to evaluate."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_EXPRESSION",
+    "args": {
+     "expression": ""
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_FALSE": {
+   "name": "If Variable Is 'False'",
+   "summary": "Conditionally run part of the script if the specified variable is set to false.",
+   "groups": [
+    "Control Flow"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_IF",
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_FALSE",
+    "args": {
+     "variable": "<variable>"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_FLAGS_COMPARE": {
+   "name": "If Variable Has Flag",
+   "summary": "Conditionally run part of the script if the specified variable has the chosen flag set as true.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "flag",
+     "type": "selectFlags",
+     "default": 0,
+     "description": "The flag to check."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_FLAGS_COMPARE",
+    "args": {
+     "variable": "<variable>",
+     "flag": 0
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_INPUT": {
+   "name": "If Button Held",
+   "summary": "Conditionally run part of the script if the specified joypad button is currently pressed. Will not wait for user input and will only execute once, if you wish to run a script every time a button is pressed use Attach Script To Button instead.",
+   "groups": [
+    "Joypad Input",
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "input",
+     "type": "input",
+     "default": [
+      "a",
+      "b"
+     ],
+     "description": "The input buttons to check."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_INPUT",
+    "args": {
+     "input": [
+      "a",
+      "b"
+     ]
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_SAVED_DATA": {
+   "name": "If Game Data Saved",
+   "summary": "Conditionally run part of the script if save data is present within the specified save slot.",
+   "groups": [
+    "Save Data",
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "saveSlot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2
+     ],
+     "description": "The save slot to use."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_SAVED_DATA",
+    "args": {
+     "saveSlot": 0
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_TRUE": {
+   "name": "If Variable Is 'True'",
+   "summary": "Conditionally run part of the script if the specified variable is set to true.",
+   "groups": [
+    "Control Flow"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_IF",
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_TRUE",
+    "args": {
+     "variable": "<variable>"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_VALUE": {
+   "name": "If Variable Compare With Value",
+   "summary": "Conditionally run part of the script based on the value of a variable compared with a value.",
+   "groups": [
+    "Variables",
+    "Control Flow"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_IF",
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "operator",
+     "type": "operator",
+     "default": "==",
+     "description": "The comparison operator to use e.g. 'Less Than' or 'Greater Than'."
+    },
+    {
+     "key": "comparator",
+     "type": "number",
+     "default": "0",
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare with."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_VALUE",
+    "args": {
+     "variable": "<variable>",
+     "operator": "==",
+     "comparator": "0"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_IF_VALUE_COMPARE": {
+   "name": "If Variable Compare With Variable",
+   "summary": "Conditionally run part of the script based on the value of a variable compared with another variable.",
+   "groups": [
+    "Variables",
+    "Control Flow"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_IF",
+   "fields": [
+    {
+     "key": "vectorX",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "operator",
+     "type": "operator",
+     "default": "==",
+     "description": "The comparison operator to use e.g. 'Less Than' or 'Greater Than'."
+    },
+    {
+     "key": "vectorY",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to compare with."
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_IF_VALUE_COMPARE",
+    "args": {
+     "vectorX": "<variable>",
+     "operator": "==",
+     "vectorY": "<variable>"
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_INC_VALUE": {
+   "name": "Variable Increment By 1",
+   "summary": "Increase the value of the specified variable by one.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_INC_VALUE",
+    "args": {
+     "variable": "<variable>"
+    }
+   }
+  },
+  "EVENT_LAUNCH_PROJECTILE": {
+   "name": "Launch Projectile",
+   "summary": "Launch a projectile from an actor in a specified direction. When a projectile collides with other actors it will trigger their OnHit scripts.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "spriteSheetId",
+     "type": "sprite",
+     "default": "<sprite>",
+     "description": "The sprite to use for rendering the projectile."
+    },
+    {
+     "key": "spriteStateId",
+     "type": "animationstate",
+     "default": "",
+     "description": "The sprite animation state to use."
+    },
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to launch the projectile from."
+    },
+    {
+     "key": "x",
+     "type": "number",
+     "default": 0,
+     "min": -256,
+     "max": 256,
+     "description": "The horizontal offset from the source actors position to start launching the projectile."
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 0,
+     "min": -256,
+     "max": 256,
+     "description": "The vertical offset from the source actors position to start launching the projectile."
+    },
+    {
+     "key": "directionType",
+     "type": "select",
+     "default": "direction",
+     "options": [
+      "direction",
+      "actor",
+      "target",
+      "angle",
+      "anglevar"
+     ],
+     "description": "Launch At"
+    },
+    {
+     "key": "otherActorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The direction to launch the projectile. Can either be a fixed direction or based on an actor's current direction.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "actor"
+      }
+     ]
+    },
+    {
+     "key": "direction",
+     "type": "direction",
+     "default": "right",
+     "description": "The direction to launch the projectile. Can either be a fixed direction or based on an actor's current direction.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "direction"
+      }
+     ]
+    },
+    {
+     "key": "angle",
+     "type": "angle",
+     "default": 0,
+     "min": -256,
+     "max": 256,
+     "description": "The angle to launch the projectile.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "angle"
+      }
+     ]
+    },
+    {
+     "key": "angleVariable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The angle to launch the projectile.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "anglevar"
+      }
+     ]
+    },
+    {
+     "key": "targetActorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to launch the projectile towards.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "target"
+      }
+     ]
+    },
+    {
+     "key": "speed",
+     "type": "moveSpeed",
+     "default": 2,
+     "description": "The movement speed."
+    },
+    {
+     "key": "animSpeed",
+     "type": "animSpeed",
+     "default": 15,
+     "description": "The animation speed."
+    },
+    {
+     "key": "lifeTime",
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "max": 4,
+     "description": "The amount of time in seconds that the projectile will live for."
+    },
+    {
+     "key": "initialOffset",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 256,
+     "description": "The distance the projectile should move from launch position in its launch direction before becoming visible."
+    },
+    {
+     "key": "loopAnim",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if animation should loop."
+    },
+    {
+     "key": "destroyOnHit",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if the projectile should be destroyed after its first collision."
+    },
+    {
+     "key": "collisionGroup",
+     "type": "collisionMask",
+     "default": "3",
+     "description": "The collision group that should be used when registering collisions with actors."
+    },
+    {
+     "key": "collisionMask",
+     "type": "collisionMask",
+     "default": [
+      "1"
+     ],
+     "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
+    }
+   ],
+   "example": {
+    "command": "EVENT_LAUNCH_PROJECTILE",
+    "args": {
+     "spriteSheetId": "<sprite>",
+     "spriteStateId": "",
+     "actorId": "$self$",
+     "x": 0,
+     "y": 0,
+     "directionType": "direction",
+     "direction": "right",
+     "speed": 2,
+     "animSpeed": 15,
+     "lifeTime": 1,
+     "initialOffset": 0,
+     "loopAnim": true,
+     "destroyOnHit": true,
+     "collisionGroup": "3",
+     "collisionMask": [
+      "1"
+     ]
+    }
+   }
+  },
+  "EVENT_LAUNCH_PROJECTILE_SLOT": {
+   "name": "Launch Projectile In Slot",
+   "summary": "Launch a slot's projectile from an actor in a specified direction. When a projectile collides with other actors it will trigger their OnHit scripts.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to launch the projectile from."
+    },
+    {
+     "key": "x",
+     "type": "number",
+     "default": 0,
+     "min": -256,
+     "max": 256,
+     "description": "The horizontal offset from the source actors position to start launching the projectile."
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 0,
+     "min": -256,
+     "max": 256,
+     "description": "The vertical offset from the source actors position to start launching the projectile."
+    },
+    {
+     "key": "directionType",
+     "type": "select",
+     "default": "direction",
+     "options": [
+      "direction",
+      "actor",
+      "target",
+      "angle",
+      "anglevar"
+     ],
+     "description": "Launch At"
+    },
+    {
+     "key": "otherActorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The direction to launch the projectile. Can either be a fixed direction or based on an actor's current direction.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "actor"
+      }
+     ]
+    },
+    {
+     "key": "direction",
+     "type": "direction",
+     "default": "right",
+     "description": "The direction to launch the projectile. Can either be a fixed direction or based on an actor's current direction.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "direction"
+      }
+     ]
+    },
+    {
+     "key": "angle",
+     "type": "angle",
+     "default": 0,
+     "min": -256,
+     "max": 256,
+     "description": "The angle to launch the projectile.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "angle"
+      }
+     ]
+    },
+    {
+     "key": "angleVariable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The angle to launch the projectile.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "anglevar"
+      }
+     ]
+    },
+    {
+     "key": "targetActorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "The actor to launch the projectile towards.",
+     "when": [
+      {
+       "key": "directionType",
+       "eq": "target"
+      }
+     ]
+    },
+    {
+     "key": "slot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "description": "The slot that contains the projectile you want to launch."
+    }
+   ],
+   "example": {
+    "command": "EVENT_LAUNCH_PROJECTILE_SLOT",
+    "args": {
+     "actorId": "$self$",
+     "x": 0,
+     "y": 0,
+     "directionType": "direction",
+     "direction": "right",
+     "slot": 0
+    }
+   }
+  },
+  "EVENT_LINK_CLOSE": {
+   "name": "Link: Close",
+   "summary": "Closes an active link session.",
+   "groups": [],
+   "fields": [],
+   "example": {
+    "command": "EVENT_LINK_CLOSE",
+    "args": {}
+   }
+  },
+  "EVENT_LINK_HOST": {
+   "name": "Link: Host",
+   "summary": "Creates a new link session as player 1. This allows player 2 to use the `Link: Join` event to join the session.",
+   "groups": [],
+   "fields": [],
+   "example": {
+    "command": "EVENT_LINK_HOST",
+    "args": {}
+   }
+  },
+  "EVENT_LINK_JOIN": {
+   "name": "Link: Join",
+   "summary": "Join an active link session as player 2. The session must first be created by another player using the `Link: Host` event. This event must be executed before any kind of data transfer between player 1 and player 2. Trying to send or receive data before this event will immediately fail and/or freeze the game.",
+   "groups": [],
+   "fields": [],
+   "example": {
+    "command": "EVENT_LINK_JOIN",
+    "args": {}
+   }
+  },
+  "EVENT_LINK_TRANSFER": {
+   "name": "Link: Transfer",
+   "summary": "Transfer data to the other player in an active link session. This event can only be used after a successful `Link: Host` or `Link: Join` event.\n\nBoth players must execute `Link: Transfer` using matching settings:\n- `Send Variable` on one player must match the other player's `Receive Variable`.\n- `Packet Size` must be the same for both players.\n- To transfer data in only one direction, the sender can use `$Temp 0` as the `Receive Variable` and the receiver can use `$Temp 0` as the `Send Variable`.",
+   "groups": [],
+   "fields": [
+    {
+     "key": "sendVariable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to send to the other player."
+    },
+    {
+     "key": "receiveVariable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable used to store the value received from the other player."
+    },
+    {
+     "key": "size",
+     "type": "number",
+     "default": 1,
+     "description": "The number of consecutive variables to transfer.  \nFor example, setting `Send Variable` to `$Variable 1` with a packet size of `5` transfers `$Variable 1` through to `$Variable 5` in a single transfer. Larger packet sizes take longer to transfer."
+    }
+   ],
+   "example": {
+    "command": "EVENT_LINK_TRANSFER",
+    "args": {
+     "sendVariable": "<variable>",
+     "receiveVariable": "<variable>",
+     "size": 1
+    }
+   }
+  },
+  "EVENT_LOAD_DATA": {
+   "name": "Game Data Load",
+   "summary": "Load the saved game data from the selected slot.",
+   "groups": [
+    "Save Data"
+   ],
+   "fields": [
+    {
+     "key": "saveSlot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2
+     ],
+     "description": "The save slot to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_LOAD_DATA",
+    "args": {
+     "saveSlot": 0
+    }
+   }
+  },
+  "EVENT_LOAD_PROJECTILE_SLOT": {
+   "name": "Load Projectile Into Slot",
+   "summary": "Load projectile data into a specified slot.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "slot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "description": "The slot where you want to store projectile data."
+    },
+    {
+     "key": "spriteSheetId",
+     "type": "sprite",
+     "default": "<sprite>",
+     "description": "The sprite to use for rendering the projectile."
+    },
+    {
+     "key": "spriteStateId",
+     "type": "animationstate",
+     "default": "",
+     "description": "The sprite animation state to use."
+    },
+    {
+     "key": "speed",
+     "type": "moveSpeed",
+     "default": 2,
+     "description": "The movement speed."
+    },
+    {
+     "key": "animSpeed",
+     "type": "animSpeed",
+     "default": 15,
+     "description": "The animation speed."
+    },
+    {
+     "key": "lifeTime",
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "max": 4,
+     "description": "The amount of time in seconds that the projectile will live for."
+    },
+    {
+     "key": "initialOffset",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 256,
+     "description": "The distance the projectile should move from launch position in its launch direction before becoming visible."
+    },
+    {
+     "key": "loopAnim",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if animation should loop."
+    },
+    {
+     "key": "destroyOnHit",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if the projectile should be destroyed after its first collision."
+    },
+    {
+     "key": "collisionGroup",
+     "type": "collisionMask",
+     "default": "3",
+     "description": "The collision group that should be used when registering collisions with actors."
+    },
+    {
+     "key": "collisionMask",
+     "type": "collisionMask",
+     "default": [
+      "1"
+     ],
+     "description": "The groups of actors that will be checked for collisions. e.g. If it should pass through any actors but the player set this field to just 'Player'."
+    }
+   ],
+   "example": {
+    "command": "EVENT_LOAD_PROJECTILE_SLOT",
+    "args": {
+     "slot": 0,
+     "spriteSheetId": "<sprite>",
+     "spriteStateId": "",
+     "speed": 2,
+     "animSpeed": 15,
+     "lifeTime": 1,
+     "initialOffset": 0,
+     "loopAnim": true,
+     "destroyOnHit": true,
+     "collisionGroup": "3",
+     "collisionMask": [
+      "1"
+     ]
+    }
+   }
+  },
+  "EVENT_LOOP": {
+   "name": "Loop",
+   "summary": "Run part of the script in a loop forever. Remember to break out of the loop otherwise the player will become stuck at this point. You can use a Stop Script or Change Scene event to stop the loop.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_LOOP",
+    "args": {},
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_LOOP_FOR": {
+   "name": "Loop For",
+   "summary": "Run part of the script in a loop while a counter variable is within a specified range. On each loop the counter variable is modified before the next check.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "from",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The initial value of the counter variable."
+    },
+    {
+     "key": "comparison",
+     "type": "operator",
+     "default": "<=",
+     "description": "The comparison operator to use e.g. 'Less Than' or 'Greater Than'."
+    },
+    {
+     "key": "to",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 10
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The end value of the counter variable."
+    },
+    {
+     "key": "operation",
+     "type": "mathOperator",
+     "default": "+=",
+     "description": "The operation to use for combining a value with the counter variable after each loop."
+    },
+    {
+     "key": "value",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 1
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to combine with the counter variable after each loop."
+    }
+   ],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_LOOP_FOR",
+    "args": {
+     "variable": "<variable>",
+     "from": {
+      "type": "number",
+      "value": 0
+     },
+     "comparison": "<=",
+     "to": {
+      "type": "number",
+      "value": 10
+     },
+     "operation": "+=",
+     "value": {
+      "type": "number",
+      "value": 1
+     }
+    },
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_LOOP_WHILE": {
+   "name": "Loop While",
+   "summary": "Run part of the script in a loop while an expression is true.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "condition",
+     "type": "value",
+     "default": {
+      "type": "lt",
+      "valueA": {
+       "type": "variable",
+       "value": "<variable>"
+      },
+      "valueB": {
+       "type": "number",
+       "value": 10
+      }
+     },
+     "description": "The condition to evaluate."
+    }
+   ],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_LOOP_WHILE",
+    "args": {
+     "condition": {
+      "type": "lt",
+      "valueA": {
+       "type": "variable",
+       "value": "<variable>"
+      },
+      "valueB": {
+       "type": "number",
+       "value": 10
+      }
+     }
+    },
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_MENU": {
+   "name": "Display Menu",
+   "summary": "Display a menu of multiple options and set the specified variable to the value of the chosen option. Multiple layouts are provided, 'Menu' displays as a single column on the right hand side of the game screen and 'Dialogue' displays a full width dialogue box with two columns. You can optionally set the 'B' button to close the menu setting the variable to '0' and can also make the last menu item return '0' when selected.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "warnings": [
+    {
+     "sceneTypes": [
+      "LOGO"
+     ],
+     "message": "Rendering text in Logo scenes will cause graphical glitches."
+    }
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "items",
+     "type": "number",
+     "default": 2,
+     "min": 2,
+     "max": 8,
+     "description": "The number of options required."
+    },
+    {
+     "key": "option1",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '1'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 1
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 1
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 1
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option2",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '2'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 2
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 2
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 2
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option3",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '3'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 3
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 3
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 3
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option4",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '4'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 4
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 4
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 4
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option5",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '5'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 5
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 5
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 5
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option6",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '6'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 6
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 6
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 6
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option7",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '7'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 7
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 7
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 7
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "option8",
+     "type": "textarea",
+     "default": "",
+     "description": "The menu item text label which when selected will set variable to '8'.",
+     "whenAny": [
+      [
+       {
+        "key": "items",
+        "gt": 8
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 8
+       },
+       {
+        "key": "cancelOnLastOption",
+        "ne": true
+       }
+      ],
+      [
+       {
+        "key": "items",
+        "eq": 8
+       },
+       {
+        "key": "cancelOnLastOption",
+        "eq": true
+       }
+      ]
+     ]
+    },
+    {
+     "key": "cancelOnLastOption",
+     "type": "checkbox",
+     "description": "Set if last menu item should cause variable to become '0' when selected."
+    },
+    {
+     "key": "cancelOnB",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if pressing 'B' should cause menu to close and variable to become '0'."
+    },
+    {
+     "key": "layout",
+     "type": "select",
+     "default": "dialogue",
+     "options": [
+      "dialogue",
+      "menu"
+     ],
+     "description": "Set the layout style of the menu."
+    }
+   ],
+   "example": {
+    "command": "EVENT_MENU",
+    "args": {
+     "variable": "<variable>",
+     "items": 2,
+     "option1": "",
+     "option2": "",
+     "cancelOnB": true,
+     "layout": "dialogue"
+    }
+   }
+  },
+  "EVENT_MUSIC_PLAY": {
+   "name": "Play Music Track",
+   "summary": "Plays a music file. If you play a new song while another song is playing, the old song will stop automatically.",
+   "groups": [
+    "Music & Sound Effects"
+   ],
+   "fields": [
+    {
+     "key": "musicId",
+     "type": "music",
+     "default": "<music>",
+     "description": "The song to play."
+    }
+   ],
+   "example": {
+    "command": "EVENT_MUSIC_PLAY",
+    "args": {
+     "musicId": "<music>"
+    }
+   }
+  },
+  "EVENT_MUSIC_STOP": {
+   "name": "Stop Music",
+   "summary": "Stops any currently playing music.",
+   "groups": [
+    "Music & Sound Effects"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_MUSIC_STOP",
+    "args": {}
+   }
+  },
+  "EVENT_MUTE_CHANNEL": {
+   "name": "Mute Channel",
+   "summary": "Set which audio channels are active and which are muted.",
+   "groups": [
+    "Music & Sound Effects"
+   ],
+   "fields": [
+    {
+     "key": "channels",
+     "type": "togglebuttons",
+     "options": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "description": "The channels that will produce sound. Any unselected channels will be muted."
+    }
+   ],
+   "example": {
+    "command": "EVENT_MUTE_CHANNEL",
+    "args": {}
+   }
+  },
+  "EVENT_OVERLAY_HIDE": {
+   "name": "Hide Overlay",
+   "summary": "Hides the screen overlay.",
+   "groups": [
+    "Screen"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_OVERLAY_HIDE",
+    "args": {}
+   }
+  },
+  "EVENT_OVERLAY_MOVE_TO": {
+   "name": "Overlay Move To",
+   "summary": "Moves the overlay to a new position on the screen.",
+   "groups": [
+    "Screen"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 20,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 18,
+     "description": "The vertical position."
+    },
+    {
+     "key": "speed",
+     "type": "overlaySpeed",
+     "default": -3,
+     "description": "The movement speed."
+    }
+   ],
+   "example": {
+    "command": "EVENT_OVERLAY_MOVE_TO",
+    "args": {
+     "x": 0,
+     "y": 0,
+     "speed": -3
+    }
+   }
+  },
+  "EVENT_OVERLAY_SET_SCANLINE_CUTOFF": {
+   "name": "Set Overlay Scanline Cutoff",
+   "summary": "Set a cutoff y position where the overlay window will stop being drawn. Allows drawing an overlay at the top of the screen.",
+   "groups": [
+    "Screen"
+   ],
+   "fields": [
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 150
+     },
+     "min": 0,
+     "max": 150,
+     "description": "The vertical scanline where the overlay window will stop being drawn."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "pixels",
+     "options": [
+      "pixels"
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_OVERLAY_SET_SCANLINE_CUTOFF",
+    "args": {
+     "y": {
+      "type": "number",
+      "value": 150
+     },
+     "units": "pixels"
+    }
+   }
+  },
+  "EVENT_OVERLAY_SHOW": {
+   "name": "Show Overlay",
+   "summary": "Show either a black or white window over the top of the current game screen. Can be used to obscure and then reveal parts of the scene background for example on the sample project logo screen.",
+   "groups": [
+    "Screen"
+   ],
+   "fields": [
+    {
+     "key": "color",
+     "type": "overlayColor",
+     "default": "black",
+     "description": "The color to fill the overlay with, either black or white."
+    },
+    {
+     "key": "x",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 20,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 18,
+     "description": "The vertical position."
+    }
+   ],
+   "example": {
+    "command": "EVENT_OVERLAY_SHOW",
+    "args": {
+     "color": "black",
+     "x": 0,
+     "y": 0
+    }
+   }
+  },
+  "EVENT_PALETTE_SET_BACKGROUND": {
+   "name": "Set Background Palettes",
+   "summary": "Replace some or all of the current scene's background palettes.",
+   "groups": [
+    "Color"
+   ],
+   "fields": [
+    {
+     "key": "palette0",
+     "type": "palette",
+     "default": "keep",
+     "description": "The new palettes to use."
+    },
+    {
+     "key": "palette1",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette2",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette3",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette4",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette5",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette6",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette7",
+     "type": "palette",
+     "default": "keep"
+    }
+   ],
+   "example": {
+    "command": "EVENT_PALETTE_SET_BACKGROUND",
+    "args": {
+     "palette0": "keep",
+     "palette1": "keep",
+     "palette2": "keep",
+     "palette3": "keep",
+     "palette4": "keep",
+     "palette5": "keep",
+     "palette6": "keep",
+     "palette7": "keep"
+    }
+   }
+  },
+  "EVENT_PALETTE_SET_EMOTE": {
+   "name": "Set Emote Palette",
+   "summary": "Replace the palette used for emotes (sprite palette #8).",
+   "groups": [
+    "Color"
+   ],
+   "fields": [
+    {
+     "key": "palette",
+     "type": "palette",
+     "default": "",
+     "description": "The new palette to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_PALETTE_SET_EMOTE",
+    "args": {
+     "palette": ""
+    }
+   }
+  },
+  "EVENT_PALETTE_SET_SGB": {
+   "name": "Set Super GB Palettes",
+   "summary": "Replace some or all the current Super GB's palettes. Super GB Palettes #1 to #4 are shared with GB Color palettes #5 to 8, changing either will also update the other value.",
+   "groups": [
+    "Color"
+   ],
+   "fields": [
+    {
+     "key": "palette1",
+     "type": "palette",
+     "default": "keep",
+     "description": "The new palettes to use."
+    },
+    {
+     "key": "palette2",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette3",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette4",
+     "type": "palette",
+     "default": "keep"
+    }
+   ],
+   "example": {
+    "command": "EVENT_PALETTE_SET_SGB",
+    "args": {
+     "palette1": "keep",
+     "palette2": "keep",
+     "palette3": "keep",
+     "palette4": "keep"
+    }
+   }
+  },
+  "EVENT_PALETTE_SET_SPRITE": {
+   "name": "Set Sprite Palettes",
+   "summary": "Replace some or all of the current scene's sprite palettes.",
+   "groups": [
+    "Color"
+   ],
+   "fields": [
+    {
+     "key": "palette0",
+     "type": "palette",
+     "default": "keep",
+     "description": "The new palettes to use."
+    },
+    {
+     "key": "palette1",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette2",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette3",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette4",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette5",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette6",
+     "type": "palette",
+     "default": "keep"
+    },
+    {
+     "key": "palette7",
+     "type": "palette",
+     "default": "keep"
+    }
+   ],
+   "example": {
+    "command": "EVENT_PALETTE_SET_SPRITE",
+    "args": {
+     "palette0": "keep",
+     "palette1": "keep",
+     "palette2": "keep",
+     "palette3": "keep",
+     "palette4": "keep",
+     "palette5": "keep",
+     "palette6": "keep",
+     "palette7": "keep"
+    }
+   }
+  },
+  "EVENT_PALETTE_SET_UI": {
+   "name": "Set UI Palette",
+   "summary": "Replace the palette used for the UI (background palette #8).",
+   "groups": [
+    "Color"
+   ],
+   "fields": [
+    {
+     "key": "palette",
+     "type": "palette",
+     "default": "",
+     "description": "The new palette to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_PALETTE_SET_UI",
+    "args": {
+     "palette": ""
+    }
+   }
+  },
+  "EVENT_PEEK_DATA": {
+   "name": "Store Variable from Game Data In Variable",
+   "summary": "Read a variable's value from a specified save slot and store it in a variable.",
+   "groups": [
+    "Save Data",
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variableDest",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to update."
+    },
+    {
+     "key": "variableSource",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to read the value of."
+    },
+    {
+     "key": "saveSlot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2
+     ],
+     "description": "The save slot to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_PEEK_DATA",
+    "args": {
+     "variableDest": "<variable>",
+     "variableSource": "<variable>",
+     "saveSlot": 0
+    }
+   }
+  },
+  "EVENT_PLATFORMER_STATE_SET": {
+   "name": "Set Platformer State",
+   "summary": "Set the current state of a platformer scene.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "sceneTypes": [
+    "PLATFORM"
+   ],
+   "fields": [
+    {
+     "key": "state",
+     "type": "select",
+     "default": "fall",
+     "options": [
+      "fall",
+      "ground",
+      "jump",
+      "dash",
+      "ladder",
+      "wall",
+      "knockback",
+      "blank",
+      "run",
+      "float"
+     ],
+     "description": "State"
+    }
+   ],
+   "example": {
+    "command": "EVENT_PLATFORMER_STATE_SET",
+    "args": {
+     "state": "fall"
+    }
+   }
+  },
+  "EVENT_PLAYER_BOUNCE": {
+   "name": "Player Bounce",
+   "summary": "In platform scenes causes the player to bounce upwards by setting the player's velocity Y value.",
+   "groups": [
+    "Actor"
+   ],
+   "sceneTypes": [
+    "PLATFORM"
+   ],
+   "fields": [
+    {
+     "key": "height",
+     "type": "select",
+     "default": "medium",
+     "options": [
+      "low",
+      "medium",
+      "high"
+     ],
+     "description": "How high the player should bounce."
+    }
+   ],
+   "example": {
+    "command": "EVENT_PLAYER_BOUNCE",
+    "args": {
+     "height": "medium"
+    }
+   }
+  },
+  "EVENT_PLAYER_SET_SPRITE": {
+   "name": "Set Player Sprite Sheet",
+   "summary": "Set the sprite that should be used to render the player.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [
+    {
+     "key": "spriteSheetId",
+     "type": "sprite",
+     "default": "<sprite>",
+     "description": "The sprite to use for rendering the player."
+    }
+   ],
+   "example": {
+    "command": "EVENT_PLAYER_SET_SPRITE",
+    "args": {
+     "spriteSheetId": "<sprite>"
+    }
+   }
+  },
+  "EVENT_PRINT": {
+   "name": "Print Using GB Printer",
+   "summary": "Send an image to a GB Printer for printing. A GB Printer device must be connected.",
+   "groups": [],
+   "fields": [
+    {
+     "key": "source",
+     "type": "select",
+     "default": "background",
+     "options": [
+      "background",
+      "overlay"
+     ],
+     "description": "The location of the image data to print."
+    },
+    {
+     "key": "margin",
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "max": 20,
+     "description": "The number of empty lines to leave after printing."
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 17,
+     "description": "The line to start printing.",
+     "when": [
+      {
+       "key": "source",
+       "in": [
+        "overlay"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "height",
+     "type": "number",
+     "default": 18,
+     "min": 2,
+     "max": 18,
+     "description": "The number of lines to print.",
+     "when": [
+      {
+       "key": "source",
+       "in": [
+        "overlay"
+       ]
+      }
+     ]
+    }
+   ],
+   "branches": [
+    "true",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_PRINT",
+    "args": {
+     "source": "background",
+     "margin": 2
+    },
+    "children": {
+     "true": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_RATE_LIMIT": {
+   "name": "Rate Limit",
+   "summary": "Limit how often this script can be be run. If the script is triggered again before the time limit has passed the script will be skipped.",
+   "groups": [
+    "Timer"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable which will store the next time, in frames, that this script can be called."
+    },
+    {
+     "key": "time",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 0.5
+     },
+     "min": 0,
+     "max": 60,
+     "description": "The minimum wait time between successive calls of this script.",
+     "when": [
+      {
+       "key": "units",
+       "ne": "frames"
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "time",
+     "options": [
+      "time",
+      "frames"
+     ]
+    },
+    {
+     "key": "frames",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 1
+     },
+     "min": 0,
+     "max": 3600,
+     "description": "The minimum wait time between successive calls of this script.",
+     "when": [
+      {
+       "key": "units",
+       "eq": "frames"
+      }
+     ]
+    }
+   ],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_RATE_LIMIT",
+    "args": {
+     "variable": "<variable>",
+     "time": {
+      "type": "number",
+      "value": 0.5
+     },
+     "units": "time"
+    },
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_REMOVE_ADVENTURE_CALLBACK_SCRIPT": {
+   "name": "Remove Script From Adventure Event Callback",
+   "summary": "Remove an attached script from an adventure scene state change.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "sceneTypes": [
+    "ADVENTURE"
+   ],
+   "fields": [
+    {
+     "key": "event",
+     "type": "select",
+     "default": "groundStart",
+     "options": [
+      "groundStart",
+      "groundEnd",
+      "dashStart",
+      "dashReady",
+      "dashEnd",
+      "knockbackStart",
+      "knockbackEnd",
+      "blankStart",
+      "blankEnd",
+      "runStart",
+      "runEnd",
+      "pushStart",
+      "pushEnd"
+     ],
+     "description": "Event"
+    }
+   ],
+   "example": {
+    "command": "EVENT_REMOVE_ADVENTURE_CALLBACK_SCRIPT",
+    "args": {
+     "event": "groundStart"
+    }
+   }
+  },
+  "EVENT_REMOVE_INPUT_SCRIPT": {
+   "name": "Remove Button Script",
+   "summary": "Remove an attached script from a joypad button restoring the default functionality of the button.",
+   "groups": [
+    "Joypad Input"
+   ],
+   "fields": [
+    {
+     "key": "input",
+     "type": "input",
+     "default": [
+      "b"
+     ],
+     "description": "The joypad button to remove the attached script from."
+    }
+   ],
+   "example": {
+    "command": "EVENT_REMOVE_INPUT_SCRIPT",
+    "args": {
+     "input": [
+      "b"
+     ]
+    }
+   }
+  },
+  "EVENT_REMOVE_PLATFORMER_CALLBACK_SCRIPT": {
+   "name": "Remove Script From Platformer Event Callback",
+   "summary": "Remove an attached script from a platformer scene state change.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "sceneTypes": [
+    "PLATFORM"
+   ],
+   "fields": [
+    {
+     "key": "event",
+     "type": "select",
+     "default": "fallStart",
+     "options": [
+      "fallStart",
+      "fallEnd",
+      "groundStart",
+      "groundEnd",
+      "jumpStart",
+      "jumpEnd",
+      "dashStart",
+      "dashReady",
+      "dashEnd",
+      "ladderStart",
+      "ladderEnd",
+      "wallStart",
+      "wallEnd",
+      "knockbackStart",
+      "knockbackEnd",
+      "blankStart",
+      "blankEnd",
+      "runStart",
+      "runEnd",
+      "floatStart",
+      "floatEnd"
+     ],
+     "description": "Event"
+    }
+   ],
+   "example": {
+    "command": "EVENT_REMOVE_PLATFORMER_CALLBACK_SCRIPT",
+    "args": {
+     "event": "fallStart"
+    }
+   }
+  },
+  "EVENT_REPLACE_TILE_XY": {
+   "name": "Replace Tile At Position",
+   "summary": "Replace a tile at a specified coordinate with another from a tileset.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The vertical position."
+    },
+    {
+     "key": "tilesetId",
+     "type": "tileset",
+     "default": "<tileset>",
+     "description": "The tileset to fetch tiles from."
+    },
+    {
+     "key": "tileSize",
+     "type": "units",
+     "default": "8px",
+     "options": [
+      "8px",
+      "16px"
+     ]
+    },
+    {
+     "key": "tileIndex",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "description": "The tile offset inside tileset."
+    }
+   ],
+   "example": {
+    "command": "EVENT_REPLACE_TILE_XY",
+    "args": {
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "tilesetId": "<tileset>",
+     "tileSize": "8px",
+     "tileIndex": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_REPLACE_TILE_XY_SEQUENCE": {
+   "name": "Replace Tile At Position From Sequence",
+   "summary": "Replace a tile at a specified coordinate with another from a tileset in a sequence.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The vertical position."
+    },
+    {
+     "key": "tilesetId",
+     "type": "tileset",
+     "default": "<tileset>",
+     "description": "The tileset to fetch tiles from."
+    },
+    {
+     "key": "tileSize",
+     "type": "units",
+     "default": "8px",
+     "options": [
+      "8px",
+      "16px"
+     ]
+    },
+    {
+     "key": "tileIndex",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "description": "The starting tile offset inside tileset."
+    },
+    {
+     "key": "frames",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 1
+     },
+     "min": 1,
+     "description": "The number of animation frames to cycle through."
+    },
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "A variable to store the current state of this event."
+    }
+   ],
+   "example": {
+    "command": "EVENT_REPLACE_TILE_XY_SEQUENCE",
+    "args": {
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "tilesetId": "<tileset>",
+     "tileSize": "8px",
+     "tileIndex": {
+      "type": "number",
+      "value": 0
+     },
+     "frames": {
+      "type": "number",
+      "value": 1
+     },
+     "variable": "<variable>"
+    }
+   }
+  },
+  "EVENT_RESET_VARIABLES": {
+   "name": "Reset All Variables To 'False'",
+   "summary": "Reset all variables used by your project back to false.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_RESET_VARIABLES",
+    "args": {}
+   }
+  },
+  "EVENT_RNG_SEED": {
+   "name": "Seed Random Number Generator",
+   "summary": "Place this to run in response to user input to ensure random numbers change between playthroughs.",
+   "groups": [
+    "Math",
+    "Variables"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_RNG_SEED",
+    "args": {}
+   }
+  },
+  "EVENT_SAVE_DATA": {
+   "name": "Game Data Save",
+   "summary": "Save the current game data into the selected slot.",
+   "groups": [
+    "Save Data"
+   ],
+   "fields": [
+    {
+     "key": "saveSlot",
+     "type": "togglebuttons",
+     "default": 0,
+     "options": [
+      0,
+      1,
+      2
+     ],
+     "description": "The save slot to use."
+    }
+   ],
+   "branches": [
+    "true",
+    "load"
+   ],
+   "example": {
+    "command": "EVENT_SAVE_DATA",
+    "args": {
+     "saveSlot": 0
+    },
+    "children": {
+     "true": [],
+     "load": []
+    }
+   }
+  },
+  "EVENT_SCENE_POP_ALL_STATE": {
+   "name": "Restore First Scene From Stack",
+   "summary": "Transition to the very first scene stored on the stack, for instance if you had multiple levels of menu scenes you could use this to imediately return to the game scene. This event will cause the scene stack to become empty.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [
+    {
+     "key": "fadeSpeed",
+     "type": "fadeSpeed",
+     "default": "2",
+     "description": "The speed of the fade animation."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SCENE_POP_ALL_STATE",
+    "args": {
+     "fadeSpeed": "2"
+    }
+   }
+  },
+  "EVENT_SCENE_POP_STATE": {
+   "name": "Restore Previous Scene From Stack",
+   "summary": "Transition to the last stored scene from the scene stack using the specified fade speed. The previous scene will then be removed from the stack so the next time this event is used it will transition to the scene before that.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [
+    {
+     "key": "fadeSpeed",
+     "type": "fadeSpeed",
+     "default": "2",
+     "description": "The speed of the fade animation."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SCENE_POP_STATE",
+    "args": {
+     "fadeSpeed": "2"
+    }
+   }
+  },
+  "EVENT_SCENE_PUSH_STATE": {
+   "name": "Store Current Scene On Stack",
+   "summary": "Store the current scene and player state on to the scene stack, this allows you to return to this exact location later using the Scene Restore events. A common use of this event would be to include in a script just before a Change Scene event to open a menu scene, in the menu scene you could wait for the player to press a close button and then use the Restore Previous From Stack event to return to where the player opened the menu.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SCENE_PUSH_STATE",
+    "args": {}
+   }
+  },
+  "EVENT_SCENE_RESET_STATE": {
+   "name": "Remove All From Scene Stack",
+   "summary": "Remove all scenes from the scene stack without leaving the current scene.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SCENE_RESET_STATE",
+    "args": {}
+   }
+  },
+  "EVENT_SCENE_UPDATE_PAUSE": {
+   "name": "Pause Logic For Scene Type",
+   "summary": "Prevent the current scene's game engine update function from running until resumed. Allows preventing player control during multi-threaded scripts.",
+   "groups": [
+    "Control Flow",
+    "Scene",
+    "Miscellaneous"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SCENE_UPDATE_PAUSE",
+    "args": {}
+   }
+  },
+  "EVENT_SCENE_UPDATE_RESUME": {
+   "name": "Resume Logic For Scene Type",
+   "summary": "Resume the game engine update function for the current scene.",
+   "groups": [
+    "Control Flow",
+    "Scene",
+    "Miscellaneous"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SCENE_UPDATE_RESUME",
+    "args": {}
+   }
+  },
+  "EVENT_SCRIPT_LOCK": {
+   "name": "Script Lock",
+   "summary": "Pause other scripts and scene updates until this script has finished or is unlocked.",
+   "groups": [
+    "Control Flow",
+    "Miscellaneous"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SCRIPT_LOCK",
+    "args": {}
+   }
+  },
+  "EVENT_SCRIPT_UNLOCK": {
+   "name": "Script Unlock",
+   "summary": "If locked, unlock this script so other scripts can run and the scene can update.",
+   "groups": [
+    "Control Flow",
+    "Miscellaneous"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SCRIPT_UNLOCK",
+    "args": {}
+   }
+  },
+  "EVENT_SET_ADVENTURE_CALLBACK_SCRIPT": {
+   "name": "Attach Script To Adventure Event Callback",
+   "summary": "Run the specified script any time the state of an adventure scene changes.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "sceneTypes": [
+    "ADVENTURE"
+   ],
+   "fields": [
+    {
+     "key": "event",
+     "type": "select",
+     "default": "groundStart",
+     "options": [
+      "groundStart",
+      "groundEnd",
+      "dashStart",
+      "dashReady",
+      "dashEnd",
+      "knockbackStart",
+      "knockbackEnd",
+      "blankStart",
+      "blankEnd",
+      "runStart",
+      "runEnd",
+      "pushStart",
+      "pushEnd"
+     ],
+     "description": "Event"
+    }
+   ],
+   "branches": [
+    "script"
+   ],
+   "example": {
+    "command": "EVENT_SET_ADVENTURE_CALLBACK_SCRIPT",
+    "args": {
+     "event": "groundStart"
+    },
+    "children": {
+     "script": []
+    }
+   }
+  },
+  "EVENT_SET_DIALOGUE_FRAME": {
+   "name": "Set Dialogue Frame",
+   "summary": "Set a tileset to replace the dialogue frame image.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "fields": [
+    {
+     "key": "tilesetId",
+     "type": "tileset",
+     "optional": true,
+     "description": "The tileset to use as a dialogue frame."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_DIALOGUE_FRAME",
+    "args": {}
+   }
+  },
+  "EVENT_SET_FALSE": {
+   "name": "Variable Set To 'False'",
+   "summary": "Set the value of the specified variable to false.",
+   "groups": [
+    "Variables"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_SET_VALUE",
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_FALSE",
+    "args": {
+     "variable": "<variable>"
+    }
+   }
+  },
+  "EVENT_SET_FLAGS": {
+   "name": "Variable Flags Set",
+   "summary": "Set the value of a variable by enabling individual bits of the 16-bit number. Allows 16 true/false values to be stored within a single variable. Setting the flags will replace the previous value of the variable.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "flag1",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 1 to true."
+    },
+    {
+     "key": "flag2",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 2 to true."
+    },
+    {
+     "key": "flag3",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 3 to true."
+    },
+    {
+     "key": "flag4",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 4 to true."
+    },
+    {
+     "key": "flag5",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 5 to true."
+    },
+    {
+     "key": "flag6",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 6 to true."
+    },
+    {
+     "key": "flag7",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 7 to true."
+    },
+    {
+     "key": "flag8",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 8 to true."
+    },
+    {
+     "key": "flag9",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 9 to true."
+    },
+    {
+     "key": "flag10",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 10 to true."
+    },
+    {
+     "key": "flag11",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 11 to true."
+    },
+    {
+     "key": "flag12",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 12 to true."
+    },
+    {
+     "key": "flag13",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 13 to true."
+    },
+    {
+     "key": "flag14",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 14 to true."
+    },
+    {
+     "key": "flag15",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 15 to true."
+    },
+    {
+     "key": "flag16",
+     "type": "flag",
+     "default": false,
+     "description": "Set flag 16 to true."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_FLAGS",
+    "args": {
+     "variable": "<variable>",
+     "flag1": false,
+     "flag2": false,
+     "flag3": false,
+     "flag4": false,
+     "flag5": false,
+     "flag6": false,
+     "flag7": false,
+     "flag8": false,
+     "flag9": false,
+     "flag10": false,
+     "flag11": false,
+     "flag12": false,
+     "flag13": false,
+     "flag14": false,
+     "flag15": false,
+     "flag16": false
+    }
+   }
+  },
+  "EVENT_SET_FONT": {
+   "name": "Set Font",
+   "summary": "Set the currently used font for text",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "fields": [
+    {
+     "key": "fontId",
+     "type": "font",
+     "default": "<font>",
+     "description": "The font to use for drawing text."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_FONT",
+    "args": {
+     "fontId": "<font>"
+    }
+   }
+  },
+  "EVENT_SET_INPUT_SCRIPT": {
+   "name": "Attach Script To Button",
+   "summary": "Run the specified script any time a joypad button is pressed.",
+   "groups": [
+    "Joypad Input"
+   ],
+   "fields": [
+    {
+     "key": "input",
+     "type": "input",
+     "default": [
+      "b"
+     ],
+     "description": "The joypad button to check."
+    },
+    {
+     "key": "override",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if the script should replace the default game action for the specified button."
+    }
+   ],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_SET_INPUT_SCRIPT",
+    "args": {
+     "input": [
+      "b"
+     ],
+     "override": true
+    },
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_SET_MUSIC_ROUTINE": {
+   "name": "Set Music Routine",
+   "summary": "Attach a script to one of the four music routines that can be triggered from a .uge file. In the music editor you are able to use the call routine effect in your songs to trigger these scripts in time to music.",
+   "groups": [
+    "Music & Sound Effects"
+   ],
+   "fields": [
+    {
+     "key": "routine",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 3,
+     "description": "The music routine, either 0, 1, 2 or 3."
+    }
+   ],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_SET_MUSIC_ROUTINE",
+    "args": {
+     "routine": 0
+    },
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_SET_PLATFORMER_CALLBACK_SCRIPT": {
+   "name": "Attach Script To Platformer Event Callback",
+   "summary": "Run the specified script any time the state of a platformer scene changes.",
+   "groups": [
+    "Engine Fields"
+   ],
+   "sceneTypes": [
+    "PLATFORM"
+   ],
+   "fields": [
+    {
+     "key": "event",
+     "type": "select",
+     "default": "fallStart",
+     "options": [
+      "fallStart",
+      "fallEnd",
+      "groundStart",
+      "groundEnd",
+      "jumpStart",
+      "jumpEnd",
+      "dashStart",
+      "dashReady",
+      "dashEnd",
+      "ladderStart",
+      "ladderEnd",
+      "wallStart",
+      "wallEnd",
+      "knockbackStart",
+      "knockbackEnd",
+      "blankStart",
+      "blankEnd",
+      "runStart",
+      "runEnd",
+      "floatStart",
+      "floatEnd"
+     ],
+     "description": "Event"
+    }
+   ],
+   "branches": [
+    "script"
+   ],
+   "example": {
+    "command": "EVENT_SET_PLATFORMER_CALLBACK_SCRIPT",
+    "args": {
+     "event": "fallStart"
+    },
+    "children": {
+     "script": []
+    }
+   }
+  },
+  "EVENT_SET_SGB_COLOR_AREA": {
+   "name": "Set Super GB Color Area",
+   "summary": "Set the Super GB palettes for a rectangular area of the screen. Palettes can be set for the inside, outside and border of the area and will only affect the background. The area is pinned to the screen coordinates and will not move when the camera moves. Only functions if [Super GB Mode](/docs/settings/#super-gb-options) in Settings is enabled.",
+   "groups": [
+    "Color"
+   ],
+   "fields": [
+    {
+     "key": "x",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 19,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "tiles"
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 17,
+     "description": "The vertical position."
+    },
+    {
+     "key": "width",
+     "type": "number",
+     "default": 4,
+     "min": 1,
+     "max": 20,
+     "description": "The box width."
+    },
+    {
+     "key": "height",
+     "type": "number",
+     "default": 4,
+     "min": 1,
+     "max": 18,
+     "description": "The box height."
+    },
+    {
+     "key": "fill",
+     "type": "select",
+     "default": "none",
+     "options": [
+      "none",
+      "0",
+      "1",
+      "2",
+      "3"
+     ],
+     "description": "Super GB Palette used to fill the rectangle area."
+    },
+    {
+     "key": "border",
+     "type": "select",
+     "default": "none",
+     "options": [
+      "none",
+      "0",
+      "1",
+      "2",
+      "3"
+     ],
+     "description": "Super GB Palette used to draw the border of the rectangle area."
+    },
+    {
+     "key": "outside",
+     "type": "select",
+     "default": "none",
+     "options": [
+      "none",
+      "0",
+      "1",
+      "2",
+      "3"
+     ],
+     "description": "Super GB Palette used to fill the outside of the rectangle area."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_SGB_COLOR_AREA",
+    "args": {
+     "x": 0,
+     "units": "tiles",
+     "y": 0,
+     "width": 4,
+     "height": 4,
+     "fill": "none",
+     "border": "none",
+     "outside": "none"
+    }
+   }
+  },
+  "EVENT_SET_TIMER_SCRIPT": {
+   "name": "Attach Timer Script",
+   "summary": "Run the specified script repeatedly after a time interval. The script will keep running in the background until a Remove Timer Script event is called or the scene is changed using a Change Scene event.",
+   "groups": [
+    "Timer"
+   ],
+   "fields": [
+    {
+     "key": "timer",
+     "type": "togglebuttons",
+     "default": 1,
+     "options": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "description": "The timer that should be modified, each scene can use up to four timers at once."
+    },
+    {
+     "key": "duration",
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "max": 60,
+     "description": "The length of time to wait before running the script each time.",
+     "when": [
+      {
+       "key": "units",
+       "ne": "frames"
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "time",
+     "options": [
+      "time",
+      "frames"
+     ]
+    },
+    {
+     "key": "frames",
+     "type": "number",
+     "default": 30,
+     "min": 0,
+     "max": 3600,
+     "description": "The length of time to wait before running the script each time.",
+     "when": [
+      {
+       "key": "units",
+       "eq": "frames"
+      }
+     ]
+    }
+   ],
+   "branches": [
+    "script"
+   ],
+   "example": {
+    "command": "EVENT_SET_TIMER_SCRIPT",
+    "args": {
+     "timer": 1,
+     "duration": 0.5,
+     "units": "time"
+    },
+    "children": {
+     "script": []
+    }
+   }
+  },
+  "EVENT_SET_TRUE": {
+   "name": "Variable Set To 'True'",
+   "summary": "Set the value of the specified variable to true.",
+   "groups": [
+    "Variables"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_SET_VALUE",
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_TRUE",
+    "args": {
+     "variable": "<variable>"
+    }
+   }
+  },
+  "EVENT_SET_VALUE": {
+   "name": "Variable Set To Value",
+   "summary": "Set the specified variable to a defined value.",
+   "groups": [
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "value",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "description": "The value to set the selected variable to."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SET_VALUE",
+    "args": {
+     "variable": "<variable>",
+     "value": {
+      "type": "number",
+      "value": 0
+     }
+    }
+   }
+  },
+  "EVENT_SHOW_SPRITES": {
+   "name": "Show All Sprites",
+   "summary": "Re-enable rendering of the sprite layer if previously disabled.",
+   "groups": [
+    "Actor"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_SHOW_SPRITES",
+    "args": {}
+   }
+  },
+  "EVENT_SOUND_PLAY_EFFECT": {
+   "name": "Play Sound Effect",
+   "summary": "Play a sound effect, choose from playing a .WAV, .VGM, or .SAV (fxhammer) file from `/assets/sounds` or a preset sound effect.",
+   "groups": [
+    "Music & Sound Effects"
+   ],
+   "fields": [
+    {
+     "key": "type",
+     "type": "soundEffect",
+     "default": "beep",
+     "description": "The sound effect to play. Can choose from files within `/assets/sounds` or from preset sounds like `Beep`, `Pitch` and `Tone`."
+    },
+    {
+     "key": "priority",
+     "type": "priority",
+     "default": "medium",
+     "options": [
+      "low",
+      "medium",
+      "high"
+     ],
+     "description": "The priority of the effect, high, medium or low. If two sound effects are playing at the same time then higher priority sound effects will take precedence."
+    },
+    {
+     "key": "pitch",
+     "type": "number",
+     "default": 4,
+     "min": 1,
+     "max": 8,
+     "description": "The pitch of the sound effect (Beep effect only).",
+     "when": [
+      {
+       "key": "type",
+       "eq": "beep"
+      }
+     ]
+    },
+    {
+     "key": "frequency",
+     "type": "number",
+     "default": 200,
+     "min": 0,
+     "max": 20000,
+     "description": "The frequency of the sound effect in hz (Tone effect only).",
+     "when": [
+      {
+       "key": "type",
+       "eq": "tone"
+      }
+     ]
+    },
+    {
+     "key": "duration",
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "max": 4.25,
+     "description": "The length of time to play the sound effect.",
+     "when": [
+      {
+       "key": "type",
+       "in": [
+        "beep",
+        "crash",
+        "tone"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "time",
+     "when": [
+      {
+       "key": "type",
+       "in": [
+        "beep",
+        "crash",
+        "tone"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "wait",
+     "type": "checkbox",
+     "default": true,
+     "description": "Set if script should pause until sound effect has finished playing.",
+     "when": [
+      {
+       "key": "type",
+       "in": [
+        "beep",
+        "crash",
+        "tone"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "effect",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 60,
+     "description": "The effect number to play (for fxhammer only).",
+     "when": [
+      {
+       "key": "type",
+       "soundType": "fxhammer"
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_SOUND_PLAY_EFFECT",
+    "args": {
+     "type": "beep",
+     "priority": "medium",
+     "pitch": 4,
+     "duration": 0.5,
+     "units": "time",
+     "wait": true
+    }
+   }
+  },
+  "EVENT_STOP": {
+   "name": "Stop Script",
+   "summary": "Stops the current script from running.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [],
+   "example": {
+    "command": "EVENT_STOP",
+    "args": {}
+   }
+  },
+  "EVENT_SWITCH": {
+   "name": "Switch",
+   "summary": "Conditionally run from multiple options depending on the value of the specified variable. First choose how many options you want to compare the variable against, then set the values to compare and what scripts to execute when the value is matched.",
+   "groups": [
+    "Control Flow"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "choices",
+     "type": "number",
+     "default": 2,
+     "min": 1,
+     "max": 16,
+     "description": "The number of options required."
+    },
+    {
+     "key": "value0",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 1
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 0
+      }
+     ]
+    },
+    {
+     "key": "value1",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 2
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 1
+      }
+     ]
+    },
+    {
+     "key": "value2",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 3
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 2
+      }
+     ]
+    },
+    {
+     "key": "value3",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 4
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 3
+      }
+     ]
+    },
+    {
+     "key": "value4",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 5
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 4
+      }
+     ]
+    },
+    {
+     "key": "value5",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 6
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 5
+      }
+     ]
+    },
+    {
+     "key": "value6",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 7
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 6
+      }
+     ]
+    },
+    {
+     "key": "value7",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 8
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 7
+      }
+     ]
+    },
+    {
+     "key": "value8",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 9
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 8
+      }
+     ]
+    },
+    {
+     "key": "value9",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 10
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 9
+      }
+     ]
+    },
+    {
+     "key": "value10",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 11
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 10
+      }
+     ]
+    },
+    {
+     "key": "value11",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 12
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 11
+      }
+     ]
+    },
+    {
+     "key": "value12",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 13
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 12
+      }
+     ]
+    },
+    {
+     "key": "value13",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 14
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 13
+      }
+     ]
+    },
+    {
+     "key": "value14",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 15
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 14
+      }
+     ]
+    },
+    {
+     "key": "value15",
+     "type": "constvalue",
+     "default": {
+      "type": "number",
+      "value": 16
+     },
+     "min": -32768,
+     "max": 32767,
+     "description": "The value to compare the variable with for running this branch of the script.",
+     "when": [
+      {
+       "key": "choices",
+       "gt": 15
+      }
+     ]
+    }
+   ],
+   "branches": [
+    "true0",
+    "true1",
+    "true2",
+    "true3",
+    "true4",
+    "true5",
+    "true6",
+    "true7",
+    "true8",
+    "true9",
+    "true10",
+    "true11",
+    "true12",
+    "true13",
+    "true14",
+    "true15",
+    "false"
+   ],
+   "example": {
+    "command": "EVENT_SWITCH",
+    "args": {
+     "variable": "<variable>",
+     "choices": 2,
+     "value0": {
+      "type": "number",
+      "value": 1
+     },
+     "value1": {
+      "type": "number",
+      "value": 2
+     }
+    },
+    "children": {
+     "true0": [],
+     "true1": [],
+     "false": []
+    }
+   }
+  },
+  "EVENT_SWITCH_SCENE": {
+   "name": "Change Scene",
+   "summary": "Transition to a new scene with player at a specified position and direction. A connection line will be drawn between the source of the event and the destination scene with an icon appearing at the destination position. It's possible to drag this icon around and between scenes to modify the event.",
+   "groups": [
+    "Scene"
+   ],
+   "fields": [
+    {
+     "key": "sceneId",
+     "type": "scene",
+     "default": "<scene>",
+     "description": "The scene to transition to."
+    },
+    {
+     "key": "x",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The initial player horizontal position in the new scene."
+    },
+    {
+     "key": "y",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0
+     },
+     "min": 0,
+     "max": 255,
+     "description": "The initial player vertical position in the new scene."
+    },
+    {
+     "key": "direction",
+     "type": "direction",
+     "default": "",
+     "description": "The initial player direction."
+    },
+    {
+     "key": "fadeSpeed",
+     "type": "fadeSpeed",
+     "default": "2",
+     "description": "The speed of the fade animation."
+    }
+   ],
+   "example": {
+    "command": "EVENT_SWITCH_SCENE",
+    "args": {
+     "sceneId": "<scene>",
+     "x": {
+      "type": "number",
+      "value": 0
+     },
+     "y": {
+      "type": "number",
+      "value": 0
+     },
+     "direction": "",
+     "fadeSpeed": "2"
+    }
+   }
+  },
+  "EVENT_TEXT": {
+   "name": "Display Dialogue",
+   "summary": "Show a dialogue box at the bottom of the game screen. When text is shown the dialogue box will slide up from the bottom of the screen and will slide down after it has been shown.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "warnings": [
+    {
+     "sceneTypes": [
+      "LOGO"
+     ],
+     "message": "Rendering text in Logo scenes will cause graphical glitches."
+    },
+    {
+     "when": [
+      {
+       "key": "position",
+       "eq": "top"
+      },
+      {
+       "key": "closeWhen",
+       "eq": "notModal"
+      }
+     ],
+     "message": "To close a non-modal dialog positioned at the top of the screen, you can use a \"Close Non-Modal Dialogue\" event or you will need to manually reset the overlay scanline cutoff with a \"Set Overlay Scanline Cutoff\" event."
+    }
+   ],
+   "fields": [
+    {
+     "key": "text",
+     "type": "textarea",
+     "default": "",
+     "multiple": true
+    },
+    {
+     "key": "avatarId",
+     "type": "avatar",
+     "default": "",
+     "optional": true,
+     "description": "The avatar image to optionally display on the left hand side of the dialogue box."
+    },
+    {
+     "key": "minHeight",
+     "type": "number",
+     "default": 4,
+     "min": 1,
+     "max": 18,
+     "description": "The minimum height to draw the dialogue window."
+    },
+    {
+     "key": "maxHeight",
+     "type": "number",
+     "default": 7,
+     "min": 1,
+     "max": 18,
+     "description": "The maxiumum height to draw the dialogue window."
+    },
+    {
+     "key": "textX",
+     "type": "number",
+     "default": 1,
+     "min": -20,
+     "max": 20,
+     "description": "The horizontal offset to start drawing text in the dialogue window."
+    },
+    {
+     "key": "textY",
+     "type": "number",
+     "default": 1,
+     "min": -18,
+     "max": 18,
+     "description": "The vertical offset to start drawing text in the dialogue window."
+    },
+    {
+     "key": "textHeight",
+     "type": "number",
+     "default": 5,
+     "min": 1,
+     "max": 18,
+     "description": "The number of lines of text that can be displayed before scrolling."
+    },
+    {
+     "key": "position",
+     "type": "select",
+     "default": "bottom",
+     "options": [
+      "bottom",
+      "top"
+     ],
+     "description": "The position to place the dialogue window."
+    },
+    {
+     "key": "clearPrevious",
+     "type": "checkbox",
+     "default": true,
+     "description": "Clears any content that was previously drawn on the overlay."
+    },
+    {
+     "key": "showFrame",
+     "type": "checkbox",
+     "default": "true",
+     "description": "Draw a frame around the border of the dialogue window.",
+     "when": [
+      {
+       "key": "clearPrevious",
+       "in": [
+        true,
+        null
+       ]
+      }
+     ]
+    },
+    {
+     "key": "speedIn",
+     "type": "overlaySpeed",
+     "default": -1,
+     "description": "The speed that the text and menu dialogue boxes scroll on to the screen."
+    },
+    {
+     "key": "speedOut",
+     "type": "overlaySpeed",
+     "default": -1,
+     "description": "The speed that the text and menu dialogue boxes scroll off of the screen."
+    },
+    {
+     "key": "closeWhen",
+     "type": "select",
+     "default": "key",
+     "options": [
+      "key",
+      "text",
+      "notModal"
+     ],
+     "description": "The condition which will cause the dialogue window to close."
+    },
+    {
+     "key": "closeButton",
+     "type": "togglebuttons",
+     "default": "a",
+     "options": [
+      "a",
+      "b",
+      "any"
+     ],
+     "when": [
+      {
+       "key": "closeWhen",
+       "in": [
+        "key",
+        null
+       ]
+      }
+     ]
+    },
+    {
+     "key": "closeDelayTime",
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "max": 3600,
+     "description": "Delay closing for a period of time.",
+     "when": [
+      {
+       "key": "closeDelayUnits",
+       "ne": "frames"
+      },
+      {
+       "key": "closeWhen",
+       "in": [
+        "text"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "closeDelayUnits",
+     "type": "units",
+     "default": "time",
+     "options": [
+      "time",
+      "frames"
+     ],
+     "when": [
+      {
+       "key": "closeWhen",
+       "in": [
+        "text"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "closeDelayFrames",
+     "type": "number",
+     "default": 30,
+     "min": 0,
+     "max": 3600,
+     "description": "Delay closing for a period of time.",
+     "when": [
+      {
+       "key": "closeDelayUnits",
+       "eq": "frames"
+      },
+      {
+       "key": "closeWhen",
+       "in": [
+        "text"
+       ]
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_TEXT",
+    "args": {
+     "text": "",
+     "avatarId": "",
+     "minHeight": 4,
+     "maxHeight": 7,
+     "textX": 1,
+     "textY": 1,
+     "textHeight": 5,
+     "position": "bottom",
+     "clearPrevious": true,
+     "showFrame": "true",
+     "speedIn": -1,
+     "speedOut": -1,
+     "closeWhen": "key",
+     "closeButton": "a"
+    }
+   }
+  },
+  "EVENT_TEXT_DRAW": {
+   "name": "Draw Text",
+   "summary": "Write some text to a specified positon on either the scene's background or the overlay.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "warnings": [
+    {
+     "sceneTypes": [
+      "LOGO"
+     ],
+     "message": "Rendering text in Logo scenes will cause graphical glitches."
+    }
+   ],
+   "fields": [
+    {
+     "key": "text",
+     "type": "textarea",
+     "default": ""
+    },
+    {
+     "key": "x",
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "max": 19,
+     "description": "The horizontal position."
+    },
+    {
+     "key": "y",
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "max": 17,
+     "description": "The vertical position."
+    },
+    {
+     "key": "location",
+     "type": "select",
+     "default": "background",
+     "options": [
+      "background",
+      "overlay"
+     ],
+     "description": "The location where text should be drawn."
+    }
+   ],
+   "example": {
+    "command": "EVENT_TEXT_DRAW",
+    "args": {
+     "text": "",
+     "x": 1,
+     "y": 1,
+     "location": "background"
+    }
+   }
+  },
+  "EVENT_TEXT_SET_ANIMATION_SPEED": {
+   "name": "Set Text Animation Speed",
+   "summary": "Set the speed that dialogue boxes appear and disappear and how fast text appears within the box.",
+   "groups": [
+    "Dialogue & Menus"
+   ],
+   "fields": [
+    {
+     "key": "speedIn",
+     "type": "overlaySpeed",
+     "default": 0,
+     "description": "The speed that the text and menu dialogue boxes scroll on to the screen."
+    },
+    {
+     "key": "speedOut",
+     "type": "overlaySpeed",
+     "default": 0,
+     "description": "The speed that the text and menu dialogue boxes scroll off of the screen."
+    },
+    {
+     "key": "speed",
+     "type": "cameraSpeed",
+     "default": 1,
+     "description": "The speed that characters are drawn into the dialogue boxes."
+    },
+    {
+     "key": "allowFastForward",
+     "type": "checkbox",
+     "default": true,
+     "description": "Allow skipping through animation of text if joypad buttons are pressed."
+    }
+   ],
+   "example": {
+    "command": "EVENT_TEXT_SET_ANIMATION_SPEED",
+    "args": {
+     "speedIn": 0,
+     "speedOut": 0,
+     "speed": 1,
+     "allowFastForward": true
+    }
+   }
+  },
+  "EVENT_TEXT_SET_SOUND_EFFECT": {
+   "name": "Set Text Sound Effect",
+   "summary": "Set a sound effect to play as each text character is displayed.",
+   "groups": [
+    "Dialogue & Menus",
+    "Music & Sound Effects"
+   ],
+   "fields": [
+    {
+     "key": "type",
+     "type": "soundEffect",
+     "default": "tone",
+     "description": "The sound effect to play. Can choose from files within `/assets/sounds` or from preset sounds like `Beep`, `Pitch` and `Tone`."
+    },
+    {
+     "key": "pitch",
+     "type": "number",
+     "default": 4,
+     "min": 1,
+     "max": 8,
+     "description": "The pitch of the sound effect (Beep effect only).",
+     "when": [
+      {
+       "key": "type",
+       "eq": "beep"
+      }
+     ]
+    },
+    {
+     "key": "frequency",
+     "type": "number",
+     "default": 300,
+     "min": 0,
+     "max": 20000,
+     "description": "The frequency of the sound effect in hz (Tone effect only).",
+     "when": [
+      {
+       "key": "type",
+       "eq": "tone"
+      }
+     ]
+    },
+    {
+     "key": "duration",
+     "type": "number",
+     "default": 0.05,
+     "min": 0,
+     "max": 4.25,
+     "description": "The length of time to play the sound effect.",
+     "when": [
+      {
+       "key": "type",
+       "in": [
+        "beep",
+        "crash",
+        "tone"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "time",
+     "when": [
+      {
+       "key": "type",
+       "in": [
+        "beep",
+        "crash",
+        "tone"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "effect",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 60,
+     "description": "The effect number to play (for fxhammer only).",
+     "when": [
+      {
+       "key": "type",
+       "soundType": "fxhammer"
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_TEXT_SET_SOUND_EFFECT",
+    "args": {
+     "type": "tone",
+     "frequency": 300,
+     "duration": 0.05,
+     "units": "time"
+    }
+   }
+  },
+  "EVENT_THREAD_START": {
+   "name": "Thread Start",
+   "summary": "Run a script in another thread.",
+   "groups": [
+    "Control Flow",
+    "Miscellaneous"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "T0",
+     "description": "As the thread starts a handle will be stored in this variable. You can use this handle to stop the thread later."
+    }
+   ],
+   "branches": [
+    "true"
+   ],
+   "example": {
+    "command": "EVENT_THREAD_START",
+    "args": {
+     "variable": "T0"
+    },
+    "children": {
+     "true": []
+    }
+   }
+  },
+  "EVENT_THREAD_STOP": {
+   "name": "Stop Thread",
+   "summary": "Stop a thread based on the selected thread handle.",
+   "groups": [
+    "Control Flow",
+    "Miscellaneous"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "T0",
+     "description": "The handle for the thread you want to stop."
+    }
+   ],
+   "example": {
+    "command": "EVENT_THREAD_STOP",
+    "args": {
+     "variable": "T0"
+    }
+   }
+  },
+  "EVENT_TIMER_DISABLE": {
+   "name": "Remove Timer Script",
+   "summary": "Remove the timer script so it will no longer be called.",
+   "groups": [
+    "Timer"
+   ],
+   "fields": [
+    {
+     "key": "timer",
+     "type": "togglebuttons",
+     "default": 1,
+     "options": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "description": "The timer that should be modified, each scene can use up to four timers at once."
+    }
+   ],
+   "example": {
+    "command": "EVENT_TIMER_DISABLE",
+    "args": {
+     "timer": 1
+    }
+   }
+  },
+  "EVENT_TIMER_RESTART": {
+   "name": "Restart Timer",
+   "summary": "Reset the countdown timer back to zero. The script will call again after the time specified originally.",
+   "groups": [
+    "Timer"
+   ],
+   "fields": [
+    {
+     "key": "timer",
+     "type": "togglebuttons",
+     "default": 1,
+     "options": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "description": "The timer that should be modified, each scene can use up to four timers at once."
+    }
+   ],
+   "example": {
+    "command": "EVENT_TIMER_RESTART",
+    "args": {
+     "timer": 1
+    }
+   }
+  },
+  "EVENT_VARIABLE_MATH": {
+   "name": "Math Functions",
+   "summary": "Allows you to perform various maths functions on a variable to add/subtract/multiply/divide/modulus a value/variable/random number.",
+   "groups": [
+    "Math",
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "vectorX",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "operation",
+     "type": "select",
+     "default": "set",
+     "options": [
+      "set",
+      "add",
+      "sub",
+      "mul",
+      "div",
+      "mod"
+     ],
+     "description": "The operation to use for modifying the variable value."
+    },
+    {
+     "key": "other",
+     "type": "select",
+     "default": "true",
+     "options": [
+      "true",
+      "false",
+      "var",
+      "val",
+      "rnd"
+     ],
+     "description": "The value to combine with the variable using the selected operation."
+    },
+    {
+     "key": "vectorY",
+     "type": "variable",
+     "default": "<variable>",
+     "when": [
+      {
+       "key": "other",
+       "eq": "var"
+      }
+     ]
+    },
+    {
+     "key": "value",
+     "type": "number",
+     "default": "0",
+     "min": -32768,
+     "max": 32767,
+     "when": [
+      {
+       "key": "other",
+       "eq": "val"
+      }
+     ]
+    },
+    {
+     "key": "minValue",
+     "type": "number",
+     "default": "0",
+     "min": -32768,
+     "max": 32767,
+     "description": "The minimum value for the random range.",
+     "when": [
+      {
+       "key": "other",
+       "eq": "rnd"
+      }
+     ]
+    },
+    {
+     "key": "maxValue",
+     "type": "number",
+     "default": "32767",
+     "min": -32768,
+     "max": 32767,
+     "description": "The maximum value for the random range.",
+     "when": [
+      {
+       "key": "other",
+       "eq": "rnd"
+      }
+     ]
+    },
+    {
+     "key": "clamp",
+     "type": "checkbox",
+     "default": false,
+     "description": "Clamp value between 0 and 255",
+     "when": [
+      {
+       "key": "operation",
+       "in": [
+        "add",
+        "sub",
+        "mul"
+       ]
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_VARIABLE_MATH",
+    "args": {
+     "vectorX": "<variable>",
+     "operation": "set",
+     "other": "true"
+    }
+   }
+  },
+  "EVENT_VARIABLE_MATH_EVALUATE": {
+   "name": "Evaluate Math Expression",
+   "summary": "Set a variable to the result of evaluating a math expression.",
+   "groups": [
+    "Math",
+    "Variables"
+   ],
+   "fields": [
+    {
+     "key": "variable",
+     "type": "variable",
+     "default": "<variable>",
+     "description": "The variable to use."
+    },
+    {
+     "key": "expression",
+     "type": "matharea",
+     "default": "",
+     "description": "The expression to evaluate."
+    }
+   ],
+   "example": {
+    "command": "EVENT_VARIABLE_MATH_EVALUATE",
+    "args": {
+     "variable": "<variable>",
+     "expression": ""
+    }
+   }
+  },
+  "EVENT_WAIT": {
+   "name": "Wait",
+   "summary": "Pause the script for a period of time.",
+   "groups": [
+    "Timer"
+   ],
+   "fields": [
+    {
+     "key": "time",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 0.5
+     },
+     "min": 0,
+     "max": 60,
+     "description": "The length of time to pause the script for in seconds or frames.",
+     "when": [
+      {
+       "key": "units",
+       "ne": "frames"
+      }
+     ]
+    },
+    {
+     "key": "units",
+     "type": "units",
+     "default": "time",
+     "options": [
+      "time",
+      "frames"
+     ]
+    },
+    {
+     "key": "frames",
+     "type": "value",
+     "default": {
+      "type": "number",
+      "value": 1
+     },
+     "min": 0,
+     "max": 3600,
+     "description": "The length of time to pause the script for in seconds or frames.",
+     "when": [
+      {
+       "key": "units",
+       "eq": "frames"
+      }
+     ]
+    }
+   ],
+   "example": {
+    "command": "EVENT_WAIT",
+    "args": {
+     "time": {
+      "type": "number",
+      "value": 0.5
+     },
+     "units": "time"
+    }
+   }
+  },
+  "EVENT_WEAPON_ATTACK": {
+   "name": "Item / Attack",
+   "groups": [
+    "Actor"
+   ],
+   "deprecated": true,
+   "replacement": "EVENT_LAUNCH_PROJECTILE",
+   "fields": [
+    {
+     "key": "spriteSheetId",
+     "type": "sprite",
+     "default": "<sprite>",
+     "description": "Sprite Sheet"
+    },
+    {
+     "key": "actorId",
+     "type": "actor",
+     "default": "$self$",
+     "description": "Source"
+    },
+    {
+     "key": "offset",
+     "type": "number",
+     "default": 10,
+     "min": 0,
+     "max": 64,
+     "description": "Offset"
+    },
+    {
+     "key": "collisionGroup",
+     "type": "collisionMask",
+     "default": "3",
+     "description": "Collision Group"
+    },
+    {
+     "key": "collisionMask",
+     "type": "collisionMask",
+     "default": [
+      "1"
+     ],
+     "description": "Collide With"
+    }
+   ],
+   "example": {
+    "command": "EVENT_WEAPON_ATTACK",
+    "args": {
+     "spriteSheetId": "<sprite>",
+     "actorId": "$self$",
+     "offset": 10,
+     "collisionGroup": "3",
+     "collisionMask": [
+      "1"
+     ]
+    }
+   }
+  }
+ }
+}

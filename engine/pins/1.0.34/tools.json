@@ -5490,6 +5490,54 @@
       }
     },
     {
+      "name": "event_describe",
+      "title": "Describe GB Studio events",
+      "description": "Look up GB Studio's script events. With no arguments, list the categories; with query or category, list matching events (command, name, one-line summary); with events, describe up to 5: every arg with its type, default and allowed values, child branches, scene-type warnings, deprecation with its replacement, and an example event to adapt. Read from GB Studio's own event definitions; needs no project.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "description": "Up to 5 event commands to describe in full, e.g. [\"EVENT_IF\",\"EVENT_SET_VALUE\"]."
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Words to find in an event's command, name, summary, category or arg names, e.g. sound or actor position."
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A category from the listing, e.g. Actor or Dialogue & Menus."
+          },
+          "includeDeprecated": {
+            "type": "boolean",
+            "description": "List deprecated events too (default false)."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
       "name": "variable_inspect",
       "title": "Inspect named game variables",
       "description": "Read authored global variable metadata and its resource revision. Use emulator_debug for live values; this tool does not read runtime memory.",
