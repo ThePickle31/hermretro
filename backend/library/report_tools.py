@@ -11,7 +11,7 @@ from ..hermes.declare import Tool
 from ..system.events import emit
 from . import games as library
 from . import finish_run, plan_checks
-from .report_plan import plan_problems
+from .report_plan import plan_problems, playtest_problems
 from .tool_args import other_game_refusal, tool_error
 
 logger = host.logger
@@ -63,9 +63,10 @@ BUILD_REPORT_TOOL = {
         "changes (with the images they made or edited), tested and untested checks, notes and suggestions as a "
         "build card, so the written reply after it should be one or two short sentences (for example a "
         "question about a note), not a recap. When the game has a test plan (docs/game/TEST-PLAN.md), checks and "
-        "difficulty are required: a result for every check it lists, and finishRun when its F1 (the run from "
-        "power-on to the ending) passed or failed. Reads the test plan and the recording and writes nothing in the "
-        "project; never touches a device."
+        "difficulty are required: a result for every check it lists (a bound check's must agree with "
+        "chromatic_playtest's results on this ROM; one it could not judge is passed only with evidence), and "
+        "finishRun when its F1 (the run from power-on to the ending) passed or failed. Reads the test plan and the "
+        "recording and writes nothing in the project; never touches a device."
     ),
     "parameters": {
         "type": "object",
@@ -135,6 +136,13 @@ BUILD_REPORT_TOOL = {
                             "description": "The check in a few words, e.g. 'Locked gate with 2 of 3 seeds'.",
                         },
                         "result": {"type": "string", "enum": list(CHECK_RESULTS)},
+                        "evidence": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096,
+                            "description": "A recording of this ROM (recordingPath or session id) that shows the "
+                            "result, for a check chromatic_playtest could not judge (its result is error).",
+                        },
                     },
                 },
             },
@@ -212,7 +220,8 @@ def _report_asset(raw: str, root: Path | None) -> tuple[str | None, str | None]:
 
 
 def _report_checks(values, problems: list) -> list[dict]:
-    """The reported test-plan checks, each ``{id, text, result}``; a problem for each malformed one."""
+    """The reported test-plan checks, each ``{id, text, result}`` and its ``evidence`` when given; a problem for each
+    malformed one."""
     if not isinstance(values, list):
         problems.append("checks must be a list of objects with id, text and result.")
         return []
@@ -225,7 +234,9 @@ def _report_checks(values, problems: list) -> list[dict]:
         if not isinstance(check, dict):
             problems.append(f"{where} must be an object with id, text and result.")
             continue
-        problems += [f"{where} has unknown field {key!r}." for key in sorted(set(check) - {"id", "text", "result"})]
+        problems += [
+            f"{where} has unknown field {key!r}." for key in sorted(set(check) - {"id", "text", "result", "evidence"})
+        ]
         identifier = _report_text(check.get("id"), f"{where}.id", plan_checks.MAX_CHECK_ID, problems)
         key = plan_checks.check_key(identifier or "")
         if identifier and key in seen:
@@ -234,7 +245,14 @@ def _report_checks(values, problems: list) -> list[dict]:
         if check.get("result") not in CHECK_RESULTS:
             problems.append(f"{where}.result must be one of {', '.join(CHECK_RESULTS)}.")
         text = _report_text(check.get("text"), f"{where}.text", REPORT_LIMITS["check"], problems)
-        checks.append({"id": identifier, "text": text, "result": check.get("result")})
+        item = {"id": identifier, "text": text, "result": check.get("result")}
+        evidence = check.get("evidence")
+        if evidence is not None:
+            if isinstance(evidence, str) and evidence.strip() and len(evidence) <= 4096:
+                item["evidence"] = evidence.strip()
+            else:
+                problems.append(f"{where}.evidence must be a recording's path or session id.")
+        checks.append(item)
     return checks
 
 
@@ -359,6 +377,9 @@ def build_report_handler(args: dict, **kwargs) -> str:
             )
             problems += missed
             warnings += unplanned
+            refuted, unplayed = playtest_problems(root, report["checks"])
+            problems += refuted
+            warnings += unplayed
         if problems:
             return json.dumps(
                 {

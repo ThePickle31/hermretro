@@ -30,7 +30,7 @@ ELSEWHERE = (
 )
 
 
-def _manifest(folder: Path) -> dict | None:
+def read_manifest(folder: Path) -> dict | None:
     """A recording folder's ``recording.json``, None when the folder holds none."""
     path = folder / MANIFEST
     try:
@@ -77,9 +77,77 @@ def _folder(root: Path, value: str) -> Path | None:
             entries = sorted((root / RECORDINGS).iterdir())
         except OSError:
             return None
-        return next((entry for entry in entries if (_manifest(entry) or {}).get("sessionId") == value), None)
+        return next((entry for entry in entries if (read_manifest(entry) or {}).get("sessionId") == value), None)
     candidate = root / Path(value).expanduser()  # an absolute value replaces root
     return candidate.parent if candidate.name == MANIFEST else candidate
+
+
+def find_recording(root: Path, value: str, field: str = "finishRun") -> tuple[Path | None, dict | None, str | None]:
+    """The recording ``value`` names (see ``_folder``): ``(its real folder, its recording.json, None)``, or
+    ``(None, None, why it is none)``, ``field`` naming the argument in that answer: it must be a recording inside the
+    project whose journal tells the same run as its manifest."""
+    try:
+        folder = _folder(root, value)
+        real = folder.resolve() if folder is not None else None
+        inside = real is not None and real.is_relative_to(root.resolve())
+    except (OSError, RuntimeError):
+        return None, None, f"{field}: {value} is not a usable path."
+    if real is None:
+        return None, None, f"{field}: no recording in {RECORDINGS.as_posix()}/ has the session id {value}: {ELSEWHERE}."
+    if not inside:
+        return None, None, f"{field}: {value} is outside the project."
+    manifest = read_manifest(real)
+    if manifest is None:
+        return (
+            None,
+            None,
+            (
+                f"{field}: {value} is no recording (the folder chromatic_emulator_run's recording:{{}} made): {ELSEWHERE}."
+            ),
+        )
+    if not _journal_agrees(real, manifest):
+        return (
+            None,
+            None,
+            (
+                f"{field}: {value} has no {JOURNAL}, or one that does not match its {MANIFEST}, so it shows no run: "
+                f"{NEW_RUN}, and name that recording."
+            ),
+        )
+    return real, manifest, None
+
+
+def current_rom(root: Path, field: str = "finishRun") -> tuple[Path | None, str | None, str | None]:
+    """The game's ROM as it is now: ``(its path, its SHA-256, None)``, or ``(None, None, why there is none)``."""
+    game = _game_rom(root) or _legacy_rom(root)
+    if game is None:
+        return None, None, f"{field}: this game has no ROM in build/ to check the recording against."
+    try:
+        return game[0], file_sha256(game[0]), None
+    except OSError:
+        return None, None, f"{field}: {game[0].relative_to(root).as_posix()} could not be read."
+
+
+def played_rom(manifest: dict) -> str | None:
+    """The SHA-256 of the ROM a recording played, from its recording.json."""
+    return manifest["rom"].get("sha256") if isinstance(manifest.get("rom"), dict) else None
+
+
+def unfinished(manifest: dict, value: str, field: str = "finishRun") -> str | None:
+    """Why the attempt ``manifest`` describes (``value`` names it) is no single run from power-on that has ended:
+    it is still recording or restored a checkpoint. None when it is one."""
+    if manifest.get("status") == "recording":
+        return (
+            f"{field}: {value} is still recording, so it shows no finished run yet: stop it with "
+            'chromatic_emulator_recording {"action":"stop","outcome":...} first.'
+        )
+    branches = manifest.get("branches") if isinstance(manifest.get("branches"), list) else []
+    if any(isinstance(branch, dict) and branch.get("checkpointId") for branch in branches):
+        return (
+            f"{field}: {value} restored a checkpoint, so it is no single run from power-on: {NEW_RUN} with no "
+            "restores, and name that recording."
+        )
+    return None
 
 
 def read_run(root: Path, value: str) -> tuple[dict | None, str | None]:
@@ -87,51 +155,21 @@ def read_run(root: Path, value: str) -> tuple[dict | None, str | None]:
     ``frames``, ``outcome`` when it was stopped with one), or (None, why it is no finishable run of this build):
     it must be a recording inside the project, of the game's ROM as it is now, that restored no checkpoint and
     has ended."""
-    try:
-        folder = _folder(root, value)
-        real = folder.resolve() if folder is not None else None
-        inside = real is not None and real.is_relative_to(root.resolve())
-    except (OSError, RuntimeError):
-        return None, f"finishRun: {value} is not a usable path."
-    if real is None:
-        return None, f"finishRun: no recording in {RECORDINGS.as_posix()}/ has the session id {value}: {ELSEWHERE}."
-    if not inside:
-        return None, f"finishRun: {value} is outside the project."
-    manifest = _manifest(real)
-    if manifest is None:
-        return None, (
-            f"finishRun: {value} is no recording (the folder chromatic_emulator_run's recording:{{}} made): "
-            f"{ELSEWHERE}."
-        )
-    if not _journal_agrees(real, manifest):
-        return None, (
-            f"finishRun: {value} has no {JOURNAL}, or one that does not match its {MANIFEST}, so it shows no run: "
-            f"{NEW_RUN}, and name that recording."
-        )
-    game = _game_rom(root) or _legacy_rom(root)
-    if game is None:
-        return None, "finishRun: this game has no ROM in build/ to check the recording against."
-    try:
-        rom = file_sha256(game[0])
-    except OSError:
-        return None, f"finishRun: {game[0].relative_to(root).as_posix()} could not be read."
-    played = manifest["rom"].get("sha256") if isinstance(manifest.get("rom"), dict) else None
+    real, manifest, why = find_recording(root, value)
+    if why:
+        return None, why
+    game, rom, why = current_rom(root)
+    if why:
+        return None, why
+    played = played_rom(manifest)
     if played != rom:
         return None, (
             f"finishRun: {value} played another ROM ({str(played or 'unknown')[:12]}), not this build's "
-            f"{game[0].relative_to(root).as_posix()} ({rom[:12]}): {NEW_RUN}, and name that recording."
+            f"{game.relative_to(root).as_posix()} ({rom[:12]}): {NEW_RUN}, and name that recording."
         )
-    if manifest.get("status") == "recording":
-        return None, (
-            f"finishRun: {value} is still recording, so it shows no finished run yet: stop it with "
-            'chromatic_emulator_recording {"action":"stop","outcome":...} first.'
-        )
-    branches = manifest.get("branches") if isinstance(manifest.get("branches"), list) else []
-    if any(isinstance(branch, dict) and branch.get("checkpointId") for branch in branches):
-        return None, (
-            f"finishRun: {value} restored a checkpoint, so it is no single run from power-on: {NEW_RUN} with no "
-            "restores, and name that recording."
-        )
+    why = unfinished(manifest, value)
+    if why:
+        return None, why
     run = {
         "recordingPath": str(real),
         "sessionId": manifest.get("sessionId"),

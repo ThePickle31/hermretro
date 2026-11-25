@@ -1578,9 +1578,10 @@ class EmulatorWorker:
         Stops at the first frame that differs unless asked to continue; the session stays open where the replay
         ended, recorded as a new attempt unless recording is false."""
         if not isinstance(params, dict) or not {"romPath", "recordingPath"} <= set(params) or set(params) - {
-                "romPath", "recordingPath", "branchId", "toActionIndex", "onDivergence", "recording", "symbols"}:
-            raise RequestValidationError("Replay requires romPath and recordingPath, with optional branchId, "
-                                         "toActionIndex, onDivergence, recording and symbols")
+                "romPath", "recordingPath", "sessionId", "branchId", "toActionIndex", "onDivergence", "recording",
+                "symbols"}:
+            raise RequestValidationError("Replay requires romPath and recordingPath, with optional sessionId, "
+                                         "branchId, toActionIndex, onDivergence, recording and symbols")
         on_divergence = params.get("onDivergence", "stop")
         if on_divergence not in {"stop", "continue"}:
             raise RequestValidationError("onDivergence must be stop or continue")
@@ -1590,6 +1591,10 @@ class EmulatorWorker:
         try:
             # Checked before the current session ends, so a refusal leaves it running.
             source = self.recording_data({"recordingPath": params["recordingPath"]})
+            expected = params.get("sessionId")
+            if expected is not None and expected != source["sessionId"]:
+                raise ValueError(f"recordingPath holds the attempt {source['sessionId']}, not {expected}: that attempt "
+                                 "is gone and another was recorded in its folder")
             branch_id = params.get("branchId", source["branchId"])
             branch = source["branchesById"].get(branch_id)
             if branch is None:
@@ -1620,6 +1625,13 @@ class EmulatorWorker:
             plan["soundEmulated"] = source["runtime"].get("soundEmulated") is True
         except (OSError, ValueError, RuntimeError) as error:
             raise RequestValidationError(str(error)) from error
+        # The session this replay ends, so the caller can say so: an attempt still recording is finished by it.
+        ended = None
+        if self.emulator is not None:
+            ended = {"romSha256": self.rom_sha256, "frame": self.frame}
+            if self.recording is not None:
+                ended["recording"] = {key: value for key, value in self.recording.snapshot().items()
+                                      if key in ("recordingPath", "sessionId", "branchId", "status")}
         self.load(plan)
         stop = on_divergence == "stop"
 
@@ -1655,6 +1667,7 @@ class EmulatorWorker:
             "toActionIndex": end, "replayedActions": replayed, "comparedFrames": comparison.compared,
             "coverage": comparison.coverage, "deterministic": not nondeterminism,
             **({"knownNondeterminism": nondeterminism} if nondeterminism else {}),
+            **({"endedSession": ended} if ended is not None else {}),
         }
         if self.recording is not None and self.recording.status == "recording":
             self.recording.replayed({"source": {key: report["source"][key] for key in ("recordingPath", "sessionId", "branchId", "romSha256")},

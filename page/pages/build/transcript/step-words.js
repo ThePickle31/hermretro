@@ -102,6 +102,7 @@ const STEP_WORDS = {
   toolchain_doctor: ['Checking the toolchain', 'Checked the toolchain'],
   studio_device_cli: ['Setting up the Chromatic tools', 'Set up the Chromatic tools'],
   game_info: ['Writing the game card', 'Wrote the game card'],
+  playtest: ['Running the test plan', 'Ran the test plan'],
   device: ['Checking the Chromatic', 'Checked the Chromatic'],
   device_capture: ['Opening the Chromatic feed', 'Opened the Chromatic feed'],
   play: ['Streaming to the Chromatic', 'Streamed to the Chromatic'],

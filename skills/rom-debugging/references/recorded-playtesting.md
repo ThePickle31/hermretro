@@ -170,6 +170,75 @@ to replay another attempt, and `branchId` for a branch other than its current
 one. Step, save checkpoints and review there as usual: a checkpoint saved after
 the replay belongs to the new ROM.
 
+## The test plan, replayed
+
+For a game with `docs/game/TEST-PLAN.md`, `chromatic_playtest` makes the plan
+executable: each check is bound to the recorded attempt that passed it, and
+one call replays every bound check on the game's ROM as it is now.
+
+Bind a check as soon as it passes, from a recording made from a fresh boot
+(`chromatic_emulator_run` with `restart:true` and `recording:{}`):
+
+```text
+chromatic_playtest {"action":"bind","check":"T3","recording":"<recordingPath>","toActionIndex":<recordingSpan.toActionIndex>}
+chromatic_playtest {"action":"bind","check":"T4","recording":"<recordingPath>","toActionIndex":57,"expect":{"scene":"Cellar","variables":{"Oil":2}}}
+```
+
+- `recording` is a `recordingPath` or session id inside the project; it may
+  still be recording. One recording can bind several checks, each at its own
+  `toActionIndex` (the `recordingSpan.toActionIndex` of the step where that
+  check passed; required while the recording is still being made, else all
+  of its actions).
+- F1 binds only the whole run from power-on to the ending, stopped with
+  `chromatic_emulator_recording {"action":"stop","outcome":"passed"}` once the
+  ending shows, with no checkpoint restores and no `toActionIndex`.
+- `expect` says what the replay must end in. Without it, every compared frame
+  must match the recording (`frames:"match"`). With `scene` (the scene's
+  name) or `variables` (names or symbols and values), those decide instead and
+  the frames may change, so a check survives art and layout edits; they are
+  read where the inputs end, which needs the ROM `chromatic_rom_build` made in
+  this chat from the current source.
+- Binding a check again replaces its binding and its result;
+  `{"action":"unbind","check":"T3"}` removes both. When a check's words change
+  in the plan, its binding is `stale` and is not replayed: play the check again
+  and bind the new recording. The answer lists the open checks still `stale`
+  or `unbound`.
+
+After every rebuild, run them all instead of choosing what to replay:
+
+```text
+chromatic_playtest {}
+chromatic_playtest {"checks":["T3","T4"]}
+```
+
+Each check answers `passed`; `sampled` (its frames matched, but the recording
+kept only some of them to compare: record it again from a fresh boot and bind
+it); `failed` (the replay showed something else: its `divergence` frame, the
+`observed` scene and variables, the `problems`); or `error` (it could not be
+judged: a refused replay, a recording folder that now holds another attempt, a
+ROM in ROM debug mode). `evidence` holds the saved `expected`, `actual` and
+`end` images. A failure you caused on purpose (new art, a moved door) is not a
+regression: play that check again with `recording:{}` and bind the new
+recording. Each check is one replay that judges itself in the same call, so
+nothing comes between; each replay ends the emulator session, and the last one
+stays open where it ended. When the run ended an attempt that was still being
+recorded, `endedSession` names it (it is kept, stopped). Nothing is kept when a
+build finished during the run or a call was refused: run it again.
+
+F1's replay is recorded (in `artifacts/playtest-runs/`, which keeps the newest
+four within the folder's budget, never a bound one) and stopped in the same
+call with its result as the outcome. When it passed or failed, `finishRun`
+names it: give it to `chromatic_build_report` as `finishRun` with F1's result.
+The report is held to the results on its ROM: a check that failed cannot be
+reported `passed`, and one replayed cannot be reported `not run`. A check that
+answered `error` is reported `passed` only with that check's `evidence`: the
+recording of this ROM that shows it passing, which you played yourself.
+
+Bound recordings stay in `artifacts/playtests/`: never archive or delete one,
+and record check runs with a smaller budget
+(`recording:{"maxBytes":16777216}`, 16 MiB) so the folder's 1 GiB of reserved budgets
+holds them all (see the limits below).
+
 ## Checkpoints are for the same build
 
 Saving needs two things, or it is refused:
@@ -289,7 +358,8 @@ Schema-v1 archives remain readable through recording status/export, review,
 and clip tools after close or a server restart. Reader compatibility does not
 make old checkpoints compatible with a different worker. Preserve old recipe
 files as user data; the plugin has no recipe runner. Retest a rebuild with
-`chromatic_emulator_replay` of a recorded attempt.
+`chromatic_playtest` (the test plan's bound checks) or `chromatic_emulator_replay`
+of a recorded attempt.
 
 Generated evidence remains separate from authored game assets. Keep failed
 attempts until they are understood, delete only with the owner's permission,

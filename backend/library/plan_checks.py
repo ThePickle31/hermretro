@@ -4,7 +4,7 @@ report of a game with one gives each of its open checks a result (``report_tools
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 PLAN_FILE = Path("docs", "game", "TEST-PLAN.md")
@@ -18,6 +18,7 @@ MAX_CHECKS = 100
 # A check written as a line instead of a table row: "T1: Given ..., when ..., then ...".
 CHECK_LINE = re.compile(r"^\s*(?:[-*+]\s+)?[`*_]*([A-Za-z0-9-]+)[`*_]*\s*:\s+(.*)$")
 LINE_SUPERSEDED = re.compile(r"^\W*superseded\b|\bstatus\s*:\s*superseded\b", re.IGNORECASE)
+LINE_STATUS = re.compile(r"\bstatus\s*:", re.IGNORECASE)  # a check line's status, which is no part of what it says
 STATUS_COLUMNS = ("status", "result")
 # The check every plan has for one run from power-on to the ending (the game-planning template's F1); a report that
 # gives it a played result names that run's recording (report_tools.py, finish_run.py).
@@ -28,6 +29,9 @@ FINISH_CHECK = "F1"
 class Plan:
     checks: list[str]  # the open check IDs in order, as the plan writes them
     unreadable: list[str]  # first cells of check-table rows that are no check ID
+    # What each open check says, by check key: its row's cells but the status, or its line's text, spaces collapsed.
+    # A check whose words change is another check to what was bound to or replayed for it (playtest.py).
+    definitions: dict[str, str] = field(default_factory=dict)
 
 
 def plan_path(root: Path) -> Path:
@@ -59,13 +63,15 @@ def read_plan(root: Path) -> Plan | None:
         return None
     checks: list[str] = []
     unreadable: list[str] = []
+    definitions: dict[str, str] = {}
     seen: set[str] = set()
 
-    def add(identifier: str, superseded: bool) -> None:
+    def add(identifier: str, superseded: bool, words: list[str]) -> None:
         if check_key(identifier) not in seen:
             seen.add(check_key(identifier))
             if not superseded:
                 checks.append(identifier)
+                definitions[check_key(identifier)] = " | ".join(" ".join(word.split()) for word in words)
 
     header = None  # the header cells of the table the line is in
     in_results = False
@@ -76,7 +82,7 @@ def read_plan(root: Path) -> Plan | None:
             header = None
             match = CHECK_LINE.match(line)
             if not in_results and match and CHECK_ID.match(match[1]):
-                add(match[1], bool(LINE_SUPERSEDED.search(match[2])))
+                add(match[1], bool(LINE_SUPERSEDED.search(match[2])), [LINE_STATUS.split(match[2], 1)[0]])
             continue
         cells = _cells(line)
         if header is None:
@@ -89,5 +95,6 @@ def read_plan(root: Path) -> Plan | None:
             unreadable.append(identifier)
             continue
         status = next((index for index, name in enumerate(header) if name in STATUS_COLUMNS), None)
-        add(identifier, status is not None and status < len(cells) and "superseded" in cells[status].lower())
-    return Plan(checks, unreadable)
+        superseded = status is not None and status < len(cells) and "superseded" in cells[status].lower()
+        add(identifier, superseded, [cell for index, cell in enumerate(cells[1:], 1) if index != status])
+    return Plan(checks, unreadable, definitions)

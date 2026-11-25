@@ -57,8 +57,8 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). Besides them, the
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
   `chromatic_present_game` (shows the built game in the Studio emulator beside the chat; see
-  `.agents/skills/hermretro-dev-page/references/player.md`), `chromatic_game_info` (the game card, below) and `chromatic_build_report`
-  (the Build page's build card, below).
+  `.agents/skills/hermretro-dev-page/references/player.md`), `chromatic_game_info` (the game card, below), `chromatic_playtest`
+  (the test plan's bound checks replayed, below) and `chromatic_build_report` (the Build page's build card, below).
 - Skills are loaded as `skill_view("hermretro:<skill>")`:
   `setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`.
 
@@ -349,7 +349,8 @@ one or two sentences. It stores nothing: the page reads the tool call and its re
 ```
 args   { title (1–48), summary (1–280), changes?: [{ kind: added|changed|removed, text (1–100), asset? }] (≤8),
          tested?: [1–80] (≤6), untested?: [1–80] (≤6),
-         checks?: [{ id (1–9), text (1–80), result: passed|failed|not run|blocked|needs review }] (≤100),
+         checks?: [{ id (1–9), text (1–80), result: passed|failed|not run|blocked|needs review,
+                     evidence? (1–4096) }] (≤100),
          difficulty? (1–200), finishRun? (1–4096), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
 result { ok: true, report: { title, summary, changes[], tested[], untested[], checks[], difficulty /* or null */,
                              finishRun: { recordingPath, sessionId, status, frames, outcome? } /* or null */,
@@ -385,6 +386,100 @@ as it is now (its `rom.sha256` against `build/game.gbc` or `build/game.gb`), alr
 checkpoint. In a game with a test plan, a report giving `F1` (`plan_checks.FINISH_CHECK`, the template's finishable
 check) `passed` or `failed` needs `finishRun`, and a `passed` one needs a recording that ended `stopped` (not
 `failed` or `cancelled`); a report without `finishRun` otherwise adds a warning saying it shows no recorded run.
+
+`chromatic_build_report` also holds `checks` to `chromatic_playtest`'s last run on the game's ROM as it is now (below;
+`report_plan.playtest_problems`): a check that run gave `failed` or `error` cannot be reported `passed`, and one it
+gave `passed` or `failed` cannot be reported `not run`; each reported check it ran gains `playtest: { result, ranAt }`
+in the answer's `report.checks` (the page keeps only `{ id, text, result }`). A bound check reported `passed` with no
+run on this ROM adds a warning.
+
+## The test plan, replayed (`chromatic_playtest`)
+
+A check of `docs/game/TEST-PLAN.md` can be bound to a recorded attempt; `chromatic_playtest` replays every bound check
+on the game's ROM as it is now (`backend/library/playtest.py`, `playtest_run.py`, `playtest_tools.py`). It calls the
+engine as the chat (`host.engine_call`, so the chat's state follows the replays), never touches a device, and is the
+main conversation's: a subagent's call is refused (`PARENT_ONLY`) before anything is read from the engine or written.
+Every answer, a refusal included, keeps the note after a compaction first as `hermretroContext` and the broker's
+notices (joined) as `notice`.
+
+```
+bind   args   { action: "bind", check (1–9), recording (1–4096: a recordingPath or 32-hex session id),
+                branchId? ("branch-NNNN"), toActionIndex? (≥ 0), expect?: { frames?: match|ignore, scene? (1–256),
+                variables?: { name: integer -32768–65535 } (1–8) }, project? }
+       result { ok: true, binding: BINDING /* recording absolute */, bound[], stale[], unbound[], retired[], nextStep }
+            | { ok: false, code: "INVALID_BINDING", problems[], error, nextStep }
+unbind args   { action: "unbind", check, project? }
+       result { ok: true, removed /* bool */, bound[], stale[], unbound[], retired[] }
+run    args   { action?: "run", checks?: [id] (≤100), project? }
+       result { ok: true, project, rom: { path, sha256 }, ranAt /* ms */,
+                counts: { passed, sampled, failed, error, stale, unbound }, checks: [CHECK], stale[], unbound[],
+                retired[], finishRun /* F1's recorded replay when it passed or failed, else null */,
+                endedSession?: { romSha256, frame, recording?: { recordingPath, sessionId, branchId, status } },
+                nextStep }
+            | { ok: false, code: "NOT_RUN", error, nextStep }
+CHECK  { id, result: passed|sampled|failed|error, recordingPath /* the bound recording */, sessionId, branchId,
+         toActionIndex, expect, revision /* the binding's */,
+         replay: { status: matched|diverged, replayedActions, toActionIndex, actionCount, comparedFrames,
+                   coverage, deterministic, frame } /* or null when the replay was refused */,
+         divergence: { frame, actionIndex, lastMatchedFrame, differingFrames? } /* or null */,
+         observed: { scene?, variables? } /* or null */, problems[], notes[],
+         evidence: { expected?, actual?, end? /* saved image paths */, recordingPath? /* F1's recorded replay */ } }
+BINDING { id, check /* digest of the check's words */, recording, sessionId, branchId, toActionIndex /* or null */,
+          expect: { frames, scene?, variables? }, romSha256 /* the ROM the recording played */, boundAt /* ms */,
+          revision /* digest of the fields above but romSha256 */ }
+```
+
+`bound`, `stale`, `unbound` and `retired` are check IDs: open checks with a binding, with one made before the check's
+words changed (bind it again; a run skips it, and `checks` naming it is `NOT_RUN`), and with none, and bindings of
+checks no longer open (superseded or removed), which a run skips. A check's words are its row's cells but the
+Status/Result cell, or its line's text before any `Status:` (`plan_checks.Plan.definitions`), spaces collapsed; a
+retired ID used again for other words is stale. A binding needs a plan that lists the check open, a recording inside
+the project (`finish_run.find_recording`: its manifest and journal agree), the branch among the recording's, and
+`toActionIndex` while the recording still has `status: "recording"`; such a recording's branches and session come from
+the engine (`emulator_recording {action: "status"}`), since its `recording.json` lists only the branches it started
+with. F1 (`plan_checks.FINISH_CHECK`) binds only a whole run (no `toActionIndex`) that ended, restored no checkpoint
+and was stopped with outcome `passed`. `expect.frames` defaults to `match` without `scene` or `variables`, else
+`ignore`; `ignore` alone is refused. Binding again or unbinding drops the check's result.
+
+A run replays the bound open checks in plan order, F1 last, each with one `emulator_replay` `{ romPath, recordingPath,
+sessionId, branchId, toActionIndex?, onDivergence, expect, recording: false }` (`onDivergence: "stop"` for frames
+alone, `continue` when a scene or variables decide). The engine refuses a replay whose folder holds another attempt
+than `sessionId` (an older build's recording of that attempt is fine), and judges `expect` in the same queued emulator
+operation (`verdict { outcome: passed|failed|needs-review, problems[], observed?, unreadable? }`: failed when `frames:
+match` and a frame differs, fewer actions than asked were played, or the scene, by name or symbol, or a variable,
+signed or unsigned, is another; needs-review when they could not be read, as in ROM debug mode). A check is `passed`,
+or `sampled` when `frames: match` and the replay's `coverage` is not `every-frame` (only the frames the recording kept
+were compared); `failed`; or `error` for needs-review, a replay the engine refused, or the engine replaying another
+session. F1's replay is recorded in `artifacts/playtest-runs/<id>-<time>/` with `maxBytes` twice what its source used
+(16 to 512 MiB) and `finishRecording: true`, so the same operation stops it with the verdict as its outcome. It is
+F1's evidence (and the run's `finishRun`) only when `finish_run.read_run` takes it (this ROM, ended, no restore,
+journal agrees) with outcome `passed` (all of the run's actions replayed) or `failed`; else F1 is `error`. Before it,
+the oldest finished recordings this module named there (`RUN_NAME`) are removed until one more fits by count
+(`KEEP_RUNS`, 4) and by reserved bytes (1 GiB, the engine's bound per folder); never one a binding or a kept result
+names. `endedSession` is the session the run's first replay ended; a recording with `status: "recording"` there was
+an attempt still being made, which the replay stopped (and kept).
+
+Nothing is kept when the broker refused a call before it ran (`denied`, or not dispatched): the run answers `NOT_RUN`
+and earlier results stay. Nothing is kept either when a replay's `romSha256` is not the ROM the run hashed, or the ROM
+changed by the end of the run. Otherwise each result is kept only when its check's binding still has the revision it
+ran for (a check bound again or unbound meanwhile gets the note "Not kept").
+
+State (`.hermretro/playtest.json`, under the game folder's lock, read once per call as `playtest.read`):
+
+```
+{ version: 1, bindings: { <CHECK KEY>: BINDING /* recording relative to the project */ },
+  results: { <CHECK KEY>: { id, result, ranAt, romSha256, revision, check, problems[] (≤4), notes[] (≤4),
+                            coverage?, recordingPath? /* F1's recorded replay */ } } }
+```
+
+Check keys are `plan_checks.check_key` (upper case). A result stands (`playtest.current(plan, state, rom)`) only while
+its `romSha256` is the game's ROM, its `revision` its check's binding's and its `check` the binding's and the plan's
+digest of the check's words. A run of some checks leaves the others' results. `chromatic_build_report` holds each
+reported check to the result that stands: `passed` is refused for `failed`, and for `error` unless the check gives
+`evidence` (a recording in the project of this ROM, a path or session id; the check's `playtest` then has
+`verifiedBy`); `not run` is refused for `passed`, `sampled` or `failed`; `passed` for `sampled` adds a warning, as
+does `passed` for a bound check with no result on this ROM. Each reported check with a result gets
+`playtest: { result, ranAt, verifiedBy? }`.
 
 ## Build history (snapshots)
 

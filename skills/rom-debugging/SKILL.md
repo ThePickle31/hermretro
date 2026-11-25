@@ -117,8 +117,19 @@ not repeat it to recover evidence; use inert observation or `chromatic_emulator_
 of a retained interval. See [stepped playtesting](references/stepped-playtesting.md)
 for execution status, contact sheets, cancellation, and cleanup.
 
-Play with `recording:{}` on a fresh boot so the route can be replayed. **After
-every rebuild, replay the recorded attempt onto the new ROM instead of playing
+Play with `recording:{}` on a fresh boot so the route can be replayed. For a
+game with a test plan, **bind each check to the recording as it passes, and
+after every rebuild run `chromatic_playtest {}`** instead of choosing what to
+replay yourself: it replays every bound check on the new ROM and answers
+`passed`, `sampled`, `failed` or `error` for each
+([the test plan, replayed](references/recorded-playtesting.md#the-test-plan-replayed)).
+
+```text
+chromatic_playtest {"action":"bind","check":"T3","recording":"<recordingPath>","toActionIndex":<recordingSpan.toActionIndex>}
+chromatic_playtest {}
+```
+
+**For any other recorded attempt, replay it onto the new ROM instead of playing
 the route again by hand:**
 
 ```text

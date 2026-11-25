@@ -1,11 +1,12 @@
 """What a build report owes the game's test plan (``docs/game/TEST-PLAN.md``): a difficulty, a result for each open
-check and, when its finishable check was played, that run's recording. Used by ``report_tools.py``."""
+check that agrees with ``chromatic_playtest``'s last run on this ROM and, when its finishable check was played, that
+run's recording. Used by ``report_tools.py``."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from . import finish_run, plan_checks
+from . import finish_run, plan_checks, playtest
 
 NO_RUN = "finishRun names no recording: this report shows no recorded run from power-on of this ROM."
 
@@ -65,4 +66,76 @@ def plan_problems(
         )
     elif not names_run:
         warnings.append(NO_RUN)
+    return problems, warnings
+
+
+def _verified(root: Path, check: dict, sha256: str | None) -> str | None:
+    """Why ``check``'s evidence is no recording of this ROM in the project, None when it is one."""
+    value = check.get("evidence")
+    if not value:
+        return "give the recording that shows it as its evidence"
+    _folder, manifest, why = finish_run.find_recording(Path(root), value, f"checks {check['id']} evidence")
+    if why:
+        return why
+    if finish_run.played_rom(manifest or {}) != sha256:
+        return f"its evidence {value} played another ROM: give a recording of this ROM"
+    return None
+
+
+def playtest_problems(root: Path, checks: list[dict]) -> tuple[list[str], list[str]]:
+    """Hold a build report's ``checks`` to the results ``chromatic_playtest`` keeps for this ROM, the check's binding
+    and its words as they are now (``playtest.current``): a check that failed cannot be reported passed, nor one it
+    judged reported not run; one it could not judge (error) is reported passed only with ``evidence``, a recording
+    of this ROM that shows it. Each check it ran gets ``playtest`` (its result, when it ran and, for an error
+    reported passed, the evidence). A bound check reported passed with no result on this ROM, or one that matched
+    only on sampled frames, adds a warning. Returns (problems, warnings)."""
+    plan = plan_checks.read_plan(root)
+    if plan is None:
+        return [], []
+    _rom, sha256, _why = finish_run.current_rom(Path(root))
+    state = playtest.read(root)
+    results = playtest.current(plan, state, sha256)
+    bound = {plan_checks.check_key(identifier) for identifier in playtest.coverage(plan, state)["bound"]}
+    problems, warnings, unplayed, sampled = [], [], [], []
+    for check in checks:
+        key = plan_checks.check_key(check.get("id") or "")
+        ran = results.get(key)
+        reported = check.get("result")
+        if ran is None:
+            if key in bound and reported == "passed":
+                unplayed.append(check["id"])
+            continue
+        check["playtest"] = {"result": ran["result"], "ranAt": ran.get("ranAt")}
+        if reported == "passed" and ran["result"] == "failed":
+            problems.append(
+                f"checks gives {check['id']} passed, but chromatic_playtest replayed it on this ROM and it failed: "
+                "report it failed, or fix the game, rebuild and run chromatic_playtest again (for a change made on "
+                "purpose, bind a new recording of the check)."
+            )
+        elif reported == "passed" and ran["result"] == "error":
+            why = _verified(root, check, sha256)
+            if why:
+                problems.append(
+                    f"checks gives {check['id']} passed, but chromatic_playtest could not judge it on this ROM "
+                    f"({'; '.join(ran.get('problems') or []) or 'error'}): {why}, or fix what it said and run it again."
+                )
+            else:
+                check["playtest"]["verifiedBy"] = check["evidence"]
+        elif reported == "not run" and ran["result"] in ("passed", "sampled", "failed"):
+            problems.append(
+                f"checks gives {check['id']} not run, but chromatic_playtest replayed it on this ROM and it "
+                f"{'passed' if ran['result'] == 'sampled' else ran['result']}: report that result."
+            )
+        elif reported == "passed" and ran["result"] == "sampled":
+            sampled.append(check["id"])
+    if unplayed:
+        warnings.append(
+            f"{', '.join(unplayed)} {'is' if len(unplayed) == 1 else 'are'} bound to a recording, but "
+            "chromatic_playtest has not replayed them on this ROM: run it after every rebuild."
+        )
+    if sampled:
+        warnings.append(
+            f"{', '.join(sampled)} matched only on the frames {'its' if len(sampled) == 1 else 'their'} recording "
+            "kept: record the check again from a fresh boot and bind it, so every frame is compared."
+        )
     return problems, warnings

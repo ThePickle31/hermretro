@@ -35446,8 +35446,11 @@ var EmulatorService = class {
   async replay(romPath, options = {}, signal) {
     if (signal?.aborted)
       throw new EmulatorError("The emulator replay request was cancelled before execution");
-    if (options === null || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["recordingPath", "branchId", "toActionIndex", "onDivergence", "recording", "symbols"].includes(key))) {
-      throw new EmulatorError("Replay accepts recordingPath, branchId, toActionIndex, onDivergence, recording and symbols");
+    if (options === null || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["recordingPath", "sessionId", "branchId", "toActionIndex", "onDivergence", "recording", "symbols"].includes(key))) {
+      throw new EmulatorError("Replay accepts recordingPath, sessionId, branchId, toActionIndex, onDivergence, recording and symbols");
+    }
+    if (options.sessionId !== void 0 && (typeof options.sessionId !== "string" || !/^[0-9a-f]{32}$/u.test(options.sessionId))) {
+      throw new EmulatorError("Replay sessionId must be a recording's 32-character session id");
     }
     const validatedRom = this.#resolveRom(romPath);
     if (options.toActionIndex !== void 0)
@@ -35464,6 +35467,7 @@ var EmulatorService = class {
     const replayed = await this.#openSession("replay", {
       romPath: validatedRom,
       ...source,
+      ...options.sessionId === void 0 ? {} : { sessionId: options.sessionId },
       ...options.toActionIndex === void 0 ? {} : { toActionIndex: options.toActionIndex },
       ...options.onDivergence === void 0 ? {} : { onDivergence: options.onDivergence },
       ...recording === void 0 ? {} : { recording },
@@ -60602,6 +60606,12 @@ var recordingOptionsSchema = external_exports.object({
   maxFrames: external_exports.number().int().min(1).max(216e3).optional(),
   maxWallTimeMs: external_exports.number().int().min(1).max(36e5).optional()
 }).strict();
+var MAX_REPLAY_EXPECTED_VARIABLES = 8;
+var replayExpectSchema = external_exports.object({
+  frames: external_exports.enum(["match", "ignore"]).optional().describe("match (default): a frame that differs from the recording fails; ignore: only the scene and variables decide (replay with onDivergence:'continue')."),
+  scene: external_exports.string().trim().min(1).max(256).optional().describe("The scene's name or symbol where the replay ends, read in source debug mode."),
+  variables: external_exports.record(external_exports.string().trim().min(1).max(256), external_exports.number().int().min(-32768).max(65535)).optional().describe(`Up to ${MAX_REPLAY_EXPECTED_VARIABLES} variable names or symbols and their values where the replay ends, read in source debug mode.`)
+}).strict();
 var recordingPrefixPinSchema = external_exports.object({
   eventCount: external_exports.number().int().min(1).max(MAX_EMULATOR_RECORDING_EVENTS),
   eventDigest: external_exports.string().regex(/^[0-9a-f]{64}$/u),
@@ -70513,25 +70523,45 @@ function createGbStudioServer(options = {}) {
   }, async ({ romPath, debugMode, ...options2 }, extra) => safely(() => performEmulatorOperation((signal) => runEmulator(romPath, options2, debugMode, signal), extra.signal)));
   server.registerTool("emulator_replay", {
     title: "Replay a recorded attempt on a ROM",
-    description: "Boot a ROM, usually one rom_build just rebuilt, the way a recorded attempt booted and play that attempt's inputs again in one call, comparing every frame with the attempt's (coverage:'retained-frames' when an older recording kept only its sampled images). Use it after each rebuild instead of replaying a route by hand. By default the replay stops at the first frame that differs and returns the recorded and replayed images; onDivergence:'continue' plays every input and reports the first difference; toActionIndex replays only up to that action (a recordingSpan's toActionIndex). A replay that starts ends the current session (a refused one leaves it running); the new session stays open where the replay ended, with the last recorded buttons still held, and is recorded as a new attempt (recording:false records nothing), so emulator_step, checkpoints and review continue from there. A cartridge with a real-time clock replays best effort (deterministic:false). Images are the source's retained frame (expected, when it kept one there), the replay's frame at the difference (actual) and the final frame (end).",
+    description: "Boot a ROM, usually one rom_build just rebuilt, the way a recorded attempt booted and play that attempt's inputs again in one call, comparing every frame with the attempt's (coverage:'retained-frames' when an older recording kept only its sampled images). Use it after each rebuild instead of replaying a route by hand. By default the replay stops at the first frame that differs and returns the recorded and replayed images; onDivergence:'continue' plays every input and reports the first difference; toActionIndex replays only up to that action (a recordingSpan's toActionIndex). A replay that starts ends the current session (a refused one leaves it running); the new session stays open where the replay ended, with the last recorded buttons still held, and is recorded as a new attempt (recording:false records nothing), so emulator_step, checkpoints and review continue from there. A cartridge with a real-time clock replays best effort (deterministic:false). Images are the source's retained frame (expected, when it kept one there), the replay's frame at the difference (actual) and the final frame (end). replay.endedSession names the session it ended (with its recording, which it finished when still recording). expect asks for a verdict in the same call (passed, failed, or needs-review when the scene or variables could not be read), and finishRecording stops the replay's recording with that verdict as its outcome, also in the same call, so no other call can come between.",
     inputSchema: external_exports.object({
       romPath: boundedPath2.describe("The ROM to replay on: the exact cartridge path returned by rom_build or rom_inspect."),
       recordingPath: boundedPath2.optional().describe("The recorded attempt to replay; defaults to the source of a replay that stopped before the end of its route, else the current or most recent recording."),
+      sessionId: external_exports.string().regex(/^[0-9a-f]{32}$/u).optional().describe("The attempt's sessionId: the replay is refused, leaving the current session running, when recordingPath holds another attempt."),
       branchId: external_exports.string().max(100).regex(/^branch-[0-9]{4,}$/u).optional().describe("The attempt's branch to replay; defaults to its current branch."),
       toActionIndex: external_exports.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional().describe("Replay the attempt's actions up to and including this index, such as a recordingSpan's toActionIndex; defaults to all of them."),
       onDivergence: external_exports.enum(["stop", "continue"]).optional().describe("stop (default) ends the replay at the first frame that differs; continue plays every input anyway."),
       recording: external_exports.union([external_exports.literal(false), recordingOptionsSchema]).optional().describe("The replay is recorded with the source attempt's limits; an options object overrides them; false records nothing."),
+      expect: replayExpectSchema.optional().describe("What the replay must end in; the result's verdict judges it."),
+      finishRecording: external_exports.boolean().optional().describe("true stops the replay's recording where it ended, with the verdict as its outcome; needs a recorded replay."),
       debugMode: external_exports.enum(["rom", "source"]).optional().describe("Omit for source when rom_build captured debug artifacts for this exact cartridge in this session, else rom; source requires them; rom turns source debugging off."),
       includeImages: external_exports.boolean().optional().describe("Set false to receive the report without images."),
       scale: external_exports.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels; image hashes stay those of the native frames."),
       colorCorrection: emulatorColorCorrection.optional()
     }).strict(),
     annotations: { ...changeSession2, destructiveHint: true }
-  }, async ({ romPath, debugMode, includeImages = true, scale, colorCorrection, ...options2 }, extra) => {
+  }, async ({ romPath, debugMode, includeImages = true, scale, colorCorrection, expect, finishRecording = false, ...options2 }, extra) => {
     try {
+      if (finishRecording && options2.recording === false)
+        throw new EmulatorError("finishRecording stops the replay's recording; leave recording on");
+      if (expect?.frames === "ignore" && expect.scene === void 0 && expect.variables === void 0)
+        throw new EmulatorError("expect checks nothing: give a scene or variables, or leave frames as match");
+      if (expect?.variables !== void 0 && !(Object.keys(expect.variables).length >= 1 && Object.keys(expect.variables).length <= MAX_REPLAY_EXPECTED_VARIABLES))
+        throw new EmulatorError(`expect.variables names 1 to ${MAX_REPLAY_EXPECTED_VARIABLES} variables`);
       return await performEmulatorOperation(async (signal) => {
         const replayed = await replayEmulator(romPath, options2, debugMode, signal);
         const colors = frameColors(replayed, colorCorrection);
+        const verdict = expect === void 0 && !finishRecording ? void 0 : await replayVerdict(replayed, expect ?? {});
+        let recording = replayed.recording === void 0 ? void 0 : { recordingPath: replayed.recording.recordingPath, sessionId: replayed.recording.sessionId, branchId: replayed.recording.branchId };
+        if (finishRecording && recording !== void 0) {
+          const reason = [...verdict.problems, ...verdict.unreadable === void 0 ? [] : [verdict.unreadable]].join(" ").slice(0, 2e3);
+          try {
+            const stopped = await emulator.recordingStop({ outcome: verdict.outcome, ...reason ? { reason } : {} });
+            recording = { ...recording, status: stopped.status, outcome: stopped.outcome };
+          } catch (error2) {
+            recording = { ...recording, finishError: error2 instanceof Error ? error2.message : String(error2) };
+          }
+        }
         const result = toolResult({
           romSha256: replayed.romSha256,
           frame: replayed.frame,
@@ -70539,9 +70569,8 @@ function createGbStudioServer(options = {}) {
           debugMode: replayed.debugMode,
           ...replayed.sourceDebug === void 0 ? {} : { sourceDebug: replayed.sourceDebug },
           replay: replayed.replay,
-          ...replayed.recording === void 0 ? {} : {
-            recording: { recordingPath: replayed.recording.recordingPath, sessionId: replayed.recording.sessionId, branchId: replayed.recording.branchId }
-          },
+          ...verdict === void 0 ? {} : { verdict },
+          ...recording === void 0 ? {} : { recording },
           images: replayed.samples.map(({ role, frame: frame3, sha256 }) => ({ role, frame: frame3, sha256 })),
           imageDelivery: {
             status: includeImages ? "available" : "omitted",
@@ -70559,6 +70588,54 @@ function createGbStudioServer(options = {}) {
       return errorResult(error2);
     }
   });
+  /** A replay's verdict on expect, read where it ended within the replay's own operation: failed when a frame differs
+   *  (unless frames is ignore), not every input to toActionIndex played, or the scene or a variable is another;
+   *  needs-review when they could not be read; else passed. */
+  async function replayVerdict(replayed, expect) {
+    const { replay } = replayed;
+    const problems = [];
+    if ((expect.frames ?? "match") === "match" && replay.status === "diverged") {
+      const at = replay.divergence;
+      problems.push(`Frame ${at.frame} (action ${at.actionIndex}) differs from the recording; the last matching frame was ${at.lastMatchedFrame}.`);
+    } else if (replay.replayedActions !== replay.toActionIndex) {
+      problems.push(`The replay played ${replay.replayedActions} of ${replay.toActionIndex} actions.`);
+    }
+    const names = Object.keys(expect.variables ?? {});
+    const judged = (unreadable, observed) => ({
+      outcome: problems.length ? "failed" : unreadable === void 0 ? "passed" : "needs-review",
+      problems,
+      ...unreadable === void 0 ? {} : { unreadable },
+      ...observed === void 0 ? {} : { observed }
+    });
+    if (expect.scene === void 0 && names.length === 0)
+      return judged();
+    if (replayed.debugMode !== "source")
+      return judged("The scene and variables are read only on a ROM rom_build built in this session: rebuild it and replay again.");
+    let state3;
+    try {
+      state3 = await inspectSource({ includeScene: expect.scene !== void 0, referenceLimit: 0, ...names.length ? { variableNames: names } : { variableIds: [] } });
+    } catch (error2) {
+      return judged(error2 instanceof Error ? error2.message : String(error2));
+    }
+    const observed = {};
+    if (expect.scene !== void 0) {
+      observed.scene = state3.scene?.name ?? null;
+      if (expect.scene !== state3.scene?.name && expect.scene !== state3.scene?.symbol)
+        problems.push(`The replay ended in scene ${JSON.stringify(observed.scene)}, not ${JSON.stringify(expect.scene)}.`);
+    }
+    if (names.length) {
+      if (state3.variables.length !== names.length)
+        return judged("expect.variables names one variable twice: name it once.", observed);
+      observed.variables = {};
+      names.forEach((name3, index) => {
+        const variable = state3.variables[index];
+        observed.variables[name3] = variable.value;
+        if (expect.variables[name3] !== variable.value && expect.variables[name3] !== variable.unsignedValue)
+          problems.push(`${name3} is ${variable.value} where the replay ended, not ${expect.variables[name3]}.`);
+      });
+    }
+    return judged(void 0, observed);
+  }
   function compactObservation(observation) {
     const { fromPrefixPin: _fromPrefixPin, ...recordingSpan } = observation.recordingSpan ?? {};
     return {

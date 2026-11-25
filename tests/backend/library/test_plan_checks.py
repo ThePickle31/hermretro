@@ -76,7 +76,19 @@ class OpenChecks(unittest.TestCase):
             "## Results · 2026-11-22\n"
             "T9: passed on the last ROM.\n"
         )
-        self.assertEqual(plan_checks.read_plan(self.root), plan_checks.Plan(["T1", "T2"], []))
+        definitions = {
+            "T1": "Given a fresh boot, when startup finishes, then a frog appears. PyBoy frames.",
+            "T2": "Given a resting frog, when A is pressed, a croak plays.",
+        }
+        self.assertEqual(plan_checks.read_plan(self.root), plan_checks.Plan(["T1", "T2"], [], definitions))
+
+    def test_a_checks_definition_is_what_it_says_without_its_status(self):
+        self.plan(
+            "| ID | Given | Then | Status |\n|---|---|---|---|\n| T1 | a  fresh boot | a frog   appears | passed |\n"
+        )
+        self.assertEqual(plan_checks.read_plan(self.root).definitions, {"T1": "a fresh boot | a frog appears"})
+        self.plan("T1: Given a fresh boot, a frog appears. Status: passed\n")
+        self.assertEqual(plan_checks.read_plan(self.root).definitions, {"T1": "Given a fresh boot, a frog appears."})
 
     def test_a_plan_without_checks_has_none(self):
         self.plan("# Test plan\nEvery check is observable.\n")

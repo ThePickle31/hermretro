@@ -10,7 +10,7 @@ from .. import player as player_server
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
-from . import game_card, layout, report_tools
+from . import game_card, layout, playtest_tools, report_tools
 from . import games as library
 from .tool_args import tool_error, tool_project
 
@@ -284,5 +284,6 @@ def game_info_handler(args: dict, **kwargs) -> str:
 TOOLS = (
     Tool(PRESENT_TOOL, present_game_handler, step_words=("Handing you the game", "Handed you the game")),
     Tool(GAME_INFO_TOOL, game_info_handler, step_words=("Writing the game card", "Wrote the game card")),
+    *playtest_tools.TOOLS,
     *report_tools.TOOLS,
 )

@@ -87,10 +87,13 @@ approved by the user, that the build and test work follows.
 5. **Hand off.** Once approved, load `hermretro:authoring` and build every
    in-scope item in one go: a build along the way is a checkpoint, not a
    hand-off. Run `TEST-PLAN.md` checks with `hermretro:rom-debugging` and
-   record results against the exact ROM SHA-256; use `hermretro:pixel-art` for
+   record results against the exact ROM SHA-256; bind each check to the
+   recording that passed it (`chromatic_playtest` with action `bind`) and run
+   `chromatic_playtest {}` after every rebuild to replay them all; use `hermretro:pixel-art` for
    art and palettes. Present the game only when all of it is in.
 6. **Report against the plan.** Every `chromatic_build_report` for a game with
-   a test plan gives each open check its result on that build's ROM (`checks`)
+   a test plan gives each open check its result on that build's ROM (`checks`;
+   a bound check's result agrees with the last `chromatic_playtest` run on it)
    and a `difficulty` statement from your own finishable run; the tool refuses
    the report without them. When F1 is `passed` or `failed`, `finishRun` names
    that run's recording, which must be of this ROM with no checkpoint restores. A check you did not play on this ROM is `not run`,
