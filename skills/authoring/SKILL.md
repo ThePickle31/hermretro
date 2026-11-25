@@ -80,6 +80,8 @@ Verify the change at the level the request needs: reread the native resources, b
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
   For a game with `docs/game/TEST-PLAN.md` it needs each open check's result on this ROM (`checks`) and a
   `difficulty` statement from your own [finishable](../rom-debugging/SKILL.md#finishable) run, or it is refused.
+  When the ending was unreachable, the run was skipped or the game has no ending, report that (F1 `failed` or
+  `not run`, and why in `difficulty`), as `hermretro:game-planning` step 6 says.
 - The references say MCP for the engine behind the `chromatic_*` tools.
 - Links into `../<skill>/` are sibling hermretro skills: open them with
   `skill_view("hermretro:<skill>", file_path="references/<file>")`.

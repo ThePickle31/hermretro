@@ -3,10 +3,12 @@ import { REPORT_TOOL } from '#app/tools.js'
 
 const REPORT_KINDS = new Set(['added', 'changed', 'removed'])
 const CHECK_RESULTS = new Set(['passed', 'failed', 'not run', 'blocked', 'needs review'])
+// backend/library/plan_checks.py: MAX_CHECKS and MAX_CHECK_ID.
+const MAX_CHECKS = 100
+const MAX_CHECK_ID = 9
 
 /** The build card a turn reported (`chromatic_build_report` arguments or its result's `report`), trimmed
- *  to what the card shows; null when it has no title or summary. Test-plan checks join the tested lines when
- *  they passed and the untested ones otherwise, with their result unless it is "not run". */
+ *  to what the card shows; null when it has no title or summary. Test-plan checks stay `{ id, text, result }`. */
 export function normalizeReport(value) {
   if (!value || typeof value !== 'object') {
     return null
@@ -22,12 +24,9 @@ export function normalizeReport(value) {
   }
 
   const checks = (Array.isArray(value.checks) ? value.checks : [])
-    .map(check => ({ id: line(check?.id, 8), text: line(check?.text, 100), result: CHECK_RESULTS.has(check?.result) ? check.result : 'not run' }))
+    .map(check => ({ id: line(check?.id, MAX_CHECK_ID), text: line(check?.text, 100), result: CHECK_RESULTS.has(check?.result) ? check.result : 'not run' }))
     .filter(check => check.id && check.text)
-    .slice(0, 30)
-  const checkLines = passed => checks
-    .filter(check => (check.result === 'passed') === passed)
-    .map(check => `${check.id} \u00B7 ${check.text}${passed || check.result === 'not run' ? '' : ` (${check.result})`}`)
+    .slice(0, MAX_CHECKS)
 
   return {
     title,
@@ -40,11 +39,30 @@ export function normalizeReport(value) {
       }))
       .filter(change => change.text)
       .slice(0, 8),
-    tested: [...lines(value.tested, 6, 100), ...checkLines(true)],
-    untested: [...lines(value.untested, 6, 100), ...checkLines(false)],
+    tested: lines(value.tested, 6, 100),
+    untested: lines(value.untested, 6, 100),
+    checks,
     difficulty: line(value.difficulty, 240),
     notes: lines(value.notes, 3, 200),
     suggestions: lines(value.suggestions, 4, 60)
+  }
+}
+
+export const checkLine = check => `${check.id} \u00B7 ${check.text}`
+
+/** The card's lines: what was play-tested (with the checks that passed), the checks that failed, and what was
+ *  not tested (with the checks not run, blocked or left for the user's review, with that result). */
+export function reportLines(report) {
+  const checks = report?.checks ?? []
+  const settled = new Set(['passed', 'failed'])
+
+  return {
+    tested: [...(report?.tested ?? []), ...checks.filter(check => check.result === 'passed').map(checkLine)],
+    failed: checks.filter(check => check.result === 'failed').map(checkLine),
+    untested: [
+      ...(report?.untested ?? []),
+      ...checks.filter(check => !settled.has(check.result)).map(check => `${checkLine(check)}${check.result === 'not run' ? '' : ` (${check.result})`}`)
+    ]
   }
 }
 

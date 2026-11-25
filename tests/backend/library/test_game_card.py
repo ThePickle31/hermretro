@@ -80,18 +80,29 @@ class CoverCheck(unittest.TestCase):
         self.assertFalse(strict["complete"])
         self.assertIn("unchanged copy of assets/copied.png", strict["problems"][0])
 
-    def test_a_cover_with_an_assets_pixels_saved_again_is_a_copy_and_an_edited_one_is_not(self):
+    def test_only_a_byte_identical_png_is_a_copy_in_any_case_and_any_number_of_assets(self):
         self.png("cover.png", COVER)
-        (self.base / "assets" / "backgrounds").mkdir(parents=True)
+        backgrounds = self.base / "assets" / "backgrounds"
+        backgrounds.mkdir(parents=True)
         rows = zlib.decompress(COVER[41:-16])  # COVER's one IDAT chunk
-        title = self.png("assets/backgrounds/title.png", with_rows(rows, level=0))  # other bytes, same pixels
-        self.assertNotEqual(title.read_bytes(), COVER)
+        self.png("assets/backgrounds/title.png", with_rows(rows, level=0))  # other bytes, same pixels
+        self.png("assets/backgrounds/broken.png", COVER[:20])  # ends inside IHDR
         self.png("assets/backgrounds/small.png", encode_png(8, 8, lambda x, y: (0, 0, 0, 255)))
-        self.png("assets/backgrounds/broken.png", COVER[:30])
+        for index in range(2001):
+            (backgrounds / f"tile-{index:04}.png").write_bytes(b"\x89PNG" + bytes(4))
+        self.assertTrue(game_card.status(self.base, GOOD, strict=True)["complete"])
+        self.png("assets/backgrounds/zz-title.PNG", COVER)
         strict = game_card.status(self.base, GOOD, strict=True)
-        self.assertIn("unchanged copy of assets/backgrounds/title.png", strict["problems"][0])
-        edited = self.png("edited.png", with_rows(rows[:1] + bytes((250, 250, 240, 255)) + rows[5:]))
-        self.assertTrue(game_card.update(self.base, {}, cover_source=str(edited))["ok"])
+        self.assertIn("unchanged copy of assets/backgrounds/zz-title.PNG", strict["problems"][0])
+
+    def test_an_update_that_fails_the_final_check_writes_no_card(self):
+        self.png("cover.png", COVER)
+        self.assertTrue(game_card.update(self.base, GOOD)["ok"])
+        before = game_card.card_path(self.base).read_bytes()
+        with mock.patch.object(game_card, "status", side_effect=RuntimeError("bad")):
+            with self.assertRaises(RuntimeError):
+                game_card.update(self.base, {"tagline": "Something else entirely."})
+        self.assertEqual(game_card.card_path(self.base).read_bytes(), before)
 
     def test_the_wrong_size_too_many_colours_transparency_and_blank_are_refused(self):
         small = encode_png(80, 72, lambda x, y: (x * 3, y * 3, 0, 255))

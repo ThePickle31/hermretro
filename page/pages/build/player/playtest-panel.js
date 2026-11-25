@@ -24,6 +24,8 @@ export function KeyHints({ className = 'cs-ip-keys' }) {
 
 const STATE_NOTE = {
   untested: `${AGENT} didn\u2019t test this`,
+  review: 'Needs your review',
+  failed: `Failed in ${AGENT}\u2019s test`,
   reported: `Reported \u00b7 ${AGENT} is on it`
 }
 
@@ -61,12 +63,14 @@ function CheckItem({ item, build, asking, onToggle, onWorked, onWrong }) {
   })
 }
 
+const ASK_FIRST = new Set(['untested', 'review', 'failed', 'fixed'])
+
 function Checklist({ playtest, build, onWrong }) {
   const [asking, setAsking] = useState(null)
 
-  // Ticking a check HermRetro did not test (or one it fixed) asks how it went first.
+  // Ticking a check HermRetro did not pass (or one it fixed) asks how it went first.
   const toggle = (item, on) => {
-    if (on && (item.state === 'untested' || item.state === 'fixed')) {
+    if (on && ASK_FIRST.has(item.state)) {
       setAsking(asking === item.key ? null : item.key)
     } else {
       playtest.tick(item.key, on)

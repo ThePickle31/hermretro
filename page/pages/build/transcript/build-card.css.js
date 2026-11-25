@@ -20,6 +20,7 @@ export const BUILD_CARD_CSS = `
 .cs-b-bc-foot { align-items: center; color: var(--ui-text-tertiary); display: flex; flex-wrap: wrap; font-size: 12px; gap: 6px 14px; padding-left: 2px; }
 .cs-b-bc-foot .cs-b-link { align-items: center; display: inline-flex; gap: 3px; }
 .cs-b-ok { color: var(--ui-green); font-weight: 700; }
+.cs-b-bad { color: var(--ui-red); font-weight: 700; }
 .cs-b-bc-details { border-left: 2px solid var(--ui-stroke-tertiary); display: grid; font-size: 12.5px; gap: 12px 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-left: 2px; padding: 2px 0 4px 12px; }
 .cs-b-bc-details p { line-height: 1.45; margin: 5px 0 0; }
 .cs-b-bc-details pre { margin: 6px 0 0; white-space: pre-wrap; }

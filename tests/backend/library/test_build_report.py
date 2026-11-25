@@ -156,21 +156,59 @@ class BuildReport(unittest.TestCase):
             ([checks[0], {**checks[1], "result": "ok"}], "result must be one of"),
             ([checks[0], {**checks[1], "proof": "x"}], "unknown field 'proof'"),
             ([checks[0], {"id": "T3", "result": "failed"}], "checks[2].text"),
-            (checks[:1] * 31, "at most 30"),
+            (checks[:1] * 101, "at most 100"),
             ("T1 passed", "checks must be a list"),
         ):
             answer = self.report({**GOOD, "checks": wrong, "difficulty": difficulty})
             self.assertEqual(answer["code"], "INVALID_REPORT", wrong)
             self.assertIn(problem, answer["error"])
 
-    def test_a_test_plan_without_a_checks_table_asks_only_for_the_difficulty(self):
+    def test_a_test_plan_without_checks_asks_only_for_the_difficulty(self):
         path = plan_checks.plan_path(self.root)
         path.parent.mkdir(parents=True)
-        path.write_text("T1: Given a fresh boot, then the title shows.\n")
+        path.write_text("# Test plan\nEvery check is observable.\n")
         self.assertIn("difficulty is required", self.report(dict(GOOD))["error"])
         answer = self.report({**GOOD, "difficulty": "Easy: one screen, no way to lose."})
         self.assertTrue(answer["ok"], answer)
         self.assertIn("lists no checks", answer["warnings"][0])
+
+    def test_checks_written_as_lines_are_held_to_like_table_rows(self):
+        path = plan_checks.plan_path(self.root)
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            "# Test plan · revision 1\nT1: Given a fresh boot, then a frog appears.\n"
+            "T2: Given a resting frog, when directions are held, then it hops.\n"
+            "T3: Given a resting frog, when A is pressed, a croak plays.\n## Results · 2026-11-22\nT1 passed.\n"
+        )
+        difficulty = "No ending: a meadow to hop around in; nothing to fail."
+        refused = self.report({**GOOD, "difficulty": difficulty})
+        self.assertIn("checks has no result for T1, T2, T3", refused["error"])
+        checks = [
+            {"id": "T1", "text": "Frog in the meadow", "result": "passed"},
+            {"id": "T2", "text": "Hop and rest", "result": "passed"},
+            {"id": "T3", "text": "Croak", "result": "needs review"},
+        ]
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertTrue(answer["ok"], answer)
+        self.assertNotIn("warnings", answer)
+
+    def test_every_open_check_fits_a_report_and_a_plan_with_too_many_says_how_to_go_on(self):
+        difficulty = "Finished in one run."
+        rows = [f"T{index} | step {index} | not run" for index in range(1, 32)]
+        self.plan([*rows, "GATE_1 | the gate | not run", "`T40` | the end | passed"])
+        checks = [{"id": f"T{index}", "text": f"Step {index}", "result": "not run"} for index in range(1, 32)]
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertIn("checks has no result for T40", answer["error"])
+        checks.append({"id": "t40", "text": "The end", "result": "passed"})
+        answer = self.report({**GOOD, "checks": checks, "difficulty": difficulty})
+        self.assertTrue(answer["ok"], answer)
+        self.assertIn("no check ID, so they are not checks: GATE_1", answer["warnings"][0])
+        self.plan([f"T{index} | step {index} | not run" for index in range(1, 102)])
+        answer = self.report({**GOOD, "checks": checks[:31], "difficulty": difficulty})
+        self.assertEqual(answer["code"], "INVALID_REPORT")
+        self.assertIn("lists 101 open checks; a report holds results for at most 100", answer["error"])
+        self.assertIn("Keep every approved check", answer["error"])
+        self.assertNotIn("checks has no result", answer["error"])
 
     def test_without_a_test_plan_checks_and_difficulty_are_optional(self):
         checks = [{"id": "X1", "text": "Robin flaps", "result": "passed"}]

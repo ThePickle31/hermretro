@@ -322,7 +322,7 @@ one or two sentences. It stores nothing: the page reads the tool call and its re
 ```
 args   { title (1–48), summary (1–280), changes?: [{ kind: added|changed|removed, text (1–100), asset? }] (≤8),
          tested?: [1–80] (≤6), untested?: [1–80] (≤6),
-         checks?: [{ id (1–8), text (1–80), result: passed|failed|not run|blocked|needs review }] (≤30),
+         checks?: [{ id (1–9), text (1–80), result: passed|failed|not run|blocked|needs review }] (≤100),
          difficulty? (1–200), notes?: [1–160] (≤3), suggestions?: [1–40] (≤4), project? }
 result { ok: true, report: { title, summary, changes[], tested[], untested[], checks[], difficulty /* or null */,
                              notes[], suggestions[] },
@@ -337,10 +337,16 @@ resolvable project the report is still accepted (`project: null`) and no asset i
 kept asset's current version is saved like a delivered image, so the card keeps showing it after a rewrite.
 
 A game with a test plan (`docs/game/TEST-PLAN.md`, `backend/library/plan_checks.py`) holds every report to it:
-`difficulty` is required, and `checks` names each open check exactly once (an ID in the first column of a table whose
-header starts with `ID`, its row not marked superseded; IDs compare without case) and nothing else. A plan without
-such a table asks only for `difficulty` and adds a warning. Without a plan both are optional. The card counts a
-passed check as play-tested and any other result as not tested (`page/pages/build/chat/report.js`).
+`difficulty` is required, and `checks` names each open check exactly once and nothing else. A check is a row of a
+table whose first header cell is `ID`, superseded when its `Status` (or `Result`) cell says so, or a line `T1: ...`
+outside the sections whose heading names results, superseded when it starts with or gives `Status: superseded`.
+IDs are 1–4 letters, an optional hyphen, 1–3 digits and an optional letter (backticks and bold around them are
+ignored) and compare without case, in the plan and in the report. A check-table row with any other ID adds a
+warning naming it; a plan with no checks asks only for `difficulty` and adds a warning; one with more than 100 open
+checks refuses every report with a problem asking to combine related checks through an approved decision. Without
+a plan both are optional. The page keeps `checks` as `{ id, text, result }`: the card lists a passed check as
+play-tested, a failed one as failed and any other as not tested (`page/pages/build/chat/report.js`), and the
+play-test checklist keys a check by its ID without case, so its result on a later build replaces it.
 
 ## Build history (snapshots)
 
@@ -400,7 +406,7 @@ built game as changed. Unknown keys are kept (later fields need no migration).
   Optional: about (≤4000), tags (≤12, ≤24 chars), controls (≤12, button ≤20 chars, action ≤60 chars).
   `game.json` is at most 64 KB.
 - **Cover:** a PNG of at most 512 KB, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
-  Image Generation), not an unchanged copy of an image under `assets/` (the same file, or the same pixels saved again). Read by `backend/library/game_cover.py`
+  Image Generation), not a byte-identical copy of a PNG under `assets/` (any case of `.png`). Read by `backend/library/game_cover.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
 - `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
   project? }`: with no fields it reports the card; otherwise it checks every field and stores all or

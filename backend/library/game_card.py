@@ -347,8 +347,9 @@ def update(
     if not isinstance(data.get("version"), int) or data["version"] < VERSION:
         data["version"] = VERSION
     data["updatedAt"] = int(time.time())
+    state = status(root, data, strict=True)
     _write(root, data)
-    return {"ok": True, "card": data, "status": status(root, data, strict=True), "was_complete": was_complete}
+    return {"ok": True, "card": data, "status": state, "was_complete": was_complete}
 
 
 # -- for the desktop ---------------------------------------------------------------------

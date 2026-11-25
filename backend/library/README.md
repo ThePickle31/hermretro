@@ -6,8 +6,8 @@
 - `project.py` handles game IDs, reads project titles, settings, the game's ROM and build files. `freshness.py` says
   whether the playable copy is the current game (`export_freshness`, `source_digest`, `sources_newer_than`).
 - `shelf.py` assembles shelf entries and the smaller game object used by the emulator.
-- `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png` (a copy of an image under `assets/`,
-  the same file or the same pixels saved again, is refused).
+- `game_card.py` reads and writes `game.json`. `game_cover.py` validates `cover.png` (a byte-identical copy of a PNG
+  under `assets/` is refused).
 - `layout.py` keeps every game folder in the game layout (below); `release.py` says what a publish holds and records.
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 

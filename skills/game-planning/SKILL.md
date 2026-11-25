@@ -93,7 +93,16 @@ approved by the user, that the build and test work follows.
    and a `difficulty` statement from your own finishable run; the tool refuses
    the report without them. A check you did not play on this ROM is `not run`,
    even if it passed on an earlier build, and the card lists it as untested.
-   Update the plan's Status column and Results log in the same turn.
+   Update the plan's Status column and Results log in the same turn. When
+   there is no finishable run on this ROM, the report says what is true:
+   - **The ending was unreachable** (a bug, a hazard with no way through): F1
+     is `failed`, and `difficulty` says where the run stopped and why.
+   - **The run was skipped** on this build: F1 is `not run`, and `difficulty`
+     says so and names the last ROM finished in one run, if any.
+   - **The design has no ending** (a toy, a sandbox, an endless game): while
+     planning, write F1 as one run from power-on through every room and
+     mechanic with no dead end; `difficulty` says how a run goes and where a
+     player fails or gets stuck.
 
 ## Solvability checklist
 

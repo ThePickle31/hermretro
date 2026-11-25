@@ -27,11 +27,17 @@ REPORT_LIMITS = {
     "check": 80,
     "difficulty": 200,
 }
-REPORT_COUNTS = {"changes": 8, "tested": 6, "untested": 6, "notes": 3, "suggestions": 4, "checks": 30}
+REPORT_COUNTS = {
+    "changes": 8,
+    "tested": 6,
+    "untested": 6,
+    "notes": 3,
+    "suggestions": 4,
+    "checks": plan_checks.MAX_CHECKS,
+}
 REPORT_KINDS = ("added", "changed", "removed")
 # A test-plan check's result on this build (the plan's own status words, superseded aside).
 CHECK_RESULTS = ("passed", "failed", "not run", "blocked", "needs review")
-MAX_CHECK_ID = 8
 REPORT_MESSAGE = (
     "The Build page shows this as the build card. Keep your written reply to one or two short "
     "sentences; do not repeat the report."
@@ -117,7 +123,7 @@ BUILD_REPORT_TOOL = {
                         "id": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": MAX_CHECK_ID,
+                            "maxLength": plan_checks.MAX_CHECK_ID,
                             "description": "The check's ID in the test plan, e.g. 'T3'.",
                         },
                         "text": {
@@ -209,10 +215,11 @@ def _report_checks(values, problems: list) -> list[dict]:
             problems.append(f"{where} must be an object with id, text and result.")
             continue
         problems += [f"{where} has unknown field {key!r}." for key in sorted(set(check) - {"id", "text", "result"})]
-        identifier = _report_text(check.get("id"), f"{where}.id", MAX_CHECK_ID, problems)
-        if identifier and identifier.upper() in seen:
+        identifier = _report_text(check.get("id"), f"{where}.id", plan_checks.MAX_CHECK_ID, problems)
+        key = plan_checks.check_key(identifier or "")
+        if identifier and key in seen:
             problems.append(f"{where}: {identifier} is reported twice.")
-        seen.add((identifier or "").upper())
+        seen.add(key)
         if check.get("result") not in CHECK_RESULTS:
             problems.append(f"{where}.result must be one of {', '.join(CHECK_RESULTS)}.")
         text = _report_text(check.get("text"), f"{where}.text", REPORT_LIMITS["check"], problems)
@@ -223,25 +230,39 @@ def _report_checks(values, problems: list) -> list[dict]:
 def _plan_problems(root: Path, checks: list[dict], has_difficulty: bool) -> tuple[list[str], list[str]]:
     """What the report lacks by the game's test plan (problems), and what the plan itself lacks (warnings). A game
     without a test plan asks for nothing."""
-    plan = plan_checks.open_checks(root)
+    plan = plan_checks.read_plan(root)
     if plan is None:
         return [], []
     where = plan_checks.PLAN_FILE.as_posix()
+    key = plan_checks.check_key
     problems = [] if has_difficulty else [f"difficulty is required: this game has a test plan ({where})."]
-    planned = {identifier.upper() for identifier in plan}
-    reported = {check["id"].upper() for check in checks if check["id"]}
-    missing = [identifier for identifier in plan if identifier.upper() not in reported]
+    warnings = []
+    if plan.unreadable:
+        warnings.append(
+            f"{where} has rows whose ID is no check ID, so they are not checks: {', '.join(plan.unreadable)}. An ID "
+            "is 1 to 4 letters, an optional hyphen, 1 to 3 digits and an optional letter (T1, AUD2, GATE-1, T3b)."
+        )
+    if not plan.checks:
+        warnings.append(f"{where} lists no checks (a table with an ID column, as in the game-planning template).")
+    if len(plan.checks) > plan_checks.MAX_CHECKS:
+        problems.append(
+            f"{where} lists {len(plan.checks)} open checks; a report holds results for at most "
+            f"{plan_checks.MAX_CHECKS}. Keep every approved check: propose in DECISIONS.md combining related rows "
+            "into one check each (their words kept in its Then cell), and report again once the user approves."
+        )
+        return problems, warnings
+    planned = {key(identifier) for identifier in plan.checks}
+    reported = {key(check["id"]) for check in checks if check["id"]}
+    missing = [identifier for identifier in plan.checks if key(identifier) not in reported]
     if missing:
         problems.append(
             f"checks has no result for {', '.join(missing)}: give every open check in {where} its result on this "
             "build ('not run' when you did not play it on this ROM)."
         )
-    unknown = [check["id"] for check in checks if check["id"] and check["id"].upper() not in planned]
+    unknown = [check["id"] for check in checks if check["id"] and key(check["id"]) not in planned]
     if unknown:
         problems.append(f"checks names {', '.join(unknown)}, which {where} does not list as an open check.")
-    if not plan:
-        return problems, [f"{where} lists no checks (a table with an ID column, as in the game-planning template)."]
-    return problems, []
+    return problems, warnings
 
 
 def build_report_handler(args: dict, **kwargs) -> str:

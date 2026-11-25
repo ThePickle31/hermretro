@@ -20,6 +20,11 @@ physical capture, flashed cartridge (human-observed).
 
 Status: not run / passed / failed / needs review / blocked / superseded (by Dn)
 
+ID: 1 to 4 letters, an optional hyphen, 1 to 3 digits and an optional letter
+(T1, AUD2, GATE-1, T3b); case does not matter, so T3b and T3B are one check.
+Each check is a row of this table (or a line `T1: Given ..., when ..., then ...`);
+a row with any other ID is not read as a check.
+
 Every build report gives each check not superseded its result on that build's
 ROM: a check not played on that ROM is not run, even if it passed before.
 
