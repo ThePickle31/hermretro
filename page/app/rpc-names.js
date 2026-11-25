@@ -21,6 +21,7 @@ export const RPC_NAMES = Object.freeze({
   install: `plugin.${ID}.install`,
   player: `plugin.${ID}.player`,
   presentations: `plugin.${ID}.presentations`,
+  releases: `plugin.${ID}.releases`,
   remove_tools: `plugin.${ID}.remove_tools`,
   status: `plugin.${ID}.status`,
   studio_claude_sign_in: `plugin.${ID}.studio_claude_sign_in`,
@@ -44,6 +45,7 @@ export const RPC_GAMES = RPC_NAMES.games // backend/library/rpcs.py
 export const RPC_INSTALL = RPC_NAMES.install // backend/setup/rpcs.py
 export const RPC_PLAYER = RPC_NAMES.player // backend/library/rpcs.py
 export const RPC_PRESENTATIONS = RPC_NAMES.presentations // backend/library/rpcs.py
+export const RPC_RELEASES = RPC_NAMES.releases // backend/setup/rpcs.py
 export const RPC_REMOVE_TOOLS = RPC_NAMES.remove_tools // backend/setup/rpcs.py
 export const RPC_STATUS = RPC_NAMES.status // backend/setup/rpcs.py
 export const RPC_STUDIO_CLAUDE_SIGN_IN = RPC_NAMES.studio_claude_sign_in // backend/setup/rpcs.py

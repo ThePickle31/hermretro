@@ -17,7 +17,7 @@ function versionFact(data, update) {
       children: [
         `${version} · a new version is ready`,
         jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Update' }),
-        jsxs(Button, { onClick: update.whatsNew, size: 'sm', variant: 'link', children: ["What's new", jsx(Codicon, { name: 'link-external', size: 12 })] }),
+        jsx(Button, { onClick: () => update.setOpen(true), size: 'sm', variant: 'link', children: "What's new" }),
         update.blocked ? jsx('span', { role: 'status', children: update.blocked }) : null
       ]
     })
@@ -28,7 +28,7 @@ function versionFact(data, update) {
       className: 'cs-note',
       children: [
         `${version} · the update is not finished`,
-        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.start, size: 'sm', variant: 'default', children: 'Finish update' }),
+        jsx(Button, { disabled: Boolean(update.blocked), onClick: update.finish, size: 'sm', variant: 'default', children: 'Finish update' }),
         update.blocked ? jsx('span', { role: 'status', children: update.blocked }) : null
       ]
     })

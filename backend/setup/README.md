@@ -1,11 +1,11 @@
 # backend/setup
 
 Preparing the machine and the studio profile: the page's toolchain install and its progress (`progress.py`), its
-journal, failure hints, free-space check and cancel settling (`recovery.py`), ModRetro's CLI, the prepared engine copy (one per engine, never changed once made; made anew with no download when the bundled engine changes) and removing downloads (`provision.py`), reusing another install's toolchain cache (`seed.py`), the `hermretro` profile (`studio_profile.py`), keeping it on the installing profile's model providers (`provider_sync.py`, run after setup by `studio_providers.py`) and its Claude login for the DirectSDK provider (`claude_login.py`), and the Setup page's RPCs (`rpcs.py`).
+journal, failure hints, free-space check and cancel settling (`recovery.py`), ModRetro's CLI, the prepared engine copy (one per engine, never changed once made; made anew with no download when the bundled engine changes) and removing downloads (`provision.py`), reusing another install's toolchain cache (`seed.py`), the `hermretro` profile (`studio_profile.py`), keeping it on the installing profile's model providers (`provider_sync.py`, run after setup by `studio_providers.py`) and its Claude login for the DirectSDK provider (`claude_login.py`), hermretro's published releases for the page's update card (`releases.py`), and the Setup page's RPCs (`rpcs.py`).
 
 ## What it adds
 
-- RPCs (`rpcs.py`): `status`, `doctor`, `activity`, `studio_profile`, `studio_claude_sign_in`, `install` (`status`, `start`, `cancel`), `remove_tools`.
+- RPCs (`rpcs.py`): `status`, `doctor`, `activity`, `studio_profile`, `studio_claude_sign_in`, `install` (`status`, `start`, `cancel`), `remove_tools`, `releases` (hermretro's published releases and their notes, read from GitHub by `releases.py`).
 - Tools (`tools.py`): `chromatic_studio_device_cli`.
 - Hooks (`hooks.py`): `pre_tool_call` — asks before downloading ModRetro's CLI (chained after the Hermes layer's hardware approvals).
 - Folder sizes: `download_bytes(root)` (`progress.py`) counts only the engine's `downloads/` and `cache/` under a

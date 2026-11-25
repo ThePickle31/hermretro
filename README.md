@@ -60,12 +60,12 @@ hermretro's own folder (below).
 
 ### Updating
 
-When Hermes finds a newer release (it checks about once a day), an **Update ready** chip appears at the end of
-the HermRetro page's header, and the Setup page's hermretro row says so. Press **Update now**: Hermes updates the
-copy in the profile you installed it into, the page reloads the plugin in the hermretro profile (which only links
+When a new release is out, a card in the corner of the HermRetro page shows what changed, and an **Update ready**
+chip appears at the end of the header (the Setup page's hermretro row says so too). Press **Update**: Hermes updates
+the copy in the profile you installed it into, the page reloads the plugin in the hermretro profile (which only links
 that copy) and then refreshes itself. Normally no restart is needed; if the chip says **Restart to finish**, quit
-and reopen Hermes. Update waits while a game is being built: it is disabled while a hermretro chat is working (the
-popover names it) or the game tools are installing.
+and reopen Hermes. An update waits while a game is being built or the game tools are installing, then starts by
+itself. An update made elsewhere (a terminal, Capabilities > Plugins) is loaded by the page on its own.
 
 ### If something goes wrong
 

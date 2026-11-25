@@ -11,7 +11,8 @@ the pages, `registry.js` checks each page's descriptor, declares their events an
 **Plumbing:** `backend.js` (RPC queries), `rpc.js` (RPC names, re-exported from the generated `rpc-names.js`; never edit that one), `routing.js`
 (the hermretro profile), `chat-insert.js` and `prompt-block.js` (prompts into chats),
 `ids.js`, `tools.js` (agent tool names), `game-prompts.js`, `format.js`, `paths.js`. `update/`: updating hermretro
-from the page (the header chip and popover, the update steps, the state pages read as `shell.pluginUpdate`).
+from the page (the header chip, the corner card, the update dialog and its steps, the release notes, the state pages
+read as `shell.pluginUpdate`).
 
 **Tabs:** none of its own; `page-view.js` draws any page's tabs.
 

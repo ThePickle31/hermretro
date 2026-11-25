@@ -158,7 +158,7 @@ await runScenario(async ({ act, buildScenario, holdTimers, scenario, page, click
     assert.equal(restore.disabled, false)
   })
   await key('keydown', 'Escape')
-  await click('Update ready', updating.node); await click('Update now', updating.node); await settle(40)
+  await click('Update ready', updating.node); await click('Update', updating.node.ownerDocument.querySelector('.cs-upd-dlg')); await settle(40)
   await click('Builds', updating.node.querySelector('.cs-b-head')); await settle(30)
   check('while updating, the Builds menu cannot restore a build', () => {
     const buttons = [...updating.node.querySelectorAll('.cs-b-brow button')].filter(node => node.textContent === 'Restore')

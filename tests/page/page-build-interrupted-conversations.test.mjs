@@ -72,7 +72,7 @@ await runScenario(async ({ act, answered, buildScenario, button, check, click, e
   let finishUpdate
   scenario.byMethod['plugins.manage'] = params => (params.action === 'update' ? new Promise(resolve => { finishUpdate = resolve }) : { ok: true })
   await interrupted.rerender()
-  await click('Update ready', interrupted.node); await click('Update now', interrupted.node); await settle()
+  await click('Update ready', interrupted.node); await click('Update', interrupted.node.ownerDocument.querySelector('.cs-upd-dlg')); await settle()
   const lostContinue = () => [...interrupted.node.querySelector('.cs-b-card.warn').querySelectorAll('button')].find(node => node.textContent === 'Continue')
   const submitsUpdating = submits.length
   check('while hermretro updates, Continue is disabled', () => { assert.equal(lostContinue().disabled, true) })
@@ -89,7 +89,7 @@ await runScenario(async ({ act, answered, buildScenario, button, check, click, e
     ? new Promise(resolve => { releaseResume = () => resolve(normalResume(params)) })
     : normalResume(params))
   await click('Continue', interrupted.node.querySelector('.cs-b-card.warn')); await settle()
-  await click('Update ready', interrupted.node); await click('Update now', interrupted.node); await settle()
+  await click('Update ready', interrupted.node); await click('Update', interrupted.node.ownerDocument.querySelector('.cs-upd-dlg')); await settle()
   check('the resume is still on the way when the update starts', () => { assert.ok(releaseResume, 'session.resume is pending') })
   await act(async () => { releaseResume() }); await settle()
   check('a Continue pressed before an update releases nothing once the update has started', () => {

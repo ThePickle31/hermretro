@@ -45,7 +45,8 @@ import { BackgroundLayer } from './background-layer.js'
 import { PageView } from './page-view.js'
 import { NAV_PAGES, pageById } from './registry.js'
 import { UpdateChip } from './update/chip.js'
-import { ReloadBanner } from './update/reload-banner.js'
+import { UpdateCard } from './update/update-card.js'
+import { UpdateDialog } from './update/update-dialog.js'
 import { usePluginUpdate } from './update/use-update.js'
 
 // The game the user last picked to play on the Emulator page (a library id, or the demo's).
@@ -490,6 +491,8 @@ export function StudioPage({ ctx }) {
       },
       children: [
         jsx(PageStyle, {}, 'style'),
+        jsx(UpdateCard, { update: pluginUpdate }, 'update-card'),
+        jsx(UpdateDialog, { update: pluginUpdate }, 'update-dialog'),
         onboardScreen
           ? jsx(
               OnboardHeader,
@@ -516,11 +519,6 @@ export function StudioPage({ ctx }) {
             className: pad ? `cs-pad ${pad}` : 'cs-pad',
             children: [
               jsx(BackgroundLayer, {}, 'background'),
-              // Hermes runs older code than is on disk (an update made outside this page). The chip covers its own update.
-              // A reload under way or ended stays said even when hermretro stops answering (left switched off).
-              ((running && pluginUpdate.stale) || pluginUpdate.reload.phase !== 'idle') && pluginUpdate.phase !== 'restart'
-                ? jsx(ReloadBanner, { update: pluginUpdate }, 'restart')
-                : null,
               broken
                 ? jsxs(
                     'div',
