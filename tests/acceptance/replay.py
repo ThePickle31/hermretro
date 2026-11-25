@@ -1,5 +1,6 @@
 """A recorded attempt replayed onto the same ROM and onto a rebuild, on B's worker (no later check uses B's game)."""
 
+from tests.acceptance import checkpoints
 from tests.acceptance.fixture import OWNER_B, structured
 
 ROUTE = [
@@ -26,7 +27,12 @@ def check_replay(suite, client_b, rom_b):
     source, played = check_same_rom(suite, client_b, rom_b)
     check_branch_and_cutoff(suite, client_b, rom_b, source)
     check_without_session(suite, client_b, rom_b, source, played)
+    cross = checkpoints.check_unchanged_rebuild(suite, client_b, rom_b)
+    checkpoints.check_restored_replay(suite, client_b, rom_b, cross)
+    checkpoints.check_unverified_symbols(suite, client_b, rom_b, cross)
+    checkpoints.check_archived_checkpoint(suite, client_b, rom_b, cross)
     check_rebuild(suite, client_b, rom_b, source, played)
+    checkpoints.check_changed_rebuild(suite, client_b, cross)
 
 
 def check_same_rom(suite, client_b, rom_b):

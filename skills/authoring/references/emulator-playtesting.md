@@ -68,7 +68,8 @@ a supporting clip. After editing and rebuilding, replay a recorded attempt onto
 the new ROM with `chromatic_emulator_replay {"romPath":"<new ROM outputPath>"}`
 instead of playing the route again by hand: it stops at the first frame that
 differs and leaves the session where the replay ended. Checkpoints require
-matching ROM and worker identity; they do not transfer to a rebuild.
+the same build and worker: a rebuild without an edit takes them when both
+builds captured their debug symbols in this session, one after an edit does not.
 
 ## What the frames prove
 

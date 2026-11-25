@@ -35375,7 +35375,8 @@ var EmulatorService = class {
       romPath: validatedRom,
       initialFrames,
       ...options.cgb === void 0 ? {} : { cgb: options.cgb },
-      ...recording === void 0 ? {} : { recording }
+      ...recording === void 0 ? {} : { recording },
+      ...options.symbols === void 0 ? {} : { symbols: options.symbols }
     }, { validatedRom, romDigest, recording, signal });
     if (recording !== void 0)
       this.#replaySource = void 0;
@@ -35385,8 +35386,8 @@ var EmulatorService = class {
   async replay(romPath, options = {}, signal) {
     if (signal?.aborted)
       throw new EmulatorError("The emulator replay request was cancelled before execution");
-    if (options === null || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["recordingPath", "branchId", "toActionIndex", "onDivergence", "recording"].includes(key))) {
-      throw new EmulatorError("Replay accepts recordingPath, branchId, toActionIndex, onDivergence and recording");
+    if (options === null || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["recordingPath", "branchId", "toActionIndex", "onDivergence", "recording", "symbols"].includes(key))) {
+      throw new EmulatorError("Replay accepts recordingPath, branchId, toActionIndex, onDivergence, recording and symbols");
     }
     const validatedRom = this.#resolveRom(romPath);
     if (options.toActionIndex !== void 0)
@@ -35405,7 +35406,8 @@ var EmulatorService = class {
       ...source,
       ...options.toActionIndex === void 0 ? {} : { toActionIndex: options.toActionIndex },
       ...options.onDivergence === void 0 ? {} : { onDivergence: options.onDivergence },
-      ...recording === void 0 ? {} : { recording }
+      ...recording === void 0 ? {} : { recording },
+      ...options.symbols === void 0 ? {} : { symbols: options.symbols }
     }, { validatedRom, romDigest, recording, signal, timeoutMs: Math.max(this.#requestTimeoutMs, MAX_EMULATOR_REPLAY_MS) });
     this.#validateReplay(replayed);
     const { source: played, replayedActions } = replayed.replay;
@@ -60468,7 +60470,7 @@ function registerPlaytestTools(context) {
   });
   server.registerTool("emulator_checkpoint", {
     title: "Save or branch from an opaque checkpoint",
-    description: "Save a paused, neutral, sampled state or restore it into the exact same ROM/runtime. Saving needs an active recording (emulator_run with recording:{}, not yet stopped) and a sampled neutral frame: no held buttons, and the last emulator_step ended with buttons:[] for at least one frame, such as a final input {buttons:[],frames:1}. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
+    description: "Save a paused, neutral, sampled state or restore it into the same ROM and runtime: the exact ROM, or a rebuild of the unchanged project. Saving needs an active recording (emulator_run with recording:{}, not yet stopped) and a sampled neutral frame: no held buttons, and the last emulator_step ended with buttons:[] for at least one frame, such as a final input {buttons:[],frames:1}. Restoring preserves the original attempt and starts a new recorded branch; incompatible or stale states fail before loading.",
     inputSchema: external_exports.object({
       action: external_exports.enum(["save", "restore"]),
       checkpointId: identifier.optional().describe("Restore only; required checkpointId returned by save."),
@@ -69390,6 +69392,9 @@ function createGbStudioServer(options = {}) {
     ...emulatorOptions
   });
   const sourceBuilds = /* @__PURE__ */ new Map();
+  // The linker symbols each official build captured with its ROM, by ROM SHA-256: the emulator worker places a ROM's
+  // save signature only from these, so a checkpoint crosses only a verified rebuild.
+  const buildSymbols = /* @__PURE__ */ new Map();
   let activeSourceDebug;
   let emulatorOperationTail = Promise.resolve();
   let emulatorOperationGeneration = 0;
@@ -69567,6 +69572,8 @@ function createGbStudioServer(options = {}) {
       const relative6 = path45.relative(project2.projectRoot, result.outputPath).split(path45.sep).join("/");
       if (relative6.startsWith("project/") || relative6.startsWith("assets/"))
         await access4.noteCommittedPaths([result.outputPath]);
+      if (result.success && result.debugArtifacts)
+        rememberBuildSymbols(result.debugArtifacts);
       const remembered = await rememberSourceBuild(result, project2.projectPath, access4);
       return detail === "full" ? remembered : compactBuildDebug(remembered);
     });
@@ -69581,11 +69588,21 @@ function createGbStudioServer(options = {}) {
     await context.assertCompatibleRom(digest8);
     return context;
   }
+  function rememberBuildSymbols({ romSha256, noiPath, noiSha256 }) {
+    buildSymbols.delete(romSha256);
+    buildSymbols.set(romSha256, { romSha256, path: noiPath, sha256: noiSha256 });
+    while (buildSymbols.size > 8)
+      buildSymbols.delete(buildSymbols.keys().next().value);
+  }
+  function withBuildSymbols(romPath, options2) {
+    const symbols = buildSymbols.get(emulator.romSha256(romPath));
+    return symbols === void 0 ? options2 : { ...options2, symbols };
+  }
   async function runEmulator(romPath, options2, debugMode, signal) {
-    return openEmulator(romPath, debugMode, signal, () => emulator.run(romPath, options2, signal));
+    return openEmulator(romPath, debugMode, signal, () => emulator.run(romPath, withBuildSymbols(romPath, options2), signal));
   }
   async function replayEmulator(romPath, options2, debugMode, signal) {
-    return openEmulator(romPath, debugMode, signal, () => emulator.replay(romPath, options2, signal));
+    return openEmulator(romPath, debugMode, signal, () => emulator.replay(romPath, withBuildSymbols(romPath, options2), signal));
   }
   function sourceDebugUnavailable(error2) {
     return { unavailable: { available: false, code: error2.code, reason: error2.message } };
@@ -69696,6 +69713,7 @@ function createGbStudioServer(options = {}) {
     const discovered = await session.select(input);
     if (previousProjectRoot !== void 0 && previousProjectRoot !== discovered.projectRoot) {
       sourceBuilds.clear();
+      buildSymbols.clear();
       activeSourceDebug = void 0;
     }
     initialSelectionError = void 0;
@@ -69710,6 +69728,7 @@ function createGbStudioServer(options = {}) {
       if (previousProjectRoot !== void 0 && previousProjectRoot !== project2.projectRoot) {
         await webPreview.stop();
         sourceBuilds.clear();
+        buildSymbols.clear();
         activeSourceDebug = void 0;
       }
       await session.select({ projectPath: project2.projectPath, allowStarter: true });

@@ -189,12 +189,43 @@ chromatic_emulator_observe {}
 ```
 
 A restore preserves the original route and creates a new recorded branch.
-Checkpoint IDs and state files are opaque. Identity includes exact ROM bytes,
-active CGB mode, PyBoy version, worker protocol, and worker implementation hash.
+Checkpoint IDs and state files are opaque. Identity includes the ROM, active
+CGB mode, PyBoy version, worker protocol, and worker implementation hash.
 Changing the plugin worker can therefore invalidate an old checkpoint even
-when the ROM is unchanged. A damaged, stale, or incompatible state is refused;
-[replay](#replay-after-a-rebuild) the attempt to retest a rebuild. Checkpoints are not battery-save backups
-or evidence of physical save-hardware behavior.
+when the ROM is unchanged. A damaged, stale, or incompatible state is refused.
+
+The ROM is the same build when its bytes are identical or when it is a rebuild
+of the unchanged project. GB Studio stamps every build with a 4-byte save
+signature (a hash of the project as loaded, which includes load times) and
+the header's global checksum, so two builds without an edit differ in those
+bytes alone. The worker places the signature from the linker symbols
+(`<rom>.debug/symbols.noi`) that `chromatic_rom_build` captured with that exact
+ROM in this session, and ignores just those bytes. A restore across a rebuild
+therefore needs verified symbols from both builds: the build the checkpoint was
+saved on and the one now running, each run as `chromatic_rom_build` returned
+it. A ROM with none matches only its own bytes: a C (GBDK) build, a build with
+`captureDebugArtifacts:false`, a build whose default capture was skipped (its
+result says `sourceDebug.available:false`, for example when the source changed
+during the build), a ROM from an earlier session, or symbols left beside it by
+another build. To restore a checkpoint from an earlier recording (archived or
+not) onto such a rebuild, boot the new ROM with `recording:{}` and pass the
+checkpoint's `recordingPath`:
+
+```text
+chromatic_emulator_run {"romPath":"build/game.gbc","recording":{}}
+chromatic_emulator_checkpoint {"action":"restore","checkpointId":"<id>","recordingPath":"<the save's recordingPath>"}
+```
+
+Any other changed byte (an edit, a setting, a new asset) is a different
+build and the restore is refused: [replay](#replay-after-a-rebuild) the attempt
+to retest it. The game's own battery save still checks the signature, so a
+save written by one build is ignored by the other as on hardware; that is GB
+Studio's behaviour, not a failed restore. For the same reason a branch
+restored from another build's checkpoint replays from a clean boot only up to
+that restore: past it the replay is refused (its battery RAM held the other
+build's signature); replay with `toActionIndex` up to the restore, or restore
+the checkpoint again. Checkpoints are not battery-save backups or evidence of
+physical save-hardware behavior.
 
 ## Extract a supporting GIF
 

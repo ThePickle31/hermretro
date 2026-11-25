@@ -158,8 +158,8 @@ in one call, comparing every frame with the attempt's, then leaves the session a
 the end of the route for the next step. A frame that differs stops it with the
 recorded and new images: decide whether the change was intended. Inspect the
 functional result yourself: a changed animation hash is not automatically a
-regression, and a completed tool call is not a gameplay pass. A rebuild cannot
-reuse an opaque checkpoint from different ROM bytes or a different worker; the
+regression, and a completed tool call is not a gameplay pass. A rebuild after
+an edit cannot reuse an opaque checkpoint, nor can a different worker; the
 replay is how play resumes after one. See
 [replay after a rebuild](recorded-playtesting.md#replay-after-a-rebuild).
 
