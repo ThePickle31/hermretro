@@ -9,7 +9,8 @@ Only successful builds are kept here; whether each build passed is recorded by t
 - RPCs (`rpcs.py`): `builds`, `build_restore`.
 - Tools: none.
 - Hooks (`hooks.py`): `post_tool_call` — after a successful `chromatic_rom_build` of a library game, keeps a snapshot (chained after assets' `post_tool_call`).
-- Events emitted: `history.build_kept`. Listens to: none.
+- Events emitted: `history.build_kept`. Listens to: `library.game_moved` (`listeners.py`: an installed game's edited copy that became a game of its own takes its snapshots to its new library id).
+- A restore holds the game folder's lock (`library.folder_lock`), so it never runs while an installed game's update replaces the game's files.
 
 - Snapshots live in `<plugin data dir>/snapshots/<game>/<ms>/`, under the profile's Hermes plugin data folder
   (`host._data_dir()`). Numeric snapshot folders use Unix milliseconds and are pruned to the newest 30, with

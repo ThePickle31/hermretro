@@ -16,8 +16,9 @@
   on the game's ROM, one `emulator_replay` per check that judges and finishes itself in the engine. `pipeline.py` is
   the gate `chromatic_present_game` and `chromatic_build_report` hold a game to (its ROM the last build of its
   sources, its bound checks and F1 passed on it) and what a build left to replay (`after_build`).
-- `installs.py` installs and updates a game from a link (below): `install_source.py` (links, git), `install_check.py`
-  (what a fetched game must be) and `cartridge.py` (a ROM a Chromatic cartridge can hold).
+- `installs.py` installs and updates a game from a link (below): `install_source.py` (links), `install_git.py` (git),
+  `install_check.py` (what a fetched game must be), `cartridge.py` (a ROM a Chromatic cartridge can hold),
+  `install_swap.py` (the update's swap) and `game_workers.py` (the broker's hold on the game).
 - `rpcs.py`, `hooks.py` and `tools.py` connect the library to the page and Hermes.
 
 ## What it adds
@@ -35,11 +36,11 @@
   read with Hermes's V4A grammar, a delete or move by its directory entry. Relative and `~` paths are refused (Hermes
   reads them against the chat's own working folder, which is not plugin API), and so is every write while
   `games.json` cannot be read. A terminal command is not parsed, so a shell command is not checked.
-- Events emitted: `library.build_reported` (`game`: the game's id, `None` when the chat has no project; `assets`: the images the card shows, which assets keeps), `library.game_presented`. Listens to: none.
+- Events emitted: `library.build_reported` (`game`: the game's id, `None` when the chat has no project; `assets`: the images the card shows, which assets keeps), `library.game_presented`, `library.game_moved` (an installed game's edited copy moved to its own folder; `old`, `new`: its library ids). Listens to: none.
 
 ## Front door
 
-`backend.library`: `Registry`, `after_build`, `built_rom_sha256`, `source_digest`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
+`backend.library`: `Registry`, `after_build`, `built_rom_sha256`, `source_digest`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `installed_rom`, `folder_lock`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
 
 ## Tests
 
@@ -132,46 +133,89 @@ Games card's Layout tag.
 before the commit (`gameVersion`, one changelog entry, the README), `files(root, source=...)` (exactly what to commit:
 no hidden files, links or linked folders), and after the push `record_publish` (`.hermretro/publish.json`: `{repo,
 commit, version, source, payload, t}`, `payload` being `payload_digest`); `published`, `unpublished_changes` and
-`next_version` read it. `record_install`/`installed` keep where an installed game came from
-(`.hermretro/install.json`: `{source: {canonical, url, ref, subdir}, commit, mode, fingerprint, installedAt}`), and
-`local_edits` compares the game's files with `fingerprint` (`installed_digest`: the installed files, leaving out the
-README and `.gitignore` hermretro writes itself).
+`next_version` read it. `record_install`/`installed` keep where an installed game came from, and `local_edits`
+compares the game's files with its `fingerprint` (`installed_digest`, below).
 
 ## Installing a game from a link
 
-`installs.py` installs a published game from a link, the way Hermes installs a plugin from git (written again here:
-Hermes's helpers are not plugin API). Nothing here is on the page yet; the page and the agent reach it later.
+`installs.py` installs a published game from a link and updates it, the way Hermes installs a plugin from git (written
+again here: Hermes's helpers are not plugin API). Nothing here is on the page yet; the page and the agent reach it
+later, passing `workers=game_workers.BrokerWorkers()`.
 
 - **Links** (`install_source.resolve`): `owner/repo`, `owner/repo/sub/dir`, `owner/repo#sub/dir`, a GitHub page or
-  clone URL (`…/tree/<branch>/<path>`), and any other git URL (`https`, `ssh`, `git@`, `file://`) with `#sub/dir`. A
-  subfolder may not leave the repository (`..`, an absolute path, a link). `Source.canonical` is the one spelling of a
-  source, without credentials, query or fragment; records keep only that and the scrubbed URL.
-- **git** (`install_source.run_git`) never prompts and never reads the user's git configuration, hooks or credential
-  helpers (`GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM`, `core.hooksPath`, ssh `BatchMode`); every step has a
-  timeout. A GitHub URL refused anonymously is tried once more with the user's token (`GITHUB_TOKEN`, `GH_TOKEN`, else
-  `gh auth token`) as a one-shot header in git's environment, never in the URL or a file.
-- **`inspect(link)`** clones the branch's tip into a temporary folder outside the games and answers what it holds
-  (title, id, version, format, mode, ROM, cover, README, problems, whether its `plugins/` need consent, and the games
-  that already have its id) with the exact `commit`. **`install(link, commit)`** clones that commit into a hidden
-  `.install-*` folder in the games folder (refused with `SOURCE_MOVED` when the branch moved), checks it, removes
-  `.git`, gives it its layout and install record and renames it into place (`<Title>`, `<Title> 2`, …), then registers
-  it. `testBuildDue` says a game with its source is to be built once here.
+  clone URL (`…/tree/<rest>`), SSH (`git@host:path`, `ssh://host/path`) with `#sub/dir`, and `file://` only where the
+  caller allows local sources (`allow_local`, tests). Only HTTPS to github.com and SSH otherwise; a link with
+  credentials (a password or token in it, a query) is refused (`BAD_LINK`), never scrubbed. `…/tree/<rest>` is
+  settled against the repository's branches and tags, the longest that `rest` starts with winning (`feature/demo`
+  may be a branch or `feature` and a folder); a link without one gets the default branch, so a source always records
+  its branch. A source read back from an install record is checked again the same way before git sees it.
+- **Same source** is the same repository and folder in it (`Source.canonical`: no branch, user name or `.git`); the
+  branch may differ, and a reinstall from another branch updates the game to the branch reviewed.
+- **git** (`install_git`) never prompts and never reads the user's git configuration, hooks, credential helpers or
+  `GIT_*` settings; every step has a timeout and its output is capped. A GitHub URL refused anonymously is tried once
+  more with the user's token (`GITHUB_TOKEN`, `GH_TOKEN`, else `gh auth token --hostname github.com`) as a one-shot
+  header in git's environment, never in its arguments or a file, with redirects off. `ls-remote` runs in a
+  temporary folder, never inside a checkout.
+- **A fetch** is shallow and partial (`--filter=blob:limit=20m`, `--no-checkout`). Its tree is listed first
+  (`install_git.tree`) and refused before checkout for a link, a submodule, a file over 20 MB (or left out by the
+  filter), more than 5000 files or 50 MB, or two paths that are one on a Mac's disk (letter case, Unicode spelling).
+- **What is taken** (`install_check.take_payload`): only what the game's mode publishes. A game alone (`game`): the
+  game files and the ROM its `game.json` names; with its source (`game+source`, one regular `.gbsproj`): the
+  `.gbsproj` and the source folders too, hidden files included. Everything else (`build/web`, other build output,
+  notes, another machine's `.hermretro/`) is left behind and deleted: no fetched browser code is ever served, the
+  playable copy is made again here. Source folders without a `.gbsproj` are refused (`SOURCE_WITHOUT_PROJECT`), as
+  is a `.gbsproj` that is not a file (`BAD_PROJECT`) or more than one.
 - **The check** (`install_check.check`, `cartridge.inspect`): a `game.json` of at most 64 KB with a game id and a title,
   a `format` this hermretro reads (`layout.FORMAT_VERSION`; newer is `NEWER_FORMAT`), a ROM at `build/game.gb[c]` that
   a Chromatic cartridge can hold (32 KiB times a power of two up to 8 MiB, matching its header; the Nintendo logo and
   both checksums; a cartridge type GB Studio or GBDK writes, `cartridge.CARTRIDGE_TYPES`; `.gbc` only for a colour
-  game) and equal to `romSha256` when the card has one, a usable cover, the project's folder for a game with its
-  source, no links or special files, no file over 20 MB and at most 50 MB in all. `plugins/` with files in a game
-  with its source needs `allow_plugins` (their code runs when the game is built).
+  game), equal to the card's `romSha256`, which a game alone must have (`NO_ROM_SHA`), a usable cover (its size read
+  from its header before it is decoded, and never decoded past what that size needs), and the project's folder for a
+  game with its source. `plugins/` with files needs `allow_plugins` (their code runs when the game is built), on an
+  update too.
+- **`inspect(link)`** answers what the link holds (title, id, version, format, mode, ROM, cover, README, problems,
+  plugin consent, the games that already have its id) with the exact `commit` and `source` (`{canonical, url, ref,
+  subdir}`). **`install(source, commit, workers=)`** installs that commit (`SOURCE_MOVED` when the branch moved), gives
+  it its layout and record and renames it into place (`<Title>`, `<Title> 2`, …), then registers it; a folder an
+  earlier install placed but did not register is found by its id and registered instead of copied. `testBuildDue`
+  says a game with its source is to be built once here.
 - **One id per machine**: installing a game the library has from the same source is an update; from another source it
   is refused (`ALREADY_HAVE`).
-- **`check_update(root)`** reads the branch with `git ls-remote`. **`update(root, choice=...)`** installs the newest
-  commit over the game under the game's folder lock, keeping its local files (`docs/`, `captures/`, `save-states/`,
-  `build/`'s other files but the ROM and `web/`, `.hermretro/`). A game edited since it was installed answers
-  `needsChoice` until the user picks `keep_mine` (nothing changes), `take_theirs` (the update replaces the edits) or
-  `keep_both` (the edited copy becomes `<Title> (edited)`, a remix with its own id, `layout.new_identity`). A source
-  that now holds another game is refused (`ANOTHER_GAME`). Tests: `test_installs.py`, `test_install_source.py`,
-  `test_cartridge.py` (real git repositories through `file://`).
+- **`check_update(root)`** reads the branch with `git ls-remote`. **`update(root, workers=, choice=)`** installs the
+  newest commit of the recorded branch over the game (`install_swap`): it keeps the user's local files (`docs/`,
+  `captures/`, `save-states/`, `scratch/`, `build/`'s other files but the ROM and `web/`, `.hermretro/`), merging
+  folders, and keeps a file whose name the update now uses beside it as `<name> (yours)`; it drops the game's
+  recorded build and playable copy. A game edited since it was installed answers `needsChoice` until the user picks
+  `keep_mine`, `take_theirs` or `keep_both`: the edited copy becomes `<Title> (edited)`, a remix with its own id
+  (`layout.new_identity`, its changelog kept) that keeps the library entry (its chat, session and builds) and, through
+  `library.game_moved`, its build history; the new version at the old place starts with a fresh entry. A source that
+  now holds another game is refused (`ANOTHER_GAME`).
+- **Locks.** Each game id has one install or update at a time (`<games>/.hermretro-installs/<id>.lock`, outside every
+  game folder), from the id check to the registration; names and folders in the games folder change under its
+  `games.lock`, so no install claims a game's name while an update has it vacant. An update also holds the game
+  folder's lock (`game_card.folder_lock`, which follows the folder when it is renamed; a history restore takes it too)
+  and the broker's hold on the game (`hold_game`, `backend/broker/holds.py`): `GAME_BUSY` while a conversation has the
+  game open, and conversations that open it meanwhile are refused; releasing it closes a worker that has the old files
+  loaded. Local edits are checked again right before the swap.
+- **Nothing is lost.** The old folder is deleted only once the new one is in place and registered. A failed step puts
+  everything back; when even that fails, the old copy is kept in `<games>/.hermretro-installs/recovered/` and the error
+  (`RECOVERY_NEEDED`) names it.
+- **The record**, `.hermretro/install.json`: `{source: {canonical, url, ref, subdir}, commit, mode, rom: {path,
+  sha256}, fingerprint, installedAt}` (`url` carries no credentials; `rom` is the ROM the install checked).
+  `installed_digest` (the `fingerprint`) covers the game files but the README and `.gitignore` hermretro writes, every
+  file of the project and the source folders (hidden ones too), and for a game alone its ROM; a game with its source
+  rebuilds its ROM, so its ROM and build output never count as an edit, and a game alone that gains a project counts.
+  `release.installed_rom(root)` (front door) is a game alone's checked ROM, `{romPath, sha256, source, commit}`, while
+  it is still those bytes; the shelf shows that ROM.
+- **Ids.** The game id in `game.json` (32 hex digits, `layout.game_identity`) is the same on every machine and through
+  every publish and install; the library's id (`game_id`, 12 hex digits of the folder's path) is this machine's, and
+  changes when a folder moves (`Registry.move`).
+- **Out of scope here**: building an installed game's source runs its project's own content through GB Studio
+  (plugins, custom HTML header settings), its own trust boundary, for the build step.
+
+Tests: `test_installs.py`, `test_install_swap.py`, `test_install_git.py`, `test_install_source.py`,
+`test_cartridge.py`, `test_game_workers.py` (real git repositories through `file://`),
+`tests/backend/broker/test_game_holds.py`, `tests/backend/history/test_moved_game.py`.
 
 ## Captures
 

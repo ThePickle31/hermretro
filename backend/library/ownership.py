@@ -86,10 +86,9 @@ def record_dirs(index: dict) -> list[Path]:
 
 def editable(root: Path) -> bool:
     """Whether a game's files are edited at all: it has its source (a GB Studio project file or C sources), and is
-    not a game installed without its source (``.hermretro/install.json``)."""
+    not a game installed without its source (``.hermretro/install.json``'s ``mode`` ``game``)."""
     root = Path(root)
-    installed = layout.state(root, layout.INSTALL_FILE)
-    if installed and installed.get("source") is not True:
+    if layout.state(root, layout.INSTALL_FILE).get("mode") == "game":
         return False
     if project_file(root) is not None:
         return True

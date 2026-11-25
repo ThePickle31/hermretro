@@ -8,7 +8,8 @@ it came from with ``record_install``; a remix is ``layout.new_identity`` on the 
 
 Records, in ``.hermretro/`` (never published):
     publish.json  {repo, commit, version, source, payload, t}  the last publish; ``payload`` is ``payload_digest``
-    install.json  {source, commit, mode, fingerprint, installedAt}  where an installed game came from (installs.py)
+    install.json  {source: {canonical, url, ref, subdir}, commit, mode, rom: {path, sha256}, fingerprint, installedAt}
+                  where an installed game came from (installs.py)
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from .layout import INSTALL_FILE, PUBLISH_FILE
 from .project import GAME_FILES, file_sha256, project_file
 
 VERSION_PARTS = ("major", "minor", "patch")
+INSTALL_MODES = ("game", "game+source")
 
 
 # -- what a publish holds -----------------------------------------------------------------
@@ -162,16 +164,18 @@ def unpublished_changes(root: Path) -> bool | None:
 
 
 @game_card.locked
-def record_install(root: Path, *, source: dict, commit: str, mode: str) -> dict:
-    """Record where an installed game came from (``installs.py``): ``source`` is ``{canonical, url, ref, subdir}`` (no
-    credentials), ``commit`` the commit installed, ``mode`` ``game`` or ``game+source``, and ``fingerprint`` the
+def record_install(root: Path, *, source: dict, commit: str, mode: str, rom: dict) -> dict:
+    """Record where an installed game came from (``installs.py``): ``source`` is ``Source.record()`` (``{canonical,
+    url, ref, subdir}``, no credentials), ``commit`` the commit installed, ``mode`` ``game`` or ``game+source``,
+    ``rom`` the ROM that was checked (``{path, sha256}``, ``path`` relative to the game) and ``fingerprint`` the
     ``installed_digest`` of the files as installed, which tells an untouched install from one edited since."""
-    if mode not in ("game", "game+source"):
+    if mode not in INSTALL_MODES:
         raise ValueError(f"Not an install mode: {mode!r}.")
     record = {
         "source": dict(source),
         "commit": commit,
         "mode": mode,
+        "rom": {"path": rom["path"], "sha256": rom["sha256"]},
         "fingerprint": installed_digest(root, mode=mode),
         "installedAt": time.time(),
     }
@@ -182,17 +186,33 @@ def record_install(root: Path, *, source: dict, commit: str, mode: str) -> dict:
 def installed(root: Path) -> dict | None:
     """Where an installed game came from (``record_install``), or None for a game made here."""
     record = layout.state(root, INSTALL_FILE)
-    return record if isinstance(record.get("source"), dict) and record.get("mode") in ("game", "game+source") else None
+    if not isinstance(record.get("source"), dict) or record.get("mode") not in INSTALL_MODES:
+        return None
+    return record
 
 
 def installed_digest(root: Path, *, mode: str) -> str:
-    """``payload_digest`` of an installed game's files, leaving out the ones hermretro writes itself (a README or
-    ``.gitignore`` whose first line says so): a newer hermretro may rewrite those, which is not the user's edit."""
+    """What a user's edit of an installed game changes: its game files (but the README and ``.gitignore`` hermretro
+    writes itself, which a newer hermretro may rewrite), every file of its project and source folders, hidden ones
+    too, and for a game alone its ROM. A game with its source rebuilds its ROM from that source, so the ROM and every
+    other build output are left out: a build never counts as an edit. A game alone that gains a project counts."""
     root = Path(root)
-    digest = hashlib.sha256(b"hermretro\0installed\0v1\0")
-    for relative in files(root, source=mode == "game+source"):
-        if relative in ("README.md", ".gitignore") and layout.replaceable(root / relative):
+    found = [name for name in GAME_FILES if _regular(root / name)]
+    found = [name for name in found if not (name in ("README.md", ".gitignore") and layout.replaceable(root / name))]
+    if mode == "game":
+        rom = installed_rom_path(root) or layout.game_rom(root)
+        found += [rom] if _regular(root / rom) else []
+    found += [path.name for path in root.glob("*.gbsproj") if _regular(path)]
+    for folder in layout.SOURCE_FOLDERS:
+        if (root / folder).is_symlink():
             continue
+        for directory, folders, names in os.walk(root / folder):
+            folders.sort()
+            found += [
+                Path(directory, name).relative_to(root).as_posix() for name in names if _regular(Path(directory, name))
+            ]
+    digest = hashlib.sha256(b"hermretro\0installed\0v2\0")
+    for relative in sorted(found):
         digest.update(relative.encode() + b"\0" + file_sha256(root / relative).encode() + b"\0")
     return digest.hexdigest()
 
@@ -203,3 +223,29 @@ def local_edits(root: Path) -> bool | None:
     if record is None:
         return None
     return installed_digest(root, mode=record["mode"]) != record.get("fingerprint")
+
+
+def installed_rom_path(root: Path) -> str | None:
+    """The ROM an install checked, relative to the game (``build/game.gb[c]``); None for a game made here."""
+    rom = layout.state(root, INSTALL_FILE).get("rom")
+    path = rom.get("path") if isinstance(rom, dict) else None
+    return path if path in layout.GAME_ROMS else None
+
+
+def installed_rom(root: Path) -> dict | None:
+    """For a game installed without its source, the ROM it plays: ``{romPath, sha256, source, commit}`` (``romPath``
+    absolute, ``sha256`` the one checked against its author's ``romSha256``) while that file is still those bytes;
+    None for a game made here, one with its source (it plays what it builds) or a ROM changed since."""
+    record = installed(root)
+    if record is None or record["mode"] != "game":
+        return None
+    relative, sha256 = installed_rom_path(root), (record.get("rom") or {}).get("sha256")
+    path = Path(root) / relative if relative else None
+    if path is None or not _regular(path) or file_sha256(path) != sha256:
+        return None
+    return {
+        "romPath": str(path),
+        "sha256": sha256,
+        "source": record["source"].get("canonical"),
+        "commit": record.get("commit"),
+    }

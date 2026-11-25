@@ -90,7 +90,7 @@ Params: none. Result:
     "cover": false,
     "card": { "title": "…", … } | null,
     "layout": { "ok": true, "problems": [ { "code": "…", "path": "…", "message": "…" } ], "warnings": [ … ] },
-    "install": { "source": "https://github.com/…", "url": "…", "commit": "<40 hex>", "mode": "game" | "game+source", "installedAt": 1731400000, "edited": false } | null,
+    "install": { "source": "https://github.com/…", "url": "…", "ref": "main", "commit": "<40 hex>", "mode": "game" | "game+source", "rom": "build/game.gbc", "installedAt": 1731400000, "edited": false } | null,
     "displayTitle": "Comet Drift",
     "chat": { "sessionId": "…", "title": "…", "conversationId": "…", "profile": "…", "thisProfile": true } | null,
     "session": { "storedId": "…", "createdAt": 1731400000, "thisProfile": true, "profileName": null, "exists": true } | null,

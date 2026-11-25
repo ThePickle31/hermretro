@@ -83,7 +83,13 @@ class Release(unittest.TestCase):
     def test_an_install_records_where_it_came_from(self):
         self.assertIsNone(release.installed(self.root))
         source = {"canonical": REPO, "url": REPO + ".git", "ref": None, "subdir": None}
-        record = release.record_install(self.root, source=source, commit="d" * 40, mode="game+source")
+        record = release.record_install(
+            self.root,
+            source=source,
+            commit="d" * 40,
+            mode="game+source",
+            rom={"path": "build/game.gbc", "sha256": "0" * 64},
+        )
         self.assertEqual(release.installed(self.root), record)
         self.assertNotIn(".hermretro/install.json", release.files(self.root, source=True))
         self.assertIs(release.local_edits(self.root), False)
@@ -92,7 +98,13 @@ class Release(unittest.TestCase):
         (self.root / "project" / "scene.gbsres").write_text('{"edited": true}')
         self.assertIs(release.local_edits(self.root), True)
         with self.assertRaises(ValueError):
-            release.record_install(self.root, source=source, commit="d" * 40, mode="source")
+            release.record_install(
+                self.root,
+                source=source,
+                commit="d" * 40,
+                mode="source",
+                rom={"path": "build/game.gbc", "sha256": "0" * 64},
+            )
 
     def test_next_version(self):
         self.assertEqual(

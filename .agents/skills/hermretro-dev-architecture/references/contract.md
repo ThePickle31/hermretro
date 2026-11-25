@@ -49,6 +49,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 |---|---|---|---|
 | `library.build_reported` | `game` (library id, str; `null` without a project), `assets` (absolute image paths, list of str) | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
 | `library.game_presented` | `game` (library id, str), `root` (project folder, str) | `chromatic_present_game` showed a game | — |
+| `library.game_moved` | `old`, `new` (library ids, str), `old_root`, `new_root` (folders, str) | an installed game's update kept the user's edited copy as a game of its own in a new folder (`keep_both`) | history (moves the game's snapshots), assets (moves its images' kept versions) |
 | `setup.tools_removed` | `root` (the emptied download folder, str) | `remove_tools` emptied the download folder | — |
 | `setup.studio_profile_ready` | `profile` (profile name, str) | `studio_profile` finished the profile | — |
 | `assets.image_restored` | `path` (the image's absolute path, str) | `asset_restore` put a kept version back | — |
@@ -134,6 +135,7 @@ once without touching USB (`{success, sessionId, platform, arch, backend: {suppo
 acceptingOperations, operations, ...}`); `list_devices` starts a scan and answers `{operationId, state: "running", ...}`;
 `operation_status` with that `operationId` answers, once `state` is `succeeded`, a `result` of `{devices: [{player,
 location, ..., deviceToken, expiresAt}], conflicts, unmatched, diagnostics, selection, identityScope}`.
+Control ops `hold_game` / `release_game` `{root}` (`backend/broker/holds.py`, client `game_hold` in the broker's front door) hold a game while an installed game's update replaces its files: `GAME_BUSY` while a conversation's worker has it selected and alive, then every call that would reach it is refused with `GAME_BUSY` until the release (at most 600 s), which closes a worker that opened it meanwhile.
 A page read that needs the engine is a broker control op (`backend/broker/control.py`) running
 `engine = self.new_engine("<name>")`, `engine.call_tool(...)`, `engine.close()`, as `doctor` does, called from an
 RPC through `host.ensure_broker()`; `doctor` reads no hardware, so a device read must also refuse unless the RPC's
@@ -298,7 +300,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], unavailable[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `layout: { ok, problems[], warnings[] }` (the game folder's layout, `backend/library/layout.py`), `install: { source, url, commit, mode, installedAt, edited } | null` (where a game installed from a link came from, `backend/library/installs.py`; null for a game made here), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
+| `games` | none | `{ ok, games[], unavailable[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `layout: { ok, problems[], warnings[] }` (the game folder's layout, `backend/library/layout.py`), `install: { source, url, ref, commit, mode, rom, installedAt, edited } \| null` (where a game installed from a link came from, `backend/library/installs.py`; null for a game made here), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
 | `game_build_status` | `{ id }` | `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session }, device: { hardwareEnabled } }`: one game's artifacts and chat routing, with the same field shapes as `games` (chat title is null). `INVALID` for an invalid id, `NO_GAME` for an absent entry or project folder, `UNAVAILABLE` for a read failure. |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores the first title screen for the shelf and preserves any existing thumbnail |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
@@ -616,7 +618,7 @@ One entry of the `games` RPC's `games[]` (`describe` in `backend/library/shelf.p
 | webExport, web | Whether a web export exists; its ROM `{ sha256, builtAt }`, or null |
 | thumb, cover | A data URL for the shelf (the cover, else the captured title screen, else null); whether it is the cover |
 | layout | `layout.check()` (`backend/library/layout.py`): `{ ok, problems, warnings }`, each `{ code, path, message }`; a problem blocks presenting, a warning names what stays local |
-| install | `shelf.installed_from()`: for a game installed from a link, `{ source }` (its canonical link), `url`, `commit` (installed), `mode` (`game` or `game+source`), `installedAt` (seconds) and `edited` (its files changed since); null for a game made here |
+| install | `shelf.installed_from()`: for a game installed from a link, `source` (its canonical repository and folder), `url`, `ref` (its branch), `commit` (installed), `mode` (`game` or `game+source`), `rom` (the ROM the install checked, relative; a game alone's `rom` above is that file), `installedAt` (seconds) and `edited` (its files changed since); null for a game made here. On disk, `.hermretro/install.json`: `backend/library/README.md`, "Installing a game from a link" |
 | card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |
 | chat | `{ sessionId, title, conversationId, profile, thisProfile }` of the chat working on it (the last to select it), or null |
 | session | The Build conversation bound to it: `{ storedId, createdAt, thisProfile, profileName, exists }`, or null |

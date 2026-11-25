@@ -63,6 +63,23 @@ class Cartridge(unittest.TestCase):
         body[0x4000] = 0x42  # the header still matches; the global checksum does not
         self.assertEqual(codes(bytes(body)), ["ROM_CHECKSUM"])
 
+    def test_the_header_checksum_alone(self):
+        rom = bytearray(make_rom())
+        rom[0x14D] ^= 1
+        rom[0x14E] = rom[0x14F] = 0  # the global checksum made right again around the damaged header byte
+        total = sum(rom) & 0xFFFF
+        rom[0x14E], rom[0x14F] = total >> 8, total & 0xFF
+        self.assertEqual([p["message"] for p in cartridge.check_bytes(bytes(rom))["problems"]],
+                         ["The ROM's header checksum is wrong; the file is damaged or edited."])  # fmt: skip
+
+    def test_the_header_gb_studio_writes(self):
+        """buildMakeScript.ts: -Wm-yt0x1E (or 0x10 for MBC3), -Wm-ya4 (128 KiB RAM), -Wm-yc (colour), -Wm-yn title."""
+        for kind in (0x1E, 0x10):
+            rom = make_rom(1024 * 1024, kind=kind, ram=4)
+            info = cartridge.check_bytes(rom)
+            self.assertTrue(info["ok"], info)
+            self.assertEqual((rom[0x143], rom[0x147], rom[0x148], rom[0x149]), (0x80, kind, 5, 4))
+
     def test_cartridge_type_and_ram(self):
         self.assertEqual(codes(make_rom(kind=0x22)), ["ROM_CARTRIDGE"])  # MBC7
         self.assertEqual(codes(make_rom(kind=0xFC)), ["ROM_CARTRIDGE"])  # a camera

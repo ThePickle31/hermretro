@@ -100,10 +100,11 @@ def game_identity(root: Path) -> str | None:
 
 
 @game_card.locked
-def new_identity(root: Path) -> str:
+def new_identity(root: Path, *, fresh_changelog: bool = True) -> str:
     """Make the folder a game of its own, for a remix (a copy of another game): a new id, the first version, a fresh
-    changelog, no publish or install record, and ``remixOf`` in ``game.json`` naming the game and version it came
-    from. So it never publishes over the original."""
+    changelog (unless ``fresh_changelog`` is False: an installed game the user edited keeps theirs), no publish or
+    install record, and ``remixOf`` in ``game.json`` naming the game and version it came from. So it never publishes
+    over the original."""
     root = Path(root)
     card = game_card.load(root)
     original = {"id": card.get("id"), "version": card.get("gameVersion")} if card.get("id") else None
@@ -113,7 +114,8 @@ def new_identity(root: Path) -> str:
         (root / STATE_DIR / record).unlink(missing_ok=True)
     if card:
         game_card.set_fields(root, {"id": identifier, "gameVersion": FIRST_VERSION, "remixOf": original})
-    write_text(root / "CHANGELOG.md", CHANGELOG_HEAD)
+    if fresh_changelog:
+        write_text(root / "CHANGELOG.md", CHANGELOG_HEAD)
     ensure(root)
     return identifier
 

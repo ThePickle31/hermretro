@@ -121,7 +121,13 @@ class Layout(unittest.TestCase):
             "ref": None,
             "subdir": None,
         }
-        release.record_install(self.root, source=source, commit="c" * 40, mode="game+source")
+        release.record_install(
+            self.root,
+            source=source,
+            commit="c" * 40,
+            mode="game+source",
+            rom={"path": "build/game.gbc", "sha256": "0" * 64},
+        )
         identifier = layout.new_identity(self.root)
         self.assertNotEqual(identifier, original)
         card = self.card()

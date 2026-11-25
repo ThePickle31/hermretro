@@ -163,7 +163,9 @@ class GameFilesGuard(unittest.TestCase):
         self.assertTrue(self.blocked(patch, "chat-a", tool="patch"))
 
     def test_a_game_installed_without_its_source_is_never_edited(self):
-        layout.write_state(self.root_a, layout.INSTALL_FILE, {"repo": "x/y", "commit": "0" * 40, "source": False})
+        layout.write_state(
+            self.root_a, layout.INSTALL_FILE, {"source": {"url": "x"}, "commit": "0" * 40, "mode": "game"}
+        )
         answer = self.write(self.root_a / "notes.txt", "chat-a")  # even from its own conversation
         self.assertEqual(answer["action"], "block")
         self.assertIn("without its source", answer["message"])

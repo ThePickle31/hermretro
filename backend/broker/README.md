@@ -1,7 +1,7 @@
 # backend/broker
 
 The per-user broker process (`python -m backend.broker`): the single authority over engine workers, project writers and the hardware gate (`broker.py`, `lane.py`, `control.py`, `lifecycle.py` (admission, shutdown, retirement for newer code, the notices kept for conversations), `install.py` (the desktop page's toolchain install: start, MCP cancel, stall
-watch, journal), `server.py`, `engine.py`, `leases.py`, `operations_file.py` (`chromatic_scene_apply`'s `operationsPath`: the operations read from a JSON file in the project or Hermes's scratch folder, code `OPERATIONS_FILE`)), and the client the gateway uses to reach it (`client.py`). Standard library only, no Hermes: `tests/repo/test_broker_imports.py` walks everything it imports. The broker never emits events (their listeners live in the gateway).
+watch, journal), `server.py`, `engine.py`, `leases.py`, `operations_file.py` (`chromatic_scene_apply`'s `operationsPath`: the operations read from a JSON file in the project or Hermes's scratch folder, code `OPERATIONS_FILE`), `holds.py` (`hold_game` / `release_game`: a game held while an installed game's update replaces its files, `GAME_BUSY`)), and the client the gateway uses to reach it (`client.py`). Standard library only, no Hermes: `tests/repo/test_broker_imports.py` walks everything it imports. The broker never emits events (their listeners live in the gateway).
 
 After Node discovery, the client bounds broker startup, including replacement. It also bounds handshakes, status and install start and cancel acknowledgements. The gateway checks the boot UUID tied to the Desktop's grant and sends the broker a deadline on the host's monotonic clock. The broker checks it under the install lock and acknowledges the admitted run without reading progress from disk. It still accepts the Unix-millisecond deadline older gateways send. Install status reports when an installer worker outlives its run so callers can honor the same busy guard as shutdown. Lane status allows the engine to complete its 15-second session probe. Engine tool calls use their own execution budgets.
 
@@ -12,11 +12,11 @@ After Node discovery, the client bounds broker startup, including replacement. I
 
 ## Front door
 
-`backend.broker`: `ensure_broker`, `try_connect`, `request_shutdown`, `BrokerUnavailable` and its subclasses `BrokerNotRunning`, `BrokerRestarting` and `OtherCopyBusy`. `BrokerNotRunning` means the socket was missing or refused the connection; `BrokerRestarting` that a broker of older code is finishing its work before it makes way for this code, or (`waits` false) is from before retirement and cannot make way (nothing ran). The broker itself imports other features only through their front doors (`backend.library`, `backend.setup`), which therefore stay stdlib-only. Read `tests/backend/broker/test_broker_socket.py` before changing the socket protocol.
+`backend.broker`: `ensure_broker`, `try_connect`, `request_shutdown`, `game_hold`, `BrokerUnavailable` and its subclasses `BrokerNotRunning`, `BrokerRestarting` and `OtherCopyBusy`. `BrokerNotRunning` means the socket was missing or refused the connection; `BrokerRestarting` that a broker of older code is finishing its work before it makes way for this code, or (`waits` false) is from before retirement and cannot make way (nothing ran). The broker itself imports other features only through their front doors (`backend.library`, `backend.setup`), which therefore stay stdlib-only. Read `tests/backend/broker/test_broker_socket.py` before changing the socket protocol.
 
 ## Tests
 
-`tests/backend/broker/test_game_selection.py` covers which projects a conversation may open and how its bound game is selected. `tests/backend/broker/test_operations_file.py` covers the operations file. The real-engine checks live in `tests/acceptance/`.
+`tests/backend/broker/test_game_selection.py` covers which projects a conversation may open and how its bound game is selected. `tests/backend/broker/test_operations_file.py` covers the operations file, `test_game_holds.py` the game holds. The real-engine checks live in `tests/acceptance/`.
 
 ## Adding here
 

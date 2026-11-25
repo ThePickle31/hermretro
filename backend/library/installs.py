@@ -1,47 +1,45 @@
 """Installing a game from a link, and updating it: Hermes's install from git, for games. Standard library only; the
-network is reached only through ``install_source`` (git).
+network is reached only through ``install_git``.
 
-    inspect(link)                 read the game at its branch's tip, without installing: what it is and the exact commit
-    install(link, commit)         install exactly that commit (refused when the branch moved since)
-    check_update(root)            whether the source's branch moved past the installed commit (read only)
-    update(root, choice=...)      install the newest commit over the game, keeping the user's own files
+    inspect(link)                       read the game at its branch's tip without installing it: what it is, and the
+                                        exact ``commit`` and ``source`` (branch included) to install
+    install(source, commit, workers=)   install exactly that commit (refused when the branch moved since)
+    check_update(root)                  whether the branch moved past the installed commit (read only)
+    update(root, workers=, choice=)     install the newest commit over the game, keeping the user's own files
 
-Every fetch is a shallow clone into a hidden ``.install-*`` folder beside the games (the same file system, so the game
-moves into place with one rename). The folder is checked (``install_check``) before anything reaches the library; git's
-own ``.git`` is removed, ``layout.ensure`` gives the game its layout and ``release.record_install`` its record
-(``.hermretro/install.json``). One game id is installed once per machine: the same game from the same source is an
-update, from another source it is refused. An update of a game the user edited since it was installed changes nothing
-until the user chooses: ``keep_mine``, ``take_theirs``, or ``keep_both`` (the edited copy becomes a remix, a game of
-its own: ``layout.new_identity``).
+Every fetch goes into a hidden ``.install-*`` folder in the games folder (the same disk, so the game moves into place
+with one rename): bounded (``install_git.fetch``), its tree checked before checkout, only the files its mode publishes
+taken (``install_check.take_payload``) and checked (``install_check.check``). Then ``layout.ensure`` gives the game its
+layout and ``release.record_install`` its record. One game id is installed once per machine: the same game from the
+same source (the same repository and folder; the branch may differ) is an update, from another source it is refused.
+
+Every install and update of one game id holds that id's lock (``<games>/.hermretro-installs/<id>.lock``) from the id
+check to the registration, and an update also holds the game folder's lock (a history restore takes it too) and the
+broker's hold on the game (``workers``: ``game_workers.BrokerWorkers``), so no conversation has the game open while
+its files are replaced (``GAME_BUSY``). An update of a game the user edited since it was installed changes nothing
+until the user chooses: ``keep_mine``, ``take_theirs``, or ``keep_both`` (``install_swap``).
 """
 
 from __future__ import annotations
 
 import base64
-import fcntl
 import os
-import re
 import shutil
 import tempfile
-from contextlib import contextmanager
 from pathlib import Path
 
 from ..system import paths
-from . import game_card, install_check, layout, release
+from . import game_card, install_check, install_git, install_swap, layout, release
 from .games import Registry
-from .install_source import Source, SourceError, clone, is_commit, remote_commit, resolve, within
+from .install_source import Source, SourceError, resolve, within
 
 CHOICES = ("keep_mine", "take_theirs", "keep_both")
 MAX_README_CHARS = 64 * 1024
-MAX_FOLDER_CHARS = 60
-# What an update never carries from the old folder into the new one: the game's own files come from the update, and
-# build/web is made again from them.
-_NOT_CARRIED_FROM_BUILD = frozenset({*(name.rsplit("/", 1)[1] for name in layout.GAME_ROMS), "web"})
 
 
 class InstallError(Exception):
     """An install or update that did not happen: ``code``, a sentence for the user, and ``details`` (``problems``,
-    the games that already have the id, …). Nothing was changed."""
+    the games that already have the id, …). Nothing was changed, unless ``details`` says where something was kept."""
 
     def __init__(self, code: str, message: str, **details):
         super().__init__(message)
@@ -53,155 +51,173 @@ class InstallError(Exception):
         return {"ok": False, "code": self.code, "error": self.message, **self.details}
 
 
-def inspect(link: str, *, registry: Registry | None = None) -> dict:
-    """What the link holds now, read from a clone in a temporary folder outside the games: ``{ok, source, commit,
+def inspect(link, *, registry: Registry | None = None, allow_local: bool = False) -> dict:
+    """What the link holds now, read from a fetch in a temporary folder outside the games: ``{ok, source, commit,
     title, id, version, format, mode, rom, cover, readme, problems, warnings, needsPluginConsent, alreadyInstalled}``.
-    ``commit`` is what ``install`` must be given. Reads the card, cover and README as data only."""
-    source = _resolve(link)
+    ``source`` (``{canonical, url, ref, subdir}``) and ``commit`` are what ``install`` is given."""
+    source = _settled(link, allow_local)
     with tempfile.TemporaryDirectory(prefix="hermretro-inspect-") as workspace:
-        folder, commit = _fetch(source, Path(workspace))
-        report = install_check.check(folder)
+        workspace = Path(workspace)
+        try:
+            game, commit, report = _prepare(source, workspace)
+        except InstallError as error:
+            if error.code != "NOT_INSTALLABLE":
+                raise
+            return {"ok": False, "source": source.record(), "commit": error.details.get("commit"), **error.details}
         card = report["card"]
-        identifier = card.get("id") if isinstance(card.get("id"), str) else None
         return {
-            "ok": report["ok"],
-            "source": source.canonical,
+            "ok": True,
+            "source": source.record(),
             "commit": commit,
-            "title": card.get("title") if isinstance(card.get("title"), str) else None,
-            "id": identifier,
+            "title": card.get("title"),
+            "id": card.get("id"),
             "version": card.get("gameVersion"),
             "format": card.get("format", 1),
             "mode": report["mode"],
             "rom": report["rom"],
-            "cover": _cover_url(folder),
-            "readme": _readme(folder),
-            "problems": report["problems"],
+            "cover": _cover_url(game),
+            "readme": _readme(game),
+            "problems": [],
             "warnings": report["warnings"],
             "needsPluginConsent": report["needsPluginConsent"],
-            "alreadyInstalled": _holders(_registry(registry), identifier, source) if identifier else [],
+            "alreadyInstalled": _holders(_registry(registry), card["id"], source),
         }
 
 
 def install(
-    link: str,
+    source,
     commit: str,
     *,
+    workers,
     registry: Registry | None = None,
     games_dir: Path | None = None,
     allow_plugins: bool = False,
+    allow_local: bool = False,
 ) -> dict:
-    """Install the game the link holds at ``commit`` (from ``inspect``) into the games folder and the library.
-    ``{ok, root, title, mode, commit, testBuildDue}``; an install of a game already installed from the same source
-    answers what ``update`` does. Raises ``InstallError`` and changes nothing when it cannot install."""
-    source = _resolve(link)
-    if not is_commit(commit):
+    """Install the game ``source`` (a link, or ``inspect``'s ``source``) holds at ``commit`` into the games folder and
+    the library: ``{ok, root, title, mode, commit, changed, testBuildDue}``. A game already installed from the same
+    source is updated instead (``update``'s answer). Raises ``InstallError`` and changes nothing when it cannot."""
+    source = _settled(source, allow_local)
+    if not install_git.is_commit(commit):
         raise InstallError("BAD_COMMIT", "Install the exact commit inspect read (40 hex digits).")
     registry = _registry(registry)
     games = Path(games_dir) if games_dir else paths.games_dir(create=True)
     games.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".install-", dir=games))
     try:
-        folder, head = _fetch(source, staging, commit)
-        report = _checked(folder, allow_plugins)
+        game, head, report = _prepare(source, staging, commit)
+        _consent(report, allow_plugins)
         identifier = report["card"]["id"]
-        with _games_lock(games):
-            holders = _holders(registry, identifier, source)
-            same = [holder for holder in holders if holder["sameSource"]]
+        with install_swap.id_lock(games, identifier):
+            holders = _holders(registry, identifier, source) or _recover_orphan(registry, games, identifier, source)
             if not holders:
-                game = _finish(staging, folder, source, head, report["mode"])
-                root = _place(game, games, report["card"]["title"])
-                registry.upsert(str(root))
+                _finish(game, source, head, report)
+                with install_swap.games_lock(games):
+                    root = _guard_swap(lambda: install_swap.unique_folder(games, report["card"]["title"]))
+                    os.rename(game, root)
+                registry.upsert(str(root))  # a failure here leaves a folder the next install recovers
                 return _done(root, report["mode"], head, changed=True)
-        if not same:
-            raise InstallError(
-                "ALREADY_HAVE",
-                "You already have this game from another source. Remix it to keep both.",
-                alreadyInstalled=holders,
+            same = [holder for holder in holders if holder["sameSource"]]
+            if not same:
+                raise InstallError(
+                    "ALREADY_HAVE",
+                    "You already have this game from another source. Remix it to keep both.",
+                    alreadyInstalled=holders,
+                )
+            return update(
+                same[0]["root"],
+                source=source,
+                commit=commit,
+                workers=workers,
+                registry=registry,
+                allow_plugins=allow_plugins,
+                allow_local=allow_local,
             )
     finally:
-        shutil.rmtree(staging, ignore_errors=True)
-    return update(same[0]["root"], commit=commit, registry=registry, allow_plugins=allow_plugins)
+        _clean(staging)
 
 
-def check_update(root: Path) -> dict:
+def check_update(root: Path, *, allow_local: bool = False) -> dict:
     """``{available, commit, remoteCommit}``: whether the installed game's branch is at another commit now. Reads
-    the remote (``git ls-remote``) and changes nothing."""
+    the remote (``git ls-remote``, outside any checkout) and changes nothing."""
     record = _record(Path(root))
-    remote = _guard(lambda: remote_commit(_source(record)))
+    source = _guard(lambda: resolve(record["source"], allow_local=allow_local))
+    remote = _guard(lambda: install_git.remote_commit(source))
     return {"available": remote != record.get("commit"), "commit": record.get("commit"), "remoteCommit": remote}
 
 
 def update(
     root: Path,
     *,
+    workers,
     choice: str | None = None,
     commit: str | None = None,
+    source=None,
     registry: Registry | None = None,
     allow_plugins: bool = False,
+    allow_local: bool = False,
 ) -> dict:
-    """Install the newest commit of the game's source (or exactly ``commit``) over the installed game, keeping the
-    files the user added (``docs/``, ``captures/``, ``save-states/``, …) and its record folder. When the user edited
-    the game since it was installed, nothing changes until ``choice`` says what to do (``{needsChoice: True}``).
-    ``{ok, root, mode, commit, changed, testBuildDue, remix?}``."""
+    """Install the newest commit of the game's recorded source (or ``source``, the one the user reviewed, and exactly
+    ``commit``) over the installed game. ``{ok, root, mode, commit, changed, testBuildDue, kept?, remix?}``, or
+    ``{needsChoice: True}`` with nothing changed while the user edited the game since it was installed."""
     root = Path(root)
     if choice is not None and choice not in CHOICES:
         raise InstallError("BAD_CHOICE", f"Choose one of {', '.join(CHOICES)}.")
-    if commit is not None and not is_commit(commit):
+    if commit is not None and not install_git.is_commit(commit):
         raise InstallError("BAD_COMMIT", "Update to an exact commit (40 hex digits).")
+    _record(root)  # before the locks, which would make the record folder of a folder that is no game
     registry = _registry(registry)
-    _record(root)  # before the lock, which would make the record folder of a folder that is no game
-    remix = None
-    with game_card.folder_lock(root):
-        record = _record(root)
+    games = root.parent
+    with install_swap.id_lock(games, layout.game_identity(root) or "unknown"), game_card.folder_lock(root):
+        record = _record(root)  # as it is now: another update may have run while this one waited
+        source = _settled(source if source is not None else record["source"], allow_local)
         edited = release.local_edits(root) is True
         if edited and choice is None:
             return {"ok": False, "needsChoice": True, "root": str(root), "choices": list(CHOICES)}
         if edited and choice == "keep_mine":
             return _done(root, record["mode"], record.get("commit"), changed=False)
-        staging = Path(tempfile.mkdtemp(prefix=".install-", dir=root.parent))
+        _hold(workers, root)
+        staging = Path(tempfile.mkdtemp(prefix=".install-", dir=games))
         try:
-            source = _source(record)
-            folder, head = _fetch(source, staging, commit)
-            if head == record.get("commit") and not edited:
+            game, head, report = _prepare(source, staging, commit)
+            if head == record.get("commit") and not edited and source.record() == record["source"]:
                 return _done(root, record["mode"], head, changed=False)
-            report = _checked(folder, allow_plugins)
+            _consent(report, allow_plugins)
             if report["card"]["id"] != layout.game_identity(root):
                 raise InstallError(
                     "ANOTHER_GAME", "The source now holds a different game; it was not installed over this one."
                 )
-            game = _finish(staging, folder, source, head, report["mode"])
-            if edited and choice == "keep_both":
-                with _games_lock(root.parent):
-                    remix = _unique(root.parent, f"{report['card']['title']} (edited)")
-                    os.rename(root, remix)
-                aside, moved = remix, []
-            else:
-                aside = staging / "previous"
-                os.rename(root, aside)
-                moved = []
+            _finish(game, source, head, report)
+            if not edited and release.local_edits(root) is True:  # edited while the update was fetched
+                return {"ok": False, "needsChoice": True, "root": str(root), "choices": list(CHOICES)}
             try:
-                if remix is None:
-                    _carry(aside, game, moved)
-                os.rename(game, root)
-            except OSError:
-                for there, here in reversed(moved):  # the user's files go back where they were
-                    os.replace(there, here)
-                os.rename(aside, root)
-                raise
+                if edited and choice == "keep_both":
+                    title = f"{report['card']['title']} (edited)"
+                    swapped = install_swap.keep_both(
+                        root,
+                        game,
+                        lambda: install_swap.unique_folder(games, title),
+                        lambda: install_swap.games_lock(games),
+                        registry,
+                    )
+                else:
+                    swapped = install_swap.replace(
+                        root, game, staging, lambda: install_swap.games_lock(games), registry
+                    )
+            except install_swap.SwapError as error:
+                raise InstallError(error.code, error.message, **error.details) from error
         finally:
-            shutil.rmtree(staging, ignore_errors=True)
-    if remix is not None:
-        layout.new_identity(remix)
-        registry.upsert(str(remix))
-    registry.upsert(str(root))
-    return {**_done(root, report["mode"], head, changed=True), **({"remix": str(remix)} if remix else {})}
+            _release(workers, root)
+            _clean(staging)
+    return {**_done(root, report["mode"], head, changed=True), **swapped}
 
 
 # -- the steps -------------------------------------------------------------------------------------
 
 
-def _resolve(link: str) -> Source:
-    return _guard(lambda: resolve(link))
+def _settled(link, allow_local: bool) -> Source:
+    source = _guard(lambda: resolve(link, allow_local=allow_local))
+    return _guard(lambda: install_git.settle(source))
 
 
 def _guard(step):
@@ -211,85 +227,84 @@ def _guard(step):
         raise InstallError(error.code, error.message) from error
 
 
-def _fetch(source: Source, workspace: Path, commit: str | None = None) -> tuple[Path, str]:
-    """Clone ``source`` into ``workspace/clone``; the game folder in it and the commit checked out. A ``commit`` the
-    branch is no longer at is refused (``SOURCE_MOVED``): what installs is what was reviewed."""
+def _prepare(source: Source, workspace: Path, commit: str | None = None) -> tuple[Path, str, dict]:
+    """Fetch ``source`` into ``workspace``, check its tree, check out the game and take its payload into
+    ``workspace/game``: ``(game, commit, check report)``. A ``commit`` the branch is no longer at is refused
+    (``SOURCE_MOVED``): what installs is what was reviewed. An unsafe tree stops everything before checkout."""
     checkout = workspace / "clone"
-    head = _guard(lambda: clone(source, checkout))
+    head = _guard(lambda: install_git.fetch(source, checkout))
     if commit is not None and head != commit:
+        raise InstallError("SOURCE_MOVED", "The game changed since it was read; read it again.", commit=head)
+    entries = _guard(lambda: install_git.tree(checkout, source.subdir))
+    if not entries:
         raise InstallError(
-            "SOURCE_MOVED", "The game changed since it was read; read it again to see the new version.", commit=head
+            "BAD_FOLDER",
+            f"The repository has no folder {source.subdir!r}." if source.subdir else "The repository is empty.",
         )
-    return _guard(lambda: within(checkout, source.subdir)), head
+    unsafe = install_git.tree_problems(
+        entries, max_files=install_check.MAX_FILES, max_total=install_check.MAX_TOTAL_BYTES
+    )
+    if unsafe:
+        raise InstallError("NOT_INSTALLABLE", "This game cannot be installed.", problems=unsafe, commit=head)
+    _guard(lambda: install_git.checkout(checkout, source.subdir))
+    folder = _guard(lambda: within(checkout, source.subdir))
+    game = workspace / "game"
+    mode, problems = install_check.take_payload(folder, game)
+    report = install_check.check(game) if not problems else {"problems": problems}
+    if problems or not report["ok"]:
+        raise InstallError(
+            "NOT_INSTALLABLE", "This game cannot be installed.", problems=report["problems"], commit=head
+        )
+    return game, head, report
 
 
-def _checked(folder: Path, allow_plugins: bool) -> dict:
-    report = install_check.check(folder)
-    if not report["ok"]:
-        raise InstallError("NOT_INSTALLABLE", "This game cannot be installed.", problems=report["problems"])
+def _consent(report: dict, allow_plugins: bool) -> None:
     if report["needsPluginConsent"] and not allow_plugins:
         raise InstallError(
             "PLUGINS",
             "This game's source has GB Studio plugins: code that runs on this computer when the game is built.",
             needsPluginConsent=True,
         )
-    return report
 
 
-def _finish(staging: Path, folder: Path, source: Source, commit: str, mode: str) -> Path:
-    """The fetched folder as an installed game, still in staging: no ``.git``, the game's own folder (out of a
-    subfolder of the repository), its layout and its install record."""
-    shutil.rmtree(staging / "clone" / ".git", ignore_errors=False)
-    game = staging / "game"
-    os.rename(folder, game)
-    # The record folder is this machine's: one that came with the game (a forged id or install record) is dropped.
-    shutil.rmtree(game / layout.STATE_DIR, ignore_errors=True)
+def _finish(game: Path, source: Source, commit: str, report: dict) -> None:
+    """The fetched game as an installed game, still in staging: its layout and its install record."""
     layout.ensure(game)
-    release.record_install(game, source={"canonical": source.canonical, **source.record()}, commit=commit, mode=mode)
-    return game
+    rom = {"path": report["rom"]["path"], "sha256": report["rom"]["sha256"]}
+    release.record_install(game, source=source.record(), commit=commit, mode=report["mode"], rom=rom)
 
 
-def _place(game: Path, games: Path, title: str) -> Path:
-    target = _unique(games, title)
-    os.rename(game, target)
-    return target
+def _guard_swap(step):
+    try:
+        return step()
+    except install_swap.SwapError as error:
+        raise InstallError(error.code, error.message, **error.details) from error
 
 
-def _unique(games: Path, title: str) -> Path:
-    """A folder in ``games`` named after the game that does not exist yet (``Name``, ``Name 2``, …)."""
-    name = (
-        re.sub(r"[/\\:\x00-\x1f\x7f]", " ", title or "").strip().strip(".").strip()[:MAX_FOLDER_CHARS].strip() or "Game"
-    )
-    for number in range(1, 1000):
-        candidate = games / (name if number == 1 else f"{name} {number}")
-        if not os.path.lexists(candidate):
-            return candidate
-    raise InstallError("NO_FOLDER", f"There are too many games named {name}.")
+def _hold(workers, root: Path) -> None:
+    try:
+        workers.hold(root)
+    except Exception as error:
+        code = getattr(error, "code", "GAME_BUSY")
+        raise InstallError(code, getattr(error, "message", str(error))) from error
 
 
-def _carry(old: Path, new: Path, moved: list) -> None:
-    """Move what the user has in the old folder that the update does not hold into the new one: local folders and
-    files (``docs/``, ``captures/``, ``save-states/``, …), ``build/``'s other files and the record folder (whose lock
-    file is the one held while updating). Each move is appended to ``moved`` as ``(new path, old path)``."""
+def _release(workers, root: Path) -> None:
+    """Let the broker open the game again; a broker that cannot be reached lets the hold end on its own."""
+    try:
+        workers.release(root)
+    except Exception:  # noqa: BLE001 - the update's own outcome is what the caller needs
+        pass
 
-    def move(here: Path, there: Path) -> None:
-        os.replace(here, there)
-        moved.append((there, here))
 
-    for name in os.listdir(old):
-        here, there = old / name, new / name
-        if name == layout.STATE_DIR and here.is_dir() and not here.is_symlink():
-            there.mkdir(exist_ok=True)
-            for record in os.listdir(here):
-                if record != layout.INSTALL_FILE and (record == game_card.LOCK_FILE or not (there / record).exists()):
-                    move(here / record, there / record)
-        elif name == "build" and here.is_dir() and not here.is_symlink():
-            there.mkdir(exist_ok=True)
-            for item in os.listdir(here):
-                if item not in _NOT_CARRIED_FROM_BUILD and not os.path.lexists(there / item):
-                    move(here / item, there / item)
-        elif layout.kind_of(old, name) == "local" and not os.path.lexists(there):
-            move(here, there)
+def _clean(staging: Path) -> None:
+    """Remove what an install left in its staging folder; an old copy of a game kept there is never removed."""
+    for name in ("clone", "game"):
+        shutil.rmtree(staging / name, ignore_errors=True)
+    try:
+        staging.rmdir()
+    except OSError:
+        pass
 
 
 def _done(root: Path, mode: str, commit: str | None, *, changed: bool) -> dict:
@@ -319,48 +334,51 @@ def _record(root: Path) -> dict:
     return record
 
 
-def _source(record: dict) -> Source:
-    source = record["source"]
-    return Source(source.get("url") or "", source.get("ref"), source.get("subdir"))
-
-
 def _holders(registry: Registry, identifier: str, source: Source) -> list[dict]:
-    """The library's games with this game id: ``{root, title, sameSource}`` (installed from the same source)."""
+    """The library's games with this game id: ``{root, title, sameSource}``. The same source is the same repository
+    and folder in it (``Source.canonical``); the branch may differ."""
     found = []
     for entry in registry.load()["games"].values():
         stored = entry.get("projectRoot") if isinstance(entry, dict) else None
-        if not isinstance(stored, str) or not os.path.isdir(stored):
-            continue
-        root = Path(stored)
-        if identifier not in (layout.game_identity(root), game_card.load(root).get("id")):
-            continue
-        record = release.installed(root)
-        same = record is not None and record["source"].get("canonical") == source.canonical
-        found.append({"root": str(root), "title": game_card.load(root).get("title"), "sameSource": same})
+        if isinstance(stored, str) and os.path.isdir(stored) and _same_game(Path(stored), identifier):
+            found.append(_holder(Path(stored), source))
     return found
 
 
-@contextmanager
-def _games_lock(games: Path):
-    """One install at a time in a games folder: the id check and the move into place happen together."""
-    with open(Path(games) / ".install.lock", "a+") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+def _recover_orphan(registry: Registry, games: Path, identifier: str, source: Source) -> list[dict]:
+    """A game folder an earlier install moved into place but did not register (it stopped in between): registered
+    now, and answered as the holder, so the install becomes its update instead of a second copy."""
+    for name in sorted(os.listdir(games)):
+        folder = games / name
+        if name.startswith(".") or not folder.is_dir() or folder.is_symlink() or not _same_game(folder, identifier):
+            continue
+        if release.installed(folder) is not None:
+            registry.upsert(str(folder))
+            return [_holder(folder, source)]
+    return []
 
 
-def _cover_url(folder: Path) -> str | None:
-    cover = folder / game_card.COVER_FILE
-    if cover.is_symlink() or not cover.is_file() or cover.stat().st_size > game_card.MAX_COVER_BYTES:
+def _same_game(root: Path, identifier: str) -> bool:
+    return identifier in (layout.game_identity(root), game_card.load(root).get("id"))
+
+
+def _holder(root: Path, source: Source) -> dict:
+    record = release.installed(root)
+    same = record is not None and record["source"].get("canonical") == source.canonical
+    return {"root": str(root), "title": game_card.load(root).get("title"), "sameSource": same}
+
+
+def _cover_url(game: Path) -> str | None:
+    cover = game / game_card.COVER_FILE
+    if not install_check._regular(cover) or cover.stat().st_size > game_card.MAX_COVER_BYTES:
         return None
-    return "data:image/png;base64," + base64.b64encode(cover.read_bytes()).decode()
+    with cover.open("rb") as handle:
+        return "data:image/png;base64," + base64.b64encode(handle.read(game_card.MAX_COVER_BYTES)).decode()
 
 
-def _readme(folder: Path) -> str | None:
-    readme = folder / "README.md"
-    if readme.is_symlink() or not readme.is_file():
+def _readme(game: Path) -> str | None:
+    readme = game / "README.md"
+    if not install_check._regular(readme):
         return None
     with readme.open(encoding="utf-8", errors="replace") as handle:
         return handle.read(MAX_README_CHARS)

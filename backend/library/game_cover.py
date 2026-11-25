@@ -78,13 +78,13 @@ def _decode_png(data: bytes) -> tuple[int, int, list[tuple[int, int, int, int]]]
     palette = palette or []
     if width * height > 4_000_000:
         raise PngError("the image is too large")
-    try:
-        raw = zlib.decompress(b"".join(chunks))
-    except zlib.error as error:
-        raise PngError(f"the PNG data is damaged ({error})") from error
     bits = depth * channels
     stride = (width * bits + 7) // 8
     step = max(1, bits // 8)
+    try:  # never more than the rows the header promises: a small file must not inflate without end
+        raw = zlib.decompressobj().decompress(b"".join(chunks), height * (stride + 1))
+    except zlib.error as error:
+        raise PngError(f"the PNG data is damaged ({error})") from error
     if len(raw) < height * (stride + 1):
         raise PngError("the PNG data is shorter than its size says")
     previous = bytearray(stride)
@@ -180,9 +180,26 @@ def _read_cover(path: Path, size: int) -> tuple[dict, bytes]:
     return _check_cover_bytes(data), data
 
 
+def png_size(data: bytes) -> tuple[int, int] | None:
+    """A PNG's width and height from its header, without decoding it; None when it has no such header."""
+    if len(data) < 33 or data[:8] != b"\x89PNG\r\n\x1a\n" or data[8:16] != b"\x00\x00\x00\x0dIHDR":
+        return None
+    return struct.unpack(">II", data[16:24])
+
+
 def _check_cover_bytes(data: bytes) -> dict:
     if len(data) > MAX_COVER_BYTES:
         return _size_problem(len(data))
+    size = png_size(data)  # a damaged or foreign file is left to decode_png, which says what is wrong
+    if size is not None and size != (COVER_WIDTH, COVER_HEIGHT):
+        width, height = size
+        return {
+            "ok": False,
+            "width": width,
+            "height": height,
+            "problem": f"The cover is {width}x{height}; it must be exactly {COVER_WIDTH}x{COVER_HEIGHT} (the "
+            "Game Boy screen), drawn at that size, not scaled down.",
+        }
     try:
         width, height, pixels = decode_png(data)
     except PngError as error:

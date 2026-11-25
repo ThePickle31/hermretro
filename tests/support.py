@@ -330,8 +330,10 @@ def git(cwd: Path, *args: str) -> str:
     """Run git in a test repository, with none of the developer's own git configuration."""
     import subprocess
 
-    environment = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
     config = ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "init.defaultBranch=main"]
+    config += ["-c", f"core.hooksPath={os.devnull}", "-c", "commit.gpgSign=false"]
     result = subprocess.run(
         ["git", *config, *args], cwd=cwd, env=environment, capture_output=True, text=True, check=True
     )
@@ -339,12 +341,18 @@ def git(cwd: Path, *args: str) -> str:
 
 
 def make_game_folder(
-    root: Path, *, source: bool = False, identifier: str = "ab" * 16, title: str = "Space Game"
+    root: Path,
+    *,
+    source: bool = False,
+    identifier: str = "ab" * 16,
+    title: str = "Space Game",
+    rom: bytes | None = None,
 ) -> Path:
-    """A published game's files in ``root``: the card (with ``identifier``), the cover and ``build/game.gbc``, and with
-    ``source`` its ``.gbsproj`` and ``project/`` too."""
+    """A published game's files in ``root``: the card (with ``identifier`` and the ROM's ``romSha256``), the cover and
+    ``build/game.gbc`` (``rom``, else ``make_rom()``), and with ``source`` its ``.gbsproj`` and ``project/`` too."""
+    rom = make_rom() if rom is None else rom
     (root / "build").mkdir(parents=True, exist_ok=True)
-    (root / "build" / "game.gbc").write_bytes(make_rom())
+    (root / "build" / "game.gbc").write_bytes(rom)
     (root / "cover.png").write_bytes(COVER)
     card = {
         "version": 1,
@@ -356,6 +364,7 @@ def make_game_folder(
         "cover": "cover.png",
         "gameVersion": "0.1.0",
         "rom": "build/game.gbc",
+        "romSha256": hashlib.sha256(rom).hexdigest(),
     }
     (root / "game.json").write_text(json.dumps(card, indent=2))
     (root / "CHANGELOG.md").write_text("# Changelog\n")

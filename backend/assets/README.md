@@ -7,7 +7,7 @@ Game images for the Build page: the asset viewer's RPCs (`rpcs.py`), how a proje
 - RPCs (`rpcs.py`): `asset`, `asset_info`, `asset_restore`, `assets`.
 - Tools: none.
 - Hooks (`hooks.py`): `post_llm_call` — keeps images a reply delivered; `post_tool_call` — keeps images a tool looked at (runs before build history's snapshot).
-- Events emitted: `assets.image_restored`. Listens to (`listeners.py`): `library.build_reported` — keeps the images a build card shows.
+- Events emitted: `assets.image_restored`. Listens to (`listeners.py`): `library.build_reported` — keeps the images a build card shows; `library.game_moved` — an installed game's edited copy that became a game of its own takes its images' kept versions to its new folder (`moved.py`).
 
 ## Project files
 

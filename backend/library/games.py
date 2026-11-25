@@ -172,6 +172,33 @@ class Registry:
             self._save(data)
             return project.identified_game(identifier, entry)
 
+    def move(self, old_root: str, new_root: str) -> tuple[str, str] | None:
+        """Re-key the game at ``old_root`` to the folder it moved to, keeping its chat, session and builds.
+        ``(old id, new id)``, or None when the library has no such game."""
+        old_id, real = game_id(old_root), Path(os.path.realpath(new_root))
+        with self._locked():
+            data = self.load()
+            entry = data["games"].pop(old_id, None)
+            if not isinstance(entry, dict):
+                return None
+            new_id = game_id(real)
+            entry["id"] = new_id
+            self._update_project(entry, real, time.time())
+            data["games"][new_id] = entry
+            self._save(data)
+        return old_id, new_id
+
+    def forget_builds(self, root: str) -> None:
+        """Drop the recorded build and playable copy of a game whose files were replaced (an update)."""
+        identifier = game_id(os.path.realpath(root))
+        with self._locked():
+            data = self.load()
+            entry = data["games"].get(identifier)
+            if isinstance(entry, dict) and {"lastBuild", "lastWebExport"} & entry.keys():
+                entry.pop("lastBuild", None)
+                entry.pop("lastWebExport", None)
+                self._save(data)
+
     def present(
         self, root: str, *, chat: dict | None = None, note: str | None = None, unfinished: dict | None = None
     ) -> dict | None:

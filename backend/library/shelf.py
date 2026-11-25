@@ -66,6 +66,10 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
         pass
     last = last_build(entry)
     artifacts, built = project.build_artifacts(root, last)
+    checked = release.installed_rom(root)
+    if checked is not None:  # a game installed without its source has the one ROM its install checked
+        rom, built = project._rom_info(Path(checked["romPath"]))
+        artifacts = {**artifacts, "rom": rom}
     if last.get("ok") is False and (built is None or project.timestamp(last.get("t")) >= built):
         state = "failed"
     elif built is None:
@@ -93,16 +97,19 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
 
 
 def installed_from(root: Path) -> dict | None:
-    """Where a game installed from a link came from (``release.installed``), for the page: ``{source, url, commit,
-    mode, installedAt, edited}``; None for a game made here."""
+    """Where a game installed from a link came from (``release.installed``), for the page: ``{source, url, ref,
+    commit, mode, rom, installedAt, edited}`` (``rom``: the ROM its install checked, relative); None for a game made
+    here."""
     record = release.installed(root)
     if record is None:
         return None
     return {
         "source": record["source"].get("canonical"),
         "url": record["source"].get("url"),
+        "ref": record["source"].get("ref"),
         "commit": record.get("commit"),
         "mode": record["mode"],
+        "rom": (record.get("rom") or {}).get("path"),
         "installedAt": project.timestamp(record.get("installedAt"), None),
         "edited": release.local_edits(root) is True,
     }
