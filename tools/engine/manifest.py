@@ -4,7 +4,8 @@
 Records relative path, size, mode and SHA-256 for every file. It copies nothing: the manifest identifies the
 engine without redistributing it. The files hermretro leaves out of the repository (ModRetro's packed CLI
 archives and the Linux capture ffmpeg builds) keep their recorded entries when they are absent, so a checkout
-without them records the same release. The path defaults to the current engine's pin.
+without them records the same release. Python's bytecode (__pycache__, *.pyc) is never recorded: running the
+engine's scripts writes it, and a clean checkout has none. The path defaults to the current engine's pin.
 
     python tools/engine/manifest.py write  [engine/pins/<version>/manifest.json]
     python tools/engine/manifest.py verify [engine/pins/<version>/manifest.json]
@@ -27,7 +28,7 @@ LEFT_OUT = frozenset(paths.VENDOR_ARCHIVES + paths.CAPTURE_FFMPEG)
 
 def scan(root: Path) -> list[dict]:
     entries = []
-    for path in sorted(root.rglob("*")):
+    for path in paths.engine_entries(root):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
         if stat.S_ISLNK(info.st_mode):

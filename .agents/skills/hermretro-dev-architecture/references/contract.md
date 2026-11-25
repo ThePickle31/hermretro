@@ -13,9 +13,17 @@
   or missing SOUL. The compaction cap `compression.threshold_tokens` (Hermes compacts at the lower of it and its
   ratio) is set to 300,000 (`COMPACT_AT_TOKENS`) where the profile's raw config has no such key or a value an earlier
   release set (`OLDER_COMPACT_AT`): by creation and repair, and by registering in the `hermretro` profile
-  (`studio_profile.refresh_compaction_cap`, through `api.write_profile_config`), so a Studio-only or
-  `hermes plugins update` gets it too. Any other value is the user's and is kept, an explicit `null` (the ratio alone
-  decides) included. Checked by `tests/backend/setup/test_studio_profile.py` and
+  (`studio_profile.refresh_compaction_cap`), so a Studio-only or `hermes plugins update` gets it too. Any other value
+  is the user's and is kept, an explicit `null` (the ratio alone decides) included. `agent.disabled_toolsets` is
+  `DISABLED_TOOLSETS` (`code_execution` among them: one-shot chats refuse `execute_code` and the `chromatic_*` tools
+  refuse calls from inside it), set by creation and repair, which record it in the profile's marker
+  (`studio-profile.json`, `disabled_toolsets`), and once by registering where the profile still has exactly the list
+  the marker records (`OLDER_DISABLED_TOOLSETS` for a marker without one; `studio_profile.refresh_disabled_toolsets`
+  records the new one); any other list, or none, is the user's. Both registration updates change one key
+  (`studio_profile._update_config`, through `api.write_profile_config_key`), never through a `config.yaml` link (it
+  would write the linked profile's) and never over a change made meanwhile (read again just before the write; a
+  changed config waits for the next registration). Checked by
+  `tests/backend/setup/test_studio_profile.py`, `test_disabled_toolsets.py` and
   `tests/backend/hermes/test_registration.py`.
 - After a context compaction (any kind but `prune_tool_results`), the chat's next engine tool result that reached the
   engine leads with `hermretroContext`, images or not: the project, the last build and its SHA-256, the live

@@ -1,6 +1,8 @@
-"""tools/engine/manifest.py: a checkout without the left-out files records the same release."""
+"""tools/engine/manifest.py: a checkout without the left-out files records the same release, and Python's bytecode is
+never recorded."""
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -13,6 +15,7 @@ manifest = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(manifest)
 
 ARCHIVE = "third-party/chromatic-cli/notices.br"
+PINS = ROOT / "engine" / "pins"
 
 
 class EngineManifestTests(unittest.TestCase):
@@ -49,6 +52,32 @@ class EngineManifestTests(unittest.TestCase):
             recorded = manifest.build(self.engine(Path(before), {"dist/server.js": "old"}))
             rebuilt = manifest.build(self.engine(Path(after), {"dist/server.js": "new"}), recorded)
         self.assertNotEqual(rebuilt["aggregate_sha256"], recorded["aggregate_sha256"])
+
+    def test_python_bytecode_is_not_recorded(self):
+        with tempfile.TemporaryDirectory() as clean, tempfile.TemporaryDirectory() as run:
+            scripts = {"scripts/worker.py": "print(1)"}
+            recorded = manifest.build(self.engine(Path(clean), scripts))
+            cached = {
+                "scripts/__pycache__/worker.cpython-314.pyc": "bytecode",
+                "scripts/__pycache__/notes.txt": "kept with the cache",
+                "scripts/old.pyc": "bytecode",
+            }
+            rebuilt = manifest.build(self.engine(Path(run), {**scripts, **cached}))
+        self.assertEqual(rebuilt["aggregate_sha256"], recorded["aggregate_sha256"])
+
+    def test_no_committed_manifest_lists_python_bytecode(self):
+        for pin in sorted(PINS.glob("*/manifest.json")):
+            listed = [
+                e["path"]
+                for e in json.loads(pin.read_text())["entries"]
+                if any(manifest.paths.is_bytecode(name) for name in e["path"].split("/"))
+            ]
+            self.assertEqual(
+                listed,
+                [],
+                f"{pin.relative_to(ROOT)} lists Python bytecode, which a clean checkout does not have. FIX: python "
+                "tools/engine/manifest.py write (it skips __pycache__ and *.pyc) and commit the manifest",
+            )
 
 
 if __name__ == "__main__":

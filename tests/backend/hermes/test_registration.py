@@ -12,6 +12,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.support import fake_profile_config
+
 ROOT = Path(__file__).resolve().parents[3]
 DECLARED_TOOLS = re.findall(r"^  - (chromatic_\w+)$", (ROOT / "plugin.yaml").read_text(encoding="utf-8"), re.M)
 
@@ -77,7 +79,7 @@ class Registration(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
         # Registering never writes a config through a Hermes these tests may run beside.
-        patch = mock.patch.object(self.plugin.studio_profile.hermes_api, "write_profile_config")
+        patch = mock.patch.object(self.plugin.studio_profile.hermes_api, "write_profile_config_key")
         patch.start()
         self.addCleanup(patch.stop)
 
@@ -145,28 +147,41 @@ class Registration(unittest.TestCase):
             self.register("hermretro")
             self.assertEqual(soul.read_text(), "edited by the user")
 
+    def configure(self, config: dict) -> None:
+        (self.profile_home / "config.yaml").write_text(json.dumps(config))
+
+    def config(self) -> dict:
+        return json.loads((self.profile_home / "config.yaml").read_text())
+
     def test_the_studio_profile_gets_this_releases_compaction_cap_in_place_of_an_older_one(self):
         studio = self.plugin.studio_profile
-        config = {"compression": {"threshold_tokens": 200000}}
-
-        def write(home, changed):
-            self.assertEqual(home, self.profile_home)
-            config.update(changed)
-
-        with (
-            mock.patch.object(studio.hermes_api, "read_profile_config", lambda _home: json.loads(json.dumps(config))),
-            mock.patch.object(studio.hermes_api, "write_profile_config", side_effect=write) as written,
-        ):
-            self.register("default")
-            self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
-            self.assertEqual(written.call_count, 0, "only the hermretro profile's own config, even when opted in")
-            self.register("hermretro")
-            self.assertEqual(config, {"compression": {"threshold_tokens": studio.COMPACT_AT_TOKENS}})
-            config["compression"]["threshold_tokens"] = None  # the user's: the ratio alone decides
-            self.register("hermretro")
-            self.assertEqual(written.call_count, 1)
+        written = fake_profile_config(self, api=studio.hermes_api)
+        self.configure({"compression": {"threshold_tokens": 200000}})
+        self.register("default")
+        self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+        self.assertEqual(written, [], "only the hermretro profile's own config, even when opted in")
+        self.register("hermretro")
+        self.assertEqual(self.config(), {"compression": {"threshold_tokens": studio.COMPACT_AT_TOKENS}})
+        self.configure({"compression": {"threshold_tokens": None}})  # the user's: the ratio alone decides
+        self.register("hermretro")
+        self.assertEqual(written, [("compression.threshold_tokens", studio.COMPACT_AT_TOKENS)])
         with mock.patch.object(studio.hermes_api, "read_profile_config", side_effect=ImportError("no Hermes")):
             self.assertEqual(len(self.register("hermretro")["tool"]), len(DECLARED_TOOLS))
+
+    def test_the_studio_profile_gets_this_releases_disabled_toolsets_in_place_of_an_older_one(self):
+        studio = self.plugin.studio_profile
+        older = ["tts", "connections", "computer_use", "cronjob"]
+        (self.profile_home / studio.MARKER).parent.mkdir(parents=True, exist_ok=True)
+        (self.profile_home / studio.MARKER).write_text(json.dumps({"made_by": "hermretro"}))
+        written = fake_profile_config(self, api=studio.hermes_api)
+        self.configure({"compression": {"threshold_tokens": None}, "agent": {"disabled_toolsets": older}})
+        self.register("studio-dev", {"HERMRETRO_EVERY_PROFILE": "1"})
+        self.assertEqual(written, [], "only the hermretro profile's own config, even when opted in")
+        self.register("hermretro")
+        self.assertEqual(written, [("agent.disabled_toolsets", list(studio.DISABLED_TOOLSETS))])
+        self.configure({"compression": {"threshold_tokens": None}, "agent": {"disabled_toolsets": older}})
+        self.register("hermretro")
+        self.assertEqual(self.config()["agent"]["disabled_toolsets"], older, "once: the user took code_execution off")
 
     def test_registration_goes_on_when_hermes_storage_cannot_be_asked(self):
         def no_storage():

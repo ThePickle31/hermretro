@@ -138,7 +138,7 @@ class StudioProfile(unittest.TestCase):
         result = self.finish(create=True)
         self.assertEqual(
             (result["ok"], result["providers"], result["disabled_toolsets"]),
-            (True, ["my-provider"], ["tts", "connections", "computer_use", "cronjob"]),
+            (True, ["my-provider"], ["tts", "connections", "computer_use", "cronjob", "code_execution"]),
         )
         self.assertEqual((self.target / "plugins" / paths.PLUGIN_ID).resolve(), paths.PLUGIN_ROOT.resolve())
         self.assertEqual(
@@ -158,7 +158,12 @@ class StudioProfile(unittest.TestCase):
                 (staging, ("plugins", "enable", "my-provider")),
                 (
                     staging,
-                    ("config", "set", "agent.disabled_toolsets", '["tts", "connections", "computer_use", "cronjob"]'),
+                    (
+                        "config",
+                        "set",
+                        "agent.disabled_toolsets",
+                        '["tts", "connections", "computer_use", "cronjob", "code_execution"]',
+                    ),
                 ),
                 (staging, ("skills", "opt-out")),
                 (staging, ("config", "set", "auxiliary.background_review.enabled", "false")),
@@ -181,7 +186,11 @@ class StudioProfile(unittest.TestCase):
         self.assertEqual(list((self.target / "workspace").iterdir()), [])
         self.assertEqual(result["workspace"], str((self.target / "workspace").resolve()))
         self.assertIn("You are hermretro", (self.target / "SOUL.md").read_text())
-        self.assertEqual(json.loads((self.target / sp.MARKER).read_text())["from_profile"], "work")
+        marker = json.loads((self.target / sp.MARKER).read_text())
+        self.assertEqual(marker["from_profile"], "work")
+        self.assertEqual(
+            marker["disabled_toolsets"], list(sp.DISABLED_TOOLSETS), "the list given, so it is migrated once"
+        )
         self.assertEqual(
             sp.describe(self.home, self.target)["studio"],
             {

@@ -298,5 +298,52 @@ class PreparedEngine(unittest.TestCase):
         self.assertEqual(paths.verify_prepared_engine()["detail"], "changed package.json")
 
 
+class EngineEntries(unittest.TestCase):
+    """The engine's files as its manifest and verification see them: Python's bytecode left out by name, links never."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        for rel in (
+            "package.json",
+            "scripts/worker.py",
+            "scripts/__pycache__/worker.cpython-314.pyc",
+            "scripts/old.pyc",
+        ):
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / rel).write_text(rel)
+        self.expected = {rel: paths._file_sha256(self.root / rel) for rel in ("package.json", "scripts/worker.py")}
+
+    def listed(self) -> list[str]:
+        return [path.relative_to(self.root).as_posix() for path in paths.engine_entries(self.root)]
+
+    def test_bytecode_is_left_out_and_never_stated(self):
+        # A running script renames its bytecode into place: a .pyc listed and then stat'ed could be gone.
+        def refusing_bytecode(real):
+            def call(path, *args, **kwargs):
+                if "__pycache__" in path.parts or path.name.endswith(".pyc"):
+                    raise FileNotFoundError(path)
+                return real(path, *args, **kwargs)
+
+            return call
+
+        with (
+            mock.patch.object(Path, "lstat", refusing_bytecode(Path.lstat)),
+            mock.patch.object(Path, "stat", refusing_bytecode(Path.stat)),
+        ):
+            self.assertEqual(self.listed(), ["package.json", "scripts/worker.py"])
+            self.assertEqual(paths._compare_tree(self.root, self.expected), [])
+
+    def test_a_link_is_listed_and_refused_whatever_its_name(self):
+        (self.root / "scripts" / "gone.pyc").symlink_to(self.root / "nowhere.pyc")
+        (self.root / "scripts" / "linked").symlink_to(self.root / "scripts", target_is_directory=True)
+        self.assertEqual(self.listed(), ["package.json", "scripts/gone.pyc", "scripts/linked", "scripts/worker.py"])
+        self.assertEqual(
+            paths._compare_tree(self.root, self.expected),
+            ["unexpected symlink scripts/gone.pyc", "unexpected symlink scripts/linked"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

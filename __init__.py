@@ -78,6 +78,7 @@ def _refresh_studio():
     for what, refresh in (
         ("SOUL.md", studio_profile.refresh_soul),
         ("compaction cap", studio_profile.refresh_compaction_cap),
+        ("disabled toolsets", studio_profile.refresh_disabled_toolsets),
     ):
         try:
             refresh(hermes_host._data_dir().parents[1])

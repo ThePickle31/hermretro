@@ -289,15 +289,39 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_bytecode(name: str) -> bool:
+    """Whether a file or folder name is Python's own bytecode, which running the engine's scripts writes: never part
+    of the engine, so neither recorded in its manifest, compared with it nor copied into the prepared engine."""
+    return name == "__pycache__" or name.endswith(".pyc")
+
+
+def engine_entries(root: Path) -> list[Path]:
+    """Every file and link under root, sorted, but Python's bytecode. A running script writes bytecode and renames it
+    into place meanwhile, so it is left out by name from the folder listing, before anything stats it; a link is
+    listed whatever its name."""
+    found: list[Path] = []
+    folders = [root]
+    while folders:
+        with os.scandir(folders.pop()) as listing:
+            for entry in listing:
+                if entry.is_symlink():
+                    found.append(Path(entry.path))
+                elif is_bytecode(entry.name):
+                    continue
+                elif entry.is_dir():
+                    folders.append(Path(entry.path))
+                else:
+                    found.append(Path(entry.path))
+    return sorted(found)
+
+
 def _compare_tree(root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset()) -> list[str]:
     """Every regular file under root against rel -> SHA-256. No extras, no symlinks."""
     problems: list[str] = []
     seen: set[str] = set()
-    for path in sorted(root.rglob("*")):
+    for path in engine_entries(root):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
-        if "__pycache__" in rel:
-            continue
         if stat.S_ISLNK(info.st_mode):
             problems.append(f"unexpected symlink {rel}")
         elif stat.S_ISREG(info.st_mode):
