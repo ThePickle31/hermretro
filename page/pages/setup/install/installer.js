@@ -3,7 +3,7 @@ import { useState } from '#sdk'
 import { callBackend, describeRequestError, nodeState } from '#app/backend.js'
 import { sendPromptToChat } from '#app/chat-insert.js'
 import { forgetRoute, routing } from '#app/routing.js'
-import { RPC_INSTALL, RPC_STUDIO_PROFILE } from '#app/rpc.js'
+import { RPC_INSTALL, RPC_STUDIO_CLAUDE_SIGN_IN, RPC_STUDIO_PROFILE } from '#app/rpc.js'
 import { isUpdating, UPDATING_MESSAGE, useUpdating } from '#app/update/lock.js'
 import { confirmedInstall, INSTALL_STATUS_UNKNOWN } from './install-status.js'
 
@@ -20,6 +20,15 @@ async function createStudioProfile(profile) {
 
   if (!data?.ok) {
     throw new Error(data?.error || 'The profile could not be set up.')
+  }
+}
+
+/** Give the studio profile a Claude login of its own (DirectSDK). Claude Code's sign-in waits on the browser. */
+export async function signInToClaude() {
+  const { data } = await callBackend(RPC_STUDIO_CLAUDE_SIGN_IN, {}, 660_000)
+
+  if (!data?.ok) {
+    throw new Error(data?.error || 'The Claude sign-in did not finish.')
   }
 }
 

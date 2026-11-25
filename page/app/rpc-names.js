@@ -23,6 +23,7 @@ export const RPC_NAMES = Object.freeze({
   presentations: `plugin.${ID}.presentations`,
   remove_tools: `plugin.${ID}.remove_tools`,
   status: `plugin.${ID}.status`,
+  studio_claude_sign_in: `plugin.${ID}.studio_claude_sign_in`,
   studio_profile: `plugin.${ID}.studio_profile`,
 })
 
@@ -45,4 +46,5 @@ export const RPC_PLAYER = RPC_NAMES.player // backend/library/rpcs.py
 export const RPC_PRESENTATIONS = RPC_NAMES.presentations // backend/library/rpcs.py
 export const RPC_REMOVE_TOOLS = RPC_NAMES.remove_tools // backend/setup/rpcs.py
 export const RPC_STATUS = RPC_NAMES.status // backend/setup/rpcs.py
+export const RPC_STUDIO_CLAUDE_SIGN_IN = RPC_NAMES.studio_claude_sign_in // backend/setup/rpcs.py
 export const RPC_STUDIO_PROFILE = RPC_NAMES.studio_profile // backend/setup/rpcs.py

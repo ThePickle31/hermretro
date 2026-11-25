@@ -72,8 +72,13 @@ export function computeSteps({ backend, status, doctor, memory }) {
   const cli = data?.deps?.device_cli
 
   const states = {
-    // A backend that says nothing about profiles predates this step and cannot make one.
-    profile: !data ? 'waiting' : !data.profile || data.profile.is_studio ? 'done' : 'todo',
+    // A backend that says nothing about profiles predates this step and cannot make one. A studio profile with no
+    // Claude login its provider can use is not done: the step offers the sign-in.
+    profile: !data
+      ? 'waiting'
+      : !data.profile || (data.profile.is_studio && data.profile.studio?.claude_login?.signed_in !== false)
+        ? 'done'
+        : 'todo',
     toolchain: !data ? 'waiting' : nodeState(data.node).ok ? toolchainState(data, doctor) : 'blocked',
     firmware: memory.firmwareDone ? 'done' : 'todo',
     devmode: memory.devmodeDone ? 'done' : 'todo',

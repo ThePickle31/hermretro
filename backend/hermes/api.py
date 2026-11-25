@@ -20,6 +20,17 @@ USED = (
     ("hermes_constants", "get_default_hermes_root"),
     ("hermes_cli.profiles", "get_profile_dir"),  # not in the plugin API yet
     ("hermes_cli.config", "load_config_readonly"),
+    ("hermes_cli.config", "read_user_config_raw"),
+    ("hermes_cli.auth", "PROVIDER_REGISTRY"),
+    ("agent.secret_scope", "load_env_file"),
+    # Private: Hermes's .env writer for an explicit path. Its public save_env_value also changes os.environ, which here
+    # would be the installing profile's process.
+    ("hermes_cli.config", "_env_write_lock"),
+    ("hermes_cli.config", "_read_env_lines"),
+    ("hermes_cli.config", "_write_env_lines"),
+    ("hermes_cli.config", "_quote_env_value"),
+    ("hermes_cli.config", "_env_line_defines_key"),
+    ("hermes_cli.config", "validate_env_var_name_for_write"),
     ("hermes_cli.default_soul", "DEFAULT_SOUL_MD"),
     ("hermes_cli.profiles", "_bootstrap_profile_dir"),
     ("hermes_cli.profiles", "seed_profile_skills"),
@@ -86,6 +97,57 @@ def enabled_plugins() -> list[str]:
         return [str(name) for name in enabled]
     except Exception:  # noqa: BLE001 - an unreadable config means no plugins are on
         return []
+
+
+def read_profile_config(profile_home: Path) -> dict:
+    """A profile's config.yaml exactly as written: no defaults filled in (empty when it has none)."""
+    from hermes_cli.config import read_user_config_raw
+
+    return read_user_config_raw(profile_home / "config.yaml")
+
+
+def read_profile_env(profile_home: Path) -> dict[str, str]:
+    """A profile's .env as Hermes reads it (empty when it has none). Never touches ``os.environ``."""
+    from agent.secret_scope import load_env_file
+
+    return dict(load_env_file(profile_home / ".env"))
+
+
+def set_profile_env(profile_home: Path, name: str, value: str | None) -> None:
+    """Set (or with None remove) one name in a profile's .env, as Hermes writes it, without touching ``os.environ``."""
+    from hermes_cli.config import (
+        _env_line_defines_key,
+        _env_write_lock,
+        _quote_env_value,
+        _read_env_lines,
+        _write_env_lines,
+        validate_env_var_name_for_write,
+    )
+
+    validate_env_var_name_for_write(name)
+    path = profile_home / ".env"
+    with _env_write_lock(path):
+        existed = path.exists()
+        lines = [line for line in (_read_env_lines(path) if existed else []) if not _env_line_defines_key(line, name)]
+        if value is not None:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            single_line = value.replace("\n", "").replace("\r", "")
+            lines.append(f"{name}={_quote_env_value(single_line)}\n")
+        _write_env_lines(path, lines, preserve_mode=existed)
+
+
+def provider_env_keys() -> set[str]:
+    """The .env names Hermes's model providers read their API key and endpoint from (``OPENROUTER_API_KEY``...).
+    Messaging bot tokens are not among them."""
+    from hermes_cli.auth import PROVIDER_REGISTRY
+
+    names = {"OPENROUTER_API_KEY"}  # OpenRouter, Hermes's built-in default route, is not in the registry
+    for provider in PROVIDER_REGISTRY.values():
+        names.update(name for name in getattr(provider, "api_key_env_vars", ()) or () if name)
+        if base_url := getattr(provider, "base_url_env_var", None):
+            names.add(base_url)
+    return names
 
 
 def prepare_profile(staging: Path, *, description: str, soul: str) -> None:

@@ -20,7 +20,7 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import host as host_os, paths
 from ..system.events import emit
-from . import progress as onboarding, provision, recovery, studio_profile
+from . import claude_login, progress as onboarding, provision, recovery, studio_profile, studio_providers
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -122,6 +122,8 @@ def rpc_status(ctx):
                 "profile": studio_profile.describe(host._data_dir().parents[1]),
                 "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT,
             }
+            # Each look at Setup brings the studio profile up to date with the installing profile's providers.
+            studio_providers.sync_soon(host._data_dir().parents[1])
             client, error = host.try_connect(paths.runtime_dir())  # never starts the broker
             if client is None:
                 if error is not None and not isinstance(error, BrokerNotRunning):
@@ -255,6 +257,22 @@ def rpc_studio_profile(ctx):
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
 
     return finish
+
+
+@rpc("studio_claude_sign_in")
+def rpc_studio_claude_sign_in(ctx):
+    """Sign the studio profile in to Claude with a login of its own, in the browser (DirectSDK only)."""
+
+    def sign_in(params, **_kwargs):
+        try:
+            return studio_providers.sign_in_to_claude(host._data_dir().parents[1])
+        except (studio_profile.StudioProfileError, claude_login.SignInError) as error:
+            return {"ok": False, "code": error.code, "error": str(error)}
+        except Exception as error:
+            logger.exception("hermretro Claude sign-in failed")
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+
+    return sign_in
 
 
 # How a broker from before the install's cancel answers install_cancel: it has no such op, so the request falls
