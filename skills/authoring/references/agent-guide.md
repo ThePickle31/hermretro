@@ -258,7 +258,8 @@ unknown fields, event branches, source assets, and neighboring authored files:
 - `chromatic_collision_inspect` and `chromatic_collision_edit` preserve native hexadecimal
   run-length collision grids and untouched opaque cell values.
 - `chromatic_asset_import`, `chromatic_asset_inspect`, `chromatic_asset_update`, and `chromatic_asset_delete` manage
-  genuine project-local PNG assets and associated native resource metadata.
+  genuine project-local PNG assets and associated native resource metadata. `chromatic_asset_import`
+  takes one asset or several (`assets`) and returns each one's graphics analysis.
   For replacement background art, `chromatic_asset_update.copyTileColorsFrom` copies an
   existing background's exact palette assignments, including UI cells, into
   empty metadata of the same dimensions. Supply `expectedRevision`; preview
@@ -587,9 +588,9 @@ actual host to select an object, preview/compare/reset colors, save and reopen a
 annotation, then send it and inspect the received conversation context.
 
 For an authored overview, `chromatic_graphics_preview_scene` also accepts ordered `sceneIds`
-(1–16 distinct scenes), `columns` (1–8) and integer `magnification` (1–4), instead
-of `sceneId`. It writes a new labeled STATIC / NOT GAMEPLAY sheet; the original
-single-scene behavior remains unchanged.
+(1–16 distinct scenes) and `columns` (1–8) instead of `sceneId`. It writes a new
+labeled STATIC / NOT GAMEPLAY sheet. Both forms are enlarged 2x unless integer
+`magnification` (1–4) says otherwise.
 
 ## Playtest real ROMs
 

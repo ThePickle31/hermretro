@@ -68,3 +68,20 @@ files, what changed and why.
   A new recording's `outputPath` may no longer lie inside another recording, the recording archives or an archive
   reference, whose bytes are inventoried. Checkpoints bind to the exact ROM, so every fix used to mean playing the
   whole route again by hand (several full playthroughs per game in the five-game audit).
+- `dist/server.js` (`dist/assets.js`, `dist/sprites.js`, `dist/palettes.js`, `dist/scene-graphics.js`,
+  `dist/tool-domains/` modules): art import and previews. `asset_import` imports up to 32 assets in one call
+  (`assets`, all checked before any is written; a failure while writing removes every file the call created),
+  takes `sprite.paletteIndex` (the sprite palette slot every tile uses), adds a `metasprite` profile (one row of
+  frames up to 128 × 128 built from 8 × 16 tiles, blank tiles left out, a whole-frame collision box), gives the
+  16-pixel profiles a 16 × 16 box for TOPDOWN sprites (`sprite.sceneType`, default the project's default scene
+  type) when the top-down grid is 16 px, counts `numTiles` as GB Studio's compiler does (distinct 8 × 16 tiles
+  after flip deduplication) and refuses a sprite larger than a scene can load, refuses generated profiles in a
+  project whose sprite mode is 8 × 8, and returns each asset's graphics analysis (native_metadata too), whose
+  sprite tile budget counts the same way. `palette_create`/`palette_update` take three colors for a sprite
+  palette (entries 0, 1 and 3; GB Studio never draws entry 2 on sprites; an update keeps the existing entry 2)
+  and `palette_assign` to a sprite slot returns the colors sprites show and warns about a distinct entry 2.
+  `sprite_preview`, `sprite_contact_sheet` and `graphics_preview_scene` enlarge by default (a scene sheet only
+  when the enlarged sheet fits the renderer), the sprite previews take a `paletteId`, and all three take
+  `colorCorrection: "chromatic"`, the hermretro player's color correction (the Gambatte curve), as an
+  approximation of the Chromatic's screen. Agents hand-wrote native metadata and hashes for palettes and large
+  sprites, wrote zoom scripts, and skipped the analysis.

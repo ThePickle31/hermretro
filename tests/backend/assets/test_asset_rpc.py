@@ -45,6 +45,50 @@ class AssetRpc(unittest.TestCase):
         self.assertEqual(answer["sprite"], {"name": "Frog", "frameWidth": 16, "frameHeight": 16, "animSpeed": 15})
         self.assertTrue(answer["dataUrl"].startswith("data:image/png;base64,"))
 
+    def test_a_sprite_is_painted_with_the_palette_in_its_own_slot(self):
+        """An imported sprite's tiles name a sprite palette slot: the scene's palette in that slot paints it, and an
+        empty scene slot falls back to the project's default for that slot (not the scene's first palette)."""
+        resources = self.frog / "project"
+        (resources / "palettes").mkdir()
+        colors = {"first": "111111", "slot3": "333333", "default3": "D3D3D3"}
+        for palette_id, color in colors.items():
+            (resources / "palettes" / f"{palette_id}.gbsres").write_text(
+                json.dumps({"id": palette_id, "name": palette_id, "colors": [color] * 4})
+            )
+        (resources / "settings.gbsres").write_text(
+            json.dumps({"defaultSpritePaletteIds": ["first", "", "", "default3", "", "", "", ""]})
+        )
+        for order, (name, slots) in enumerate(
+            (("filled", ["first", "", "", "slot3"]), ("empty", ["first", "", "", ""]))
+        ):
+            scene = resources / "scenes" / name
+            (scene / "actors").mkdir(parents=True)
+            (scene / "scene.gbsres").write_text(
+                json.dumps({"id": name, "name": name, "_index": order, "spritePaletteIds": slots})
+            )
+            (scene / "actors" / "coin.gbsres").write_text(json.dumps({"name": "Coin", "spriteSheetId": "coin"}))
+        sprite = self.frog / "assets" / "sprites" / "coin.png"
+        sprite.parent.mkdir(parents=True, exist_ok=True)
+        sprite.write_bytes(SPRITE_PNG)
+        tile = {"x": 0, "y": 0, "sliceX": 0, "sliceY": 0, "paletteIndex": 3}
+        (sprite.parent / "coin.png.gbsres").write_text(
+            json.dumps(
+                {
+                    "id": "coin",
+                    "name": "Coin",
+                    "canvasWidth": 16,
+                    "canvasHeight": 16,
+                    "states": [{"animationType": "fixed", "animations": [{"frames": [{"tiles": [tile]}]}]}],
+                }
+            )
+        )
+        info = assets_rpcs.rpc_asset_info(mock.Mock())({"root": str(self.frog), "path": str(sprite)})
+        self.assertTrue(info["ok"], info)
+        self.assertEqual(info["sprite"]["animations"][0]["frames"][0][0]["paletteIndex"], 3)
+        drawn = {scene["id"]: scene["actors"][0]["palette"]["colors"][0] for scene in info["scenes"]}
+        self.assertEqual(drawn, {"filled": "#333333", "empty": "#D3D3D3"})
+        self.assertEqual(self.asset({"path": str(sprite)})["sprite"]["palette"][0], "#333333")  # its first use
+
     def test_saved_frames_are_served_and_everything_else_is_refused(self):
         frame = self.home / "frames" / "f.png"
         frame.write_bytes(SPRITE_PNG)

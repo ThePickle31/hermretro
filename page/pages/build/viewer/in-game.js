@@ -1,6 +1,6 @@
 // Art shown where the game uses it.
 import { jsx, jsxs, useLayoutEffect, useRef } from '#sdk'
-import { drawSpriteFrame, paintSheet } from '#pages/build/assets/sprite.js'
+import { drawSpriteFrame, paintSheet, spriteOriginX } from '#pages/build/assets/sprite.js'
 import { useImages } from './info.js'
 
 /** A scene as the game draws it at the start: the background and each actor's standing frame. */
@@ -38,7 +38,7 @@ export function SceneCanvas({ scene, scale, highlight, refresh }) {
         continue
       }
 
-      const left = (Number(actor.x) || 0) * 8
+      const left = (Number(actor.x) || 0) * 8 - spriteOriginX(actor.canvasWidth)
       const top = ((Number(actor.y) || 0) + 1) * 8 - actor.canvasHeight
 
       drawSpriteFrame(context, paintSheet(sheet, actor.palette?.colors), actor.tiles, {

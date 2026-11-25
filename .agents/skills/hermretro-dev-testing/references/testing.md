@@ -144,8 +144,9 @@ folder; only `python tools/check.py unit` gives the suite an empty one (and fail
 run that before committing.
 
 The real-engine run starts in `tests/acceptance/broker_acceptance.py`. Under `tests/acceptance/`,
-`projects.py` covers builds and emulation, `replay.py` replaying a recorded attempt onto a rebuild,
-`ownership.py` leases and the Desktop view, and `recovery.py` worker and broker restarts. Each stage uses the same two games.
+`projects.py` covers builds and emulation, `replay.py` replaying a recorded attempt onto a rebuild, `art.py` art
+import, sprite palettes and previews, `ownership.py` leases and the Desktop view, and `recovery.py` worker and broker
+restarts. Each stage uses the same two games.
 
 Shared helpers are `tests/support.py`, imported as `from tests.support import ...`; a test reaches another test's
 helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/` itself on `sys.path` (only the

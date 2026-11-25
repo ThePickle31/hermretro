@@ -3774,14 +3774,15 @@
     {
       "name": "asset_import",
       "title": "Import a genuine image asset",
-      "description": "Register a project-local PNG as a native asset. native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
+      "description": "Register project-local PNGs as native assets: one with assetPath and kind, or up to 32 in assets (all or none). Sprite profiles: static 16x16, directional 48x16, directional_animated 96x16, metasprite (a row of frameWidth x frameHeight frames, e.g. 32x32, built from 8x16 tiles), template. sprite.paletteIndex picks the scene sprite palette slot (0-7) for every tile. Generated profiles need the project's 8x16 sprite mode. A metasprite's collision box covers its whole frame; TOPDOWN sprites (sprite.sceneType, default the project's default scene type) on a 16 px top-down grid get a 16x16 box from the 16-pixel profiles. Each result includes the graphics analysis (status, tile budget as GB Studio compiles it, violations). native_metadata imports a complete sprite PNG/JSON pair: requires sourcePath, sprite.metadataPath, sourceSha256, metadataSha256 and a fresh whole-project expectedRevision. It creates only new outputs, supports dryRun, and returns the complete deterministic ID map. Source paths stay inside the selected project. Actor rebinding is a separate guarded operation; do not replay an uncertain import.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "assetPath": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 4096
+            "maxLength": 4096,
+            "description": "Destination PNG under assets/backgrounds or assets/sprites. Required with kind unless assets is given."
           },
           "kind": {
             "type": "string",
@@ -3826,11 +3827,36 @@
                       "directional48x16",
                       "directional_animated",
                       "directional_animated96x16",
+                      "metasprite",
                       "template"
                     ]
                   },
                   "templateAssetId": {
                     "$ref": "#/properties/id"
+                  },
+                  "paletteIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 7,
+                    "description": "Scene sprite palette slot (0-7) every tile uses in color mode; defaults to 0."
+                  },
+                  "frameWidth": {
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 128,
+                    "description": "metasprite only: frame width, a multiple of 8."
+                  },
+                  "frameHeight": {
+                    "type": "integer",
+                    "minimum": 16,
+                    "maximum": 128,
+                    "description": "metasprite only: frame height, a multiple of 16; the PNG is one row of frames this tall."
+                  },
+                  "sceneType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Scene type the sprite is for, e.g. TOPDOWN or PLATFORM; defaults to the project's default scene type. TOPDOWN on a 16 px top-down grid gives the 16-pixel profiles a 16x16 collision box."
                   }
                 },
                 "required": [
@@ -3867,6 +3893,47 @@
               }
             ]
           },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetPath": {
+                  "$ref": "#/properties/assetPath"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "background",
+                    "sprite"
+                  ]
+                },
+                "sourcePath": {
+                  "$ref": "#/properties/assetPath"
+                },
+                "name": {
+                  "$ref": "#/properties/name"
+                },
+                "id": {
+                  "$ref": "#/properties/id"
+                },
+                "background": {
+                  "$ref": "#/properties/background"
+                },
+                "sprite": {
+                  "$ref": "#/properties/sprite/anyOf/0"
+                }
+              },
+              "required": [
+                "assetPath",
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "description": "Import several assets in one call instead of the single-asset fields; all are checked before any is written. native_metadata is not allowed here."
+          },
           "expectedRevision": {
             "type": "string",
             "minLength": 1,
@@ -3878,10 +3945,6 @@
             "description": "Validate the complete native_metadata import without publishing; defaults false."
           }
         },
-        "required": [
-          "assetPath",
-          "kind"
-        ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       },
@@ -4370,7 +4433,7 @@
     {
       "name": "sprite_preview",
       "title": "Preview authored sprite",
-      "description": "Write one labeled authored sprite frame; this is not an emulator framebuffer. Omit outputPath for a unique capture, or supply a new PNG path.",
+      "description": "Write one labeled authored sprite frame, enlarged by default and optionally in a palette's sprite colors; this is not an emulator framebuffer. Omit outputPath for a unique capture, or supply a new PNG path.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4411,7 +4474,20 @@
           "scale": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 8
+            "maximum": 8,
+            "description": "Integer enlargement; defaults to the largest that keeps the frame within 128 pixels."
+          },
+          "paletteId": {
+            "$ref": "#/properties/assetId",
+            "description": "Draw the frame in this palette's sprite colors (entries 0, 1 and 3) instead of the source shades."
+          },
+          "colorCorrection": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chromatic"
+            ],
+            "description": "none (default) writes the palette's exact colors; chromatic applies the color correction the hermretro player uses, an approximation of the Chromatic's screen."
           }
         },
         "additionalProperties": false,
@@ -4430,7 +4506,7 @@
     {
       "name": "sprite_contact_sheet",
       "title": "Preview sprite animation frames",
-      "description": "Write a labeled bounded sprite-source animation sheet without claiming genuine gameplay-frame provenance.",
+      "description": "Write a labeled bounded sprite-source animation sheet, enlarged by default and optionally in a palette's sprite colors, without claiming genuine gameplay-frame provenance.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4461,12 +4537,25 @@
           "scale": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 8
+            "maximum": 8,
+            "description": "Integer enlargement; defaults to the largest that keeps each frame within 64 pixels."
           },
           "stateIndex": {
             "type": "integer",
             "minimum": 0,
             "maximum": 31
+          },
+          "paletteId": {
+            "$ref": "#/properties/assetId",
+            "description": "Draw the frame in this palette's sprite colors (entries 0, 1 and 3) instead of the source shades."
+          },
+          "colorCorrection": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chromatic"
+            ],
+            "description": "none (default) writes the palette's exact colors; chromatic applies the color correction the hermretro player uses, an approximation of the Chromatic's screen."
           }
         },
         "required": [
@@ -4527,7 +4616,7 @@
     {
       "name": "palette_create",
       "title": "Create a color palette",
-      "description": "Create one genuine project-global Game Boy Color palette with exactly four RGB colors.",
+      "description": "Create one genuine project-global Game Boy Color palette: four RGB colors, or three for a sprite palette.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4542,8 +4631,9 @@
               "type": "string",
               "pattern": "^#?[\\da-fA-F]{6}$"
             },
-            "minItems": 4,
-            "maxItems": 4
+            "minItems": 3,
+            "maxItems": 4,
+            "description": "Four colors, lightest to darkest; or three for a sprite palette (lightest, middle, darkest), stored as entries 0, 1 and 3 because sprites never show entry 2. Three colors in an update keep the palette's entry 2."
           },
           "id": {
             "type": "string",
@@ -4591,8 +4681,9 @@
               "type": "string",
               "pattern": "^#?[\\da-fA-F]{6}$"
             },
-            "minItems": 4,
-            "maxItems": 4
+            "minItems": 3,
+            "maxItems": 4,
+            "description": "Four colors, lightest to darkest; or three for a sprite palette (lightest, middle, darkest), stored as entries 0, 1 and 3 because sprites never show entry 2. Three colors in an update keep the palette's entry 2."
           },
           "updateDefaultColors": {
             "type": "boolean"
@@ -4617,7 +4708,7 @@
     {
       "name": "palette_assign",
       "title": "Assign scene palette",
-      "description": "Assign one actual background or object palette slot while protecting the reserved UI slot by default.",
+      "description": "Assign one actual background or object palette slot while protecting the reserved UI slot by default. A sprite slot returns the three colors sprites show and warns when entry 2 holds a color they never draw.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4788,7 +4879,7 @@
     {
       "name": "graphics_preview_scene",
       "title": "Preview authored scene colors",
-      "description": "Write a static background color projection for sceneId, or an ordered contact sheet for 1\u201316 distinct sceneIds. Supply one form and a new PNG path; neither mode overwrites files. Columns and magnification apply only to sheets. Actors, UI, camera motion, and runtime gameplay are not shown.",
+      "description": "Write a static background color projection for sceneId, or an ordered contact sheet for 1\u201316 distinct sceneIds. Supply one form and a new PNG path; neither mode overwrites files. Output is enlarged 2x by default (magnification 1\u20134); columns apply only to sheets. colorCorrection chromatic approximates the Chromatic's display. Actors, UI, camera motion, and runtime gameplay are not shown.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4817,6 +4908,14 @@
               "mono"
             ]
           },
+          "colorCorrection": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chromatic"
+            ],
+            "description": "none (default) writes the palette's exact colors; chromatic applies the color correction the hermretro player uses, an approximation of the Chromatic's screen."
+          },
           "columns": {
             "type": "integer",
             "minimum": 1,
@@ -4825,7 +4924,8 @@
           "magnification": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 4
+            "maximum": 4,
+            "description": "Integer enlargement; defaults to 2, or 1 when the enlarged image would be too large."
           }
         },
         "required": [

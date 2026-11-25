@@ -71,11 +71,13 @@ export function stepInfo(name, result, exactCall = true) {
     .map(image => (typeof image?.file === 'string' ? image.file.replace(/^MEDIA:/, '') : null))
     .filter(Boolean)
   const report = String(name ?? '') === REPORT_TOOL && parsed.ok === true ? normalizeReport(parsed.report) : null
+  const imported = (Array.isArray(content.imported) ? content.imported : []).map(item => text(item?.assetPath)).filter(Boolean)
 
   return {
     error: (text(parsed.error) ?? engineError(parsed, content))?.slice(0, 400) ?? null,
     projectRoot: text(content.projectRoot),
     assetPath: text(content.assetPath),
+    ...(imported.length ? { assetPaths: imported } : {}),
     outputPath: text(content.outputPath) ?? (text(content.path) && /\.(png|gif)$/i.test(content.path) ? content.path : null),
     buildRef,
     images: /(?:^|_)emulator_/.test(String(name)) ? images : images.slice(0, 8),

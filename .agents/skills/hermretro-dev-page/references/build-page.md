@@ -206,7 +206,8 @@ a tool runs it reads the session's `open_requests` and renders them as cards. A 
   (`page/pages/build/cart-shelf.js`). The shelf hides in a short window; the level only keeps the
   ground under it flat.
 - **Assets as they land.** Images a step made or looked at (`image_path`, result images,
-  `assetPath`/`outputPath`, `vision_analyze`'s `image_url`; project-relative paths joined to the
+  `assetPath`/`outputPath`, each `imported` asset of a several-asset `asset_import`, `vision_analyze`'s
+  `image_url`; project-relative paths joined to the
   game's root) show as thumbnails under the step and as a "Latest" card while it works. Sprite sheets
   show one frame (a one-row sheet plays in the Latest card, CSS steps only). An image line in a reply
   (`MEDIA:<image>`) is drawn by the page too, at the version the reply delivered. Images come from the

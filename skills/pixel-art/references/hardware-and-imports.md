@@ -84,27 +84,67 @@ source images. Preserve the project's established alpha/chroma-key convention.
 Regardless of source encoding, actual hardware object palette index zero remains
 transparent and only three opaque indices remain available per hardware object.
 
-Common simple sheet layouts:
+#### Sprite palette mapping
 
-| Asset | Dimensions | Layout |
+In color mode each sprite tile draws through one of the scene's eight sprite
+palette slots, and GB Studio compiles a sprite palette as entries `[0, 0, 1, 3]`:
+
+| Source shade | Palette entry shown |
+| --- | --- |
+| `#e0f8cf` lightest | entry 0 |
+| `#86c06c` middle | entry 1 |
+| `#071821` darkest | entry 3 |
+| `#65ff00` | transparent |
+
+Entry 2 never shows on a sprite. Create sprite palettes with three colors
+(`chromatic_palette_create {"name":"Hero","colors":["#f8f8f8","#e08040","#202020"]}`):
+they are stored as entries 0, 1 and 3, with a blend in the unused entry 2 (three colors in
+`chromatic_palette_update` keep the palette's entry 2, which backgrounds may use).
+`chromatic_palette_assign` to a sprite slot returns the three colors sprites show
+and warns when entry 2 holds a color you may have expected to see. Choose the
+slot at import with `sprite.paletteIndex` (0–7, every tile; default 0), then
+assign the palette to that slot in each scene where the sprite appears.
+
+Import profiles (`chromatic_asset_import` `sprite.profile`):
+
+| Profile | Sheet | Layout |
 | --- | --- | --- |
-| Static item | 16 × 16 | One frame. |
-| Animated item | 32 × 16 through 400 × 16 | Two through 25 horizontal frames. |
-| Directional actor | 48 × 16 | Down, up, right; left is mirrored. |
-| Animated player | 96 × 16 | Two down, two up, two right frames. |
+| `static` | 16 × 16 | One frame. |
+| `directional` | 48 × 16 | Down, up, right; left is mirrored. |
+| `directional_animated` | 96 × 16 | Two down, two up, two right frames. |
+| `metasprite` | one row of `frameWidth` × `frameHeight` frames | Larger sprites, e.g. 32 × 32: one frame is static, several play in order. Frames are built from 8 × 16 tiles (width a multiple of 8, height of 16, up to 128 × 128); fully transparent tiles are left out. |
+| `template` | as the template | Copies an existing compatible sprite's layout. |
 
-The Sprite Editor supports more complex canvas sizes, metasprites, animation
-states, pivots, and collision bounds. Do not assume every valid actor uses the
-simple-sheet convention.
+A metasprite frame may use at most 40 hardware objects, and more than 10 drawn
+tiles side by side in one row warns: the hardware draws at most 10 objects per
+scanline. A larger directional character still needs a compatible existing `template`.
 
-For supported imports, explicitly select a `static` 16 × 16, `directional`
-48 × 16, `directional_animated` 96 × 16, or compatible existing `template`
-profile. The established native metadata uses respectively 2, 5, and 10
-`numTiles`; PNG slice counts and `chromatic_graphics_analyze.uniqueTiles` are not
-substitutes. Preserve the generated states, eight animation slots, frame IDs,
-metasprite fields, SHA-1 checksum, and native source-transparency convention.
-`chromatic_sprite_preview` / `chromatic_sprite_contact_sheet` are authored-source composites, not
-running-game frames.
+`numTiles` counts distinct 8 × 16 tiles after flip deduplication, as GB Studio's
+compiler does (a mirrored half costs nothing), and the analysis's `tileBudget`
+counts their 8 × 8 halves. A sprite needing more 8 × 16 tiles than a scene can
+load (96, or 192 in Color Only) is refused.
+The generated profiles build 8 × 16 objects, so they need the project's default
+8 × 16 sprite mode; an 8 × 8 project refuses them (`SPRITE_MODE_UNSUPPORTED`).
+
+The import's collision box: `static` and `directional` 16 × 16 (`boundsY -8`),
+`directional_animated` 16 × 8 at the bottom, a metasprite its whole frame. When
+the project's top-down grid is 16 px (`topdown_grid`), TOPDOWN sprites from the
+16-pixel profiles get the full 16 × 16 cell: `sprite.sceneType` names the scene
+type a sprite is for (default the project's default scene type), so pass e.g.
+`PLATFORM` for one that is not. Change the box afterwards with `chromatic_sprite_edit`.
+
+Several assets import in one call with `assets` (up to 32, checked before any is
+written; native_metadata imports alone). Every import runs the graphics analysis
+for its kind and the project's color mode and returns it as `analysis` (status,
+palette families, violations): fix an `invalid` result before building instead
+of running `chromatic_graphics_analyze` separately. Preserve the generated
+states, eight animation slots, frame IDs, metasprite fields, SHA-1 checksum, and
+native source-transparency convention.
+
+`chromatic_sprite_preview` / `chromatic_sprite_contact_sheet` are authored-source
+composites, not running-game frames. They are enlarged by default (a preview to
+about 128 pixels, sheet frames to about 64); `paletteId` draws them in that
+palette's sprite colors.
 
 ### Other imported art
 
@@ -182,6 +222,18 @@ Sources: [GB Studio: scene limits](https://www.gbstudio.dev/docs/project-editor/
 6. For disappearing sprites, distinguish actor count, OAM object count, and
    objects sharing one scanline; reproduce the specific failure in the emulator.
 7. Inspect monochrome fallbacks, UI palette conflicts, and color correction.
+
+## Display colors: the Chromatic is the reference
+
+Judge colors as the Chromatic shows them. ModRetro builds its screen to match the
+Game Boy Color's color balance, so palette colors look darker and less saturated
+there than their raw RGB555 values. The hermretro player approximates this with
+GB Studio's default color correction; `chromatic_emulator_step` and
+`chromatic_emulator_observe` frames show the raw values. Pass
+`colorCorrection: "chromatic"` to `chromatic_sprite_preview`,
+`chromatic_sprite_contact_sheet` or `chromatic_graphics_preview_scene` to see
+art with the player's correction, and keep enough value separation between a
+palette's colors after it.
 
 `chromatic_graphics_preview_scene` is a static authored-color projection. Confirm actual
 colorization, sprite overlays, UI, flicker, and movement through a freshly

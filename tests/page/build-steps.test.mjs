@@ -47,6 +47,15 @@ test('the plugin’s own failures still count as before', () => {
   assert.equal(toolFailed({ error: 'gateway error' }), true)
 })
 
+test('a several-asset import keeps every imported image, and a step shows each of them', async () => {
+  const { stepImages } = await import('#pages/build/transcript/step-words.js')
+  const imported = { structuredContent: { imported: [{ assetPath: 'assets/sprites/coin.png' }, { assetPath: 'assets/sprites/boss.png' }, {}], count: 3 } }
+  const info = stepInfo('chromatic_asset_import', imported)
+  assert.deepEqual(info.assetPaths, ['assets/sprites/coin.png', 'assets/sprites/boss.png'])
+  assert.equal('assetPaths' in stepInfo('chromatic_asset_import', { structuredContent: { assetPath: 'assets/sprites/coin.png' } }), false, 'one asset keeps the plain field')
+  assert.deepEqual(stepImages({ state: 'done', name: 'chromatic_asset_import', info }, '/home/u/games/Frog'), ['/home/u/games/Frog/assets/sprites/coin.png', '/home/u/games/Frog/assets/sprites/boss.png'])
+})
+
 const { turnBuilt } = await import('#pages/build/transcript/turns.js')
 const turnOf = (...tools) => ({ key: 't', user: null, items: [{ kind: 'tools', tools: tools.map(([name, state], index) => ({ id: `s${index}`, name, state })) }] })
 
