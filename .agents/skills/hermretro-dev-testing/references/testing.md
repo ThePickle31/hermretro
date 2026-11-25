@@ -179,7 +179,13 @@ worker and broker restarts; these stages use the same two games. `authoring.py` 
 (project-unique symbols, scene transactions, script event ids and typed arguments) on a third game of its own, and
 `events.py` the event catalog (against the toolchain's GB Studio), `event_describe`, the authoring skill's cookbook
 recipes and `rom_build`'s authoring warnings on a fourth, with `unknown_events.py` (events GB Studio does not have,
-refused on write and failing a build).
+refused on write and failing a build). `golden_path.py` makes one game of its own from a blank project to a presented
+build with its report, in the order of the studio's workflow, through the plugin's registered tools and its
+`pre_tool_call` and `post_tool_call` hooks called as Hermes calls them for a studio chat (`studio.py`; no model):
+create, art, audio, scenes from an operations file, build, a recorded run played as one `inputs` list, a rebuild the
+run is replayed onto, the sound hardware, the game card and `chromatic_present_game`, and `chromatic_build_report`
+naming the replay as its `finishRun`. A tool or gate that joins the pipeline joins it there, as a named step of its
+own (one function and one `GP` check) or in the step that uses it.
 
 Shared helpers are `tests/support.py`, imported as `from tests.support import ...`; a test reaches another test's
 helpers as `from tests.backend.<feature>.<module> import ...`. Never put `tests/` itself on `sys.path` (only the
