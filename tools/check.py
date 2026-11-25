@@ -322,16 +322,27 @@ def check_scan(args) -> str:
     return f"safe ({report['findings']} minor notes)"
 
 
+def acceptance_env(paths) -> dict:
+    """The suite's environment: a short TMPDIR, and the toolchain folders absolute as this process resolved them
+    (from the caller's folder), since the suite runs from the checkout root."""
+    env = {**os.environ, "TMPDIR": short_tmp()}
+    if env.get("HERMRETRO_DEPS_ROOT"):
+        env["HERMRETRO_DEPS_ROOT"] = str(paths.DEPS_ROOT)
+    if env.get("GB_STUDIO_SETUP_ROOT"):
+        env["GB_STUDIO_SETUP_ROOT"] = str(paths.setup_root().absolute())
+    return env
+
+
 def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from backend.system import paths  # noqa: E402 - the backend decides where setup put the toolchain
 
     if not paths.setup_root().is_dir():
         raise Skip(
-            f"no toolchain at {paths.setup_root()}; run python tools/ci/prepare_toolchain.py (about a minute), "
-            "or point HERMRETRO_DEPS_ROOT at a folder that has one"
+            f"no toolchain at {paths.setup_root()}; install it from the hermretro page, or make one with "
+            "HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py and run this with the same HERMRETRO_DEPS_ROOT"
         )
-    env = {**os.environ, "TMPDIR": short_tmp()}
+    env = acceptance_env(paths)
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     try:
         result = run([sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=1200)
