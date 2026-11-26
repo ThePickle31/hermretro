@@ -18,11 +18,12 @@ globalThis.window = dom.window
 globalThis.document = dom.window.document
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-const { act } = await import('react')
+const { act, useState } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const { jsx, jsxs } = await import('react/jsx-runtime')
 const { PAGES } = await import('../../page/pages/index.js')
-const { NAV_PAGES, pageProblems, startPages, wirePages } = await import('../../page/app/registry.js')
+const { NAV_PAGES, pageProblems, startPages, visiblePages, wirePages } = await import('../../page/app/registry.js')
+const { FLAGS, flagsOn } = await import('../../page/app/flags.js')
 const { createEvents, emit, on, PAGE_EVENTS } = await import('../../page/app/events.js')
 const { createSlots, PAGE_SLOTS, Slot } = await import('../../page/app/slots.js')
 const { PageView } = await import('../../page/app/page-view.js')
@@ -223,6 +224,55 @@ test('descriptors are checked: ids, labels, Page or tabs, unknown fields, descri
   }
 })
 
+// Feature flags (app/flags.js): a page or a tab names one, and is hidden until it is on.
+const FAKE_FLAGS = { editor: { hides: 'the editor', setting: false }, deep: { hides: 'a tab', setting: true } }
+const tabbed = (id, tabs, extra = {}) => ({ id, label: id, tabs: tabs.map(([tab, more]) => ({ id: tab, label: tab, Page: Text(tab), ...more })), ...extra })
+
+test('a flag must be listed, never on the first page, and its page or tab runs nothing for users', () => {
+  const problemsOf = pages => pageProblems(pages, FAKE_FLAGS).join('\n')
+
+  assert.equal(problemsOf([fakePage('home'), fakePage('editor', { flag: 'editor' }), tabbed('tools', [['one'], ['two', { flag: 'deep' }]])]), '')
+  assert.match(problemsOf([fakePage('home'), fakePage('x', { flag: 'typo' })]), /flag "typo" is not in app\/flags.js \(known: editor, deep\)/)
+  assert.match(pageProblems([fakePage('home'), fakePage('x', { flag: 'editor' })], {}).join('\n'), /\(known: none\)/)
+  assert.match(problemsOf([fakePage('home', { flag: 'editor' })]), /the first page cannot be hidden/)
+  assert.match(problemsOf([tabbed('home', [['one', { flag: 'deep' }]])]), /the first page cannot be hidden/)
+  assert.match(problemsOf([{ id: 'home', label: 'Home', tabs: {} }]), /give the page a Page component, or tabs/, 'malformed tabs are reported, not thrown')
+  assert.equal(problemsOf([tabbed('home', [['one'], ['two', { flag: 'deep' }]])]), '')
+
+  const busy = problemsOf([
+    fakePage('home', { slots: { 'home.panel': 'a panel' }, events: { 'home.done': 'doc' } }),
+    fakePage('editor', { flag: 'editor', register: () => {}, listens: { 'home.done': () => {} } }),
+    tabbed('tools', [['one'], ['two', { flag: 'deep', contributes: { 'home.panel': [Text('x')] } }]])
+  ])
+  const underFlag = problemsOf([fakePage('home', { events: { 'home.done': 'doc' } }), tabbed('editor', [['one', { listens: { 'home.done': () => {} } }]], { flag: 'editor' })])
+  // No Page and every tab flagged: hidden with them, so it runs nothing either.
+  const emptied = problemsOf([fakePage('home'), tabbed('tools', [['one', { flag: 'deep' }]], { register: () => {} })])
+
+  for (const key of ['register', 'listens', 'contributes']) {
+    assert.match(busy, new RegExp(`cannot have ${key}: it would run for users who cannot see it`), key)
+  }
+  assert.match(underFlag, /\(tab one\): a page or tab flags can hide cannot have listens/)
+  assert.match(emptied, /tools\/index.js: a page or tab flags can hide cannot have register/)
+})
+
+test('visible pages: what the flags that are on show, each page unchanged unless a tab of it is hidden', () => {
+  const home = fakePage('home')
+  const editor = fakePage('editor', { flag: 'editor' })
+  const tools = tabbed('tools', [['one'], ['two', { flag: 'deep' }]])
+  const hidden = tabbed('hidden', [['only', { flag: 'deep' }]])
+  const pages = [home, editor, tools, hidden]
+  const ids = list => list.map(page => `${page.id}${page.tabs ? `[${page.tabs.map(tab => tab.id)}]` : ''}`)
+
+  assert.deepEqual(ids(visiblePages(new Set(), pages)), ['home', 'tools[one]'])
+  assert.deepEqual(ids(visiblePages(new Set(['editor', 'deep']), pages)), ['home', 'editor', 'tools[one,two]', 'hidden[only]'])
+  assert.equal(visiblePages(new Set(['deep']), pages)[1], tools, 'a page none of whose tabs is hidden keeps its descriptor')
+  assert.deepEqual(ids(visiblePages(new Set(), [home, { ...hidden, Page: Text('own') }])), ['home', 'hidden[]'], 'a page with its own Page stays without tabs')
+  assert.deepEqual(visiblePages(new Set(Object.keys(FLAGS))), NAV_PAGES, 'every real page and tab shows with every flag on')
+
+  assert.deepEqual([...flagsOn(undefined)], [], 'nothing is on until status answers')
+  assert.deepEqual([...flagsOn({ flags: ['editor'] })], ['editor'])
+})
+
 test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', async () => {
   const storage = {}
   const ctx = { storage: { get: (key, fallback) => storage[key] ?? fallback, set: (key, value) => { storage[key] = value } } }
@@ -248,6 +298,30 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
   const plain = await render(jsx(PageView, { page: { id: 'plain', label: 'Plain', Page: Text('no tabs') }, shell: { ctx } }))
   assert.equal(selectedPageTab(plain.node), null)
   await act(async () => { root.unmount(); beside.root.unmount(); plain.root.unmount() })
+
+  // A remembered tab its flag hides for now: the first tab shows, and the remembered one is back with its flag.
+  const flagged = { ...page, tabs: [page.tabs[0], { ...page.tabs[1], flag: 'deep' }] }
+  const hidden = await render(jsx(PageView, { page: visiblePages(new Set(), [flagged])[0], shell: { ctx } }))
+  assert.equal(selectedPageTab(hidden.node), 'One')
+  await act(async () => hidden.root.render(jsx(PageView, { page: visiblePages(new Set(['deep']), [flagged])[0], shell: { ctx } })))
+  assert.equal(selectedPageTab(hidden.node), 'Two')
+  assert.equal(storage['tab:tools'], 'two')
+  await act(async () => hidden.root.unmount())
+
+  // A page with its own Page keeps it mounted while flags hide its last tab and bring it back.
+  let mounts = 0
+  const Own = () => {
+    const [mounted] = useState(() => ++mounts)
+    return jsx('span', { children: `own ${mounted}` })
+  }
+  const withOwn = { id: 'own', label: 'Own', Page: Own, tabs: [{ id: 'extra', label: 'Extra', Page: Text('extra tab'), flag: 'deep' }] }
+  const own = await render(jsx(PageView, { page: visiblePages(new Set(), [withOwn])[0], shell: { ctx } }))
+  assert.equal(selectedPageTab(own.node), null)
+  await act(async () => own.root.render(jsx(PageView, { page: visiblePages(new Set(['deep']), [withOwn])[0], shell: { ctx } })))
+  assert.equal(selectedPageTab(own.node), 'Extra')
+  await act(async () => own.root.render(jsx(PageView, { page: visiblePages(new Set(), [withOwn])[0], shell: { ctx } })))
+  assert.ok(own.node.textContent.includes('own 1') && mounts === 1, `the own Page was mounted ${mounts} times`)
+  await act(async () => own.root.unmount())
 })
 
 // The shell every Page gets, from the real StudioPage, with a probe in Games' place.

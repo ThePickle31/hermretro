@@ -28,6 +28,37 @@ player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full 
 which needs `pad`); content beside the player needs a change to that shell. Add the page to the registry (`page/pages/index.js`) and to
 the registry test's nav list (`tests/page/registry.test.mjs`) in the same place.
 
+## Behind a flag
+
+Unfinished work can reach `main` hidden behind a feature flag. `page/app/flags.js` is the only list of flags:
+
+1. Add the flag: one line in `FLAGS`, `<snake_name>: { hides: '<what it hides>', setting: false },`.
+2. Hide a page or a tab: `flag: '<snake_name>'` in its descriptor. The registry refuses a name `flags.js` does not
+   list, a first page that could be hidden (a hidden page falls back to it, so it needs no flag and its own `Page`
+   or a tab without one), and `listens`, `contributes` or `register` on anything flags can hide (a flagged page or
+   tab, a tab of a flagged page, a page without a `Page` whose tabs are all flagged), which would run for users who
+   cannot see it: add those when the flag ships.
+3. Turn it on for yourself: `HERMRETRO_FLAGS=<name>[,<name>]` in the gateway's environment. The sandbox passes it
+   through from yours when its gateway starts: to change it there, `python tools/dev studio down`, then
+   `HERMRETRO_FLAGS=<name> python tools/dev studio up`. The status answer's `flags` lists what is on (`backend/system/flags.py`); until it answers,
+   nothing is.
+4. Only for a flag users may try: `setting: true`, and its switch in `plugin.yaml`'s `config_schema`, which Hermes
+   shows in the `hermretro` profile's plugin settings:
+
+   ```yaml
+     flag_<snake_name>:
+       type: bool
+       default: false
+       label: <Label>
+   ```
+
+   `tests/repo/test_lockstep.py` fails when the two disagree.
+5. Ship it: delete its line in `flags.js`, its `flag:` lines and its `plugin.yaml` entry.
+
+A hidden page is out of the nav: the remembered page opens the first one instead (and stays remembered for its
+flag), and `shell.go` to it does nothing. A hidden tab is out of its page's tab bar (a remembered one waits too), and
+a page left with neither tabs nor a `Page` is hidden too; one with its own `Page` keeps it mounted as tabs come and go. Its code still ships, and the install scanner reads it.
+
 ## Reference content
 
 Reference content (how something works, rather than something to do) goes on the page it is about, not on a
@@ -47,7 +78,8 @@ Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, 
 tab bar (of one). Switching tabs remounts the chosen tab's `Page` (`page-view.js` keys it by `tab.id`), so its
 `useState` starts over each time: state shared between tabs, or kept across a switch, goes in `shell.ctx.storage`
 (`get(key, fallback)` / `set(key, value)`, saved) or in the shell (`app/studio-page.js`). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
-one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
+one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`; `tab` is null while
+flags hide every tab, and the strip is then all it shows), so move its
 content into a tab, or drop `Page` when the tabs are the whole page. On a page with `pad` (Emulator), the shell's player and the page's `BelowPlayer` are
 drawn by `app/studio-page.js` after the page view, so they stay under every tab (the player shows on the Emulator
 page only). There is no per-tab switch to hide them: the player is shown whenever the page is Emulator

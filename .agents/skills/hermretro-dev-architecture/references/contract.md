@@ -91,11 +91,13 @@ fails when it is stale); the agent tool names it reacts to are in
   "node": { "found": true, "version": "26.13.0", "required": "22" },
   "engine": { "present": true, "version": "1.0.34", "verified": true, "detail": "" },
   "hardware_enabled": false,
+  "flags": [],
   "broker": { "running": true },
   "project": null
 }
 ```
 
+`flags` names the feature flags that are on, sorted (`backend/system/flags.py`; `page/app/flags.js` lists them).
 `project` is `null` or `{ "root": "/abs/path", "name": "folder", "emulator_active": false, "writer": true }`
 for the conversation named by `chat` (the focused chat's id). When the handshake cannot be confirmed,
 `broker.running` is `null`. `plugin.installed_in` names the profile Hermes installed

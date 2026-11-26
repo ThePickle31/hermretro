@@ -14,6 +14,9 @@ the pages, `registry.js` checks each page's descriptor, declares their events an
 from the page (the header chip, the corner card, the update dialog and its steps, the release notes, the state pages
 read as `shell.pluginUpdate`).
 
+**Feature flags:** `flags.js` lists every flag; the shell shows only the pages and tabs the flags that are on
+show (`visiblePages` in `registry.js`, read from the status answer's `flags`).
+
 **Tabs:** none of its own; `page-view.js` draws any page's tabs.
 
 **Events:** declares none (pages own events); `registry.js` wires every page's `listens` in `startPages(ctx)`.
@@ -24,7 +27,7 @@ read as `shell.pluginUpdate`).
 pages, only `#pages/index.js`. Pages may use the plumbing and hubs, never the shell modules (`studio-page.js`,
 `nav.js`, `not-running.js`, `registry.js`, `page-view.js`, `shell.css.js`, `background-layer.js`).
 
-**Tests:** `tests/page/registry.test.mjs` (registry, events, slots, tabs, stylesheet order); `tests/page/page-update.test.mjs`
+**Tests:** `tests/page/registry.test.mjs` (registry, events, slots, tabs, feature flags, stylesheet order); `tests/page/page-update.test.mjs`
 (the update chip and its steps), `tests/page/page-update-busy.test.mjs` (no update while a game is being built),
 `tests/page/page-update-retry.test.mjs` (approvals kept, a half-done update finished); every
 `tests/page/page-*.test.mjs` drives the shell through the built bundle.

@@ -182,6 +182,11 @@ class UpdatedOnDisk(Home):
         with mock.patch.object(paths, "code_fingerprint", return_value="changed-on-disk"):
             self.assertTrue(status({})["restart_needed"])
 
+    def test_status_says_which_feature_flags_are_on(self):
+        self.assertEqual(setup_rpcs.rpc_status(CTX)({})["flags"], [])
+        with mock.patch.dict(os.environ, {"HERMRETRO_FLAGS": "level_editor"}):
+            self.assertEqual(setup_rpcs.rpc_status(CTX)({})["flags"], ["level_editor"])
+
     def test_a_status_that_only_reads_syncs_no_providers(self):
         status = setup_rpcs.rpc_status(CTX)
         looked = status({"sync": False})

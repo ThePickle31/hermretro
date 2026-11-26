@@ -12,7 +12,7 @@ its events, slots and tests.
 | Read | For |
 |---|---|
 | [references/source.md](references/source.md) | the folders, import aliases and boundaries, file and style rules, size limits, what to verify |
-| [references/adding.md](references/adding.md) | adding a page, tab, event, slot or contribution, calling the backend |
+| [references/adding.md](references/adding.md) | adding a page, tab, event, slot or contribution, a feature flag, calling the backend |
 | [references/pages.md](references/pages.md) | the pages and the approved designs: Setup, Games, Emulator |
 | [references/build-page.md](references/build-page.md) | the Build page: one game, one conversation, its RPCs and its parts |
 | [references/player.md](references/player.md) | the emulator beside the chat, the library and player RPCs, the player server, page and frame messages |

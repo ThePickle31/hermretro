@@ -124,6 +124,7 @@ For development, tests and unusual setups; users need none of them.
 | `HERMRETRO_DEPS_ROOT` | Uses another downloaded-tools folder (`.cache`); "Remove downloaded tools" then refuses |
 | `HERMRETRO_NODE` | The Node.js executable to use, tried first |
 | `HERMRETRO_EVERY_PROFILE` | `1`: register the agent side in every profile, not only `hermretro` (development) |
+| `HERMRETRO_FLAGS` | `name[,name]`: turn on those feature flags (`page/app/flags.js`) |
 | `HERMRETRO_BROKER_IDLE_SECONDS` | How long an idle broker stays (default 600) |
 | `HERMRETRO_LANE_IDLE_SECONDS` | How long an idle chat's engine worker stays (default 1800) |
 | `HERMRETRO_WRITER_HANDOFF_SECONDS` | How long a chat keeps a project's writer lease while idle (default 45) |

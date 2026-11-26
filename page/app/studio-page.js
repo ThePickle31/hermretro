@@ -43,7 +43,8 @@ import { StudioNav } from './nav.js'
 import { NotRunning } from './not-running.js'
 import { BackgroundLayer } from './background-layer.js'
 import { PageView } from './page-view.js'
-import { NAV_PAGES, pageById } from './registry.js'
+import { flagsOn } from './flags.js'
+import { pageById, visiblePages } from './registry.js'
 import { UpdateChip } from './update/chip.js'
 import { UpdateCard } from './update/update-card.js'
 import { UpdateDialog } from './update/update-dialog.js'
@@ -75,7 +76,7 @@ export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
   // Build's selection and player survive a backend outage that unmounts the page.
-  const [{ page, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
+  const [{ page: requestedPage, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
     let stored = 'build'
 
     try {
@@ -115,6 +116,20 @@ export function StudioPage({ ctx }) {
   // Only an answer changes it: one failed poll must not swap a running Build chat for the repair panel.
   if (running) {
     routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio)
+  }
+  // The pages and tabs the feature flags that are on show (app/flags.js). A page they hide is never on screen: the
+  // remembered page opens the first one instead (and stays remembered for its flag), and go() to it does nothing.
+  // The flags come from the last answer fetched (the cached one at first): one replayed from another chat's cache while
+  // it refetches may be old.
+  const fetchedFlags = useRef(null)
+  if (fetchedFlags.current === null || (status.data && !status.isFetching)) {
+    fetchedFlags.current = flagsOn(status.data)
+  }
+  const pages = visiblePages(fetchedFlags.current)
+  const currentPage = pages.find(item => item.id === requestedPage) ?? pages[0]
+  const page = currentPage.id
+  if (running && page !== requestedPage) {
+    setNavigation(current => (current.page === requestedPage ? pageVisit(page, current.visit + 1) : current))
   }
   const hardwareOn = Boolean(status.data?.hardware_enabled)
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn
@@ -257,6 +272,10 @@ export function StudioPage({ ctx }) {
   }, [autoId, toolchainStep?.state, installElsewhere])
 
   const go = (id, selection = null) => {
+    if (!pages.some(item => item.id === id)) {
+      return // hidden by its flag: stay where we are
+    }
+
     setNavigation(current => (id === current.page && selection === null
       ? current
       : pageVisit(id, current.visit + 1, selection)))
@@ -385,7 +404,6 @@ export function StudioPage({ ctx }) {
   }
 
   // ── what every page gets ──
-  const currentPage = pageById(page) ?? NAV_PAGES[0]
   const shell = {
     ctx,
     page,
@@ -507,7 +525,7 @@ export function StudioPage({ ctx }) {
               {
                 nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
                 onGo: go,
-                pages: NAV_PAGES,
+                pages,
                 update: pluginUpdate,
                 viaProfile
               },
