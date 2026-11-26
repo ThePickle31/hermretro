@@ -10,6 +10,9 @@ import { RPC_STUDIO_PROFILE } from '#app/rpc.js'
 export const UPDATE_STEPS = ['Downloading and checking the new version', 'Loading it into the hermretro profile', 'Refreshing this page']
 // Remembered across the page's own reload (the last step), so the new page can say how it went.
 export const UPDATE_MARKER = 'update'
+// Hermes installed the new version but the rest (the hermretro profile, the page) did not finish: { at, error }. Kept
+// until a run finishes, so Finish update resumes it even though Hermes now answers "unchanged".
+export const UPDATE_PENDING = 'updatePending'
 const UPDATE_TIMEOUT_MS = 300_000
 
 /** Call `method` on `target` ({ route, profile }): the app's own connection when `route` is null. */

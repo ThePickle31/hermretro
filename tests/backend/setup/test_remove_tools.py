@@ -10,8 +10,8 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
-from backend.setup import rpcs as host_setup  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import broker_stop  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import FakeBrokerClient, isolated_home  # noqa: E402 - the repository root goes on sys.path first
@@ -94,7 +94,7 @@ class RemoveDownloads(unittest.TestCase):
             with (
                 mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None)),
                 mock.patch.object(paths, "runtime_dir", lambda: run),
-                mock.patch.object(host_setup, "BROKER_STOP_WAIT", 0.3),
+                mock.patch.object(broker_stop, "BROKER_STOP_WAIT", 0.3),
             ):
                 answer = setup_rpcs.rpc_remove_tools(None)({})
         self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
@@ -129,7 +129,7 @@ class RemoveDownloads(unittest.TestCase):
         with (
             mock.patch.object(paths, "runtime_dir", return_value=run),
             mock.patch.object(connected, "request", side_effect=error),
-            mock.patch.object(setup_rpcs, "_broker_lock") as lock,
+            mock.patch.object(broker_stop, "broker_lock") as lock,
             mock.patch.object(setup_rpcs, "emit") as emit,
         ):
             for result in ((None, error), (connected, None)):
@@ -153,7 +153,7 @@ class RemoveDownloads(unittest.TestCase):
                 mock.patch.object(paths, "runtime_dir", return_value=run),
                 mock.patch.object(hermes_host, "try_connect", return_value=(connected, None)),
                 mock.patch.object(connected, "request", side_effect=[reply]),
-                mock.patch.object(setup_rpcs, "_broker_lock") as lock,
+                mock.patch.object(broker_stop, "broker_lock") as lock,
             ):
                 answer = setup_rpcs.rpc_remove_tools(None)({})
                 self.assertEqual((answer["ok"], answer["code"]), (False, "UNAVAILABLE"))

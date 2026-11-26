@@ -471,7 +471,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
                 return False
             for receipt_path, copy in _earlier_copies():  # the one just read may still serve a running worker
                 if copy not in (paths.PREPARED_ENGINE, source):
-                    _rmtree(copy)
+                    remove_tree(copy)
                     receipt_path.unlink(missing_ok=True)
         return True
     except (ProvisionError, OSError, ValueError, KeyError, StopIteration):  # BUSY included: tried again later
@@ -519,7 +519,7 @@ def remove_downloads() -> dict:
     removed = 0
     for leftover in [p for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX)]:  # also earlier, failed runs
         removed += folder_bytes(leftover)
-        _rmtree(leftover)
+        remove_tree(leftover)
     left = sum(folder_bytes(p) for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX))
     return {
         "ok": not left,
@@ -537,7 +537,7 @@ def remove_downloads() -> dict:
 _TRASH_PREFIX = ".removing-"
 
 
-def _rmtree(path: Path) -> None:
+def remove_tree(path: Path) -> None:
     """Delete a tree, making read-only folders (from extracted archives) writable when a delete is refused."""
 
     def retry(function, failed, _info):

@@ -1,0 +1,146 @@
+"""The factory reset's backend half: each part deletes only what it names, and the RPC stops the broker first."""
+
+import json
+import os
+import sqlite3
+import sys
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
+from backend.library.games import VERSION  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import reset, reset_rpcs, studio_profile  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import FakeBrokerClient, isolated_home  # noqa: E402 - the repository root goes on sys.path first
+
+
+def write(path: Path, size: int = 10) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * size)
+    return path
+
+
+class Reset(unittest.TestCase):
+    def setUp(self):
+        self.places = isolated_home(self)
+        home, self.data = self.places.home, self.places.data
+        self.cache = home / ".cache"
+        self.deps = mock.patch.object(paths, "DEPS_ROOT", self.cache)
+        self.deps.start()
+        self.addCleanup(self.deps.stop)
+        # The unit tests run without Hermes: the studio profile is a folder of the test's own (no chats unless made).
+        self.studio = self.places.base / "studio"
+        self.enterContext(mock.patch.object(studio_profile, "studio_dir", lambda: self.studio))
+        self.games = home / "games"
+        self.frog = self.games / "Frog"
+        write(self.frog / "frog.gbsproj", 100)
+        write(self.frog / "captures" / "shot.png", 7)
+        write(self.games / ".hermretro-installs" / "a.lock", 1)
+        self.elsewhere = self.places.base / "mine" / "Owl"
+        write(self.elsewhere / "owl.gbsproj", 5)
+        write(self.elsewhere / "captures" / "clip.webm", 3)
+        library = home / "library"
+        library.mkdir(parents=True)
+        games = {
+            "aaaaaaaaaaaa": {"id": "aaaaaaaaaaaa", "projectRoot": str(self.frog)},
+            "bbbbbbbbbbbb": {"id": "bbbbbbbbbbbb", "projectRoot": str(self.elsewhere)},
+        }
+        (library / "games.json").write_text(json.dumps({"version": VERSION, "games": games}))
+        write(library / "thumbs" / "aaaaaaaaaaaa.png", 4)
+        write(self.data / "snapshots" / "aaaaaaaaaaaa" / "1" / "f", 30)
+        write(self.data / "asset-versions" / "a" / "v1.png", 6)
+        write(self.data / "frames" / "f.png", 8)
+        write(self.cache / "toolchain" / "bin" / "gbdk", 1000)
+        self.run_dir = self.places.runtime
+        write(self.run_dir / "trace.jsonl", 9)
+        write(self.run_dir / "broker.stderr.log", 9)
+        write(self.run_dir / "broker.token", 1)
+
+    def test_the_plan_says_what_each_part_holds(self):
+        parts = reset.plan(self.data)["parts"]
+        self.assertEqual(parts["games"]["count"], 2)
+        self.assertGreaterEqual(parts["games"]["bytes"], 100)
+        self.assertEqual(parts["history"]["bytes"], 30)
+        self.assertGreaterEqual(parts["toolchain"]["bytes"], 1000)
+        self.assertFalse(parts["toolchain"]["custom"])
+        self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 8 + 7 + 3)
+
+    def test_games_empty_the_games_folder_and_library_and_leave_a_folder_of_the_users_own(self):
+        answer = reset.clear("games", self.data, [])
+        self.assertTrue(answer["ok"])
+        self.assertEqual(list(self.games.iterdir()), [])
+        self.assertEqual(list((self.places.home / "library").iterdir()), [])
+        self.assertFalse((self.data / "asset-versions").exists())
+        self.assertTrue((self.elsewhere / "owl.gbsproj").is_file())
+        self.assertTrue((self.data / "snapshots").is_dir())
+        self.assertTrue((self.cache / "toolchain").is_dir())
+
+    def test_a_games_folder_the_user_configured_loses_only_hermretros_games(self):
+        write(self.games / "notes.txt", 2)
+        with mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(self.games)}):
+            reset.clear("games", self.data, [])
+        self.assertEqual(sorted(p.name for p in self.games.iterdir()), ["notes.txt"])
+
+    def test_history_and_logs_delete_only_their_own(self):
+        reset.clear("history", self.data, [])
+        self.assertFalse((self.data / "snapshots").exists())
+        reset.clear("logs", self.data, [])
+        self.assertFalse((self.run_dir / "trace.jsonl").exists())
+        self.assertFalse((self.data / "frames").exists())
+        self.assertFalse((self.frog / "captures").exists())
+        self.assertFalse((self.elsewhere / "captures").exists())
+        self.assertTrue((self.run_dir / "broker.token").is_file())
+        self.assertTrue((self.frog / "frog.gbsproj").is_file())
+
+    def test_chats_are_deleted_with_hermes_own_command_and_any_left_are_said(self):
+        self.studio.mkdir()
+        with sqlite3.connect(self.studio / "state.db") as db:
+            db.execute("CREATE TABLE sessions (id TEXT, parent_session_id TEXT)")
+            db.executemany("INSERT INTO sessions VALUES (?, ?)", [("a", None), ("b", None), ("a-sub", "a")])
+        ran = []
+
+        def hermes(home, *arguments):
+            ran.append(arguments)
+            if arguments[2] != "b":
+                with sqlite3.connect(home / "state.db") as db:
+                    db.execute(
+                        "DELETE FROM sessions WHERE id = ? OR parent_session_id = ?", (arguments[2], arguments[2])
+                    )
+
+        with mock.patch.object(studio_profile, "run_hermes", hermes):
+            self.assertEqual(reset.plan(self.data)["parts"]["chats"]["count"], 2)
+            answer = reset.clear("chats", self.data, [])
+        self.assertEqual(ran, [("sessions", "delete", "a", "--yes"), ("sessions", "delete", "b", "--yes")])
+        self.assertEqual((answer["ok"], answer["code"]), (False, "CHATS_LEFT"))
+
+    def test_settings_go_back_to_their_defaults_only_where_they_were_set(self):
+        set_here = {"plugins": {"entries": {"hermretro": {"settings": {"hardware_enabled": True}}}}}
+        configs = {Path("/a"): set_here, Path("/b"): {}}
+        with (
+            mock.patch.object(reset.hermes_api, "read_profile_config", lambda home: configs[home]),
+            mock.patch.object(reset.hermes_api, "write_profile_config_key") as written,
+        ):
+            reset.clear("settings", self.data, [Path("/a"), Path("/b")])
+        written.assert_called_once_with(Path("/a"), "plugins.entries.hermretro.settings", {})
+
+    def test_the_rpc_stops_the_broker_with_its_idle_workers_and_refuses_a_busy_one(self):
+        rpc = reset_rpcs.rpc_reset(None)
+        self.assertEqual(rpc({"part": "everything"})["code"], "UNKNOWN_PART")
+        busy = FakeBrokerClient({"ok": False, "denied": {"code": "BUSY"}})
+        with mock.patch.object(hermes_host, "try_connect", lambda _dir: (busy, None)):
+            answer = rpc({"part": "history"})
+        self.assertEqual((answer["ok"], answer["code"]), (False, "BUSY"))
+        self.assertEqual(busy.asked, [{"op": "shutdown", "replace": True}])
+        self.assertTrue((self.data / "snapshots").is_dir())
+        idle = FakeBrokerClient({"ok": True})
+        with mock.patch.object(hermes_host, "try_connect", lambda _dir: (idle, None)):
+            self.assertTrue(rpc({"part": "stop"})["ok"])
+            self.assertTrue(rpc({"part": "history"})["ok"])
+        self.assertFalse((self.data / "snapshots").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

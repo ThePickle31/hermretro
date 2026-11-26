@@ -11,6 +11,7 @@
  *   Games     the shelf of real cartridges, from the `games` RPC.
  *   Emulator  ModRetro's real player in a SandboxedFrame (`player` RPC), kept
  *             loaded while other pages are shown.
+ * Under Settings → Plugins it has one page of its own, the factory reset (app/reset/).
  * Prompts only ever go into a chat composer; nothing is sent. The plugin adds no panes beside the chat
  * (the agent's work and the game live on the Build page).
  * When the agent presents a game (`chromatic_present_game`) the emulator opens in a workspace tab
@@ -34,6 +35,7 @@
 import { host, jsx, PALETTE_AREA, ROUTES_AREA, SIDEBAR_NAV_AREA } from './sdk.js'
 import { ID, ROUTE } from './app/ids.js'
 import { startPages } from './app/registry.js'
+import { SettingsPage } from './app/reset/settings-page.js'
 import { StudioPage } from './app/studio-page.js'
 
 export default {
@@ -42,6 +44,8 @@ export default {
   register(ctx) {
     // Each page's own start-up work (gateway listeners) and its page-event listeners (app/registry.js).
     startPages(ctx)
+    // Its page under Settings → Plugins: the factory reset (a Hermes without settings pages has none).
+    ctx.registerSettingsPage?.({ id: 'settings', title: 'hermretro', icon: 'game', render: () => jsx(SettingsPage, { ctx }) })
     ctx.registerMany([
       {
         id: 'page',

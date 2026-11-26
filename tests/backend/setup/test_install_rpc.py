@@ -130,7 +130,7 @@ class InstallRpc(unittest.TestCase):
         with (
             mock.patch.object(hermes_host, "try_connect") as connect,
             mock.patch.object(hermes_host, "ensure_broker") as spawn,
-            mock.patch.object(setup_rpcs, "_broker_lock") as lock,
+            mock.patch.object(setup_rpcs, "broker_lock") as lock,
         ):
             connect.return_value = None, LegacyBrokerHello(hello["error"])
             status = self.rpc({"action": "status"})
