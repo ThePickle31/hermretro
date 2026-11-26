@@ -303,8 +303,11 @@ files, what changed and why.
 - `dist/server.js` (`dist/build.js` module, `rom_build`): a game's GB Studio builds reuse one compiler folder,
   `gbs_<6 hex digits of the user and project folder>` in the trusted temporary folder, instead of a fresh
   `gbs-XXXXXX` each time, so GB Studio's object cache (`_gbscache`, keyed by content and by the folder's path)
-  lasts between builds: a rebuild compiles only what changed (about 0.4 s instead of 6 s for the starter, on every
-  computer), with the same ROM. The folder is the user's own (mode 700, checked), and everything but the cache is
-  removed before and after each build. One build holds it at a time through a `.claim-<pid>-<uuid>` file (a dead
-  process's claim is removed); another build meanwhile, and Windows, get a fresh folder as before. What a stopped or
-  failed compiler wrote to the cache is removed, and the whole cache after an engine that stopped mid-build.
+  lasts between builds: a rebuild compiles only what changed (about 0.4 s instead of 6.5 s for the starter), with
+  the same ROM. The folder is the user's own (mode 700, checked), and everything but the cache is removed before and
+  after each build. A build holds it through `.claim-<pid>-<uuid>` files, one for the engine and one for the
+  compiler's process group (which can outlive the engine); a claim whose process and group are gone is removed.
+  Another build meanwhile, and Windows, get a fresh folder as before. GB Studio's keys follow only `include "..."`
+  lines, so the cache is dropped when the game's own engine code (`assets/engine`, a plugin's `engine` folder) or the
+  CLI changes, and a link among those files means a fresh folder. What a stopped or failed compiler changed in the
+  cache is removed, and the whole cache after a build whose engine or compiler stopped before it finished.

@@ -49,6 +49,14 @@ def build(client, root: Path) -> dict:
     return {"sha256": sha256(rom), "signature": signature_bytes(rom), **built}
 
 
+def compiled(built: dict) -> int | None:
+    """How many source files a build's compiler compiled, from its log (GB Studio's verbose "Compiling: " lines)."""
+    log = built.get("logPath")
+    if not log or not Path(log).is_file():
+        return None
+    return sum(line.startswith("Compiling: ") for line in Path(log).read_text(errors="replace").splitlines())
+
+
 def web_rom(client, root: Path) -> str | None:
     if select(client, root):
         return None
@@ -66,6 +74,7 @@ def check_repeatable(suite, client, rom_b: str):
     original = sha256(rom_b)
     web = web_rom(client, copy)  # first, so there is no native ROM of the copy's own to adopt
     copied = build(client, copy)
+    first_compiled = compiled(copied)  # before the next build replaces the log
     suite.check(
         "R1",
         "A byte-identical copy of a project in another folder, with other inodes, builds the original's ROM",
@@ -80,23 +89,21 @@ def check_repeatable(suite, client, rom_b: str):
         web=web,
         native=original,
     )
-    # The copy's first build compiled everything; this one takes the compiled engine files from GB Studio's cache.
+    # The copy's first build compiled every engine file; this one takes them all from GB Studio's cache.
     rebuilt = build(client, copy)
-    first_ms, again_ms = copied.get("durationMs"), rebuilt.get("durationMs")
+    again_compiled = compiled(rebuilt)
     suite.check(
         "R9",
-        "Building the copy again reuses GB Studio's cache of its first build, at least three times faster, and gives "
-        "that same ROM",
+        "Building the copy again compiles nothing, from GB Studio's cache of its first build, and gives that same ROM",
         bool(original)
         and rebuilt.get("success") is True
         and rebuilt["sha256"] == original
-        and isinstance(first_ms, int)
-        and isinstance(again_ms, int)
-        and again_ms * 3 < first_ms,
+        and bool(first_compiled)
+        and again_compiled == 0,
         original=original,
         rebuilt=rebuilt["sha256"] or rebuilt.get("error"),
-        first_ms=first_ms,
-        again_ms=again_ms,
+        compiled=[first_compiled, again_compiled],
+        ms=[copied.get("durationMs"), rebuilt.get("durationMs")],
     )
 
     unlisted_image = copy / "assets" / "backgrounds" / "unlisted.png"
