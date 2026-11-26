@@ -119,6 +119,41 @@ class EngineBundleTests(unittest.TestCase):
             self.assertNotIn("could not remove", done.stderr)
             self.assertEqual(os.listdir(tmp), [])
 
+    def test_scripts_reached_through_a_package_alias_stay_beside_the_bundle(self):
+        # package.json "imports" and the package's own name resolve to scripts/ as a relative path does.
+        (self.engine / "package.json").write_text(
+            '{"type": "module", "name": "engine", "imports": {"#helper": "./scripts/helper.mjs"},'
+            ' "exports": {"./helper": "./scripts/helper.mjs"}}\n'
+        )
+        for request in ("#helper", "engine/helper"):
+            with self.subTest(request=request):
+                self.entry.write_text(f'import {{ suffix }} from "{request}";\nexport const said = suffix;\n')
+                done = self.build()
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertIn('from "../scripts/helper.mjs"', self.bundle.read_text())
+                self.assertEqual(self.run_bundle(), "!")
+
+    def test_a_write_never_removes_what_was_already_beside_the_bundle(self):
+        self.assertEqual(self.build().returncode, 0)
+        self.bundle.write_text("older\n")
+        # The temporary name the build would use, taken by a folder that is not the build's.
+        script = (
+            "const { mkdirSync, writeFileSync } = await import('node:fs');"
+            f"const out = {json.dumps(str(self.bundle))};"
+            "const dir = out.replace(/server\\.js$/, `.server.js.${process.pid}.tmp`);"
+            "mkdirSync(dir); writeFileSync(dir + '/keep.txt', 'mine');"
+            f"process.argv = [process.argv[0], {json.dumps(str(TOOLS / 'bundle.mjs'))}, '--engine', "
+            f"{json.dumps(str(self.engine))}, '--entry', {json.dumps(str(self.entry))}];"
+            f"await import({json.dumps((TOOLS / 'bundle.mjs').as_uri())});"
+        )
+        done = self.node("--input-type=module", "-e", script)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("EEXIST", done.stderr)
+        kept = [path for path in self.bundle.parent.iterdir() if path.name.endswith(".tmp")]
+        self.assertEqual(len(kept), 1)
+        self.assertEqual((kept[0] / "keep.txt").read_text(), "mine")
+        self.assertEqual(self.bundle.read_text(), "older\n")
+
     def test_a_temporary_folder_with_a_star_in_its_path_builds(self):
         self.assertEqual(self.build().returncode, 0)
         expected = self.bundle.read_bytes()

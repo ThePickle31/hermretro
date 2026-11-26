@@ -14,7 +14,7 @@
 // licence file, whose text the engine's notices (licenses/bundled-javascript.txt) carry; the engine's folders may
 // hold no links (as its manifest requires). A stopped build leaves nothing behind.
 
-import { chmodSync, cpSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, cpSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -57,22 +57,28 @@ function removed(where) {
   } catch (error) {
     console.error(`could not remove ${where}: ${error.message}`);
   }
+  forget(where);
+}
+// Stops tracking what this process made (it was removed, or moved where it belongs).
+function forget(where) {
   leftovers.delete(where);
   if (!leftovers.size) process.off("SIGINT", stopped).off("SIGTERM", stopped);
 }
 
-// Leaves every import of a file under scripts/ outside the bundle, as a path from the bundle's folder (an import from
-// dist/device-capture/ of ../../scripts/x.mjs is ../scripts/x.mjs in dist/server.js), as esbuild writes a path it
-// matches with a pattern.
+// Leaves every import that resolves to a file under scripts/ (a relative path, a package.json "imports" alias, the
+// package's own name) outside the bundle, as a path from the bundle's folder (an import from dist/device-capture/ of
+// ../../scripts/x.mjs is ../scripts/x.mjs in dist/server.js), as esbuild writes a path it matches with a pattern.
 function scriptsBeside(stage) {
   const scripts = path.join(stage, "scripts");
+  const asked = Symbol("scripts-beside");
   return {
     name: "scripts-beside",
     setup(build) {
-      build.onResolve({ filter: /^\.\.?\// }, ({ path: request, resolveDir }) => {
-        const target = path.resolve(resolveDir, request);
-        if (!target.startsWith(`${scripts}${path.sep}`)) return undefined;
-        return { path: path.relative(path.join(stage, "dist"), target).split(path.sep).join("/"), external: true };
+      build.onResolve({ filter: /.*/ }, async ({ path: request, kind, importer, resolveDir, namespace, pluginData, with: attributes }) => {
+        if (pluginData === asked || kind === "entry-point") return undefined;
+        const found = await build.resolve(request, { kind, importer, resolveDir, namespace, with: attributes, pluginData: asked });
+        if (found.errors.length || !found.path.startsWith(`${scripts}${path.sep}`)) return undefined;
+        return { path: path.relative(path.join(stage, "dist"), found.path).split(path.sep).join("/"), external: true };
       });
     },
   };
@@ -216,14 +222,23 @@ function parse(argv) {
   return args;
 }
 
-// Writes contents beside out, then moves them into its place: a stopped write never leaves half a bundle.
+// Writes contents beside out, then moves them into its place: a stopped write never leaves half a bundle. The file
+// beside it is made new (never something already there), and only what was made is removed.
 function replace(out, contents) {
-  const partial = made(path.join(path.dirname(out), `.${path.basename(out)}.${process.pid}.tmp`));
+  const partial = path.join(path.dirname(out), `.${path.basename(out)}.${process.pid}.tmp`);
+  const handle = openSync(partial, "wx");
+  made(partial);
   try {
-    writeFileSync(partial, contents);
+    try {
+      writeFileSync(handle, contents);
+    } finally {
+      closeSync(handle);
+    }
     renameSync(partial, out);
-  } finally {
+    forget(partial);
+  } catch (error) {
     removed(partial);
+    throw error;
   }
 }
 

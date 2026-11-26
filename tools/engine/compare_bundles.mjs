@@ -4,12 +4,13 @@
 //   node tools/engine/compare_bundles.mjs <before> <after>    exit 0 only when they hold the same program
 //
 // Both bundles are parsed and compared as syntax trees, every name included. Only what cannot change what runs is
-// left out: layout, comments, how a literal is spelled (`0x10` and `16`; a template's raw text is kept), parentheses
-// that group nothing (a parenthesised assignment target is kept: `f = () => {}` names the function and
-// `(f) = () => {}` does not), the shorthand of `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import
-// statements stand: what is imported is compared as a list sorted, and the order in which modules are first requested
-// (source and attributes) as a list. What a program could see that is not compared is where its code stands: a
-// function's source text (Function.prototype.toString) and the line and column numbers a stack trace gives.
+// left out: layout, comments, how a literal is spelled (`0x10` and `16`, and so `{ 1: a }` and `{ "1": a }`; a
+// template's raw text and a directive's spelling, `"use strict"`, are kept), parentheses that group nothing (a
+// parenthesised target is kept: `f = () => {}` names the function and `(f) = () => {}` does not), the shorthand of
+// `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import statements stand: what is imported is compared
+// as a sorted list, one entry for each binding, and the order in which modules are first requested (source and
+// attributes) as a list. What a program could see that is not compared is where its code stands: a function's source
+// text (Function.prototype.toString) and the line and column numbers a stack trace gives.
 //
 // When the bundles differ, the report names the modules whose statements differ (a module is the run of statements
 // after a bundler's marker comment, `// dist/<module>.js`) and the first statement where they part. When every
@@ -137,10 +138,17 @@ function parse(text, { acorn }) {
 function places({ ast }, { scope }) {
   const manager = scope.analyze(ast, { ecmaVersion: 2026, sourceType: "module", childVisitorKeys: { ParenthesizedExpression: ["expression"] } });
   const placed = new Map();
+  const aliases = new Map();
   manager.scopes.forEach((found, scopeIndex) => {
     found.variables.forEach((variable, index) => {
       const [definition] = variable.defs;
-      const place = definition?.type === "ImportBinding" ? importedBy(definition.node, definition.parent) : ["binding", scopeIndex, index];
+      let place = ["binding", scopeIndex, index];
+      if (definition?.type === "ImportBinding") {
+        // Each name an import is given is a binding of its own: the first, second, ... for what it imports.
+        const what = JSON.stringify(importedBy(definition.node, definition.parent));
+        aliases.set(what, (aliases.get(what) ?? -1) + 1);
+        place = [what, aliases.get(what)];
+      }
       const entry = { place: JSON.stringify(place), name: variable.name };
       // A class's name is a binding inside the class and another outside it; its declaration stands for the outer.
       for (const identifier of variable.identifiers) if (!placed.has(identifier)) placed.set(identifier, entry);

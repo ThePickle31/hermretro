@@ -149,6 +149,15 @@ class EngineCompareTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1)
         self.assertNotIn("differ only in the names", done.stdout)
         self.assertIn("imported only by the first", done.stdout)
+        # Using the other of two names for the same import is not a rename either: both names are still there.
+        done = self.compare(both, both.replace("console.log(aa)", "console.log(bb)"))
+        self.assertEqual(done.returncode, 1)
+        self.assertNotIn("differ only in the names", done.stdout)
+
+    def test_literals_compare_by_value_and_directives_by_spelling(self):
+        self.assertSame("console.log({ 1: 1, 0x10: 2 });\n", 'console.log({ "1": 1, 16: 2 });\n')
+        # "use\x20strict" is not the directive "use strict", so its spelling counts.
+        self.assertDifferent('function f() {\n  "use strict";\n}\n', 'function f() {\n  "use\\x20strict";\n}\n')
 
     def test_every_change_to_what_runs_counts(self):
         changes = {
