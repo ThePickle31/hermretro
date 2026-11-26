@@ -192,14 +192,14 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
         gone.add('profile').add('chats').add('history').add('settings')
         summary.kept = kept()
 
-        // Its chats are gone: no game points at one (asked where hermretro is installed, which outlives the profile).
-        if (install) {
-          await backendPart(install, 'links')
-        }
-
         // Hermes moves the app off the profile it deleted, to its default one: the restart expects that.
         if (summary.ambient === STUDIO_PROFILE) {
           summary.ambient = 'default'
+        }
+
+        // Its chats are gone: no game points at one (asked where hermretro is installed, which outlives the profile).
+        if (install) {
+          await backendPart(install, 'links')
         }
       } else if (install) {
         // An earlier update that installed but did not finish loading is finished, never read as up to date; one left

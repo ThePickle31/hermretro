@@ -127,8 +127,8 @@ async function readContext() {
   }
 
   // After deleting the studio profile, the games let go of its chats through the profile hermretro is installed in:
-  // hermretro must answer there (its agent half can be off while the page still shows).
-  const installAnswers = install ? await requestOn(install, RPC_STATUS, { sync: false }, 60_000).then(data => Boolean(data?.ok), () => false) : false
+  // the reset's calls must answer there (its agent half can be off, or run older code, while the page still shows).
+  const installAnswers = install ? await requestOn(install, RPC_RESET_PLAN, {}, 120_000).then(data => Boolean(data?.ok), () => false) : false
 
   // The studio's chats and the profile itself go only when hermretro made it, and the profile only when deleting it
   // would not take hermretro itself with it and this Hermes can delete a profile from a plugin.

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 0bfa7811338af69b383e368d9c72827d01ac973507568f7ae49af580c6cbc1ce
- * body: sha256 220f13e51a1e49604160bc620973f0040a19c74fbfda70ca896cda29f86409ab
+ * sources: sha256 d1e2893eaedbc40820a24b2f2172214822838e80a215a40c2d330058f6e50ff9
+ * body: sha256 a3046922e8843d49e7d4213cce5c126563551daf0d8889882b25f79d8daa015f
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -3825,7 +3825,7 @@ target,studio,install,version,onStep=()=>{}}){const steps=resetSteps(choices);co
 kept:kept(),failed:null,update:null,from:version,here,ambient,install};const profileGone=choices.profile==="delete";for(const[index,step]of steps.entries()){onStep(index);try{if(step.id!=="update"&&!gone.
 has("profile")){const building=await busyChats(studio);if(building.length){throw new Error(busySentence(building,"reset hermretro"))}}if(step.id==="stop"){await backendPart(target,"stop")}else if(BACKEND_PARTS.
 includes(step.id)){summary.deleted+=await backendPart(target,step.id)}else if(step.id==="profile"){await deleteStudioProfile(studio);gone.add("profile").add("chats").add("history").add("settings");summary.
-kept=kept();if(install){await backendPart(install,"links")}if(summary.ambient===STUDIO_PROFILE){summary.ambient="default"}}else if(install){const pending=stored(ctx,UPDATE_PENDING);if(pending&&!sameInstall(
+kept=kept();if(summary.ambient===STUDIO_PROFILE){summary.ambient="default"}if(install){await backendPart(install,"links")}}else if(install){const pending=stored(ctx,UPDATE_PENDING);if(pending&&!sameInstall(
 pending,install)){throw new Error("Another hermretro update is unfinished. Finish it on the hermretro page first.")}const mark=error=>remember2(ctx,UPDATE_PENDING,{at:Date.now(),error,connectionId:connectionOf(
 install),profile:install.profile});remember2(ctx,RESET_MARKER,summary);summary.update=await runUpdate({install,resume:Boolean(pending),studio:profileGone?null:studio,busy:()=>busyChats(profileGone?null:
 studio),confirmInstallIdle:async()=>null,installed:()=>mark(null),refused:()=>remember2(ctx,UPDATE_PENDING,null),remember:marker=>{remember2(ctx,UPDATE_PENDING,null);remember2(ctx,UPDATE_MARKER,{...marker,
@@ -3870,11 +3870,11 @@ answered.profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):
 let plan=await readPlan(target);let foreign=!made&&Boolean(named.exists);if(studio&&!plan.parts.profile?.ours){const other=await statusOn(here,ambient,[STUDIO_PROFILE]);if(!other){throw new Error("her\
 mretro answers only in a profile named hermretro that it did not make.")}studio=null;foreign=true;({status,answered}=other);target=answered;plan=await readPlan(target)}const installedIn=status.plugin?.
 installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.profile??null;const install=installProfile?await profileOn(installProfile,here):null;if(installProfile&&!install){throw new Error(
-`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}const installAnswers=install?await requestOn(install,RPC_STATUS,{sync:false},6e4).then(data=>Boolean(data?.
-ok),()=>false):false;const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.profile===STUDIO_PROFILE;return{here,ambient,target,studio,install,
-version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.parts.profile?.holds?"Holds your games":typeof host.deleteProfile!==
-"function"?"Update Hermes to delete it":!installAnswers?`Turn hermretro on in ${installProfile??"its profile"}`:null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){
-const[state,setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
+`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}const installAnswers=install?await requestOn(install,RPC_RESET_PLAN,{},12e4).then(data=>Boolean(data?.ok),()=>false):
+false;const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.profile===STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.
+plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.parts.profile?.holds?"Holds your games":typeof host.deleteProfile!=="function"?"\
+Update Hermes to delete it":!installAnswers?`Turn hermretro on in ${installProfile??"its profile"}`:null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){const[
+state,setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
 false);const[typed,setTyped]=useState("");const context=state.context??null;const settled=settleChoices(choices,context?.locked);useEffect(()=>{if(state.phase!=="loading"){return}let live=true;readContext().
 then(found=>live&&setState({phase:"choose",context:found}),error=>live&&setState({phase:"failed",error:String(error?.message??error)}));return()=>{live=false}},[state.phase]);const updated=state.phase===
 "done"&&state.summary?.update?.kind==="updated";useEffect(()=>{if(!updated||state.version){return}const install=state.summary?.install;if(!install){return}requestOn(install,RPC_STATUS,{sync:false},6e4).

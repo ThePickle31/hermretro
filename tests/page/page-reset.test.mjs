@@ -27,6 +27,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   scenario.byMethod['plugin.hermretro.status'] = () => ({ ok: true, plugin: { version, installed_in: installedIn }, profile: { studio: named } })
   scenario.byMethod['plugins.manage'] = params => { log.push(`update:${params.action}`); return updated ? { ok: true } : { ok: true, unchanged: true } }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true })
+  scenario.byMethod['plugin.hermretro.reset_plan'] = () => plan
   scenario.requestProfileHook = (route, method, params) => {
     // The profile hermretro is installed in answers as the app's own does.
     if ((route.profile === 'default' || route.profile === 'work') && method === 'plugin.hermretro.reset') {
@@ -239,11 +240,12 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   installedIn = { profile: 'default', linked: false }
   const before15 = scenario.requestProfileHook
   scenario.requestProfileHook = (route, method, params) => {
-    if (route.profile === 'default' && method === 'plugin.hermretro.status') throw Object.assign(new Error('unknown method'), { code: -32601 })
+    // Older hermretro there: it answers status but has no reset calls.
+    if (route.profile === 'default' && method === 'plugin.hermretro.reset_plan') throw Object.assign(new Error('unknown method'), { code: -32601 })
     return before15(route, method, params)
   }
   await open()
-  check('the studio profile stays while hermretro is off where it is installed', () => {
+  check('the studio profile stays while hermretro is off, or older, where it is installed', () => {
     assert.match(said(), /Studio profileModel, sign-in, SOUL · Turn hermretro on in default/)
     assert.equal(chosen('Studio profile'), 'Keep')
   })
