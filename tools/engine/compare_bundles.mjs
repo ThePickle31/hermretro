@@ -10,7 +10,8 @@
 // `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import statements stand: what is imported is compared
 // as a sorted list, one entry for each binding, and the order in which modules are first requested (source and
 // attributes) as a list. What a program could see that is not compared is where its code stands: a function's source
-// text (Function.prototype.toString) and the line and column numbers a stack trace gives.
+// text (Function.prototype.toString) and the file names, line and column numbers a stack trace gives (a
+// `//# sourceURL=` comment names a file).
 //
 // When the bundles differ, the report names the modules whose statements differ (a module is the run of statements
 // after a bundler's marker comment, `// dist/<module>.js`) and the first statement where they part. When every

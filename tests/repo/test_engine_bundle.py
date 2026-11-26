@@ -133,6 +133,22 @@ class EngineBundleTests(unittest.TestCase):
                 self.assertIn('from "../scripts/helper.mjs"', self.bundle.read_text())
                 self.assertEqual(self.run_bundle(), "!")
 
+    def test_imports_of_scripts_are_kept_as_they_are_written(self):
+        # A query makes another module instance, and Node resolves an import without an extension itself.
+        (self.engine / "scripts" / "plain.js").write_text("export const plain = 1;\n")
+        (self.engine / "scripts" / "device helper.mjs").write_text("export const device = 1;\n")
+        requests = ("../scripts/helper.mjs?one", "../scripts/helper.mjs?two", "../scripts/device%20helper.mjs")
+        self.entry.write_text(
+            "".join(f'import "{request}";\n' for request in requests)
+            + 'export const plain = () => require("../scripts/plain");\nexport const said = 1;\n'
+        )
+        done = self.build()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        text = self.bundle.read_text()
+        for request in requests:
+            self.assertIn(f'import "{request}";', text)
+        self.assertIn('require("../scripts/plain")', text)
+
     def test_a_write_never_removes_what_was_already_beside_the_bundle(self):
         self.assertEqual(self.build().returncode, 0)
         self.bundle.write_text("older\n")

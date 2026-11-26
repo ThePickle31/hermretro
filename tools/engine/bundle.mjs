@@ -65,25 +65,6 @@ function forget(where) {
   if (!leftovers.size) process.off("SIGINT", stopped).off("SIGTERM", stopped);
 }
 
-// Leaves every import that resolves to a file under scripts/ (a relative path, a package.json "imports" alias, the
-// package's own name) outside the bundle, as a path from the bundle's folder (an import from dist/device-capture/ of
-// ../../scripts/x.mjs is ../scripts/x.mjs in dist/server.js), as esbuild writes a path it matches with a pattern.
-function scriptsBeside(stage) {
-  const scripts = path.join(stage, "scripts");
-  const asked = Symbol("scripts-beside");
-  return {
-    name: "scripts-beside",
-    setup(build) {
-      build.onResolve({ filter: /.*/ }, async ({ path: request, kind, importer, resolveDir, namespace, pluginData, with: attributes }) => {
-        if (pluginData === asked || kind === "entry-point") return undefined;
-        const found = await build.resolve(request, { kind, importer, resolveDir, namespace, with: attributes, pluginData: asked });
-        if (found.errors.length || !found.path.startsWith(`${scripts}${path.sep}`)) return undefined;
-        return { path: path.relative(path.join(stage, "dist"), found.path).split(path.sep).join("/"), external: true };
-      });
-    },
-  };
-}
-
 // ModRetro's options, unchanged except that the build never writes (the caller does).
 function options(stage) {
   return {
@@ -98,10 +79,8 @@ function options(stage) {
     write: false,
     metafile: true,
     sourcemap: false,
-    // These dependency-free helpers resolve assets relative to their own files. ModRetro's build said this with the
-    // pattern `<engine>/scripts/*`; a plugin says it for any folder name (a `*` in the path would be a second
-    // wildcard to esbuild).
-    plugins: [scriptsBeside(stage)],
+    // These dependency-free helpers resolve assets relative to their own files.
+    external: [path.join(stage, "scripts", "*")],
     banner: { js: 'import { createRequire as __mcpCreateRequire } from "node:module"; const require = __mcpCreateRequire(import.meta.url);' },
     legalComments: "inline",
     logLevel: "silent",
@@ -177,13 +156,20 @@ function refusals(stage, result, engine) {
   return { problems, packages };
 }
 
+// A new folder for the build. Resolved: on macOS the temporary folder is reached through a link, and esbuild matches
+// the resolved paths. Its path is the start of the pattern that keeps scripts/ outside the bundle, where a `*` would
+// be a second wildcard, so a temporary folder whose path has one is passed over for /tmp.
+function stageFolder() {
+  const parent = realpathSync(os.tmpdir());
+  return realpathSync(mkdtempSync(path.join(parent.includes("*") ? realpathSync("/tmp") : parent, "hermretro-engine-bundle-")));
+}
+
 // The bundle's bytes and the packages in it. Throws on anything ModRetro's build refused, on files from anywhere
 // but the engine's modules and the pinned packages, and on a package its lock does not name or whose licence the
 // engine does not carry.
 export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbuild() }) {
   for (const folder of ["dist", "scripts", "package.json"]) noLinks(path.join(engine, folder));
-  // Resolved: on macOS the temporary folder is reached through a link, and esbuild matches the resolved paths.
-  const stage = made(realpathSync(mkdtempSync(path.join(os.tmpdir(), "hermretro-engine-bundle-"))));
+  const stage = made(stageFolder());
   try {
     cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true });
     cpSync(path.join(engine, "scripts"), path.join(stage, "scripts"), { recursive: true });
