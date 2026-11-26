@@ -23,7 +23,7 @@ const EVENT_FIELD_TYPES = {
     direction: 'A plain string: "up", "down", "left" or "right" ("" keeps the current direction); with multiple:true an array of them.',
     scene: "A scene id (project_inventory).",
     sprite: "A sprite asset id (project_inventory).",
-    avatar: 'An avatar asset id (project_inventory, type avatar: a 16 \xD7 16 image under assets/avatars, not a sprite), or "" for none.',
+    avatar: 'An avatar asset id (project_inventory, type avatar: a 16 × 16 image under assets/avatars, not a sprite), or "" for none.',
     music: "A music asset id.",
     soundEffect: '"beep", "crash", "tone", or a sound asset id.',
     input: 'An array of buttons: "a", "b", "start", "select", "up", "down", "left", "right".',

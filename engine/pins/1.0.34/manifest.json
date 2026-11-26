@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 521,
  "symlink_count": 0,
- "total_bytes": 36582134,
+ "total_bytes": 36582122,
  "suffix_counts": {
   ".js": 146,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "dde3670a2c0c3f9674831f16ae508bd7d917ad2bfdab6e444fc47115de8325dd",
+ "aggregate_sha256": "6a1cccc3e5262b49eef4bac844de7b2fc4a40b88643e3b9e451e10bf7128dfcb",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -628,16 +628,16 @@
   {
    "path": "dist/entry.js",
    "type": "file",
-   "size": 105256,
+   "size": 105246,
    "mode": "0o644",
-   "sha256": "e7be83f0316ec957ee39ed9bf31b6d7fae34feac234e27dec82f41b14c4e123e"
+   "sha256": "3ed23f7cd91b295679e306cff548b0c905137f2f8cffb77fc395b9b7c0fb6c21"
   },
   {
    "path": "dist/event-catalog.js",
    "type": "file",
-   "size": 32364,
+   "size": 32362,
    "mode": "0o644",
-   "sha256": "ef9c5dfa9c762beebb5bf84f9b5ca61d765cd4233f50f7cd4686df78f34d41d3"
+   "sha256": "7f86ccd158a7506a9afdcfcad7f565b6bc6a0c1c79adfc499881077688a14932"
   },
   {
    "path": "dist/game-scripts.js",

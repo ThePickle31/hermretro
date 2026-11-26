@@ -1197,7 +1197,7 @@ function createGbStudioServer(options = {}) {
             finishRecording: z.boolean().optional().describe("true stops the replay's recording where it ended, with the verdict as its outcome; needs a recorded replay."),
             debugMode: z.enum(["rom", "source"]).optional().describe("Omit for source when rom_build captured debug artifacts for this exact cartridge in this session, else rom; source requires them; rom turns source debugging off."),
             includeImages: z.boolean().optional().describe("Set false to receive the report without images."),
-            scale: z.number().int().min(1).max(4).optional().describe("Enlarge returned images 1\u20134\xD7 with square pixels; image hashes stay those of the native frames."),
+            scale: z.number().int().min(1).max(4).optional().describe("Enlarge returned images 1–4× with square pixels; image hashes stay those of the native frames."),
             colorCorrection: emulatorColorCorrection.optional()
         }).strict(),
         annotations: { ...changeSession, destructiveHint: true }
@@ -1399,7 +1399,7 @@ function createGbStudioServer(options = {}) {
     });
     server.registerTool("emulator_observe", {
         title: "Observe the current genuine framebuffer",
-        description: "Return the current real 160\xD7144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does. Use emulator_step to play.",
+        description: "Return the current real 160×144 framebuffer and frame/input metadata without advancing frames, changing controller state, writing files, or appending recording events. Optional scale enlarges the image; imageLayout:'contact-sheet' labels that same image in memory; the individual PNG remains the default. The result is compact unless detail:'full'. It accepts no actions. Applied input and last-sampled input are reported separately. colorCorrection:'chromatic' shows color-hardware frames as the Chromatic does. Use emulator_step to play.",
         inputSchema: domainSchemas.emulatorObserve,
         annotations: readOnly
     }, async (options, extra) => {
@@ -1443,7 +1443,7 @@ function createGbStudioServer(options = {}) {
     })));
     server.registerTool("emulator_audio", {
         title: "Check which sound channels the game drives",
-        description: "Read the Game Boy sound hardware's registers on the current frame without advancing. active is true when the sound hardware is on and a channel (pulse1, pulse2, wave, noise) is enabled, its DAC on and sent to a speaker; each channel reports active, enabled, dac, panned, and startVolume (pulse and noise envelope start, 0\u201315) or outputLevel (wave). Registers show what the game drives, not what comes out: a pulse or noise note whose envelope has faded stays active until the next note or cut. This is one frame: check a short sound effect on the frames just after it starts. A song keeps its channels active between notes.",
+        description: "Read the Game Boy sound hardware's registers on the current frame without advancing. active is true when the sound hardware is on and a channel (pulse1, pulse2, wave, noise) is enabled, its DAC on and sent to a speaker; each channel reports active, enabled, dac, panned, and startVolume (pulse and noise envelope start, 0–15) or outputLevel (wave). Registers show what the game drives, not what comes out: a pulse or noise note whose envelope has faded stays active until the next note or cut. This is one frame: check a short sound effect on the frames just after it starts. A song keeps its channels active between notes.",
         inputSchema: emptyInput,
         annotations: readOnly
     }, async () => safely(() => performEmulatorOperation(() => emulator.audio())));
