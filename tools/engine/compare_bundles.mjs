@@ -8,8 +8,9 @@
 // template's raw text and a directive's spelling, `"use strict"`, are kept), parentheses that group nothing (a
 // parenthesised target is kept: `f = () => {}` names the function and `(f) = () => {}` does not), the shorthand of
 // `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import statements stand: what is imported is compared
-// as a sorted list, one entry for each binding, and the order in which modules are first requested (source and
-// attributes) as a list. What a program could see that is not compared is where its code stands: a function's source
+// as a sorted list, one entry for each binding (`import a from` is `import { default as a } from`), and the order in
+// which modules are first requested (source and attributes) as a list, which is all an import run only for its
+// effects does. What a program could see that is not compared is where its code stands: a function's source
 // text (Function.prototype.toString) and the file names, line and column numbers a stack trace gives (a
 // `//# sourceURL=` comment names a file).
 //
@@ -32,6 +33,8 @@ const HEADER = "(bundle header)";
 // Node fields that say where or how something is written, not what it is.
 const UNCOMPARED = new Set(["type", "start", "end", "range", "loc"]);
 const PROPERTIES = new Set(["Property", "MethodDefinition", "PropertyDefinition"]);
+// Nodes whose `left` is a target that names an anonymous function assigned to it, unless it is parenthesised.
+const TARGETS = new Set(["AssignmentExpression", "AssignmentPattern"]);
 
 function loadParsers() {
   const require = createRequire(path.join(TOOLS, "package.json"));
@@ -44,12 +47,11 @@ function loadParsers() {
 
 const attributesOf = (declaration) => (declaration.attributes ?? []).map((attribute) => [attribute.key.name ?? attribute.key.value, attribute.value.value]);
 
-// What an import binds: its kind (none for an import run only for its effects), source, the name it takes there,
-// and its attributes.
+// What an import binds: the module's namespace or one of its exports (`import a from` is
+// `import { default as a } from`), its source and its attributes.
 function importedBy(specifier, declaration) {
-  const kind = specifier ? { ImportDefaultSpecifier: "default", ImportNamespaceSpecifier: "namespace", ImportSpecifier: "named" }[specifier.type] : "none";
-  const name = kind === "named" ? (specifier.imported.name ?? specifier.imported.value) : null;
-  return ["import", kind, declaration.source.value, name, attributesOf(declaration)];
+  const what = specifier.type === "ImportNamespaceSpecifier" ? ["namespace"] : ["export", specifier.type === "ImportDefaultSpecifier" ? "default" : (specifier.imported.name ?? specifier.imported.value)];
+  return ["import", ...what, declaration.source.value, attributesOf(declaration)];
 }
 
 // A property's own key when it is written as a name: `a`, `"a"` and `'a'` are the key "a" (and `1` and `"1"` the
@@ -85,14 +87,14 @@ function form(node, named) {
     if (field === "shorthand" && own?.[1] !== "__proto__") continue;
     if (field === "key" && own !== null) fields.push(field, own);
     // A parenthesised target (`(f) = ...`, `[(f) = ...] = ...`) gives an anonymous function no name.
-    else if (field === "left" && value.type === "ParenthesizedExpression") fields.push(field, ["parenthesised", form(value.expression, named)]);
+    else if (field === "left" && TARGETS.has(node.type) && value.type === "ParenthesizedExpression") fields.push(field, ["parenthesised", form(value.expression, named)]);
     else fields.push(field, form(value, named));
   }
   return fields;
 }
 
-// The program as { requests, imports (sorted, one entry for each binding), statements: [{ module, line, key }] },
-// with identifiers as named() says.
+// The program as { requests, imports (sorted, one entry for each binding), statements: [{ module, node, key }] },
+// with identifiers as named() says. An import run only for its effects is in the requests alone.
 function program(ast, markers, named) {
   const moduleAt = (position) => {
     let name = HEADER;
@@ -111,13 +113,34 @@ function program(ast, markers, named) {
       if (!requests.includes(request)) requests.push(request);
     }
     if (statement.type === "ImportDeclaration") {
-      if (!statement.specifiers.length) imports.push(JSON.stringify(importedBy(null, statement)));
       for (const specifier of statement.specifiers) imports.push(JSON.stringify([...importedBy(specifier, statement), named(specifier.local)]));
       continue;
     }
-    statements.push({ module: moduleAt(statement.start), line: statement.loc.start.line, key: JSON.stringify(form(statement, named)) });
+    statements.push({ module: moduleAt(statement.start), node: statement, key: JSON.stringify(form(statement, named)) });
   }
   return { requests, imports: imports.sort(), statements };
+}
+
+// The nodes a node holds, in order.
+function children(node) {
+  const found = [];
+  for (const [field, value] of Object.entries(node)) {
+    if (UNCOMPARED.has(field)) continue;
+    for (const child of Array.isArray(value) ? value : [value]) if (child && typeof child.type === "string") found.push(child);
+  }
+  return found;
+}
+
+// The innermost nodes where two statements that differ part: the first pair of children that differ, while the two
+// hold as many children and only those differ.
+function parting(a, b, named) {
+  const key = (node) => JSON.stringify(form(node, named));
+  for (;;) {
+    const [x, y] = [children(a), children(b)];
+    const differing = x.length === y.length ? x.findIndex((child, index) => key(child) !== key(y[index])) : -1;
+    if (differing === -1) return [a, b];
+    [a, b] = [x[differing], y[differing]];
+  }
 }
 
 function parse(text, { acorn }) {
@@ -177,10 +200,12 @@ function same(a, b) {
   return JSON.stringify(a.requests) === JSON.stringify(b.requests) && JSON.stringify(a.imports) === JSON.stringify(b.imports) && a.statements.length === b.statements.length && a.statements.every((statement, index) => statement.key === b.statements[index].key);
 }
 
+const byName = (identifier) => ["name", identifier.name];
+
 // { same, renamed: null or [{ before, after }], requests, imports: { removed, added }, modules, parted }
 export function compareBundles(before, after, parsers = loadParsers()) {
   const parsed = [parse(before, parsers), parse(after, parsers)];
-  const [a, b] = parsed.map(({ ast, markers }) => program(ast, markers, (identifier) => ["name", identifier.name]));
+  const [a, b] = parsed.map(({ ast, markers }) => program(ast, markers, byName));
   if (same(a, b)) return { same: true };
 
   // Is every difference a binding with another name?
@@ -210,7 +235,9 @@ export function compareBundles(before, after, parsers = loadParsers()) {
   let parted = null;
   for (let index = 0; index < Math.max(a.statements.length, b.statements.length) && !parted; index++) {
     const [was, now] = [a.statements[index], b.statements[index]];
-    if (was?.key !== now?.key) parted = { module: (was ?? now).module, before: was?.line ?? null, after: now?.line ?? null };
+    if (was?.key === now?.key) continue;
+    const [first, second] = was && now ? parting(was.node, now.node, byName) : [was?.node, now?.node];
+    parted = { module: (was ?? now).module, before: first?.loc.start.line ?? null, after: second?.loc.start.line ?? null };
   }
   return { same: false, renamed, requests, imports, modules, parted };
 }

@@ -139,6 +139,25 @@ class EngineCompareTests(unittest.TestCase):
         )
         self.assertSame(BUNDLE, moved)
 
+    def test_imports_and_grouping_that_do_the_same_are_the_same(self):
+        same = {
+            "a default import": (
+                'import path from "node:path";\nconsole.log(path);\n',
+                'import { default as path } from "node:path";\nconsole.log(path);\n',
+            ),
+            "an import for its effects that another request already makes": (
+                'import "./h.mjs";\nimport { x } from "./h.mjs";\nconsole.log(x);\n',
+                'import { x } from "./h.mjs";\nconsole.log(x);\n',
+            ),
+            "parentheses around an operand": (
+                "const major = 1n;\nconsole.log((major & 0xfffn) << 8n);\n",
+                "const major = 1n;\nconsole.log(((major) & 0xfffn) << 8n);\n",
+            ),
+        }
+        for case, (before, after) in same.items():
+            with self.subTest(case=case):
+                self.assertSame(before, after)
+
     def test_renamed_bindings_are_named_and_still_differ(self):
         done = self.compare(BUNDLE, BUNDLE.replace("basename2", "basename7"))
         self.assertEqual(done.returncode, 1)
@@ -197,6 +216,10 @@ class EngineCompareTests(unittest.TestCase):
         self.assertEqual(done.stderr, "")
         self.assertIn("1 modules differ:\n  dist/device helper.js", done.stdout)
         self.assertIn("- 3: var b = 2;", done.stdout)
+        # Inside a long declaration, the line that differs, not the declaration's first.
+        before = "function f() {\n  const a = 1;\n  return a;\n}\n"
+        done = self.compare(before, before.replace("return a;", "return a + 1;"))
+        self.assertIn("- 3: return a;\n  + 3: return a + 1;", done.stdout)
         # Run through a link to it, the comparison still runs.
         linked = self.folder / "engine-tools"
         linked.symlink_to(TOOLS)
