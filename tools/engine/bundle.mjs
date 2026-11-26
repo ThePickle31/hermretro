@@ -2,13 +2,13 @@
 // (scripts/bundle-mcp.mjs): one ESM file for Node 22 holding every dist/ module and the packages they import, with
 // scripts/ left as imports beside it, built by the esbuild and packages pinned in tools/engine/npm.
 //
-//   node tools/engine/bundle.mjs --entry <file> [--engine <folder>] [--out <file>]   build (writes when bytes change)
-//   node tools/engine/bundle.mjs --entry <file> [--engine <folder>] --check          verify the bundle; writes nothing
+//   node tools/engine/bundle.mjs [--entry <file>] [--engine <folder>] [--out <file>]   build (writes when bytes change)
+//   node tools/engine/bundle.mjs [--entry <file>] [--engine <folder>] --check          verify the bundle; writes nothing
 //
-// --entry is the server's own module, built in as dist/server.js, the name the bundle has always given it.
-// --engine defaults to engine/modretro-chromatic and --out to the engine's dist/server.js. The build runs in a
-// temporary folder holding a copy of the engine's dist/, scripts/ and package.json and of the pinned packages as its
-// node_modules, so the bundle's module comments read as they always have (`// dist/emulator.js`,
+// --entry is the server's own module (the engine's dist/entry.js), built in as dist/server.js, the name the bundle
+// has always given it. --engine defaults to engine/modretro-chromatic and --out to the engine's dist/server.js.
+// The build runs in a temporary folder holding a copy of the engine's dist/, scripts/ and package.json and of the
+// pinned packages as its node_modules, so the bundle's module comments read as they always have (`// dist/emulator.js`,
 // `// node_modules/zod/...`) and modules resolve as they did for ModRetro. The bundle may hold only the engine's
 // modules and packages its lock file (scripts/runtime-package-lock.json) names at that version, each with its
 // licence file, whose text the engine's notices (licenses/bundled-javascript.txt) carry; the engine's folders may
@@ -184,9 +184,9 @@ export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbui
   for (const folder of ["dist", "scripts", "package.json"]) noLinks(path.join(engine, folder));
   const stage = made(stageFolder());
   try {
-    // All of dist/ but the bundle itself, whose place the entry takes.
-    const bundle = path.join(engine, "dist", "server.js");
-    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true, filter: (source) => source !== bundle });
+    // All of dist/ but the bundle itself, whose place the entry takes, and the entry.
+    const left = new Set([path.join(engine, "dist", "server.js"), path.resolve(entry)]);
+    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true, filter: (source) => !left.has(source) });
     cpSync(path.join(engine, "scripts"), path.join(stage, "scripts"), { recursive: true });
     // Its "type": "module" makes the modules ES modules in Node's sense, which decides how they import CommonJS.
     cpSync(path.join(engine, "package.json"), path.join(stage, "package.json"));
@@ -219,7 +219,7 @@ function parse(argv) {
       index++;
     } else throw new Error(`unknown argument ${flag}`);
   }
-  if (!args.entry) throw new Error("--entry <file> is required: the server's own module");
+  args.entry ??= path.join(args.engine, "dist", "entry.js");
   args.out ??= path.join(args.engine, "dist", "server.js");
   return args;
 }

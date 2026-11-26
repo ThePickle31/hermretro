@@ -55,31 +55,34 @@ steps.seen = seen;
 process.stdout.write(JSON.stringify(steps));
 """
 
-# The engine's compiler-bound signing key, taken from the bundle as it runs, over a CLI folder.
+# The engine's compiler-bound signing key, taken from its module (dist/web-build.js), over a CLI folder.
 KEY = """
-import { createHash as createHash33, createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import path37 from "node:path";
+import path from "node:path";
 const [source, cli] = process.argv.slice(1);
-const compilerBoundKey = new Function("createHash33", "createHmac", "createReadStream", "path37",
-  source + "\\nreturn compilerBoundKey;")(createHash33, createHmac, createReadStream, path37);
+const compilerBoundKey = new Function("createHash", "createHmac", "createReadStream", "path",
+  source + "\\nreturn compilerBoundKey;")(createHash, createHmac, createReadStream, path);
 const key = Buffer.alloc(32, 7);
 const hex = async () => (await compilerBoundKey(key, cli)).toString("hex");
 const first = await hex();
 const again = await hex();
-await writeFile(path37.join(path37.dirname(cli), "buildWorker.js"), "// another compiler\\n");
+await writeFile(path.join(path.dirname(cli), "buildWorker.js"), "// another compiler\\n");
 const replaced = await hex();
 process.stdout.write(JSON.stringify({ first, again, replaced }));
 """
 
 
-def bundle_functions(*names: str) -> str:
-    """The named top-level functions of the engine bundle, as its source text."""
-    bundle = (ENGINE / "dist" / "server.js").read_text()
+WEB_BUILD = ENGINE / "dist" / "web-build.js"
+
+
+def module_functions(*names: str) -> str:
+    """The named top-level functions of the engine's web-build module, as its source text."""
+    module = WEB_BUILD.read_text()
     found = []
     for name in names:
-        match = re.search(rf"^(?:async )?function {name}\(.*?^}}\n", bundle, re.M | re.S)
+        match = re.search(rf"^(?:async )?function {name}\(.*?^}}\n", module, re.M | re.S)
         assert match, name
         found.append(match.group(0))
     return "\n".join(found)
@@ -124,20 +127,20 @@ class CompilerBoundKey(NodeTest):
         cli.parent.mkdir(parents=True)
         cli.write_text("// cli\n")
         (cli.parent / "buildWorker.js").write_text("// compiler\n")
-        source = bundle_functions("hashFile", "updateHash", "compilerBoundKey")
+        source = module_functions("hashFile", "updateHash", "compilerBoundKey")
         keys = self.node_json(KEY, source, str(cli))
         self.assertEqual(keys["first"], keys["again"])
         self.assertNotEqual(keys["first"], keys["replaced"])
 
     def test_the_web_cache_and_the_native_receipt_use_it(self):
-        bundle = (ENGINE / "dist" / "server.js").read_text()
-        self.assertIn("const attestationKey = await compilerBoundKey(signing, cli);", bundle)
+        module = WEB_BUILD.read_text()
+        self.assertIn("const attestationKey = await compilerBoundKey(signing, cli);", module)
         self.assertIn(
             "const key = await compilerBoundKey(await signingKey(before.root, official.toolchainRoot, runtime), "
             "official.cliPath);",
-            bundle,
+            module,
         )
-        self.assertEqual(bundle.count("await signingKey("), 2)
+        self.assertEqual(module.count("await signingKey("), 2)
 
 
 if __name__ == "__main__":

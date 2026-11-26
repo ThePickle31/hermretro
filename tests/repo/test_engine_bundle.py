@@ -87,6 +87,15 @@ class EngineBundleTests(unittest.TestCase):
         self.assertEqual(self.run_bundle(), "b:function!")
         self.assertEqual(sorted(os.listdir(self.bundle.parent)), ["greet.js", "server.js"])
 
+    def test_the_entry_is_the_engines_dist_entry_js_unless_named(self):
+        (self.engine / "dist" / "entry.js").write_text(ENTRY)
+        done = self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.run_bundle(), "b:function!")
+        # Built in as dist/server.js, as an entry given by path is, and not copied in a second time.
+        self.assertNotIn("dist/entry.js", self.bundle.read_text())
+        self.assertEqual(self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine), "--check").returncode, 0)
+
     def test_the_bundle_is_byte_for_byte_what_modretros_build_makes(self):
         self.assertEqual(self.build().returncode, 0)
         # ModRetro's build (the engine's scripts/bundle-mcp.mjs) of the same modules, in a folder laid out as it wants:

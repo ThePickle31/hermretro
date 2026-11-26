@@ -5,7 +5,7 @@
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
 
-Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
+Checks: unit (Python unit tests), bundle (generated files match page/ and the engine's bundle its modules), lint (ESLint over page/: the
 boundaries between pages and a few correctness rules; ruff over the Python: likely bugs, then one formatting
 for everyone, from .dev/py, made by python tools/py/setup.py), page (page tests in jsdom),
 scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real engine,
@@ -90,16 +90,28 @@ def check_unit(args) -> str:
 
 def check_bundle(args) -> str:
     node = need("node")
-    result = run([node, "tools/bundle/bundle.mjs", "--check"] + (["--same-esbuild"] if args.strict else []))
-    output = (result.stdout + result.stderr).strip()
-    if "not found" in output and not args.strict and result.returncode:
-        raise Skip(output.splitlines()[-1])
-    if result.returncode:
-        raise AssertionError(
-            tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js, "
-            "player/frame-shim.js and page/app/rpc-names.js with your sources (never edit them by hand)"
-        )
-    return output.splitlines()[-1] if output else "ok"
+    page = run([node, "tools/bundle/bundle.mjs", "--check"] + (["--same-esbuild"] if args.strict else []))
+    engine = run([node, "tools/engine/bundle.mjs", "--check"])
+    rows = []
+    for result, fix in (
+        (
+            page,
+            "node tools/bundle/bundle.mjs, then commit desktop/plugin.js, player/frame-shim.js and "
+            "page/app/rpc-names.js with your sources (never edit them by hand)",
+        ),
+        (
+            engine,
+            "node tools/engine/bundle.mjs, then commit engine/modretro-chromatic/dist/server.js with the engine's "
+            "modules (never edit it by hand)",
+        ),
+    ):
+        output = (result.stdout + result.stderr).strip()
+        if "not found" in output and not args.strict and result.returncode:
+            raise Skip(output.splitlines()[-1])
+        if result.returncode:
+            raise AssertionError(tail(output) + f"\nFIX: {fix}")
+        rows.append(output.splitlines()[-1] if output else "ok")
+    return "; ".join(rows)
 
 
 def start(cmd: list[str]) -> subprocess.Popen:
