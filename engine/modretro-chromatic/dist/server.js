@@ -30151,8 +30151,8 @@ var StdioServerTransport = class {
 
 // dist/build.js
 import { execFile as execFile2, spawn } from "node:child_process";
-import { createHash as createHash9 } from "node:crypto";
-import { constants as constants4 } from "node:fs";
+import { createHash as createHash9, randomUUID as randomUUID18 } from "node:crypto";
+import { constants as constants4, writeFileSync as writeFileSync2 } from "node:fs";
 import fs from "node:fs/promises";
 import { access as access3, lstat as lstat9, mkdir as mkdir4, mkdtemp as mkdtemp2, readdir as readdir4, readFile as readFile5, realpath as realpath7, rename as rename4, rm as rm3, stat as stat3, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -31319,7 +31319,14 @@ async function runBuildCommand(command, args, options) {
   }
   if (options.evidence)
     options.evidence.startedAt = (/* @__PURE__ */ new Date()).toISOString();
-  const child = spawn(command, args, {
+  // With `started`, the compiler waits on its standard input until `started` has seen its process id and returned.
+  const gated = options.started !== void 0 && process.platform !== "win32";
+  const child = gated ? spawn("/bin/sh", ["-c", 'read -r go && [ "$go" = go ] && exec "$0" "$@"', command, ...args], {
+    cwd: options.cwd,
+    env: options.environment,
+    detached: true,
+    stdio: ["pipe", "pipe", "pipe"]
+  }) : spawn(command, args, {
     cwd: options.cwd,
     env: options.environment,
     windowsHide: true,
@@ -31425,6 +31432,20 @@ async function runBuildCommand(command, args, options) {
   child.stderr.on("data", onStderr);
   child.on("error", onError);
   child.once("close", onClose);
+  if (gated) {
+    child.stdin.on("error", () => {
+    });
+    let go = false;
+    try {
+      if (child.pid !== void 0) {
+        options.started(child.pid);
+        go = true;
+      }
+    } catch (error2) {
+      processError ??= error2 instanceof Error ? error2 : new Error(String(error2));
+    }
+    child.stdin.end(go ? "go\n" : "");
+  }
   const cancel = () => stop("cancelled");
   const timer = setTimeout(() => stop("timeout"), options.timeoutMs);
   timer.unref();
@@ -31536,6 +31557,242 @@ async function removeIsolatedBuildDirectory(directory, projectRoot) {
     throw new Error(`Refusing to remove a relocated game-build temporary directory: ${directory}`);
   }
   await rm3(directory, { recursive: true, force: true });
+}
+// A game's GB Studio builds share one compiler folder, so GB Studio's object cache (`_gbscache`, whose keys include the
+// folder's path) lasts from one build to the next. Everything else in it is removed before and after each build.
+// A build holds the folder through claim files: one for the engine and one for the compiler's process group, which
+// can outlive the engine and starts only once its claim is written. Another build meanwhile gets a fresh folder.
+const SHARED_BUILD_CACHE = "_gbscache";
+const SHARED_BUILD_TOOLCHAIN = ".toolchain";
+const SHARED_BUILD_UNFINISHED = ".unfinished";
+const SHARED_BUILD_CLAIM = /^\.claim-(\d+)-[0-9a-f-]{36}$/;
+function sharedBuildKeeps(entry) {
+  return entry === SHARED_BUILD_CACHE || entry === SHARED_BUILD_TOOLCHAIN || SHARED_BUILD_CLAIM.test(entry);
+}
+function signalReaches(target) {
+  try {
+    process.kill(target, 0);
+    return true;
+  } catch (error2) {
+    return !isSystemError(error2, "ESRCH");
+  }
+}
+// A claim's process, or the process group it leads: the compiler's group outlives its first process. A process that
+// took over a dead claim's id keeps it alive too, which only means fresh folders until it exits.
+function claimIsAlive(pid) {
+  return pid > 0 && (signalReaches(pid) || signalReaches(-pid));
+}
+async function clearSharedBuildDirectory(directory) {
+  for (const entry of await readdir4(directory)) {
+    if (!sharedBuildKeeps(entry))
+      await rm3(path16.join(directory, entry), { recursive: true, force: true });
+  }
+}
+// GB Studio's cache keys follow only `include "..."` lines into the build's include folder, so a game that brings
+// compiler input of its own could leave a stale engine object: its own engine code (`assets/engine`) or any plugin
+// (an engine overlay, or an event that writes a header an engine file reads). Such a game builds in a fresh folder.
+// A plugin is a folder in `plugins`; GB Studio's own `plugins/README.md` is not one.
+async function gameBringsCompilerInput(projectDirectory) {
+  try {
+    await lstat9(path16.join(projectDirectory, "assets", "engine"));
+    return true;
+  } catch (error2) {
+    if (!isSystemError(error2, "ENOENT"))
+      throw error2;
+  }
+  try {
+    return (await readdir4(path16.join(projectDirectory, "plugins"), { withFileTypes: true })).some((entry) => !entry.isFile());
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return false;
+    throw error2;
+  }
+}
+// The compiler, by content: the CLI, its build worker, GB Studio's engine and this computer's GBDK. A different one
+// drops the cache. Undefined when GB Studio is not laid out as expected or holds a link (its target could change).
+async function sharedBuildToolchain(gbStudioCli) {
+  const studio = path16.resolve(path16.dirname(gbStudioCli), "..", "..");
+  const parts = [gbStudioCli, path16.join(path16.dirname(gbStudioCli), "buildWorker.js"), path16.join(studio, "appData", "engine"), path16.join(studio, "buildTools", `${process.platform}-${process.arch}`)];
+  const hash = createHash9("sha256");
+  const add = async (candidate) => {
+    const metadata2 = await lstat9(candidate);
+    hash.update(`${candidate}\0`);
+    if (metadata2.isSymbolicLink())
+      return false;
+    if (metadata2.isDirectory()) {
+      const entries = (await readdir4(candidate)).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+      for (const entry of entries) {
+        if (!await add(path16.join(candidate, entry)))
+          return false;
+      }
+    } else if (metadata2.isFile()) {
+      hash.update(await readFile5(candidate)).update("\0");
+    }
+    return true;
+  };
+  try {
+    for (const part of parts) {
+      if (await realpath7(part) !== part || !await add(part))
+        return void 0;
+    }
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return void 0;
+    throw error2;
+  }
+  return hash.digest("hex");
+}
+async function sharedCacheState(directory, state = /* @__PURE__ */ new Map()) {
+  let entries;
+  try {
+    entries = await readdir4(directory, { withFileTypes: true });
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return state;
+    throw error2;
+  }
+  for (const entry of entries) {
+    const candidate = path16.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await sharedCacheState(candidate, state);
+    } else {
+      const metadata2 = await lstat9(candidate);
+      state.set(candidate, `${metadata2.ino}:${metadata2.size}:${metadata2.mtimeMs}:${metadata2.ctimeMs}`);
+    }
+  }
+  return state;
+}
+async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) {
+  if (process.platform === "win32" || typeof process.getuid !== "function" || await gameBringsCompilerInput(path16.dirname(projectFile)))
+    return void 0;
+  const toolchain = await sharedBuildToolchain(gbStudioCli);
+  if (toolchain === void 0)
+    return void 0;
+  const uid = process.getuid();
+  const temporaryParent = await selectTrustedTemporaryParent(projectRoot);
+  const name = createHash9("sha256").update(`${uid}\0${projectFile}`).digest("hex").slice(0, 6);
+  const directory = path16.join(temporaryParent, `gbs_${name}`);
+  try {
+    await mkdir4(directory, { mode: 448 });
+  } catch (error2) {
+    if (!isSystemError(error2, "EEXIST"))
+      throw error2;
+  }
+  const existing = await lstat9(directory);
+  if (existing.isSymbolicLink() || !existing.isDirectory() || existing.uid !== uid || (existing.mode & 63) !== 0 || !samePlatformPath(await realpath7(directory), directory) || isInside(projectRoot, directory)) {
+    return void 0;
+  }
+  const claim = path16.join(directory, `.claim-${process.pid}-${randomUUID18()}`);
+  await writeFile(claim, "", { flag: "wx", mode: 384 });
+  try {
+    // Until a listing shows no other claim: one written after a listing belongs to a process alive at that listing.
+    for (let others = true; others; ) {
+      others = false;
+      for (const entry of await readdir4(directory)) {
+        const owner = SHARED_BUILD_CLAIM.exec(entry);
+        const other = path16.join(directory, entry);
+        if (!owner || other === claim)
+          continue;
+        others = true;
+        if (claimIsAlive(Number(owner[1]))) {
+          await rm3(claim, { force: true });
+          return void 0;
+        }
+        await rm3(other, { force: true });
+      }
+    }
+    const cache = path16.join(directory, SHARED_BUILD_CACHE);
+    // A build that never finished (its engine or compiler stopped first) may have left a cached object half written.
+    const unfinished = await exists3(path16.join(directory, SHARED_BUILD_UNFINISHED));
+    const recorded = await readFile5(path16.join(directory, SHARED_BUILD_TOOLCHAIN), "utf8").catch(() => "");
+    if (unfinished || recorded !== toolchain)
+      await rm3(cache, { recursive: true, force: true });
+    await clearSharedBuildDirectory(directory);
+    await writeFile(path16.join(directory, SHARED_BUILD_TOOLCHAIN), toolchain, { mode: 384 });
+    await writeFile(path16.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
+    const engineSources = path16.join(path16.dirname(gbStudioCli), "..", "..", "appData", "engine", "gbvm", "src");
+    return { directory, claim, projectDirectory: path16.dirname(projectFile), engineSources, cacheBefore: await sharedCacheState(cache) };
+  } catch (error2) {
+    await rm3(claim, { force: true }).catch(() => {
+    });
+    throw error2;
+  }
+}
+// The compiler's own claim, written before it is let start; a failure here stops it from starting.
+function claimSharedBuildForCompiler(shared, pid) {
+  const claim = path16.join(shared.directory, `.claim-${pid}-${randomUUID18()}`);
+  writeFileSync2(claim, "", { flag: "wx", mode: 384 });
+  shared.compilerClaim = { claim, pid };
+}
+// GB Studio's keys see a file's quoted includes and only the values it uses from data/game_globals.i, without their
+// names: enough for its engine's own files, whose other includes are GBDK's, but not for the game's generated ones
+// (scripts with swapped constant names, a raw `.include`, a plugin's output). So only the objects of GB Studio's own
+// engine files (in its `appData/engine/gbvm/src`, outside `src/data`) are kept after each build; the rest compile
+// on every build.
+async function keepOnlyEngineObjects(shared) {
+  const build = path16.join(shared.directory, "_gbsbuild");
+  const engineObjects = /* @__PURE__ */ new Set();
+  const collect = async (relative) => {
+    let entries;
+    try {
+      entries = await readdir4(path16.join(build, "src", relative), { withFileTypes: true });
+    } catch (error2) {
+      if (isSystemError(error2, "ENOENT"))
+        return;
+      throw error2;
+    }
+    for (const entry of entries) {
+      const name = path16.join(relative, entry.name);
+      if (entry.isDirectory()) {
+        if (name !== "data")
+          await collect(name);
+      } else if (/\.[cs]$/.test(entry.name) && await exists3(path16.join(shared.engineSources, name))) {
+        const object = await readFile5(path16.join(build, "obj", `${entry.name.slice(0, -2)}.o`)).catch(() => void 0);
+        if (object)
+          engineObjects.add(object.toString("base64"));
+      }
+    }
+  };
+  await collect("");
+  for (const file of (await sharedCacheState(path16.join(shared.directory, SHARED_BUILD_CACHE))).keys()) {
+    if (!engineObjects.has((await readFile5(file)).toString("base64")))
+      await rm3(file, { force: true });
+  }
+}
+// GB Studio sets these only when a project setting asks for one, and its keys include the whole environment: an
+// inherited one would make builds with and without that setting look alike.
+const GB_STUDIO_BUILD_MODES = ["COLOR", "SGB", "BATTERYLESS", "DEBUG"];
+function sharedBuildEnvironment(environment) {
+  const output = { ...environment };
+  for (const name of GB_STUDIO_BUILD_MODES)
+    delete output[name];
+  return output;
+}
+async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
+  try {
+    // A compiler group that is still running keeps the folder, and its unfinished mark drops the cache once it is gone.
+    if (shared.compilerClaim && claimIsAlive(shared.compilerClaim.pid))
+      return;
+    // GB Studio writes its cache only after compiling, without replacing files atomically: what a compiler that
+    // was stopped or failed changed there is forgotten.
+    if (compilerSucceeded && await gameBringsCompilerInput(shared.projectDirectory)) {
+      // A plugin or engine code that arrived during the build: what it compiled is not kept.
+      await rm3(path16.join(shared.directory, SHARED_BUILD_CACHE), { recursive: true, force: true });
+    } else if (compilerSucceeded) {
+      await keepOnlyEngineObjects(shared);
+    } else {
+      const cacheAfter = await sharedCacheState(path16.join(shared.directory, SHARED_BUILD_CACHE));
+      for (const [file, state] of cacheAfter) {
+        if (shared.cacheBefore.get(file) !== state)
+          await rm3(file, { force: true });
+      }
+    }
+    await clearSharedBuildDirectory(shared.directory);
+    if (shared.compilerClaim)
+      await rm3(shared.compilerClaim.claim, { force: true });
+  } finally {
+    await rm3(shared.claim, { force: true });
+  }
 }
 async function secureInternalBuildFile(directory, filename) {
   const candidate = path16.join(directory, filename);
@@ -31717,9 +31974,11 @@ async function buildRom(options) {
   let command;
   let romArguments;
   let builder;
+  let gbStudioCli;
   const toolchainRoot = await resolveToolchainRoot(root, options.toolchainRoot);
   if (options.projectPath) {
     const cli = await findGbStudioCli(toolchainRoot);
+    gbStudioCli = cli;
     if (!cli) {
       throw new Error('The official GB Studio CLI is unavailable in the selected toolchain. Use the packaged setup skill to prepare runtime,build and bind the resulting toolchain before building. toolchain_doctor with tasks:["projectBuild"] checks readiness; it does not install dependencies.');
     }
@@ -31748,8 +32007,10 @@ async function buildRom(options) {
       throw error2;
     }
   }
-  const temporaryDirectory = builder === "gb-studio-cli" ? await createIsolatedBuildDirectory(root) : void 0;
   const startedAt = performance.now();
+  const sharedBuild = builder === "gb-studio-cli" ? await claimSharedBuildDirectory(root, source, gbStudioCli).catch(() => void 0) : void 0;
+  const temporaryDirectory = builder === "gb-studio-cli" ? sharedBuild?.directory ?? await createIsolatedBuildDirectory(root) : void 0;
+  let compilerSucceeded = false;
   let exitCode = 0;
   let stdout = "";
   let stderr = "";
@@ -31778,8 +32039,12 @@ async function buildRom(options) {
         cwd: root,
         timeoutMs,
         signal: options.signal,
-        environment: isolatedCompilerEnvironment(temporaryDirectory)
+        ...sharedBuild ? {
+          environment: sharedBuildEnvironment(isolatedCompilerEnvironment(temporaryDirectory)),
+          started: (pid) => claimSharedBuildForCompiler(sharedBuild, pid)
+        } : { environment: isolatedCompilerEnvironment(temporaryDirectory) }
       });
+      compilerSucceeded = true;
       stdout = result2.stdout;
       stderr = withoutNodeDeprecationNotice(result2.stderr);
       compilerStderr = stderr;
@@ -31888,7 +32153,10 @@ async function buildRom(options) {
       });
     if (temporaryDirectory) {
       try {
-        await removeIsolatedBuildDirectory(temporaryDirectory, root);
+        if (sharedBuild)
+          await releaseSharedBuildDirectory(sharedBuild, compilerSucceeded);
+        else
+          await removeIsolatedBuildDirectory(temporaryDirectory, root);
       } catch (error2) {
         if (!buildFailed) {
           throw error2;

@@ -300,3 +300,24 @@ files, what changed and why.
   copy count as reused. A cached web export and the native ROM receipt are signed for the compiler that made them (the
   CLI and its build worker, by content), so after the compiler changes neither is reused. Every rebuild changed the ROM
   and invalidated the game's saves, and a copy built from the same source could never match its author's ROM.
+- `dist/server.js` (`dist/build.js` module, `rom_build`): a game's GB Studio builds reuse one compiler folder,
+  `gbs_<6 hex digits of the user and the .gbsproj>` in the trusted temporary folder, instead of a fresh `gbs-XXXXXX`
+  each time, so GB Studio's object cache (`_gbscache`, keyed by content and by the folder's path) lasts between
+  builds: a rebuild compiles only what changed (about 0.4 s instead of 6.5 s for the starter), with the same ROM.
+  - The folder is the user's own (mode 700, checked); everything but the cache is removed before and after each build.
+  - A build holds it through `.claim-<pid>-<uuid>` files, one for the engine and one for the compiler's process
+    group, which can outlive the engine: the compiler starts through `/bin/sh` and waits on its standard input until
+    its claim is written. A claim is alive while its process or group is. Another build meanwhile gets a fresh
+    folder.
+  - GB Studio's keys follow only `include "..."` lines, so a game that brings compiler input of its own (its own
+    engine code in `assets/engine`, or any plugin folder in `plugins`: an engine overlay, or an event that writes a
+    header an engine file reads) builds in a fresh folder, and the cache is dropped when the compiler changes (the CLI, its build
+    worker, GB Studio's engine and GBDK, by content; a link among them means a fresh folder).
+  - Those keys are enough for GB Studio's engine files (their other includes are GBDK's) but not for the game's
+    generated ones (they take only the values of `data/game_globals.i`, not the names, and a raw `.include` is not
+    followed): after each build only the cached objects of files GB Studio ships in `appData/engine/gbvm/src`
+    (outside `src/data`) are kept, so the game's own compile on every build. `COLOR`, `SGB`, `BATTERYLESS` and
+    `DEBUG`, which GB Studio sets only for a setting that asks for them, are left out of the compiler's environment
+    so an inherited one cannot make two settings share a key.
+  - What a stopped or failed compiler changed in the cache is removed, and the whole cache after a build whose
+    engine or compiler stopped before it finished. Windows keeps a fresh folder per build.

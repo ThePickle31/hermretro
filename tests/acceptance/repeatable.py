@@ -7,11 +7,14 @@ needs (the suite's time on a CI runner is close to its limit)."""
 import hashlib
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from tests.acceptance.checkpoints import signature_bytes
 from tests.acceptance.fixture import structured
 from tests.support import encode_png
+
+WINDOWS = sys.platform == "win32"
 
 # A worker opens one project's folder only: the copy gets an owner (and a worker) of its own.
 OWNER_R = {"profile": "s01-profile", "conversation_id": "conv-R"}
@@ -49,12 +52,66 @@ def build(client, root: Path) -> dict:
     return {"sha256": sha256(rom), "signature": signature_bytes(rom), **built}
 
 
+def compiled(built: dict) -> dict | None:
+    """How many of GB Studio's engine files and of the game's generated ones (``src/data``) a build compiled, from
+    its log (GB Studio's verbose "Compiling: " lines)."""
+    log = built.get("logPath")
+    if not log or not Path(log).is_file():
+        return None
+    lines = [line for line in Path(log).read_text(errors="replace").splitlines() if line.startswith("Compiling: ")]
+    game = sum(line.startswith("Compiling: src/data/") for line in lines)
+    return {"engine": len(lines) - game, "game": game}
+
+
 def web_rom(client, root: Path) -> str | None:
     if select(client, root):
         return None
     built = structured(client.call(OWNER_R, "web_build", {"force": True}))
     rom = built.get("romPath")
     return sha256(rom) if rom and Path(rom).resolve().is_relative_to(root.resolve()) else None
+
+
+def check_swapped_constants(suite, client, copy: Path):
+    """GB Studio's cache keys see the values of the constants a script uses but not their names: after two names are
+    swapped, the build must give the ROM a compile without the cache gives (the web compile, with no native ROM to
+    adopt). The project is put back after."""
+    variables = copy / "project" / "variables.gbsres"
+    scene = next((copy / "project" / "scenes").glob("*/scene.gbsres"))
+    saved = {path: path.read_text() for path in (variables, scene)}
+    data = json.loads(saved[scene])
+    script = {
+        "command": "EVENT_GBVM_SCRIPT",
+        "args": {"script": "VM_PUSH_CONST CONST_LEFT\nVM_PUSH_CONST CONST_RIGHT\nVM_POP 2", "references": []},
+        "id": "5f0d2c3a-8e41-4b6a-9d27-3c1e7a9b4f60",
+    }
+    scene.write_text(json.dumps({**data, "script": [*data.get("script", []), script]}, indent=2))
+
+    def name_constants(first: str, second: str) -> None:
+        constants = [
+            {"id": "0b6f1e4c-2d3a-4c5b-8e9f-1a2b3c4d5e01", "name": first, "symbol": first, "value": 3},
+            {"id": "0b6f1e4c-2d3a-4c5b-8e9f-1a2b3c4d5e02", "name": second, "symbol": second, "value": 10},
+        ]
+        variables.write_text(json.dumps({**json.loads(saved[variables]), "constants": constants}, indent=2))
+
+    try:
+        name_constants("CONST_LEFT", "CONST_RIGHT")
+        before = build(client, copy)
+        name_constants("CONST_RIGHT", "CONST_LEFT")
+        swapped = build(client, copy)
+        shutil.rmtree(copy / "build")
+        cold = web_rom(client, copy)
+    finally:
+        for path, text in saved.items():
+            path.write_text(text)
+    suite.check(
+        "R10",
+        "After two constants' names are swapped, keeping their values in order, the build gives the ROM a compile "
+        "without GB Studio's cache gives",
+        before.get("success") is True and swapped.get("success") is True and bool(cold) and swapped["sha256"] == cold,
+        before=before["sha256"] or before.get("error"),
+        swapped=swapped["sha256"] or swapped.get("error"),
+        cold=cold,
+    )
 
 
 def check_repeatable(suite, client, rom_b: str):
@@ -66,6 +123,7 @@ def check_repeatable(suite, client, rom_b: str):
     original = sha256(rom_b)
     web = web_rom(client, copy)  # first, so there is no native ROM of the copy's own to adopt
     copied = build(client, copy)
+    first_compiled = compiled(copied)  # before the next build replaces the log
     suite.check(
         "R1",
         "A byte-identical copy of a project in another folder, with other inodes, builds the original's ROM",
@@ -80,6 +138,26 @@ def check_repeatable(suite, client, rom_b: str):
         web=web,
         native=original,
     )
+    # The copy's first build compiled every engine file; this one takes them all from GB Studio's cache, and compiles
+    # the game's own generated files again.
+    rebuilt = build(client, copy)
+    again_compiled = compiled(rebuilt)
+    suite.check(
+        "R9",
+        "Building the copy again takes every engine file from GB Studio's cache of its first build, compiles the game's "
+        "own files again and gives that same ROM",
+        bool(original)
+        and rebuilt.get("success") is True
+        and rebuilt["sha256"] == original
+        and bool(first_compiled and first_compiled["engine"])
+        # Windows keeps a fresh compiler folder per build.
+        and again_compiled == {"engine": first_compiled["engine"] if WINDOWS else 0, "game": first_compiled["game"]},
+        original=original,
+        rebuilt=rebuilt["sha256"] or rebuilt.get("error"),
+        compiled=[first_compiled, again_compiled],
+        ms=[copied.get("durationMs"), rebuilt.get("durationMs")],
+    )
+    check_swapped_constants(suite, client, copy)
 
     unlisted_image = copy / "assets" / "backgrounds" / "unlisted.png"
     unlisted_image.parent.mkdir(parents=True, exist_ok=True)
