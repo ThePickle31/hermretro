@@ -209,6 +209,17 @@ class EngineBundleTests(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(self.bundle.read_bytes(), expected)
 
+    def test_a_read_only_bundle_builds_to_another_place(self):
+        # The engine's own bundle is never copied into the build: the entry takes its place.
+        self.assertEqual(self.build().returncode, 0)
+        expected = self.bundle.read_bytes()
+        self.bundle.chmod(0o444)
+        self.addCleanup(self.bundle.chmod, 0o644)
+        elsewhere = Path(self.enterContext(tempfile.TemporaryDirectory())) / "server.js"
+        done = self.build("--out", str(elsewhere))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(elsewhere.read_bytes(), expected)
+
     def test_check_sees_a_changed_byte(self):
         self.assertEqual(self.build().returncode, 0)
         self.assertEqual(self.build("--check").returncode, 0)

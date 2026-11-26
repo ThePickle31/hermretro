@@ -184,7 +184,9 @@ export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbui
   for (const folder of ["dist", "scripts", "package.json"]) noLinks(path.join(engine, folder));
   const stage = made(stageFolder());
   try {
-    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true });
+    // All of dist/ but the bundle itself, whose place the entry takes.
+    const bundle = path.join(engine, "dist", "server.js");
+    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true, filter: (source) => source !== bundle });
     cpSync(path.join(engine, "scripts"), path.join(stage, "scripts"), { recursive: true });
     // Its "type": "module" makes the modules ES modules in Node's sense, which decides how they import CommonJS.
     cpSync(path.join(engine, "package.json"), path.join(stage, "package.json"));
