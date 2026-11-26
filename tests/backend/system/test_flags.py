@@ -56,6 +56,8 @@ class Flags(unittest.TestCase):
         self.assertEqual(flags.config_schema("name: hermretro\n"), {})
         folded = "config_schema:\n  a:\n    description: >-\n      one\n      two\n    type: bool\n"
         self.assertEqual(flags.config_schema(folded), {"a": {"description": ">-", "type": "bool"}})
+        commented = "config_schema:\n  a:  # note\n    type: bool  # note\n    default: false#not-a-comment\n"
+        self.assertEqual(flags.config_schema(commented), {"a": {"type": "bool", "default": "false#not-a-comment"}})
 
     def test_a_schema_in_another_form_is_refused_not_misread(self):
         for schema in (

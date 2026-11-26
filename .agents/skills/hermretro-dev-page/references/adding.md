@@ -78,7 +78,8 @@ Then add yours: make `page/pages/<page>/<tab>/index.js` exporting `{ id, label, 
 tab bar (of one). Switching tabs remounts the chosen tab's `Page` (`page-view.js` keys it by `tab.id`), so its
 `useState` starts over each time: state shared between tabs, or kept across a switch, goes in `shell.ctx.storage`
 (`get(key, fallback)` / `set(key, value)`, saved) or in the shell (`app/studio-page.js`). With tabs, the page's own `Page` is not the page's body any more: if the descriptor keeps
-one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`), so move its
+one it renders only as a strip between the tab bar and the chosen tab (given `{ shell, tab }`; `tab` is null while
+flags hide every tab, and the strip is then all it shows), so move its
 content into a tab, or drop `Page` when the tabs are the whole page. On a page with `pad` (Emulator), the shell's player and the page's `BelowPlayer` are
 drawn by `app/studio-page.js` after the page view, so they stay under every tab (the player shows on the Emulator
 page only). There is no per-tab switch to hide them: the player is shown whenever the page is Emulator

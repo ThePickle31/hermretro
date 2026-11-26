@@ -31,13 +31,14 @@ def config_schema(manifest: str) -> dict[str, dict[str, str]]:
         if not line[0].isspace():
             break  # the next top-level key
         if re.match(r"  \S", line):
-            key = re.fullmatch(r"  (\w+):[ \t]*(?:#.*)?", line)
+            key = re.fullmatch(r"  (\w+):(?:[ \t]+#.*|[ \t]*)", line)
             if not key:
                 raise ValueError(f"plugin.yaml config_schema: {line.strip()!r} is not a plain `  name:` key")
             entry = entries.setdefault(key[1], {})
         elif entry is None:
             raise ValueError(f"plugin.yaml config_schema: {line.strip()!r} is not under a `  name:` key")
-        elif prop := re.fullmatch(r"    (\w+):[ \t]*(.*?)[ \t]*(?:#.*)?", line):
+        # A comment starts after a space, as in YAML: `bool#x` is one value, not `bool`.
+        elif prop := re.fullmatch(r"    (\w+):[ \t]*(.*?)(?:[ \t]+#.*|[ \t]*)", line):
             entry[prop[1]] = prop[2]
         # anything else is the continuation of a value (a folded description)
     return entries

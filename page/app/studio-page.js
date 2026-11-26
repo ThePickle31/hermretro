@@ -119,7 +119,13 @@ export function StudioPage({ ctx }) {
   }
   // The pages and tabs the feature flags that are on show (app/flags.js). A page they hide is never on screen: the
   // remembered page opens the first one instead (and stays remembered for its flag), and go() to it does nothing.
-  const pages = visiblePages(flagsOn(status.data))
+  // The flags come from the last answer fetched (the cached one at first): one replayed from another chat's cache while
+  // it refetches may be old.
+  const fetchedFlags = useRef(null)
+  if (fetchedFlags.current === null || (status.data && !status.isFetching)) {
+    fetchedFlags.current = flagsOn(status.data)
+  }
+  const pages = visiblePages(fetchedFlags.current)
   const currentPage = pages.find(item => item.id === requestedPage) ?? pages[0]
   const page = currentPage.id
   if (running && page !== requestedPage) {

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 4a9db4d1f9c1a11c111d05fa7b06331816df4e835a79b03591f88dca90f96b8c
- * body: sha256 3b61c874d7385e07b331304c6466834c44257d3ab7bcb16e034bf9b2288576be
+ * sources: sha256 52d430beba592b99602d02b612403a36c8acc61d57d04e034a163b0b2587480a
+ * body: sha256 37aef5c99af76a4ee42725bcb6138ce727c2dfa98872c954406bb4fc542b404e
  */
 import{atom,Button,Codicon,CopyButton,host,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";
 import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";import{jsx,jsxs}from"react/jsx-runtime";var ID="hermretro";var ROUTE="/hermretro";var DEMO_ID="demo";var DEMO_GAME={id:DEMO_ID,title:"Hello Color",kind:"gbdk",note:"ModRetro example"};var STUDIO_PROFILE="hermretro";var ENABLE_COMMAND=`herme\
@@ -4421,56 +4421,57 @@ changeBuildVisit(current2=>({...current2,buildPending:change(current2.buildPendi
 doctor,gateway,status}=useBackend(polling);const refreshing=status.isFetching||doctor.isFetching;const running=backend==="ok";const steps=computeSteps({backend,doctor,memory,status});const auto=running?
 steps.find(step=>!step.complete)??null:null;const choosing=Boolean(auto?.hardware)&&!memory.hardwareWanted&&!memory.hardwareSkipped;const autoId=!running?"not-running":!auto?"ready":choosing?"choice":
 auto.id;const pinnedStep=running?steps.find(step=>step.id===pinned)??null:null;const shown=pinnedStep??(choosing?null:auto);const viaProfile=running?status.data.via_profile??null:null;if(running){routing.
-ambientStudio=!viaProfile&&Boolean(status.data.profile?.is_studio)}const pages=visiblePages(flagsOn(status.data));const currentPage=pages.find(item=>item.id===requestedPage)??pages[0];const page=currentPage.
-id;if(running&&page!==requestedPage){setNavigation(current2=>current2.page===requestedPage?pageVisit(page,current2.visit+1):current2)}const hardwareOn=Boolean(status.data?.hardware_enabled);const emulatorOnly=Boolean(
-memory.hardwareSkipped)&&!hardwareOn;const gameReady=running&&steps.filter(step=>!step.hardware).every(step=>step.complete);const settled=running&&(Boolean(doctor.data)||doctor.isError);const lastAuto=useRef(
-autoId);const wasSettled=useRef(false);const stepsRef=useRef(steps);stepsRef.current=steps;useEffect(()=>{const before=lastAuto.current;lastAuto.current=autoId;if(before===autoId){return}setPinned(null);
-const finished=stepsRef.current.find(step=>step.id===before);if(wasSettled.current&&finished?.state==="done"){host.notify({kind:"success",message:`${finished.title}: done`})}},[autoId]);useEffect(()=>{
-wasSettled.current=settled},[settled]);const priorSetup=Boolean(memory.hardwareSkipped||memory.hardwareWanted||memory.firmwareDone||memory.devmodeDone);const legacyReady=settled&&!memory.onboardStarted&&
-(gameReady||priorSetup||Boolean(status.data?.profile?.is_studio&&toolchainStateKnown(status,doctor)));const onboarding=running&&!memory.onboarded&&!legacyReady;const onboardScreen=!onboarding?null:!settled?
-"checking":!memory.onboardStarted?"welcome":!gameReady?"install":!memory.hardwareSkipped&&!memory.hardwareWanted?"chromatic":"make";useEffect(()=>{if(legacyReady&&!memory.onboarded){update({onboarded:true})}},
-[legacyReady,memory.onboarded]);const toolchainStep=steps.find(step=>step.id==="toolchain");const wantInstall=running&&(onboarding||page==="setup"||toolchainStep?.state==="todo");const install=useInstall(
-{ctx,enabled:running,polling:wantInstall});const installState=install.data?.install?.state??null;const installElsewhere=Boolean(install.data?.install?.elsewhere);const pluginUpdate=usePluginUpdate({ctx,
-installing:install.starting||install.busy,installError:install.updateBlock,confirmInstallIdle:install.confirmIdle,running,status});const lastElsewhere=useRef(installElsewhere);const finishedAt=install.
-data?.install?.finished_at??null;const doneRun=installState==="done"?`${install.data?.install?.run_id??""}@${finishedAt??""}`:null;const verifiedRun=useRef(null);const doctorAsked=useRef({fetching:false,
-at:0,answerAt:0});useEffect(()=>{const asked2=doctorAsked.current;if(doctor.isFetching&&!asked2.fetching){asked2.at=Date.now()}else if(!doctor.isFetching&&asked2.fetching){asked2.answerAt=asked2.at}asked2.
-fetching=Boolean(doctor.isFetching)},[doctor.isFetching]);useEffect(()=>{const wasElsewhere=lastElsewhere.current;lastElsewhere.current=installElsewhere;if(wasElsewhere&&!installElsewhere){void doctor.
-refetch?.()}},[installElsewhere]);useEffect(()=>{if(!doneRun||verifiedRun.current===doneRun){return}const finishedMs=Number(finishedAt)*1e3||0;const asked2=doctorAsked.current;const answeredAt=asked2.
-answerAt||Math.max(doctor.dataUpdatedAt??0,doctor.errorUpdatedAt??0);const current2=doctor.isFetching?asked2.at>=finishedMs:Boolean(doctor.data||doctor.isError)&&answeredAt>=finishedMs;verifiedRun.current=
-doneRun;if(!finishedMs||!current2){void doctor.refetch?.()}},[doneRun,doctor.isFetching]);const finishOnboarding=()=>{update({onboarded:true});go("build")};useEffect(()=>{const toolchainOpen=toolchainStep&&
-toolchainStep.state!=="done"&&toolchainStep.state!=="checking";const next={fast:autoId!=="ready",pollDoctor:Boolean(toolchainOpen)&&installElsewhere};setPolling(current2=>current2.fast===next.fast&&current2.
-pollDoctor===next.pollDoctor?current2:next)},[autoId,toolchainStep?.state,installElsewhere]);const go=(id,selection=null)=>{if(!pages.some(item=>item.id===id)){return}setNavigation(current2=>id===current2.
-page&&selection===null?current2:pageVisit(id,current2.visit+1,selection));try{ctx.storage.set("page",id)}catch{}};const refresh=()=>{routing.scannedAt=0;forgetRoute();void queryClient.invalidateQueries(
-{queryKey:[ID]})};const pick=id=>setPinned(id===autoId?null:id);const setUpDevice=()=>{update({hardwareSkipped:false,hardwareWanted:true,onboarded:true});setPinned(null);go("setup")};const onEmulator=page===
-"emulator";const liveOwner=useValue(LIVE_PLAYER);const pageLive=liveOwner==="page";const games=useQuery({queryKey:[ID,"games",viaProfile],queryFn:readGamesShelf,enabled:running,refetchInterval:3e4,staleTime:2e3,
-retry:false});const gameList=Array.isArray(games.data?.games)?games.data.games:[];const libraryError=games.isError?studioError(games.error,"list your games"):null;const[emu,setEmu]=useState(()=>({id:pickedGame(
-ctx),reload:0}));const[emuOpened,setEmuOpened]=useState(false);const[dismissed,setDismissed]=useState(null);const[capturesOpen,setCapturesOpen]=useState(false);const checkPicked=running&&Boolean(emu.id&&
-emu.id!==DEMO_ID);const buildStatus=useQuery({queryKey:[ID,"gameBuildStatus",viaProfile,emu.id],queryFn:()=>readGameBuildStatus(callStudio,emu.id),enabled:checkPicked,refetchInterval:checkPicked&&onEmulator&&
-pageLive?5e3:false,retry:false});const demo={...DEMO_GAME,...games.data?.demo&&typeof games.data.demo==="object"?games.data.demo:{},id:DEMO_ID};const libraryKnown=Boolean(games.data)||games.isError;const picked=gameList.
-find(item=>item.id===emu.id);const unavailable=Array.isArray(games.data?.unavailable)&&games.data.unavailable.includes(emu.id);const shelfSettled=games.data?.ok===true&&!games.isFetching&&!games.isError;
-const removed=checkPicked&&shelfSettled&&!picked&&!unavailable&&buildStatus.data?.code==="NO_GAME"&&!buildStatus.isFetching&&!buildStatus.isError;const current=buildStatus.data?.game;const game=removed||
-emu.id===DEMO_ID||!emu.id&&libraryKnown?demo:current?{...picked,...current}:picked??null;const gameError=game?null:buildStatus.isError?studioError(buildStatus.error,"read the game build"):libraryError;
-useEffect(()=>{if(removed){setEmu(current2=>({id:null,reload:current2.reload}));try{ctx.storage.set(EMULATOR_GAME,null)}catch{}}},[removed,emu.id]);useEffect(()=>{if(onEmulator&&game){setEmuOpened(true)}},
-[onEmulator,game?.id]);useEffect(()=>{if(onEmulator&&running&&liveOwner===null){claimLive("page")}},[onEmulator,running,liveOwner]);useEffect(()=>()=>releaseLive("page"),[]);const player=useQuery({queryKey:[
-ID,"player",game?.id??null,emu.reload],queryFn:()=>callStudio(RPC_PLAYER,{id:game.id},3e4),enabled:running&&emuOpened&&Boolean(game)&&pageLive,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false,
-retry:false});const frameRef=useRef(null);const stageRef=useRef(null);const loadedSha=player.data?.url?player.data.romSha256??null:null;const shelfBuild=buildStatusUnsupported(buildStatus.error)&&!games.
-isError&&games.data?.ok===true?picked:null;const currentSha=playableSha(buildStatus.isError?shelfBuild:current);const rebuilt=Boolean(pageLive&&loadedSha&&currentSha&&loadedSha!==currentSha&&dismissed!==
-currentSha);const bridge=usePlayerBridge({ctx,frameRef,onAnnotate:data=>annotateGame(ctx,game,data),visible:onEmulator&&running&&pageLive});const ask=()=>askAboutGame(ctx,game,bridge.snap);const thumbnailGame=shelfSettled&&
-pageLive&&!unavailable&&picked&&!picked.thumb&&picked.id===game?.id?picked.id:null;const onFrameLoad=useTitleScreen(ctx,frameRef,thumbnailGame,bridge.snap);const play=id=>{setEmu(current2=>({id,reload:current2.
-reload}));try{ctx.storage.set(EMULATOR_GAME,id)}catch{}go("emulator")};const shell={ctx,page,go,refresh,refreshing,backend,doctor,gateway,status,viaProfile,steps,memory,update,auto,autoId,choosing,shown,
-pick,unpin:()=>setPinned(null),install,pluginUpdate,hardwareOn,emulatorOnly,setUpDevice,buildSelection,buildPending,buildPlayer,changeBuildPending,selectBuild,games,gameList,libraryError,gamesChanged:()=>void queryClient.
-invalidateQueries({queryKey:[ID,"games"]}),play,player:{game,gameError,query:player,focused:bridge.focused,rebuilt,capturesOpen,ask,fullScreen:()=>void stageRef.current?.requestFullscreen?.()?.catch?.(
-()=>{}),later:()=>setDismissed(currentSha),reload:()=>setEmu(current2=>({id:game.id,reload:current2.reload+1})),refresh:()=>{refresh();setEmu(current2=>({id:current2.id,reload:current2.reload+1}))},toggleCaptures:()=>setCapturesOpen(
-open=>!open)}};let body;if(!running){body=[jsx(NotRunning,{backend,gateway,onRefresh:refresh,refreshing,status},"off")]}else if(onboardScreen){body=[jsx(Onboarding,{ctx,doctor,install,onDevice:setUpDevice,
-onFinish:finishOnboarding,screen:onboardScreen,status,steps,update},"onboarding")]}else{body=[jsx(PageView,{page:currentPage,shell},currentPage.id)]}const pad=running&&!onboardScreen?currentPage.pad??
-null:null;const broken=running&&settled&&!onboardScreen&&page!=="setup"?steps.find(step=>!step.hardware&&!step.complete):null;const stage=running&&!onboardScreen&&(emuOpened||onEmulator)?pageLive?jsx(
-PlayerStage,{ctx,frameKey:`${game?.id??"none"}:${emu.reload}`,frameRef,game,gameError,onLoad:onFrameLoad,player,stageRef,visible:onEmulator},"player"):onEmulator?jsx(PlayerAway,{onBring:()=>claimLive(
-"page"),where:"Playing beside the chat"},"player"):null:null;return jsx(ScrollArea,{className:"h-full",style:{height:"100%"},children:jsxs("div",{className:"cs-page","data-page":page,style:{"--cs-herm\
-es":`url("${ART_DATA.hermes}")`,"--cs-cart":`url("${ART_DATA.cart}")`,"--cs-fly-body":`url("${ART_DATA.chromBody}")`,"--cs-fly-wing":`url("${ART_DATA.chromWing}")`},children:[jsx(PageStyle,{},"style"),
-jsx(UpdateCard,{update:pluginUpdate},"update-card"),jsx(UpdateDialog,{update:pluginUpdate},"update-dialog"),onboardScreen?jsx(OnboardHeader,{end:pluginUpdate.visible?jsx(UpdateChip,{update:pluginUpdate}):
-null,stage:ONBOARD_STAGES.some(([id])=>id===onboardScreen)?onboardScreen:null},"nav"):jsx(StudioNav,{nav:{page,playing:Boolean(stage&&game&&player.data?.url),setupPending:running&&Boolean(auto)},onGo:go,
-pages,update:pluginUpdate,viaProfile},"nav"),jsxs("div",{className:pad?`cs-pad ${pad}`:"cs-pad",children:[jsx(BackgroundLayer,{},"background"),broken?jsxs("div",{className:"cs-repair",role:"status",children:[
-jsx(Codicon,{name:"warning",size:14}),jsx("span",{children:`${STEP_SHORT[broken.id]} needs attention: ${broken.title.toLowerCase()} again to keep building games.`}),jsx(Button,{onClick:()=>go("setup"),
-size:"sm",variant:"outline",children:"Repair"})]},"repair"):null,...body,stage,pad&&currentPage.BelowPlayer?jsx(currentPage.BelowPlayer,{shell},"side"):null,pad?null:jsx(Footer,{ctx},"foot")]},"pad")]})})}var index_default={id:ID,name:"hermretro",register(ctx){startPages(ctx);ctx.registerMany([{id:"page",area:ROUTES_AREA,data:{path:ROUTE},render:()=>jsx(StudioPage,{ctx})},{id:"nav",area:SIDEBAR_NAV_AREA,
+ambientStudio=!viaProfile&&Boolean(status.data.profile?.is_studio)}const fetchedFlags=useRef(null);if(fetchedFlags.current===null||status.data&&!status.isFetching){fetchedFlags.current=flagsOn(status.
+data)}const pages=visiblePages(fetchedFlags.current);const currentPage=pages.find(item=>item.id===requestedPage)??pages[0];const page=currentPage.id;if(running&&page!==requestedPage){setNavigation(current2=>current2.
+page===requestedPage?pageVisit(page,current2.visit+1):current2)}const hardwareOn=Boolean(status.data?.hardware_enabled);const emulatorOnly=Boolean(memory.hardwareSkipped)&&!hardwareOn;const gameReady=running&&
+steps.filter(step=>!step.hardware).every(step=>step.complete);const settled=running&&(Boolean(doctor.data)||doctor.isError);const lastAuto=useRef(autoId);const wasSettled=useRef(false);const stepsRef=useRef(
+steps);stepsRef.current=steps;useEffect(()=>{const before=lastAuto.current;lastAuto.current=autoId;if(before===autoId){return}setPinned(null);const finished=stepsRef.current.find(step=>step.id===before);
+if(wasSettled.current&&finished?.state==="done"){host.notify({kind:"success",message:`${finished.title}: done`})}},[autoId]);useEffect(()=>{wasSettled.current=settled},[settled]);const priorSetup=Boolean(
+memory.hardwareSkipped||memory.hardwareWanted||memory.firmwareDone||memory.devmodeDone);const legacyReady=settled&&!memory.onboardStarted&&(gameReady||priorSetup||Boolean(status.data?.profile?.is_studio&&
+toolchainStateKnown(status,doctor)));const onboarding=running&&!memory.onboarded&&!legacyReady;const onboardScreen=!onboarding?null:!settled?"checking":!memory.onboardStarted?"welcome":!gameReady?"ins\
+tall":!memory.hardwareSkipped&&!memory.hardwareWanted?"chromatic":"make";useEffect(()=>{if(legacyReady&&!memory.onboarded){update({onboarded:true})}},[legacyReady,memory.onboarded]);const toolchainStep=steps.
+find(step=>step.id==="toolchain");const wantInstall=running&&(onboarding||page==="setup"||toolchainStep?.state==="todo");const install=useInstall({ctx,enabled:running,polling:wantInstall});const installState=install.
+data?.install?.state??null;const installElsewhere=Boolean(install.data?.install?.elsewhere);const pluginUpdate=usePluginUpdate({ctx,installing:install.starting||install.busy,installError:install.updateBlock,
+confirmInstallIdle:install.confirmIdle,running,status});const lastElsewhere=useRef(installElsewhere);const finishedAt=install.data?.install?.finished_at??null;const doneRun=installState==="done"?`${install.
+data?.install?.run_id??""}@${finishedAt??""}`:null;const verifiedRun=useRef(null);const doctorAsked=useRef({fetching:false,at:0,answerAt:0});useEffect(()=>{const asked2=doctorAsked.current;if(doctor.isFetching&&
+!asked2.fetching){asked2.at=Date.now()}else if(!doctor.isFetching&&asked2.fetching){asked2.answerAt=asked2.at}asked2.fetching=Boolean(doctor.isFetching)},[doctor.isFetching]);useEffect(()=>{const wasElsewhere=lastElsewhere.
+current;lastElsewhere.current=installElsewhere;if(wasElsewhere&&!installElsewhere){void doctor.refetch?.()}},[installElsewhere]);useEffect(()=>{if(!doneRun||verifiedRun.current===doneRun){return}const finishedMs=Number(
+finishedAt)*1e3||0;const asked2=doctorAsked.current;const answeredAt=asked2.answerAt||Math.max(doctor.dataUpdatedAt??0,doctor.errorUpdatedAt??0);const current2=doctor.isFetching?asked2.at>=finishedMs:
+Boolean(doctor.data||doctor.isError)&&answeredAt>=finishedMs;verifiedRun.current=doneRun;if(!finishedMs||!current2){void doctor.refetch?.()}},[doneRun,doctor.isFetching]);const finishOnboarding=()=>{update(
+{onboarded:true});go("build")};useEffect(()=>{const toolchainOpen=toolchainStep&&toolchainStep.state!=="done"&&toolchainStep.state!=="checking";const next={fast:autoId!=="ready",pollDoctor:Boolean(toolchainOpen)&&
+installElsewhere};setPolling(current2=>current2.fast===next.fast&&current2.pollDoctor===next.pollDoctor?current2:next)},[autoId,toolchainStep?.state,installElsewhere]);const go=(id,selection=null)=>{if(!pages.
+some(item=>item.id===id)){return}setNavigation(current2=>id===current2.page&&selection===null?current2:pageVisit(id,current2.visit+1,selection));try{ctx.storage.set("page",id)}catch{}};const refresh=()=>{
+routing.scannedAt=0;forgetRoute();void queryClient.invalidateQueries({queryKey:[ID]})};const pick=id=>setPinned(id===autoId?null:id);const setUpDevice=()=>{update({hardwareSkipped:false,hardwareWanted:true,
+onboarded:true});setPinned(null);go("setup")};const onEmulator=page==="emulator";const liveOwner=useValue(LIVE_PLAYER);const pageLive=liveOwner==="page";const games=useQuery({queryKey:[ID,"games",viaProfile],
+queryFn:readGamesShelf,enabled:running,refetchInterval:3e4,staleTime:2e3,retry:false});const gameList=Array.isArray(games.data?.games)?games.data.games:[];const libraryError=games.isError?studioError(
+games.error,"list your games"):null;const[emu,setEmu]=useState(()=>({id:pickedGame(ctx),reload:0}));const[emuOpened,setEmuOpened]=useState(false);const[dismissed,setDismissed]=useState(null);const[capturesOpen,
+setCapturesOpen]=useState(false);const checkPicked=running&&Boolean(emu.id&&emu.id!==DEMO_ID);const buildStatus=useQuery({queryKey:[ID,"gameBuildStatus",viaProfile,emu.id],queryFn:()=>readGameBuildStatus(
+callStudio,emu.id),enabled:checkPicked,refetchInterval:checkPicked&&onEmulator&&pageLive?5e3:false,retry:false});const demo={...DEMO_GAME,...games.data?.demo&&typeof games.data.demo==="object"?games.data.
+demo:{},id:DEMO_ID};const libraryKnown=Boolean(games.data)||games.isError;const picked=gameList.find(item=>item.id===emu.id);const unavailable=Array.isArray(games.data?.unavailable)&&games.data.unavailable.
+includes(emu.id);const shelfSettled=games.data?.ok===true&&!games.isFetching&&!games.isError;const removed=checkPicked&&shelfSettled&&!picked&&!unavailable&&buildStatus.data?.code==="NO_GAME"&&!buildStatus.
+isFetching&&!buildStatus.isError;const current=buildStatus.data?.game;const game=removed||emu.id===DEMO_ID||!emu.id&&libraryKnown?demo:current?{...picked,...current}:picked??null;const gameError=game?
+null:buildStatus.isError?studioError(buildStatus.error,"read the game build"):libraryError;useEffect(()=>{if(removed){setEmu(current2=>({id:null,reload:current2.reload}));try{ctx.storage.set(EMULATOR_GAME,
+null)}catch{}}},[removed,emu.id]);useEffect(()=>{if(onEmulator&&game){setEmuOpened(true)}},[onEmulator,game?.id]);useEffect(()=>{if(onEmulator&&running&&liveOwner===null){claimLive("page")}},[onEmulator,
+running,liveOwner]);useEffect(()=>()=>releaseLive("page"),[]);const player=useQuery({queryKey:[ID,"player",game?.id??null,emu.reload],queryFn:()=>callStudio(RPC_PLAYER,{id:game.id},3e4),enabled:running&&
+emuOpened&&Boolean(game)&&pageLive,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false,retry:false});const frameRef=useRef(null);const stageRef=useRef(null);const loadedSha=player.data?.
+url?player.data.romSha256??null:null;const shelfBuild=buildStatusUnsupported(buildStatus.error)&&!games.isError&&games.data?.ok===true?picked:null;const currentSha=playableSha(buildStatus.isError?shelfBuild:
+current);const rebuilt=Boolean(pageLive&&loadedSha&&currentSha&&loadedSha!==currentSha&&dismissed!==currentSha);const bridge=usePlayerBridge({ctx,frameRef,onAnnotate:data=>annotateGame(ctx,game,data),
+visible:onEmulator&&running&&pageLive});const ask=()=>askAboutGame(ctx,game,bridge.snap);const thumbnailGame=shelfSettled&&pageLive&&!unavailable&&picked&&!picked.thumb&&picked.id===game?.id?picked.id:
+null;const onFrameLoad=useTitleScreen(ctx,frameRef,thumbnailGame,bridge.snap);const play=id=>{setEmu(current2=>({id,reload:current2.reload}));try{ctx.storage.set(EMULATOR_GAME,id)}catch{}go("emulator")};
+const shell={ctx,page,go,refresh,refreshing,backend,doctor,gateway,status,viaProfile,steps,memory,update,auto,autoId,choosing,shown,pick,unpin:()=>setPinned(null),install,pluginUpdate,hardwareOn,emulatorOnly,
+setUpDevice,buildSelection,buildPending,buildPlayer,changeBuildPending,selectBuild,games,gameList,libraryError,gamesChanged:()=>void queryClient.invalidateQueries({queryKey:[ID,"games"]}),play,player:{
+game,gameError,query:player,focused:bridge.focused,rebuilt,capturesOpen,ask,fullScreen:()=>void stageRef.current?.requestFullscreen?.()?.catch?.(()=>{}),later:()=>setDismissed(currentSha),reload:()=>setEmu(
+current2=>({id:game.id,reload:current2.reload+1})),refresh:()=>{refresh();setEmu(current2=>({id:current2.id,reload:current2.reload+1}))},toggleCaptures:()=>setCapturesOpen(open=>!open)}};let body;if(!running){
+body=[jsx(NotRunning,{backend,gateway,onRefresh:refresh,refreshing,status},"off")]}else if(onboardScreen){body=[jsx(Onboarding,{ctx,doctor,install,onDevice:setUpDevice,onFinish:finishOnboarding,screen:onboardScreen,
+status,steps,update},"onboarding")]}else{body=[jsx(PageView,{page:currentPage,shell},currentPage.id)]}const pad=running&&!onboardScreen?currentPage.pad??null:null;const broken=running&&settled&&!onboardScreen&&
+page!=="setup"?steps.find(step=>!step.hardware&&!step.complete):null;const stage=running&&!onboardScreen&&(emuOpened||onEmulator)?pageLive?jsx(PlayerStage,{ctx,frameKey:`${game?.id??"none"}:${emu.reload}`,
+frameRef,game,gameError,onLoad:onFrameLoad,player,stageRef,visible:onEmulator},"player"):onEmulator?jsx(PlayerAway,{onBring:()=>claimLive("page"),where:"Playing beside the chat"},"player"):null:null;return jsx(
+ScrollArea,{className:"h-full",style:{height:"100%"},children:jsxs("div",{className:"cs-page","data-page":page,style:{"--cs-hermes":`url("${ART_DATA.hermes}")`,"--cs-cart":`url("${ART_DATA.cart}")`,"-\
+-cs-fly-body":`url("${ART_DATA.chromBody}")`,"--cs-fly-wing":`url("${ART_DATA.chromWing}")`},children:[jsx(PageStyle,{},"style"),jsx(UpdateCard,{update:pluginUpdate},"update-card"),jsx(UpdateDialog,{update:pluginUpdate},
+"update-dialog"),onboardScreen?jsx(OnboardHeader,{end:pluginUpdate.visible?jsx(UpdateChip,{update:pluginUpdate}):null,stage:ONBOARD_STAGES.some(([id])=>id===onboardScreen)?onboardScreen:null},"nav"):jsx(
+StudioNav,{nav:{page,playing:Boolean(stage&&game&&player.data?.url),setupPending:running&&Boolean(auto)},onGo:go,pages,update:pluginUpdate,viaProfile},"nav"),jsxs("div",{className:pad?`cs-pad ${pad}`:
+"cs-pad",children:[jsx(BackgroundLayer,{},"background"),broken?jsxs("div",{className:"cs-repair",role:"status",children:[jsx(Codicon,{name:"warning",size:14}),jsx("span",{children:`${STEP_SHORT[broken.
+id]} needs attention: ${broken.title.toLowerCase()} again to keep building games.`}),jsx(Button,{onClick:()=>go("setup"),size:"sm",variant:"outline",children:"Repair"})]},"repair"):null,...body,stage,
+pad&&currentPage.BelowPlayer?jsx(currentPage.BelowPlayer,{shell},"side"):null,pad?null:jsx(Footer,{ctx},"foot")]},"pad")]})})}var index_default={id:ID,name:"hermretro",register(ctx){startPages(ctx);ctx.registerMany([{id:"page",area:ROUTES_AREA,data:{path:ROUTE},render:()=>jsx(StudioPage,{ctx})},{id:"nav",area:SIDEBAR_NAV_AREA,
 order:60,data:{codicon:"game",label:"HermRetro",path:ROUTE}},{id:"open",area:PALETTE_AREA,data:{id:`${ID}.open`,label:"hermretro: Open",keywords:["chromatic","modretro","game boy","gbc","gb studio","r\
 om","cartridge"],run:()=>host.navigate(ROUTE)}}])}};export{index_default as default};
