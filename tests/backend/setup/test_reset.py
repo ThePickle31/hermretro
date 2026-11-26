@@ -261,8 +261,12 @@ class Reset(unittest.TestCase):
             mock.patch.object(reset.hermes_api, "write_profile_config_key") as written,
         ):
             answer = reset.clear("settings", self.data, [home])
-        written.assert_not_called()
-        self.assertEqual(answer["code"], "CONFIG_LINKED")
+            self.assertEqual((answer["code"], answer["partly"]), ("CONFIG_LINKED", False))
+            written.assert_not_called()
+            plain = self.places.base / "plain-home"
+            plain.mkdir()
+            answer = reset.clear("settings", self.data, [home, plain])
+        self.assertTrue(answer["partly"], "the other profile's settings did go")
 
     def test_a_linked_captures_folder_in_the_library_is_never_followed(self):
         library = self.places.home / "library"

@@ -73,21 +73,14 @@ async function readContext() {
     throw new Error('hermretro did not answer on this Hermes.')
   }
 
-  const { status, answered } = found
+  let { status, answered } = found
   const named = status.profile?.studio ?? {}
   // A profile named hermretro that hermretro made and set up; one of the user's own with that name is never used.
   const made = Boolean(status.profile?.is_studio || (named.exists && named.ours && named.installed))
   let studio = made ? (answered.profile === STUDIO_PROFILE ? answered : await profileOn(STUDIO_PROFILE, here)) : null
-  const installedIn = status.plugin?.installed_in ?? null
-  const installProfile = installedIn?.linked ? null : (installedIn?.profile ?? null)
-  const install = installProfile ? await profileOn(installProfile, here) : null
 
   if (made && !studio) {
     throw new Error('The hermretro profile cannot be reached right now.')
-  }
-
-  if (installProfile && !install) {
-    throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)
   }
 
   // The backend's parts read this profile's plugin data (build history): the hermretro profile's when there is one.
@@ -107,8 +100,18 @@ async function readContext() {
 
     studio = null
     foreign = true
-    target = other.answered
+    ;({ status, answered } = other)
+    target = answered
     plan = await readPlan(target)
+  }
+
+  // Where Hermes updates hermretro, from the status of the profile the reset runs in.
+  const installedIn = status.plugin?.installed_in ?? null
+  const installProfile = installedIn?.linked ? null : (installedIn?.profile ?? null)
+  const install = installProfile ? await profileOn(installProfile, here) : null
+
+  if (installProfile && !install) {
+    throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)
   }
 
   // The studio's chats and the profile itself go only when hermretro made it, and the profile only when deleting it

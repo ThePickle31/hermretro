@@ -71,6 +71,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /Plugin settingsDeleted with the studio profile/)
     assert.match(said(), /Toolchain & engine2\.4 GB/)
     assert.deepEqual(['Games', 'Build history', 'Toolchain & engine'].map(chosen), ['Keep', 'Delete', 'Delete'])
+    assert.deepEqual([...dialog().querySelectorAll('[role=group]')].map(node => node.getAttribute('aria-label')).slice(0, 2), ['Games', 'Build history'], 'each Keep/Delete pair is named for its part')
   })
   await pick('Studio profile', 'Keep'); await pick('Games', 'Delete'); await pick('Logs & captures', 'Keep')
   check('deleting Games takes build history with it', () => {

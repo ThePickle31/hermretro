@@ -236,7 +236,7 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
     if part == "chats":
         return _delete_chats()
     if part == "settings":
-        linked = []
+        linked, cleared = [], False
         for home in homes:
             entry = ((hermes_api.read_profile_config(home).get("plugins") or {}).get("entries") or {}).get(
                 paths.PLUGIN_ID
@@ -250,12 +250,14 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
             for key in SETTINGS_KEYS:
                 if isinstance(entry, dict) and entry.get(key):
                     hermes_api.write_profile_config_key(home, f"plugins.entries.{paths.PLUGIN_ID}.{key}", {})
+                    cleared = True
         if linked:
             return {
                 "ok": False,
                 "code": "CONFIG_LINKED",
                 "error": f"The {', '.join(linked)} profile's config.yaml is a link, so its hermretro settings were left.",
                 "removed_bytes": 0,
+                "partly": cleared,
             }
         return {"ok": True, "removed_bytes": 0}
     try:

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 1adf3c246f8c87e1c7db0399154f8197bad6ac82142896a7df2c6785c4705a8d
- * body: sha256 507e6b61698dc75abea429c41f5935600d2d6b25059218a3b9419674d04aac12
+ * sources: sha256 e86dbee3c69063d758e9c30a0e897bb6f463481d2635e0b74d2fd54c416b6b8b
+ * body: sha256 9145a09baa7599f66d6a4e05871029036ed97a7a3c48d048e9a17f6632b9a1c1
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -3832,44 +3832,45 @@ restart}})}});if(summary.update.kind==="partial"){mark(summary.update.error??nul
 0;if(error?.partly){gone.add(step.id);summary.kept=kept()}break}if(step.id!=="stop"&&step.id!=="update"){gone.add(step.id);summary.kept=kept()}}if(summary.update){remember2(ctx,RESET_MARKER,summary)}return summary}var CHOICES=[{id:"keep",label:"Keep"},{id:"delete",label:"Delete"}];var CONFIRM_WORD="reset";function detail(id,parts2){const part=parts2[id]??{};const size=part.bytes>0?formatBytes(part.bytes):null;if(id===
 "games"){return[`${part.count??0} ${part.count===1?"game":"games"}`,size].filter(Boolean).join(" · ")}if(id==="chats"){return part.count==null?null:`${part.count} ${part.count===1?"chat":"chats"}`}return id===
 "profile"?"Model, sign-in, SOUL":size}function Choose({reset}){const{parts:parts2}=reset.context;return jsx("ul",{className:"cs-rst-parts",children:RESET_PARTS.map(({id,label:label2})=>jsxs("li",{className:"\
-cs-rst-part",children:[jsxs("div",{className:"cs-rst-name",children:[jsx("b",{children:label2}),jsx("span",{children:[detail(id,parts2),reset.forced[id]].filter(Boolean).join(" · ")})]}),jsx(SegmentedControl,
-{"aria-label":label2,disabled:Boolean(reset.forced[id]),onChange:value=>reset.choose(id,value),options:CHOICES,sizing:"equal",value:reset.choices[id]})]},id))})}function Column({title,kind,ids,parts:parts2}){
-return jsxs("div",{className:"cs-rst-col","data-kind":kind,children:[jsx("h4",{children:title}),jsx("ul",{children:ids.map(id=>jsxs("li",{children:[jsx("span",{children:RESET_PARTS.find(part=>part.id===
-id).label}),jsx("span",{children:parts2[id]?.bytes>0?formatBytes(parts2[id].bytes):""})]},id))})]})}function Confirm2({reset}){const ids=RESET_PARTS.map(part=>part.id);const{parts:parts2}=reset.context;
-return jsxs("div",{className:"cs-rst-confirm",children:[jsxs("div",{className:"cs-rst-cols",children:[jsx(Column,{title:"Delete",kind:"delete",ids:ids.filter(id=>reset.choices[id]==="delete"),parts:parts2}),
-jsx(Column,{title:"Keep",kind:"keep",ids:ids.filter(id=>reset.choices[id]!=="delete"),parts:parts2})]}),jsxs("label",{className:"cs-rst-type",children:[jsxs("span",{children:["Type ",jsx("b",{children:CONFIRM_WORD})]}),
-jsx(Input,{autoFocus:true,onChange:event=>reset.type(event.target.value),value:reset.typed})]})]})}function Steps({reset}){return jsxs("div",{children:[jsx("div",{className:"cs-rst-bar",children:jsx("\
-i",{style:{width:`${(reset.step+1)/reset.steps.length*100}%`}})}),jsx("ol",{className:"cs-rst-steps",children:reset.steps.map((step,index)=>jsxs("li",{"data-state":index<reset.step?"done":index===reset.
-step?"now":"todo",children:[index<reset.step?jsx(Codicon,{name:"check",size:13}):index===reset.step?jsx(Codicon,{name:"loading",size:13,spinning:true}):jsx("i",{}),step.label]},step.id))})]})}function versionLine(update,from,to){
-switch(update?.kind){case"updated":return update.restart?"Updated. Restart Hermes to finish.":to&&from&&to!==from?`${from} → ${to}`:"Updated";case"current":return from?`${from}, up to date`:"Up to d\
-ate";case"review":return"The update needs your review on the hermretro page";case"busy":return"Not updated: a game is being built";case void 0:case null:return from;default:return`Not updated: ${update.
-error??"the update did not finish"}`}}function Done({reset}){const{summary}=reset;const rows=[...summary.failed?[["Stopped at",`${summary.failed.step}: ${summary.failed.error}`]]:[],["Deleted",formatBytes(
-summary.deleted)],["Kept",summary.kept.join(", ")||"Nothing"],["Version",versionLine(summary.update,summary.from,reset.version)]].filter(([,value])=>value);return jsx("dl",{className:"cs-rst-done",children:rows.
-map(([name,value])=>jsxs("div",{"data-error":name==="Stopped at"?"":void 0,children:[jsx("dt",{children:name}),jsx("dd",{children:value})]},name))})}function body(reset){switch(reset.phase){case"loadi\
-ng":return jsxs("p",{className:"cs-rst-note",children:[jsx(Codicon,{name:"loading",size:13,spinning:true}),"Reading what hermretro keeps…"]});case"failed":return jsx("p",{className:"cs-rst-note","da\
-ta-error":"",children:reset.error});case"choose":return jsx(Choose,{reset});case"confirm":return jsx(Confirm2,{reset});case"running":return jsx(Steps,{reset});default:return jsx(Done,{reset})}}function footer(reset){
-const cancel=jsx(Button,{onClick:reset.close,size:"sm",variant:"ghost",children:reset.phase==="done"||reset.phase==="failed"?"Close":"Cancel"},"cancel");switch(reset.phase){case"choose":return[jsx(Button,
-{className:"cs-rst-left",onClick:reset.deleteAll,size:"sm",variant:"outline",children:"Delete everything"},"all"),cancel,jsx(Button,{onClick:reset.confirm,size:"sm",variant:"destructive",children:"Con\
-tinue"},"go")];case"confirm":return[jsx(Button,{className:"cs-rst-left",onClick:reset.back,size:"sm",variant:"outline",children:"Back"},"back"),cancel,jsx(Button,{disabled:reset.typed.trim().toLowerCase()!==
-CONFIRM_WORD,onClick:reset.run,size:"sm",variant:"destructive",children:"Reset"},"go")];case"running":return[];case"done":return[cancel,jsx(Button,{disabled:!reset.canRestart||reset.restarting,onClick:reset.
-restart,size:"sm",variant:"default",children:reset.restarting?"Restarting…":"Reload & restart gateway"},"restart")];default:return[cancel]}}var TITLES={running:"Resetting hermretro",done:"hermretro \
-is reset"};function ResetDialog({reset}){const running=reset.phase==="running";const failedRun=reset.phase==="done"&&reset.summary?.failed;return jsx(Dialog,{open:reset.phase!=="closed",onOpenChange:open=>{
-if(!open&&!running){reset.close()}},children:jsxs(DialogContent,{className:"cs-rst-dlg",showCloseButton:!running,children:[jsx(DialogHeader,{children:jsx(DialogTitle,{children:failedRun?"The reset sto\
-pped":TITLES[reset.phase]??"Factory reset hermretro"})}),body(reset),jsx(DialogFooter,{className:"cs-rst-foot",children:footer(reset)})]})})}var NO_PROFILE="No studio profile";var NOT_OURS="Not made by hermretro";async function profileOn(profile,here){const routes=typeof host.profileRoutes==="function"?await host.profileRoutes()??[]:[];const route=routes.
+cs-rst-part",children:[jsxs("div",{className:"cs-rst-name",children:[jsx("b",{children:label2}),jsx("span",{children:[detail(id,parts2),reset.forced[id]].filter(Boolean).join(" · ")})]}),jsx("div",{"\
+aria-label":label2,role:"group",children:jsx(SegmentedControl,{"aria-label":label2,disabled:Boolean(reset.forced[id]),onChange:value=>reset.choose(id,value),options:CHOICES,sizing:"equal",value:reset.
+choices[id]})})]},id))})}function Column({title,kind,ids,parts:parts2}){return jsxs("div",{className:"cs-rst-col","data-kind":kind,children:[jsx("h4",{children:title}),jsx("ul",{children:ids.map(id=>jsxs(
+"li",{children:[jsx("span",{children:RESET_PARTS.find(part=>part.id===id).label}),jsx("span",{children:parts2[id]?.bytes>0?formatBytes(parts2[id].bytes):""})]},id))})]})}function Confirm2({reset}){const ids=RESET_PARTS.
+map(part=>part.id);const{parts:parts2}=reset.context;return jsxs("div",{className:"cs-rst-confirm",children:[jsxs("div",{className:"cs-rst-cols",children:[jsx(Column,{title:"Delete",kind:"delete",ids:ids.
+filter(id=>reset.choices[id]==="delete"),parts:parts2}),jsx(Column,{title:"Keep",kind:"keep",ids:ids.filter(id=>reset.choices[id]!=="delete"),parts:parts2})]}),jsxs("label",{className:"cs-rst-type",children:[
+jsxs("span",{children:["Type ",jsx("b",{children:CONFIRM_WORD})]}),jsx(Input,{autoFocus:true,onChange:event=>reset.type(event.target.value),value:reset.typed})]})]})}function Steps({reset}){return jsxs(
+"div",{children:[jsx("div",{className:"cs-rst-bar",children:jsx("i",{style:{width:`${(reset.step+1)/reset.steps.length*100}%`}})}),jsx("ol",{className:"cs-rst-steps",children:reset.steps.map((step,index)=>jsxs(
+"li",{"data-state":index<reset.step?"done":index===reset.step?"now":"todo",children:[index<reset.step?jsx(Codicon,{name:"check",size:13}):index===reset.step?jsx(Codicon,{name:"loading",size:13,spinning:true}):
+jsx("i",{}),step.label]},step.id))})]})}function versionLine(update,from,to){switch(update?.kind){case"updated":return update.restart?"Updated. Restart Hermes to finish.":to&&from&&to!==from?`${from} \
+→ ${to}`:"Updated";case"current":return from?`${from}, up to date`:"Up to date";case"review":return"The update needs your review on the hermretro page";case"busy":return"Not updated: a game is being\
+ built";case void 0:case null:return from;default:return`Not updated: ${update.error??"the update did not finish"}`}}function Done({reset}){const{summary}=reset;const rows=[...summary.failed?[["Stoppe\
+d at",`${summary.failed.step}: ${summary.failed.error}`]]:[],["Deleted",formatBytes(summary.deleted)],["Kept",summary.kept.join(", ")||"Nothing"],["Version",versionLine(summary.update,summary.from,reset.
+version)]].filter(([,value])=>value);return jsx("dl",{className:"cs-rst-done",children:rows.map(([name,value])=>jsxs("div",{"data-error":name==="Stopped at"?"":void 0,children:[jsx("dt",{children:name}),
+jsx("dd",{children:value})]},name))})}function body(reset){switch(reset.phase){case"loading":return jsxs("p",{className:"cs-rst-note",children:[jsx(Codicon,{name:"loading",size:13,spinning:true}),"Rea\
+ding what hermretro keeps…"]});case"failed":return jsx("p",{className:"cs-rst-note","data-error":"",children:reset.error});case"choose":return jsx(Choose,{reset});case"confirm":return jsx(Confirm2,{
+reset});case"running":return jsx(Steps,{reset});default:return jsx(Done,{reset})}}function footer(reset){const cancel=jsx(Button,{onClick:reset.close,size:"sm",variant:"ghost",children:reset.phase==="\
+done"||reset.phase==="failed"?"Close":"Cancel"},"cancel");switch(reset.phase){case"choose":return[jsx(Button,{className:"cs-rst-left",onClick:reset.deleteAll,size:"sm",variant:"outline",children:"Dele\
+te everything"},"all"),cancel,jsx(Button,{onClick:reset.confirm,size:"sm",variant:"destructive",children:"Continue"},"go")];case"confirm":return[jsx(Button,{className:"cs-rst-left",onClick:reset.back,
+size:"sm",variant:"outline",children:"Back"},"back"),cancel,jsx(Button,{disabled:reset.typed.trim().toLowerCase()!==CONFIRM_WORD,onClick:reset.run,size:"sm",variant:"destructive",children:"Reset"},"go")];case"\
+running":return[];case"done":return[cancel,jsx(Button,{disabled:!reset.canRestart||reset.restarting,onClick:reset.restart,size:"sm",variant:"default",children:reset.restarting?"Restarting…":"Reload \
+& restart gateway"},"restart")];default:return[cancel]}}var TITLES={running:"Resetting hermretro",done:"hermretro is reset"};function ResetDialog({reset}){const running=reset.phase==="running";const failedRun=reset.
+phase==="done"&&reset.summary?.failed;return jsx(Dialog,{open:reset.phase!=="closed",onOpenChange:open=>{if(!open&&!running){reset.close()}},children:jsxs(DialogContent,{className:"cs-rst-dlg",showCloseButton:!running,
+children:[jsx(DialogHeader,{children:jsx(DialogTitle,{children:failedRun?"The reset stopped":TITLES[reset.phase]??"Factory reset hermretro"})}),body(reset),jsx(DialogFooter,{className:"cs-rst-foot",children:footer(
+reset)})]})})}var NO_PROFILE="No studio profile";var NOT_OURS="Not made by hermretro";async function profileOn(profile,here){const routes=typeof host.profileRoutes==="function"?await host.profileRoutes()??[]:[];const route=routes.
 find(candidate=>routeProfile(candidate)===profile&&(candidate.connectionId||"local")===here);return route?{route,profile}:null}async function statusOn(here,ambient,skip=[]){const routes=typeof host.profileRoutes===
 "function"?await host.profileRoutes()??[]:[];const others=routes.filter(route=>(route.connectionId||"local")===here).map(routeProfile);const profiles=[...new Set([STUDIO_PROFILE,ambient,...others].filter(
 profile=>profile&&!skip.includes(profile)))];for(const profile of profiles){const target=await profileOn(profile,here);if(!target){continue}try{const status=await requestOn(target,RPC_STATUS,{},6e4);if(status?.
 ok){return{status,answered:target}}}catch{}}return null}async function readPlan(target){const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(plan?.error||"What hermr\
 etro keeps could not be read.")}return plan}async function readContext(){const here=connectionOf({route:null});const ambient=appProfile();const found=await statusOn(here,ambient);if(!found){throw new Error(
-"hermretro did not answer on this Hermes.")}const{status,answered}=found;const named=status.profile?.studio??{};const made=Boolean(status.profile?.is_studio||named.exists&&named.ours&&named.installed);
-let studio=made?answered.profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):null;const installedIn=status.plugin?.installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.
-profile??null;const install=installProfile?await profileOn(installProfile,here):null;if(made&&!studio){throw new Error("The hermretro profile cannot be reached right now.")}if(installProfile&&!install){
-throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}let target=studio??answered;let plan=await readPlan(target);let foreign=!made&&Boolean(named.
-exists);if(studio&&!plan.parts.profile?.ours){const other=await statusOn(here,ambient,[STUDIO_PROFILE]);if(!other){throw new Error("hermretro answers only in a profile named hermretro that it did not \
-make.")}studio=null;foreign=true;target=other.answered;plan=await readPlan(target)}const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.profile===
-STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.parts.profile?.
-holds?"Holds your games":typeof host.deleteProfile!=="function"?"Update Hermes to delete it":null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){const[state,
-setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
+"hermretro did not answer on this Hermes.")}let{status,answered}=found;const named=status.profile?.studio??{};const made=Boolean(status.profile?.is_studio||named.exists&&named.ours&&named.installed);let studio=made?
+answered.profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):null;if(made&&!studio){throw new Error("The hermretro profile cannot be reached right now.")}let target=studio??answered;
+let plan=await readPlan(target);let foreign=!made&&Boolean(named.exists);if(studio&&!plan.parts.profile?.ours){const other=await statusOn(here,ambient,[STUDIO_PROFILE]);if(!other){throw new Error("her\
+mretro answers only in a profile named hermretro that it did not make.")}studio=null;foreign=true;({status,answered}=other);target=answered;plan=await readPlan(target)}const installedIn=status.plugin?.
+installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.profile??null;const install=installProfile?await profileOn(installProfile,here):null;if(installProfile&&!install){throw new Error(
+`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.
+profile===STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.
+parts.profile?.holds?"Holds your games":typeof host.deleteProfile!=="function"?"Update Hermes to delete it":null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){
+const[state,setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
 false);const[typed,setTyped]=useState("");const context=state.context??null;const settled=settleChoices(choices,context?.locked);useEffect(()=>{if(state.phase!=="loading"){return}let live=true;readContext().
 then(found=>live&&setState({phase:"choose",context:found}),error=>live&&setState({phase:"failed",error:String(error?.message??error)}));return()=>{live=false}},[state.phase]);const updated=state.phase===
 "done"&&state.summary?.update?.kind==="updated";useEffect(()=>{if(!updated||state.version){return}callBackend(RPC_STATUS).then(({data})=>data?.plugin?.version&&setState(current=>({...current,version:data.

@@ -41,13 +41,18 @@ function Choose({ reset }) {
               className: 'cs-rst-name',
               children: [jsx('b', { children: label }), jsx('span', { children: [detail(id, parts), reset.forced[id]].filter(Boolean).join(' · ') })]
             }),
-            jsx(SegmentedControl, {
+            // Hermes's control drops an aria-label: the group names which part its Keep and Delete are for.
+            jsx('div', {
               'aria-label': label,
-              disabled: Boolean(reset.forced[id]),
-              onChange: value => reset.choose(id, value),
-              options: CHOICES,
-              sizing: 'equal',
-              value: reset.choices[id]
+              role: 'group',
+              children: jsx(SegmentedControl, {
+                'aria-label': label,
+                disabled: Boolean(reset.forced[id]),
+                onChange: value => reset.choose(id, value),
+                options: CHOICES,
+                sizing: 'equal',
+                value: reset.choices[id]
+              })
             })
           ]
         },
