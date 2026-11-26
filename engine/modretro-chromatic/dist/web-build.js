@@ -347,6 +347,14 @@ async function hashFile(filePath) {
         digest.update(chunk);
     return digest.digest("hex");
 }
+// Signs a web export and a native ROM receipt for the compiler that made them (the CLI and its build worker, by
+// content): after the compiler is replaced, neither is reused and the next build compiles again.
+async function compilerBoundKey(attestationKey, cliPath) {
+    const digest = createHash("sha256").update("codex-gb-studio\0compiler\0v1\0");
+    for (const file of [cliPath, path.join(path.dirname(cliPath), "buildWorker.js")])
+        updateHash(digest, await hashFile(file).catch(() => "missing"));
+    return createHmac("sha256", attestationKey).update("codex-gb-studio\0compiler-bound\0v1\0").update(digest.digest()).digest();
+}
 function updateHash(digest, value) {
     const encoded = Buffer.from(value, "utf8");
     const length = Buffer.allocUnsafe(4);
@@ -768,6 +776,67 @@ async function withOutputLock(output, operation) {
             BUILD_LOCKS.delete(output);
     }
 }
+const NATIVE_ROM_RECEIPT = path.join("build", ".codex-rom-build.json");
+export async function nativeRomRevision(projectRoot, projectPath) {
+    const root = await realpath(path.resolve(projectRoot));
+    return { root, revision: await sourceFingerprint(root, await realpath(projectPath)) };
+}
+function nativeRomSignature(attestationKey, receipt) {
+    return createHmac("sha256", attestationKey).update("codex-gb-studio\0native-rom-receipt\0v1\0").update(JSON.stringify(receipt)).digest("hex");
+}
+async function batterylessProject(root) {
+    const read = async (file) => JSON.parse(await readFile(path.join(root, file), "utf8"));
+    const settings = await read(path.join("project", "settings.gbsres")).catch(() => null);
+    if (settings && typeof settings === "object")
+        return settings.batterylessEnabled === true;
+    const descriptor = (await readdir(root)).find((name) => name.toLowerCase().endsWith(".gbsproj"));
+    const project = descriptor ? await read(descriptor).catch(() => null) : null;
+    return project?.settings?.batterylessEnabled === true;
+}
+export async function rememberNativeRom(before, projectPath, rom, toolchainRoot) {
+    const receiptPath = path.join(before.root, NATIVE_ROM_RECEIPT);
+    await rm(receiptPath, { force: true });
+    const romPath = path.relative(before.root, rom.path).split(path.sep).join("/");
+    if (romPath.startsWith("../") || path.isAbsolute(romPath) || !/^[a-f\d]{64}$/u.test(rom.sha256 ?? ""))
+        return;
+    if ((await nativeRomRevision(before.root, projectPath)).revision !== before.revision)
+        return;
+    const runtime = runtimeOptions({});
+    const official = await findOfficialCli(before.root, runtime, toolchainRoot);
+    const receipt = { version: 1, sourceRevision: before.revision, romPath, sha256: rom.sha256 };
+    const key = await compilerBoundKey(await signingKey(before.root, official.toolchainRoot, runtime), official.cliPath);
+    const signature = nativeRomSignature(key, receipt);
+    await mkdir(path.dirname(receiptPath), { recursive: true });
+    const temporary = `${receiptPath}.${process.pid}-${Date.now()}`;
+    await writeFile(temporary, JSON.stringify({ ...receipt, signature }) + "\n", { flag: "wx", mode: 0o600 });
+    await rename(temporary, receiptPath);
+}
+async function nativeRomFor(root, sourceRevision, attestationKey) {
+    try {
+        if (await batterylessProject(root))
+            return null;
+        const { signature, ...receipt } = JSON.parse(await readFile(path.join(root, NATIVE_ROM_RECEIPT), "utf8"));
+        if (receipt.version !== 1 || receipt.sourceRevision !== sourceRevision || typeof receipt.romPath !== "string"
+            || typeof receipt.sha256 !== "string" || typeof signature !== "string" || !/^[a-f\d]{64}$/u.test(signature))
+            return null;
+        if (!timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(nativeRomSignature(attestationKey, receipt), "hex")))
+            return null;
+        const romPath = path.resolve(root, receipt.romPath);
+        if (!isInside(root, romPath))
+            return null;
+        const bytes = await readFile(romPath);
+        return createHash("sha256").update(bytes).digest("hex") === receipt.sha256 ? { sha256: receipt.sha256, bytes } : null;
+    }
+    catch {
+        return null;
+    }
+}
+async function adoptNativeRom(staging, native) {
+    const roms = (await collectArtifacts(staging)).filter((entry) => /\.(?:gb|gbc)$/iu.test(entry.path));
+    if (roms.length !== 1)
+        throw new Error("Official game web export must contain exactly one genuine Game Boy ROM.");
+    await writeFile(path.join(staging, roms[0].path), native.bytes);
+}
 /** Export the real, official game/Binjgb web player without inventing an HTML wrapper. */
 export async function buildWeb(options, platformOptions = {}) {
     const runtime = runtimeOptions(platformOptions);
@@ -791,16 +860,17 @@ export async function buildWeb(options, platformOptions = {}) {
         const sourceRevision = await sourceFingerprint(root, source, options.revision);
         const official = await findOfficialCli(root, runtime, options.toolchainRoot);
         const cli = official.cliPath;
-        const attestationKey = await signingKey(root, official.toolchainRoot, runtime);
+        const signing = await signingKey(root, official.toolchainRoot, runtime);
+        const attestationKey = await compilerBoundKey(signing, cli);
         const command = process.execPath;
         const publishedArgs = [cli, "make:web", source, outputPath];
         const startedAt = performance.now();
         const resources = {
             allocations: [],
             attestation: {
-                storage: attestationKey === PROCESS_WEB_BUILD_ATTESTATION_KEY ? "process-only" : "trusted-key-reused-or-created",
+                storage: signing === PROCESS_WEB_BUILD_ATTESTATION_KEY ? "process-only" : "trusted-key-reused-or-created",
                 // A process-local fallback does not prove that no durable allocation was attempted.
-                persistentKeyBytes: attestationKey === PROCESS_WEB_BUILD_ATTESTATION_KEY ? null : 32,
+                persistentKeyBytes: signing === PROCESS_WEB_BUILD_ATTESTATION_KEY ? null : 32,
                 allocationObserved: false,
             },
             measurementScope: "bounded post-compiler samples, not peak usage; attestation directory allocation unobserved",
@@ -819,9 +889,11 @@ export async function buildWeb(options, platformOptions = {}) {
         try {
             if (options.signal?.aborted)
                 throw Object.assign(new Error("The web build was cancelled before compilation."), { name: "AbortError" });
+            const native = options.revision === undefined ? await nativeRomFor(root, sourceRevision, attestationKey) : null;
             if (!options.force && (await exists(outputPath))) {
                 const cached = await readCachedManifest(outputPath, sourceRevision, attestationKey);
-                if (cached) {
+                const replacedRom = native && cached && exportIdentity(cached).rom.sha256 !== native.sha256;
+                if (cached && !replacedRom) {
                     if (await sourceFingerprint(root, source, options.revision) !== sourceRevision) {
                         throw new Error("Selected web-build source revision or plugin contents changed during cache validation.");
                     }
@@ -862,6 +934,8 @@ export async function buildWeb(options, platformOptions = {}) {
             if (await sourceFingerprint(root, source, options.revision) !== sourceRevision) {
                 throw new Error("Selected web-build source revision or plugin contents changed during compilation.");
             }
+            if (native)
+                await adoptNativeRom(staging, native);
             const manifest = await validateArtifacts(staging, sourceRevision, attestationKey);
             await writeFile(path.join(staging, MANIFEST_FILENAME), JSON.stringify(manifest, null, 2) + "\n", {
                 encoding: "utf8", flag: "wx", mode: 0o600,

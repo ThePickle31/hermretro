@@ -89,7 +89,7 @@ jobs:
       restore: ${{ github.event_name != 'schedule' || github.event.schedule != '17 10 * * 0' }}
 
   checks:
-    name: Unit, bundle, lint and page
+    name: Unit, bundle, engine, lint and page
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -101,20 +101,22 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: tools/npm/package-lock.json
+          cache-dependency-path: |
+            tools/npm/package-lock.json
+            tools/engine/npm/package-lock.json
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
       - name: Install the pinned dev tools
         run: |
           npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
-          # The engine's build tools (tests/repo/test_engine_bundle.py), where the checked-out commit has them.
+          # The engine's build tools (the engine check and tests/repo/test_engine_bundle.py), where the checked-out commit has them.
           if [ -f tools/engine/npm/package-lock.json ]; then
             npm ci --prefix tools/engine/npm --ignore-scripts --no-audit --no-fund
           fi
           python tools/py/setup.py
-      - name: python tools/check.py unit bundle lint page
-        run: python tools/check.py unit bundle lint page --strict
+      - name: python tools/check.py unit bundle engine lint page
+        run: python tools/check.py unit bundle engine lint page --strict
 
   report:
     name: Report a failed night

@@ -42,7 +42,7 @@ Every folder in the repository.
 | `player/web/` | ModRetro's web player (vendored) |
 | `player/skins/` | The emulator's device skins, one folder each (`skin.webp`, `skin.json`) (`hermretro-dev-skins`) |
 | `engine/` | The vendored ModRetro engine and its pins |
-| `engine/modretro-chromatic/` | The vendored engine; only the maintainer changes it (`engine/CHANGES.md`) |
+| `engine/modretro-chromatic/` | The vendored engine; only the maintainer changes it (`engine/CHANGES.md`), in its `dist/` modules (`dist/entry.js` is the server's own); `dist/server.js` is built from them (`node tools/engine/bundle.mjs`) |
 | `engine/CHANGES.md` | hermretro's changes to the engine, one line each |
 | `engine/pins/` | Per engine version: tool contracts and file manifest |
 | `skills/` | Skills the plugin gives the agent |

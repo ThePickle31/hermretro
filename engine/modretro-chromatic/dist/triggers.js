@@ -1,8 +1,8 @@
 import path from "node:path";
-import { assertDistributedOwnerIdentity, assertExpectedResourceRevision, assertLoadedResourceRevision, assertResourceNotReferenced, assertSafeResourceProperties, findLegacyProjectScene, findLegacySceneCollectionResource, findProjectScene, isJsonObject, legacyDescriptorScenes, mergeResourceObjects, removeProjectResource, rewriteLegacySceneCollection, validateResourceName, } from "./actors.js";
+import { assertDistributedOwnerIdentity, assertExpectedResourceRevision, assertLoadedResourceRevision, assertResourceNotReferenced, assertSafeResourceProperties, findLegacyProjectScene, findLegacySceneCollectionResource, findProjectScene, isJsonObject, legacyDescriptorScenes, mergeResourceObjects, removeProjectResource, renamedResourceSymbol, rewriteLegacySceneCollection, takenResourceSymbols, uniqueResourceSymbol, validateResourceName, } from "./actors.js";
 import { nextResourceIndex, projectPathExists, projectRelativePath, readProjectJsonWithRevision, resourceRevision, resourceSlug, stableResourceId, withProjectResourceWriteLock, writeProjectJsonAtomic, } from "./project-files.js";
 import { GameStudioProjectError, inventoryProject, } from "./project.js";
-import { explicitlyPatchedNativeScriptCoordinates, findInvalidNativeScriptEvent, } from "./native-script-events.js";
+import { explicitlyPatchedNativeScriptValues, findInvalidNativeScriptEvent, withNativeScriptEventIds, } from "./native-script-events.js";
 export function findSceneTrigger(scene, triggerId, access) {
     const trigger = access
         ? access.trigger(scene.id, triggerId)
@@ -13,12 +13,12 @@ export function findSceneTrigger(scene, triggerId, access) {
     return trigger;
 }
 /** Shape verified against actual upstream distributed GB Studio trigger resources. */
-export function createTriggerResource(input, id, index, slug) {
+export function createTriggerResource(input, id, index, symbol) {
     return {
         _resourceType: "trigger",
         id,
         _index: index,
-        symbol: `trigger_${slug}`,
+        symbol,
         prefabId: "",
         name: validateResourceName(input.name, "Trigger name"),
         x: input.x,
@@ -45,7 +45,7 @@ export function mergeTriggerChanges(existing, input) {
                 ? validateResourceName(value, "Trigger name")
                 : value;
     }
-    return mergeResourceObjects(existing, updates);
+    return withNativeScriptEventIds(mergeResourceObjects(existing, updates));
 }
 export function validateTriggerResource(scene, trigger, previous, options = {}) {
     validateResourceName(trigger.name, "Trigger name");
@@ -173,8 +173,9 @@ export async function createTrigger(projectPath, input, access) {
         if (duplicate) {
             throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A trigger with id ${id} already exists`);
         }
-        const trigger = mergeResourceObjects(createTriggerResource(input, id, nextResourceIndex(ownerScene.triggers), slug), input.properties ?? {});
-        validateTriggerResource(ownerScene, trigger);
+        const symbol = uniqueResourceSymbol("trigger", input.name, takenResourceSymbols(await inventoryProject(projectPath, access)));
+        const trigger = mergeTriggerChanges(createTriggerResource(input, id, nextResourceIndex(ownerScene.triggers), symbol), { properties: input.properties });
+        validateTriggerResource(ownerScene, trigger, undefined, { projectRoot: context.projectRoot, legacyDescriptor: format === "legacy" ? loaded.json : undefined });
         const updated = format === "distributed" ? trigger : rewriteLegacySceneCollection({ descriptor: loaded.json }, ownerScene.id, "triggers", (resources) => [...resources, trigger]);
         await assertExpectedResourceRevision(context.projectRoot, sceneTarget, loaded.revision);
         await writeProjectJsonAtomic(context.projectRoot, target, updated);
@@ -211,9 +212,13 @@ export async function updateTrigger(projectPath, input, access) {
         const original = format === "distributed"
             ? loaded.json
             : findLegacySceneCollectionResource(loaded.json, scene.id, "triggers", input.triggerId);
-        const trigger = mergeTriggerChanges(original, input);
+        let trigger = mergeTriggerChanges(original, input);
+        if (trigger.name !== original.name)
+            trigger = { ...trigger, symbol: renamedResourceSymbol("trigger", original, trigger, takenResourceSymbols(await inventoryProject(projectPath, access), input.triggerId)) };
         validateTriggerResource(ownerScene, trigger, original, {
-            explicitlyPatchedCoordinates: explicitlyPatchedNativeScriptCoordinates(input.properties),
+            explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties),
+            projectRoot: context.projectRoot,
+            legacyDescriptor: format === "legacy" ? loaded.json : undefined,
         });
         const updated = format === "distributed" ? trigger : rewriteLegacySceneCollection({ descriptor: loaded.json }, scene.id, "triggers", (resources) => resources.map((resource) => resource.id === input.triggerId ? trigger : resource));
         await assertExpectedResourceRevision(context.projectRoot, target, loaded.revision);

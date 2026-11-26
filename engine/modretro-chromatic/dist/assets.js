@@ -3,8 +3,12 @@ import { mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { inflateSync } from "node:zlib";
 import { PNG } from "pngjs";
-import { decodeBackgroundPaletteTiles } from "./palettes.js";
+import { inspectAudioAsset, isAudioKind, prepareAudioImport } from "./audio.js";
+import { ENGINE_FIELD_RESOURCE_PATH, fieldEntries, selectEngineFields } from "./engine-fields.js";
+import { analyzeGraphicsImage } from "./graphics.js";
+import { decodeBackgroundPaletteTiles, paletteProject } from "./palettes.js";
 import { applyPreparedProjectTransaction } from "./scene-batch.js";
+import { projectColorMode } from "./scene-graphics.js";
 import { projectPathExists, projectRelativePath, readProjectJson, resolveProjectPath, resourceSlug, stableResourceId, writeProjectJsonAtomic, } from "./project-files.js";
 import { discoverProject, GameStudioProjectError, inventoryProject, } from "./project.js";
 import { createSpriteResource } from "./sprites.js";
@@ -27,11 +31,13 @@ const ADAM7_PASSES = [
 ];
 const BACKGROUND_COLORS = new Set(["#071821", "#306850", "#86c06c", "#e0f8cf"]);
 const SPRITE_COLORS = new Set(["#071821", "#86c06c", "#e0f8cf", "#65ff00"]);
-const RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function isSystemError(error, code) {
+export const RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_BATCH_IMPORTS = 32;
+const IMPORT_ANALYSIS_VIOLATIONS = 8;
+export function isSystemError(error, code) {
     return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
-function assetError(code, message, resourcePath) {
+export function assetError(code, message, resourcePath) {
     throw new GameStudioProjectError(code, message, resourcePath);
 }
 function colorAt(image, offset) {
@@ -259,7 +265,7 @@ function assetResult(metadata, relativeAssetPath, profile) {
         result.profile = profile;
     return result;
 }
-async function assertDistributedProject(projectRoot, access) {
+export async function assertDistributedProject(projectRoot, access) {
     const project = access ? access.projectInspection() : await discoverProject(projectRoot);
     if (project.format !== "distributed") {
         assetError("UNSUPPORTED_PROJECT_FORMAT", "Native PNG asset authoring requires a distributed native game project.");
@@ -278,26 +284,27 @@ function normalizedDestination(root, assetPath, kind) {
     }
     return destination;
 }
-async function exclusiveWrite(filename, content) {
+async function exclusiveWrite(filename, content, created) {
     let handle;
     try {
         handle = await open(filename, "wx", 0o600);
-        await handle.writeFile(content);
-        await handle.sync();
     }
     catch (error) {
         if (isSystemError(error, "EEXIST")) {
             assetError("ASSET_ALREADY_EXISTS", `Refusing to overwrite the existing asset resource ${filename}.`, filename);
         }
-        if (handle)
-            await rm(filename, { force: true });
         throw error;
     }
+    created.push(filename);
+    try {
+        await handle.writeFile(content);
+        await handle.sync();
+    }
     finally {
-        await handle?.close();
+        await handle.close();
     }
 }
-function ensureName(value) {
+export function ensureName(value) {
     if (!value.trim())
         assetError("INVALID_INPUT", "Asset names cannot be empty.");
     return value.trim();
@@ -337,16 +344,83 @@ export async function findAssetMetadata(projectRoot, input, access) {
         metadata: await readProjectJson(root, asset.metadataPath),
     };
 }
-export async function importAsset(projectRoot, input, access) {
-    if (input.sprite?.profile === "native_metadata")
-        return importNativeMetadata(projectRoot, input, access);
+export async function importAsset(projectRoot, { detail = "compact", ...input }, access) {
+    if (input.assets !== undefined)
+        return importAssetBatch(projectRoot, input, access);
+    if (input.sprite?.profile === "native_metadata") {
+        const { idMap, patternAccounting, ...imported } = await importNativeMetadata(projectRoot, input, access);
+        return detail === "full" ? { ...imported, idMap, patternAccounting } : imported;
+    }
+    const root = await assertDistributedProject(projectRoot, access);
+    const prepared = await prepareImport(root, input, await importContext(root, access), access);
+    await writePreparedImports([prepared]);
+    return prepared.result;
+}
+async function importAssetBatch(projectRoot, input, access) {
+    const { assets, ...single } = input;
+    if (Object.values(single).some((value) => value !== undefined)) {
+        assetError("INVALID_INPUT", "assets replaces the single-asset fields: give each asset its own entry.");
+    }
+    if (!Array.isArray(assets) || assets.length < 1 || assets.length > MAX_BATCH_IMPORTS) {
+        assetError("INVALID_INPUT", `assets takes 1–${MAX_BATCH_IMPORTS} entries.`);
+    }
+    const root = await assertDistributedProject(projectRoot, access);
+    const context = await importContext(root, access);
+    const prepared = [];
+    for (const [index, entry] of assets.entries()) {
+        try {
+            prepared.push(await prepareImport(root, entry, context, access));
+        }
+        catch (error) {
+            if (!(error instanceof GameStudioProjectError))
+                throw error;
+            throw new GameStudioProjectError(error.code, `assets[${index}] (${entry.assetPath}): ${error.message} Nothing was imported.`, error.resourcePath);
+        }
+    }
+    await writePreparedImports(prepared);
+    return { imported: prepared.map((item) => item.result), count: prepared.length };
+}
+async function importContext(root, access) {
+    const settings = (await paletteProject(root, access)).settings;
+    return {
+        colorMode: projectColorMode(settings),
+        spriteMode: settings.spriteMode === "8x8" ? "8x8" : "8x16",
+        sceneType: typeof settings.defaultSceneTypeId === "string" && settings.defaultSceneTypeId ? settings.defaultSceneTypeId : "TOPDOWN",
+        gridSize: await topdownGridSize(root, access),
+        claimedIds: new Set(),
+        claimedPaths: new Set(),
+    };
+}
+async function topdownGridSize(root, access) {
+    if (!(await projectPathExists(root, path.join(root, ENGINE_FIELD_RESOURCE_PATH))))
+        return 8;
+    const selected = await selectEngineFields(root, access);
+    const field = fieldEntries(selected.resource, selected.legacy, selected.filename).find((entry) => entry.id === "topdown_grid");
+    return Number(field?.value) === 16 ? 16 : 8;
+}
+function importAnalysis(image, assetPath, kind, context) {
+    const analysis = analyzeGraphicsImage(image, assetPath, { kind, colorMode: context.colorMode, spriteMode: context.spriteMode });
+    return {
+        status: analysis.validationStatus,
+        paletteFamilies: analysis.paletteFamilies,
+        ...(kind === "background" ? { uniqueTiles: analysis.uniqueTiles, uniqueTilesWithFlips: analysis.uniqueTilesWithFlips } : {}),
+        tileBudget: analysis.tileBudget,
+        violationCount: analysis.violationCount,
+        violations: analysis.violations.slice(0, IMPORT_ANALYSIS_VIOLATIONS),
+    };
+}
+async function prepareImport(root, input, context, access) {
+    if (input.sprite?.profile === "native_metadata") {
+        assetError("INVALID_INPUT", "A native_metadata sprite imports on its own with expectedRevision, not in assets.");
+    }
     if (input.expectedRevision !== undefined || input.dryRun !== undefined || input.sprite?.metadataPath !== undefined
         || input.sprite?.sourceSha256 !== undefined || input.sprite?.metadataSha256 !== undefined) {
         assetError("INVALID_INPUT", "Metadata paths, digests, expectedRevision and dryRun apply only to native_metadata sprite import.");
     }
-    const root = await assertDistributedProject(projectRoot, access);
+    if (isAudioKind(input.kind))
+        return prepareAudioImport(root, input, context, access);
     if (input.kind !== "background" && input.kind !== "sprite") {
-        assetError("INVALID_INPUT", "Asset kind must be background or sprite.");
+        assetError("INVALID_INPUT", "Asset kind must be background, sprite, music or sound.");
     }
     if (input.kind === "sprite" && !input.sprite?.profile) {
         assetError("SPRITE_PROFILE_REQUIRED", "Importing a sprite requires an explicit, proven sprite profile.");
@@ -356,6 +430,9 @@ export async function importAsset(projectRoot, input, access) {
     }
     const destination = normalizedDestination(root, input.assetPath, input.kind);
     const relativeDestination = projectRelativePath(root, destination);
+    if (context.claimedPaths.has(destination)) {
+        assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} appears twice in this import.`, destination);
+    }
     const source = input.sourcePath
         ? await resolveProjectPath(root, input.sourcePath, { mustExist: true })
         : await resolveProjectPath(root, destination, { mustExist: true });
@@ -377,13 +454,14 @@ export async function importAsset(projectRoot, input, access) {
     const filename = path.basename(destination);
     const name = ensureName(input.name ?? path.basename(filename, ".png"));
     const id = input.id ?? stableResourceId("asset", input.kind, relativeDestination);
-    const duplicate = access
+    const duplicate = context.claimedIds.has(id) || (access
         ? access.asset({ assetId: id }).status !== "missing"
-        : (await inventoryProject(root)).assets.some((asset) => asset.id === id);
+        : (await inventoryProject(root)).assets.some((asset) => asset.id === id));
     if (duplicate) {
         assetError("DUPLICATE_RESOURCE_ID", `The asset ID ${id} is already used by this native game project.`);
     }
     let metadata;
+    let diagnostics = [];
     if (input.kind === "background") {
         metadata = createBackgroundMetadata({
             id,
@@ -395,34 +473,65 @@ export async function importAsset(projectRoot, input, access) {
         });
     }
     else {
-        metadata = await createSpriteResource(root, {
+        ({ metadata, diagnostics } = await createSpriteResource(root, {
             id,
             name,
             filename,
             width: image.width,
             height: image.height,
+            image,
             checksum: createHash("sha1").update(bytes).digest("hex"),
             profile: input.sprite.profile,
             templateAssetId: input.sprite.templateAssetId,
-        }, access);
+            paletteIndex: input.sprite.paletteIndex,
+            frameWidth: input.sprite.frameWidth,
+            frameHeight: input.sprite.frameHeight,
+            gridSize: context.gridSize,
+            sceneType: input.sprite.sceneType ?? context.sceneType,
+            spriteMode: context.spriteMode,
+            colorMode: context.colorMode,
+        }, access));
     }
-    const parent = path.dirname(destination);
-    await mkdir(parent, { recursive: true });
-    await resolveProjectPath(root, parent, { mustExist: true });
-    let createdPng = false;
+    context.claimedIds.add(id);
+    context.claimedPaths.add(destination);
+    const analysis = importAnalysis(image, relativeDestination, input.kind, context);
+    const sprite = input.kind === "sprite" ? {
+        numTiles: metadata.numTiles,
+        canvas: { width: metadata.canvasWidth, height: metadata.canvasHeight },
+        bounds: { x: metadata.boundsX, y: metadata.boundsY, width: metadata.boundsWidth, height: metadata.boundsHeight },
+        ...(input.sprite.paletteIndex === undefined ? {} : { paletteIndex: input.sprite.paletteIndex }),
+    } : {};
+    return {
+        root,
+        destination,
+        sidecar,
+        bytes,
+        copiesSource: input.sourcePath !== undefined,
+        metadata,
+        result: {
+            ...assetResult(metadata, relativeDestination, input.sprite?.profile),
+            ...sprite,
+            analysis,
+            ...(diagnostics.length > 0 ? { diagnostics } : {}),
+        },
+    };
+}
+async function writePreparedImports(prepared) {
+    const created = [];
     try {
-        if (input.sourcePath) {
-            await exclusiveWrite(destination, bytes);
-            createdPng = true;
+        for (const item of prepared) {
+            const parent = path.dirname(item.destination);
+            await mkdir(parent, { recursive: true });
+            await resolveProjectPath(item.root, parent, { mustExist: true });
+            if (item.copiesSource)
+                await exclusiveWrite(item.destination, item.bytes, created);
+            await exclusiveWrite(item.sidecar, `${JSON.stringify(item.metadata, null, 2)}\n`, created);
         }
-        await exclusiveWrite(sidecar, `${JSON.stringify(metadata, null, 2)}\n`);
     }
     catch (error) {
-        if (createdPng)
-            await rm(destination, { force: true });
+        await Promise.allSettled(created.reverse().map((filename) => rm(filename, { force: true })));
         throw error;
     }
-    return assetResult(metadata, relativeDestination, input.sprite?.profile);
 }
 async function importNativeMetadata(projectRoot, input, access) {
     const options = input.sprite;
@@ -482,7 +591,9 @@ async function importNativeMetadata(projectRoot, input, access) {
                 { relativePath: input.assetPath, before: null, after: png.bytes, createOnly: true },
                 { relativePath: metadataPath, before: null, after: outputMetadata, createOnly: true },
             ],
-            value: { ...assetResult(created.metadata, input.assetPath, "native_metadata"), idMap: created.idMap, diagnostics: created.diagnostics, counts: created.counts, patternAccounting: created.patternAccounting,
+            value: { ...assetResult(created.metadata, input.assetPath, "native_metadata"), idMap: created.idMap,
+                analysis: importAnalysis(image, input.assetPath, "sprite", { colorMode: projectColorMode(snapshot.inventory.settings), spriteMode: snapshot.inventory.settings.spriteMode === "8x8" ? "8x8" : "8x16" }),
+                diagnostics: created.diagnostics, counts: created.counts, patternAccounting: created.patternAccounting,
                 sourceSha256: png.identity.sha256, metadataSha256: metadata.identity.sha256, outputSha256: png.identity.sha256,
                 outputMetadataSha256: createHash("sha256").update(outputMetadata).digest("hex") },
         };
@@ -491,6 +602,8 @@ async function importNativeMetadata(projectRoot, input, access) {
 }
 export async function inspectAsset(projectRoot, input, access) {
     const loaded = await findAssetMetadata(projectRoot, input, access);
+    if (isAudioKind(loaded.metadata._resourceType))
+        return inspectAudioAsset(loaded);
     if (loaded.metadata._resourceType !== "background" && loaded.metadata._resourceType !== "sprite") {
         assetError("UNSUPPORTED_ASSET_KIND", `Asset ${loaded.assetPath} is not a registered background or sprite.`);
     }

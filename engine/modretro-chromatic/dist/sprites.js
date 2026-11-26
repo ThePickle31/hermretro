@@ -3,8 +3,11 @@ import { mkdir, open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { findAssetMetadata } from "./assets.js";
+import { pattern } from "./native-sprite-metadata.js";
+import { chromaticDisplayColor, paletteProject, requirePalette } from "./palettes.js";
 import { projectRelativePath, resolveProjectPath, resourceSlug, stableResourceId, writeProjectJsonAtomic, } from "./project-files.js";
 import { GameStudioProjectError } from "./project.js";
+import { validColors } from "./scene-graphics.js";
 const SOURCE_PREVIEW_LABEL = "Authored sprite source composite; not an emulator framebuffer or gameplay capture.";
 const MAX_PREVIEW_FRAMES = 32;
 const SPRITE_TILE_WIDTH = 8;
@@ -12,6 +15,14 @@ const SPRITE_TILE_HEIGHT = 16;
 const CHROMA_RED = 0x65;
 const CHROMA_GREEN = 0xff;
 const CHROMA_BLUE = 0x00;
+const MAX_METASPRITE_FRAME_SIZE = 128;
+const MAX_METASPRITE_FRAMES = 32;
+const MAX_FRAME_OBJECTS = 40;
+const MAX_SCANLINE_SPRITE_OBJECTS = 10;
+const MAX_SPRITE_OBJECTS = 96;
+const MAX_COLOR_SPRITE_OBJECTS = 192;
+const PREVIEW_FRAME_SIDE = 128;
+const SHEET_FRAME_SIDE = 64;
 function spriteError(code, message) {
     throw new GameStudioProjectError(code, message);
 }
@@ -38,64 +49,117 @@ function integer(value, name, minimum, maximum) {
 function nestedId(rootId, ...parts) {
     return stableResourceId("sprite", rootId, ...parts.map(String));
 }
-function objectTile(rootId, animationIndex, frameIndex, tileIndex, sliceX) {
+function objectTile(rootId, animationIndex, frameIndex, tileIndex, placement, paletteIndex) {
     return {
         id: nestedId(rootId, "tile", animationIndex, frameIndex, tileIndex),
-        x: tileIndex * SPRITE_TILE_WIDTH,
-        y: 0,
-        sliceX: sliceX + tileIndex * SPRITE_TILE_WIDTH,
-        sliceY: 0,
+        x: placement.x,
+        y: placement.y,
+        sliceX: placement.sliceX,
+        sliceY: placement.sliceY,
         flipX: false,
         flipY: false,
         palette: 0,
-        paletteIndex: 0,
+        paletteIndex,
         objPalette: "OBP0",
         priority: false,
     };
 }
-function animationFrame(rootId, animationIndex, frameIndex, sliceX) {
-    return {
-        id: nestedId(rootId, "frame", animationIndex, frameIndex),
-        tiles: sliceX === undefined
-            ? []
-            : [objectTile(rootId, animationIndex, frameIndex, 0, sliceX), objectTile(rootId, animationIndex, frameIndex, 1, sliceX)],
-    };
+function simpleFrame(sliceX) {
+    return sliceX === undefined
+        ? []
+        : [0, 1].map((tileIndex) => ({ x: tileIndex * SPRITE_TILE_WIDTH, y: 0, sliceX: sliceX + tileIndex * SPRITE_TILE_WIDTH, sliceY: 0 }));
 }
-function profileLayout(profile) {
+function simpleProfile(profile) {
     if (profile === "static" || profile === "static16x16") {
-        return {
-            width: 16,
-            animationType: "fixed",
-            flipLeft: false,
-            numTiles: 2,
-            boundsY: -8,
-            boundsHeight: 16,
-            slices: [[0], [undefined], [undefined], [undefined], [undefined], [undefined], [undefined], [undefined]],
-        };
+        return { width: 16, animationType: "fixed", flipLeft: false, boundsY: -8, boundsHeight: 16, slices: [[0], [undefined], [undefined], [undefined], [undefined], [undefined], [undefined], [undefined]] };
     }
     if (profile === "directional" || profile === "directional48x16") {
-        return {
-            width: 48,
-            animationType: "multi",
-            flipLeft: true,
-            numTiles: 5,
-            boundsY: -8,
-            boundsHeight: 16,
-            slices: [[32], [undefined], [16], [0], [undefined], [undefined], [undefined], [undefined]],
-        };
+        return { width: 48, animationType: "multi", flipLeft: true, boundsY: -8, boundsHeight: 16, slices: [[32], [undefined], [16], [0], [undefined], [undefined], [undefined], [undefined]] };
     }
     if (profile === "directional_animated" || profile === "directional_animated96x16") {
-        return {
-            width: 96,
-            animationType: "multi_movement",
-            flipLeft: true,
-            numTiles: 10,
-            boundsY: 0,
-            boundsHeight: 8,
-            slices: [[64], [undefined], [32], [0], [80, 64], [undefined], [48, 32], [16, 0]],
-        };
+        return { width: 96, animationType: "multi_movement", flipLeft: true, boundsY: 0, boundsHeight: 8, slices: [[64], [undefined], [32], [0], [80, 64], [undefined], [48, 32], [16, 0]] };
     }
     return spriteError("UNSUPPORTED_SPRITE_PROFILE", `Unsupported or unproven sprite profile ${String(profile)}.`);
+}
+function simpleLayout(input) {
+    const profile = simpleProfile(input.profile);
+    if (input.width !== profile.width || input.height !== 16) {
+        spriteError("INVALID_SPRITE_DIMENSIONS", `Sprite profile ${input.profile} requires exactly ${profile.width} × 16 source pixels.`);
+    }
+    const cellBounds = input.gridSize === 16 && input.sceneType === "TOPDOWN";
+    return {
+        animationType: profile.animationType,
+        flipLeft: profile.flipLeft,
+        canvasWidth: 16,
+        canvasHeight: 16,
+        bounds: { x: 0, y: cellBounds ? -8 : profile.boundsY, width: 16, height: cellBounds ? 16 : profile.boundsHeight },
+        animations: profile.slices.map((frames) => frames.map(simpleFrame)),
+        diagnostics: [],
+    };
+}
+function metaspriteLayout(input) {
+    const { frameWidth, frameHeight, image } = input;
+    if (frameWidth === undefined || frameHeight === undefined) {
+        spriteError("INVALID_INPUT", "The metasprite profile requires sprite.frameWidth and sprite.frameHeight.");
+    }
+    integer(frameWidth, "frameWidth", SPRITE_TILE_WIDTH, MAX_METASPRITE_FRAME_SIZE);
+    integer(frameHeight, "frameHeight", SPRITE_TILE_HEIGHT, MAX_METASPRITE_FRAME_SIZE);
+    if (frameWidth % SPRITE_TILE_WIDTH !== 0 || frameHeight % SPRITE_TILE_HEIGHT !== 0) {
+        spriteError("INVALID_SPRITE_DIMENSIONS", "Metasprite frames are built from 8 × 16 tiles: frameWidth must be a multiple of 8 and frameHeight a multiple of 16.");
+    }
+    if (input.height !== frameHeight || input.width % frameWidth !== 0 || input.width / frameWidth > MAX_METASPRITE_FRAMES) {
+        spriteError("INVALID_SPRITE_DIMENSIONS", `A metasprite sheet is one row of 1–${MAX_METASPRITE_FRAMES} frames of ${frameWidth} × ${frameHeight}: its height must be ${frameHeight} and its width a multiple of ${frameWidth}.`);
+    }
+    const originX = Math.max(0, frameWidth / 2 - SPRITE_TILE_WIDTH);
+    const frames = [];
+    let widestRow = 0;
+    for (let frameIndex = 0; frameIndex < input.width / frameWidth; frameIndex += 1) {
+        const tiles = [];
+        for (let row = 0; row < frameHeight / SPRITE_TILE_HEIGHT; row += 1) {
+            let rowObjects = 0;
+            for (let column = 0; column < frameWidth / SPRITE_TILE_WIDTH; column += 1) {
+                const sliceX = frameIndex * frameWidth + column * SPRITE_TILE_WIDTH;
+                const sliceY = row * SPRITE_TILE_HEIGHT;
+                if (!/[^0]/.test(pattern(image, sliceX, sliceY)))
+                    continue;
+                rowObjects += 1;
+                tiles.push({ x: column * SPRITE_TILE_WIDTH - originX, y: frameHeight - SPRITE_TILE_HEIGHT - sliceY, sliceX, sliceY });
+            }
+            widestRow = Math.max(widestRow, rowObjects);
+        }
+        if (tiles.length > MAX_FRAME_OBJECTS) {
+            spriteError("METASPRITE_OBJECT_LIMIT", `Frame ${frameIndex} needs ${tiles.length} hardware objects; one frame can use at most ${MAX_FRAME_OBJECTS}.`);
+        }
+        frames.push(tiles);
+    }
+    return {
+        animationType: "fixed",
+        flipLeft: false,
+        canvasWidth: frameWidth,
+        canvasHeight: frameHeight,
+        bounds: { x: -originX, y: SPRITE_TILE_WIDTH - frameHeight, width: frameWidth, height: frameHeight },
+        animations: [frames, ...Array.from({ length: 7 }, () => [[]])],
+        diagnostics: widestRow > MAX_SCANLINE_SPRITE_OBJECTS ? [{
+                code: "METASPRITE_SCANLINE_WIDTH",
+                severity: "warning",
+                message: `A frame puts ${widestRow} objects side by side in one row; the hardware draws at most ${MAX_SCANLINE_SPRITE_OBJECTS} per scanline, so parts of it will disappear.`,
+            }] : [],
+    };
+}
+function spriteObjectCount(image, animations) {
+    const objects = new Set();
+    for (const frames of animations) {
+        for (const tiles of frames) {
+            for (const { sliceX, sliceY } of tiles) {
+                const rows = pattern(image, sliceX, sliceY).match(/.{8}/g);
+                if (!rows.some((row) => /[^0]/.test(row)))
+                    continue;
+                const mirrored = rows.map((row) => [...row].reverse().join(""));
+                objects.add([rows, mirrored, [...rows].reverse(), [...mirrored].reverse()].map((orientation) => orientation.join("")).sort()[0]);
+            }
+        }
+    }
+    return objects.size;
 }
 function replaceNestedIds(value, assetId, trail = "root") {
     if (Array.isArray(value))
@@ -107,7 +171,22 @@ function replaceNestedIds(value, assetId, trail = "root") {
         key === "id" && trail !== "root" ? nestedId(assetId, trail) : replaceNestedIds(child, assetId, `${trail}.${key}`),
     ]));
 }
+function withPaletteIndex(metadata, paletteIndex) {
+    for (const state of asArray(metadata.states, "states")) {
+        for (const animation of asArray(asObject(state, "state").animations, "animations")) {
+            for (const frame of asArray(asObject(animation, "animation").frames, "frames")) {
+                for (const tile of asArray(asObject(frame, "frame").tiles, "tiles"))
+                    asObject(tile, "tile").paletteIndex = paletteIndex;
+            }
+        }
+    }
+    return metadata;
+}
 export async function createSpriteResource(projectRoot, input, access) {
+    const paletteIndex = input.paletteIndex === undefined ? undefined : integer(input.paletteIndex, "paletteIndex", 0, 7);
+    if ((input.frameWidth !== undefined || input.frameHeight !== undefined) && input.profile !== "metasprite") {
+        spriteError("INVALID_INPUT", "frameWidth and frameHeight apply to the metasprite profile only.");
+    }
     if (input.profile === "template") {
         if (!input.templateAssetId) {
             spriteError("SPRITE_TEMPLATE_REQUIRED", "The template profile requires an existing templateAssetId.");
@@ -119,7 +198,7 @@ export async function createSpriteResource(projectRoot, input, access) {
         if (template.metadata.width !== input.width || template.metadata.height !== input.height) {
             spriteError("SPRITE_TEMPLATE_DIMENSIONS", "Sprite source dimensions must match the selected native template.");
         }
-        return {
+        const metadata = {
             ...replaceNestedIds(template.metadata, input.id),
             id: input.id,
             name: input.name,
@@ -129,12 +208,18 @@ export async function createSpriteResource(projectRoot, input, access) {
             height: input.height,
             checksum: input.checksum,
         };
+        return { metadata: paletteIndex === undefined ? metadata : withPaletteIndex(metadata, paletteIndex), diagnostics: [] };
     }
-    const layout = profileLayout(input.profile);
-    if (input.width !== layout.width || input.height !== 16) {
-        spriteError("INVALID_SPRITE_DIMENSIONS", `Sprite profile ${input.profile} requires exactly ${layout.width} × 16 source pixels.`);
+    if (input.spriteMode === "8x8") {
+        spriteError("SPRITE_MODE_UNSUPPORTED", "Generated sprite profiles build 8 × 16 objects, but this project's sprite mode is 8 × 8, where GB Studio would compile only the top half of each. Set the project's sprite mode to 8 × 16, or use the template profile with a sprite made for 8 × 8.");
     }
-    return {
+    const layout = input.profile === "metasprite" ? metaspriteLayout(input) : simpleLayout(input);
+    const numTiles = spriteObjectCount(input.image, layout.animations);
+    const maxObjects = input.colorMode === "color" ? MAX_COLOR_SPRITE_OBJECTS : MAX_SPRITE_OBJECTS;
+    if (numTiles > maxObjects) {
+        spriteError("SPRITE_TILE_LIMIT", `The sprite needs ${numTiles} distinct 8 × 16 tiles after GB Studio's flip deduplication; a ${input.colorMode === "color" ? "Color Only" : "Color + Monochrome or Monochrome"} scene holds at most ${maxObjects}, fewer beside a large background.`);
+    }
+    const metadata = {
         _resourceType: "sprite",
         id: input.id,
         name: input.name,
@@ -145,27 +230,31 @@ export async function createSpriteResource(projectRoot, input, access) {
                 name: "",
                 animationType: layout.animationType,
                 flipLeft: layout.flipLeft,
-                animations: layout.slices.map((frames, animationIndex) => ({
+                animations: layout.animations.map((frames, animationIndex) => ({
                     id: nestedId(input.id, "animation", animationIndex),
-                    frames: frames.map((sliceX, frameIndex) => animationFrame(input.id, animationIndex, frameIndex, sliceX)),
+                    frames: frames.map((tiles, frameIndex) => ({
+                        id: nestedId(input.id, "frame", animationIndex, frameIndex),
+                        tiles: tiles.map((placement, tileIndex) => objectTile(input.id, animationIndex, frameIndex, tileIndex, placement, paletteIndex ?? 0)),
+                    })),
                 })),
             },
         ],
-        numTiles: layout.numTiles,
+        numTiles,
         canvasOriginX: 0,
         canvasOriginY: 0,
-        canvasWidth: 16,
-        canvasHeight: 16,
-        boundsX: 0,
-        boundsY: layout.boundsY,
-        boundsWidth: 16,
-        boundsHeight: layout.boundsHeight,
+        canvasWidth: layout.canvasWidth,
+        canvasHeight: layout.canvasHeight,
+        boundsX: layout.bounds.x,
+        boundsY: layout.bounds.y,
+        boundsWidth: layout.bounds.width,
+        boundsHeight: layout.bounds.height,
         animSpeed: 15,
         filename: input.filename,
         width: input.width,
         height: input.height,
         checksum: input.checksum,
     };
+    return { metadata, diagnostics: layout.diagnostics };
 }
 async function loadSprite(projectRoot, input, access) {
     const assetId = input.spriteId ?? input.assetId;
@@ -333,7 +422,7 @@ function compositeFrame(source, metadata, frame) {
     }
     return image;
 }
-function scaledImage(source, scale) {
+export function scaledImage(source, scale) {
     if (scale === 1)
         return source;
     const image = new PNG({ width: source.width * scale, height: source.height * scale, colorType: 6 });
@@ -382,12 +471,47 @@ function selectedFrame(metadata, stateIndex, animationIndex, frameIndex) {
     const animation = asObject(asArray(state.animations, `state ${stateIndex} animations`)[animationIndex], `animation ${animationIndex}`);
     return asObject(asArray(animation.frames, `animation ${animationIndex} frames`)[frameIndex], `frame ${frameIndex}`);
 }
+function enlargedScale(metadata, side) {
+    const largest = Math.max(asNumber(metadata.canvasWidth, 16), asNumber(metadata.canvasHeight, 16));
+    return Math.min(8, Math.max(1, Math.floor(side / largest)));
+}
+async function spriteDisplay(projectRoot, input, access) {
+    let shades;
+    if (input.paletteId !== undefined) {
+        const palette = requirePalette(await paletteProject(projectRoot, access), input.paletteId, access);
+        const colors = validColors(palette.colors);
+        if (colors === undefined)
+            spriteError("INVALID_PALETTE_COLORS", `Palette ${input.paletteId} does not hold four RGB colors.`);
+        shades = new Map([["e0f8cf", colors[0]], ["86c06c", colors[1]], ["071821", colors[3]]]);
+    }
+    const corrected = input.colorCorrection === "chromatic";
+    return {
+        paint(image) {
+            if (shades === undefined && !corrected)
+                return image;
+            for (let offset = 0; offset < image.data.length; offset += 4) {
+                if (image.data[offset + 3] === 0)
+                    continue;
+                let rgb = [image.data[offset], image.data[offset + 1], image.data[offset + 2]];
+                const mapped = shades?.get(rgb.map((channel) => channel.toString(16).padStart(2, "0")).join(""));
+                if (mapped !== undefined)
+                    rgb = [0, 2, 4].map((at) => Number.parseInt(mapped.slice(at, at + 2), 16));
+                if (corrected)
+                    rgb = chromaticDisplayColor(...rgb);
+                image.data.set(rgb, offset);
+            }
+            return image;
+        },
+        details: { ...(input.paletteId === undefined ? {} : { paletteId: input.paletteId }), colorCorrection: corrected ? "chromatic" : "none" },
+    };
+}
 export async function previewSprite(projectRoot, input, access) {
     const loaded = await loadSprite(projectRoot, input, access);
     const stateIndex = integer(input.stateIndex ?? 0, "stateIndex", 0, 31);
     const animationIndex = integer(input.animationIndex ?? 0, "animationIndex", 0, 7);
     const frameIndex = integer(input.frameIndex ?? 0, "frameIndex", 0, 31);
-    const scale = integer(input.scale ?? 1, "scale", 1, 8);
+    const scale = integer(input.scale ?? enlargedScale(loaded.metadata, PREVIEW_FRAME_SIDE), "scale", 1, 8);
+    const display = await spriteDisplay(loaded.projectRoot, input, access);
     const frame = selectedFrame(loaded.metadata, stateIndex, animationIndex, frameIndex);
     const source = PNG.sync.read(await readFile(await resolveProjectPath(loaded.projectRoot, loaded.assetPath, { mustExist: true })), {
         checkCRC: true,
@@ -395,7 +519,9 @@ export async function previewSprite(projectRoot, input, access) {
     const outputPath = input.outputPath ?? `artifacts/sprite-previews/${resourceSlug(String(loaded.metadata.name), "sprite")}-s${stateIndex}-a${animationIndex}-f${frameIndex}-x${scale}-${randomUUID()}.png`;
     return {
         id: String(loaded.metadata.id),
-        ...(await writePreview(loaded.projectRoot, outputPath, scaledImage(compositeFrame(source, loaded.metadata, frame), scale))),
+        scale,
+        ...display.details,
+        ...(await writePreview(loaded.projectRoot, outputPath, scaledImage(display.paint(compositeFrame(source, loaded.metadata, frame)), scale))),
     };
 }
 const FONT = {
@@ -472,15 +598,16 @@ export async function spriteContactSheet(projectRoot, input, access) {
     const loaded = await loadSprite(projectRoot, input, access);
     const stateIndex = integer(input.stateIndex ?? 0, "stateIndex", 0, 31);
     const columns = integer(input.columns ?? 4, "columns", 1, 8);
-    const scale = integer(input.scale ?? 2, "scale", 1, 8);
+    const scale = integer(input.scale ?? enlargedScale(loaded.metadata, SHEET_FRAME_SIDE), "scale", 1, 8);
+    const display = await spriteDisplay(loaded.projectRoot, input, access);
     const state = asObject(asArray(loaded.metadata.states, "states")[stateIndex], `state ${stateIndex}`);
     const frames = [];
     for (const [animationIndex, animationEntry] of asArray(state.animations, "animations").entries()) {
         const animation = asObject(animationEntry, `animation ${animationIndex}`);
-        for (const [frameIndex, frameEntry] of asArray(animation.frames, `animation ${animationIndex} frames`).entries()) {
-            const frame = asObject(frameEntry, `frame ${frameIndex}`);
-            if (asArray(frame.tiles, `frame ${frameIndex} tiles`).length === 0)
-                continue;
+        const animationFrames = asArray(animation.frames, `animation ${animationIndex} frames`).map((frameEntry, frameIndex) => asObject(frameEntry, `frame ${frameIndex}`));
+        if (animationFrames.every((frame, frameIndex) => asArray(frame.tiles, `frame ${frameIndex} tiles`).length === 0))
+            continue;
+        for (const [frameIndex, frame] of animationFrames.entries()) {
             if (frames.length >= MAX_PREVIEW_FRAMES) {
                 spriteError("SPRITE_PREVIEW_LIMIT", `Sprite contact sheets are limited to ${MAX_PREVIEW_FRAMES} authored frames.`);
             }
@@ -503,11 +630,13 @@ export async function spriteContactSheet(projectRoot, input, access) {
     frames.forEach(({ animationIndex, frameIndex, frame }, index) => {
         const x = (index % columns) * cellWidth + 5;
         const y = Math.floor(index / columns) * cellHeight + 16;
-        blit(scaledImage(compositeFrame(source, loaded.metadata, frame), scale), image, x, y);
+        blit(scaledImage(display.paint(compositeFrame(source, loaded.metadata, frame)), scale), image, x, y);
         drawText(image, `A${animationIndex} F${frameIndex}`, x, y + frameHeight + 3);
     });
     return {
         id: String(loaded.metadata.id),
+        scale,
+        ...display.details,
         ...(await writePreview(loaded.projectRoot, input.outputPath, image)),
         frameCount: frames.length,
         frames: frames.map(({ animationIndex, frameIndex }) => ({ animationIndex, frameIndex })),

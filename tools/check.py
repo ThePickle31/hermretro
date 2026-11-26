@@ -1,15 +1,15 @@
 """Run hermretro's checks, the same way here and in CI.
 
-    python tools/check.py                fast checks: unit, bundle, lint, page, scan (together, about 15 s)
+    python tools/check.py                fast checks: unit, bundle, engine, lint, page, scan (together, about 15 s)
     python tools/check.py full           fast checks plus the real-engine acceptance run
     python tools/check.py unit page      only the named checks
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
 
-Checks: unit (Python unit tests), bundle (generated files match page/), lint (ESLint over page/: the
-boundaries between pages and a few correctness rules; ruff over the Python: likely bugs, then one formatting
-for everyone, from .dev/py, made by python tools/py/setup.py), page (page tests in jsdom),
-scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance (real engine,
-compiler and emulator; needs the toolchain from setup).
+Checks: unit (Python unit tests), bundle (generated files match page/), engine (the engine's dist/server.js is what
+its modules build), lint (ESLint over page/: the boundaries between pages and a few correctness rules; ruff over the
+Python: likely bugs, then one formatting for everyone, from .dev/py, made by python tools/py/setup.py), page (page
+tests in jsdom), scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance
+(real engine, compiler and emulator; needs the toolchain from setup).
 
 Every failure ends with a line starting "FIX:". In GitHub Actions the results also go to the run summary.
 Options: --hermes-source DIR (a hermes-agent checkout for the scan; default $HERMES_SOURCE, then
@@ -50,7 +50,7 @@ from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
     ruff_missing,
 )
 
-FAST = ["unit", "bundle", "lint", "page", "scan"]
+FAST = ["unit", "bundle", "engine", "lint", "page", "scan"]
 ALL = FAST + ["acceptance"]
 
 
@@ -98,6 +98,26 @@ def check_bundle(args) -> str:
         raise AssertionError(
             tail(output) + "\nFIX: node tools/bundle/bundle.mjs, then commit desktop/plugin.js, "
             "player/frame-shim.js and page/app/rpc-names.js with your sources (never edit them by hand)"
+        )
+    return output.splitlines()[-1] if output else "ok"
+
+
+def check_engine(args) -> str:
+    node = need("node")
+    result = run([node, "tools/engine/bundle.mjs", "--check"])
+    output = (result.stdout + result.stderr).strip()
+    missing = next(
+        (line for line in output.splitlines() if line.startswith("esbuild and the engine's packages were not found")),
+        None,
+    )
+    if missing and result.returncode:
+        raise Skip(f"{missing}\nFIX: python tools/dev setup")
+    if result.returncode:
+        # The bundler's own FIX line names its --check run; this one names the command to run instead.
+        reason = "\n".join(line for line in output.splitlines() if not line.startswith("FIX:"))
+        raise AssertionError(
+            tail(reason) + "\nFIX: node tools/engine/bundle.mjs, then commit engine/modretro-chromatic/dist/server.js "
+            "with the engine's modules (never edit it by hand)"
         )
     return output.splitlines()[-1] if output else "ok"
 

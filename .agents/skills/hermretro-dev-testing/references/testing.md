@@ -1,6 +1,6 @@
 # Testing
 
-`python tools/check.py` runs the fast checks (unit, bundle, lint, page, scan) at the same time; CI runs the same ones. Every failure ends with a `FIX:` line. This page gives no times: they depend on the machine.
+`python tools/check.py` runs the fast checks (unit, bundle, engine, lint, page, scan) at the same time; CI runs the same ones. Every failure ends with a `FIX:` line. This page gives no times: they depend on the machine.
 
 One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unittest; pytest is not used), or `-k <pattern>` for some of its tests. One page test file: `node tests/page/<file>.test.mjs`; a scenario on `harness.mjs` (`page-*.test.mjs`) also takes an optional node_modules folder, relative or absolute (`node tests/page/page-games.test.mjs tools/npm/node_modules`; without one it looks where `tools/bundle/node-modules.mjs` says). A scenario tests the built bundle, so after editing `page/` run `node tools/bundle/bundle.mjs` first: otherwise it stops with `desktop/plugin.js is stale (...)` and `Run: node tools/bundle/bundle.mjs`.
 
@@ -8,6 +8,7 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 |---|---|---|
 | unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR`. Several processes at once (`tools/py/unit_shards.py`): the modules dealt into up to four by their times from the last run (`.dev/unit-times.json`), each with its own home and `TMPDIR` |
 | bundle | `python tools/check.py bundle` | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
+| engine | `python tools/check.py engine` | The engine's `dist/server.js` is byte for byte what `node tools/engine/bundle.mjs` builds from its `dist/` modules (`dist/entry.js` is the server's own), with the esbuild and packages pinned in `tools/engine/npm/` |
 | lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
@@ -61,7 +62,7 @@ and `.dev/` are not linted.
 ## CI tiers
 
 - **Every pull request** (`.github/workflows/ci.yml`): plugin and repository unit tests on Linux (Python 3.11 and
-  3.14), Apple Silicon and Intel macOS. CI also runs bundle and page, the install scan,
+  3.14), Apple Silicon and Intel macOS. CI also runs bundle, engine (with the engine's build tools) and page, the install scan,
   `plugins validate`, the clean install and the update from the newest release with the oldest supported Hermes.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
@@ -71,8 +72,9 @@ and `.dev/` are not linted.
   registration, broker or update paths or a `.gitignore` (`UPGRADE`). The update from the newest release (job `update`) runs
   on every run, beside the validate job. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
-  integration on Linux, Apple Silicon and Intel macOS, and the unit, bundle, lint and page checks on Linux. The
-  schedule tests `dev`; the Sunday run checks all three toolchains without the cache, while
+  integration on Linux, Apple Silicon and Intel macOS, and the unit, bundle, engine, lint and page checks on Linux.
+  The schedule tests `dev` (with `main`'s copy of this workflow, so a check added on `dev` runs there only after the
+  next release); the Sunday run checks all three toolchains without the cache, while
   other nights can reuse it. To test a published release separately, dispatch `nightly.yml` on its version tag
   once that tag contains this workflow. It tests the dispatched SHA and upgrades it from the preceding published
   stable release, not from itself or from a moving `dev`. Read back the run ID and verify `headSha` against the tag.

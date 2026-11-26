@@ -111,18 +111,22 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: tools/npm/package-lock.json
+          cache-dependency-path: |
+            tools/npm/package-lock.json
+            tools/engine/npm/package-lock.json
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
           cache: pip
           cache-dependency-path: tools/py/requirements.txt
+      # The engine's build tools too: the engine check builds the engine's dist/server.js from its modules.
       - name: Install the pinned dev tools
         run: |
           npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
+          npm ci --prefix tools/engine/npm --ignore-scripts --no-audit --no-fund
           python tools/py/setup.py
-      - name: python tools/check.py bundle lint page
-        run: python tools/check.py bundle lint page --strict
+      - name: python tools/check.py bundle engine lint page
+        run: python tools/check.py bundle engine lint page --strict
 
   scan:
     name: Install scan

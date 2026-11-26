@@ -2,11 +2,14 @@ import { createHash } from "node:crypto";
 import { mkdir, open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { PNG } from "pngjs";
-import { renderContactSheetPng } from "./contact-sheet.js";
+import { contactSheetLayout, renderContactSheetPng } from "./contact-sheet.js";
+import { authoringScripts, COMPILER_EVENT_COMMANDS, eventCatalog } from "./event-catalog.js";
 import { analyzeGraphics } from "./graphics.js";
-import { decodeBackgroundPaletteTiles, FALLBACK_PALETTE_COLORS, HARDWARE_PALETTE_SLOTS, resolvePaletteSlots, resolveUiPalette, } from "./palettes.js";
+import { isObject, SCRIPT_KEYS } from "./native-script-events.js";
+import { chromaticDisplayColor, decodeBackgroundPaletteTiles, FALLBACK_PALETTE_COLORS, HARDWARE_PALETTE_SLOTS, resolvePaletteSlots, resolveUiPalette, } from "./palettes.js";
 import { GameStudioProjectError, inventoryProject, } from "./project.js";
 import { readProjectJson, resolveProjectPath } from "./project-files.js";
+import { scaledImage } from "./sprites.js";
 const MAX_TILE_DETAILS = 512;
 const DEFAULT_TILE_DETAILS = 64;
 const MAX_PREVIEW_PIXELS = 4_194_304;
@@ -50,7 +53,7 @@ function nativeSpriteAnimationIndices(type, flipLeft) {
 function wrapOamScanline(value) {
     return ((value % OAM_COORDINATE_RANGE) + OAM_COORDINATE_RANGE) % OAM_COORDINATE_RANGE;
 }
-function projectColorMode(settings) {
+export function projectColorMode(settings) {
     return settings.colorMode === "color" || settings.colorMode === "mono" ? settings.colorMode : "mixed";
 }
 async function loadSceneGraphicsContext(projectPath, sceneId, access) {
@@ -107,29 +110,76 @@ function paletteHistogram(values) {
 function configuredOverrideCount(value) {
     return Array.isArray(value) ? value.filter((entry) => typeof entry === "string" && entry.length > 0).length : 0;
 }
-function scriptSpriteReferences(scene) {
-    const references = new Set();
-    const pending = [{ value: scene, depth: 0 }];
-    let visited = 0;
-    while (pending.length > 0 && visited < 20_000) {
-        const current = pending.pop();
-        visited += 1;
-        if (current.depth >= 32)
-            continue;
-        if (Array.isArray(current.value)) {
-            for (const value of current.value)
-                pending.push({ value, depth: current.depth + 1 });
-        }
-        else if (typeof current.value === "object" && current.value !== null) {
-            for (const [key, value] of Object.entries(current.value)) {
-                if ((key === "spriteSheetId" || key === "spriteId") && typeof value === "string" && value.length > 0) {
-                    references.add(value);
-                }
-                pending.push({ value, depth: current.depth + 1 });
+// GB Studio follows custom script calls this deep (MAX_NESTED_SCRIPT_DEPTH, then one more).
+const SPRITE_SCRIPT_CALL_DEPTH = 6;
+// The actors GB Studio builds a scene with (an actor made from a prefab takes the prefab's sprite and scripts, its
+// overrides applied: applyPrefabs.ts) and the sprites its events use (compileData.ts): the sprite fields of every event
+// its scripts and the custom scripts they call run, commented-out events skipped. `certain` is false when a sprite may
+// be missing: a prefab or custom script that is not in `shared`, a call deeper than GB Studio follows, or an event the
+// catalog does not describe (a plugin's).
+function sceneSpriteReferences(scene, shared) {
+    const { events: catalog } = eventCatalog();
+    const eventSprites = new Set();
+    let certain = true;
+    function walk(events, overrides, callStack) {
+        if (!Array.isArray(events))
+            return;
+        for (const event of events) {
+            if (!isObject(event) || typeof event.command !== "string")
+                continue;
+            const override = overrides?.[event.id];
+            const args = { ...(isObject(event.args) ? event.args : {}), ...(isObject(override?.args) ? override.args : {}) };
+            if (args.__comment)
+                continue;
+            const entry = catalog[event.command];
+            if (!entry && !COMPILER_EVENT_COMMANDS.has(event.command))
+                certain = false;
+            for (const field of entry?.fields ?? []) {
+                if (field.type === "sprite" && typeof args[field.key] === "string" && args[field.key].length > 0)
+                    eventSprites.add(args[field.key]);
             }
+            if (event.command === "EVENT_CALL_CUSTOM_EVENT") {
+                const scriptId = typeof args.customEventId === "string" ? args.customEventId : "";
+                const script = shared?.scripts.get(scriptId);
+                if (scriptId && (!script || callStack.length >= SPRITE_SCRIPT_CALL_DEPTH))
+                    certain = false;
+                else if (script && !callStack.includes(script.id))
+                    walk(script.resource.script, undefined, [...callStack, script.id]);
+                continue;
+            }
+            for (const branch of isObject(event.children) ? Object.values(event.children) : [])
+                walk(branch, overrides, callStack);
         }
     }
-    return references;
+    function owner(resource, prefabType) {
+        if (typeof resource.prefabId !== "string" || resource.prefabId === "")
+            return { resource };
+        const prefab = shared?.prefabs.get(resource.prefabId);
+        if (prefab?.type !== prefabType) {
+            certain = false;
+            return { resource };
+        }
+        return {
+            resource: { ...resource, ...prefab.resource, _resourceType: resource._resourceType, id: resource.id },
+            overrides: isObject(resource.prefabScriptOverrides) ? resource.prefabScriptOverrides : undefined,
+        };
+    }
+    const actors = [];
+    const owners = [{ resource: scene }];
+    for (const actor of scene.actors ?? []) {
+        const effective = owner(actor, "actorPrefab");
+        actors.push(effective.resource);
+        owners.push(effective);
+    }
+    for (const trigger of scene.triggers ?? [])
+        owners.push(owner(trigger, "triggerPrefab"));
+    for (const { resource, overrides } of owners) {
+        for (const [key, events] of Object.entries(resource)) {
+            if (SCRIPT_KEYS.test(key))
+                walk(events, overrides, []);
+        }
+    }
+    return { actors, eventSprites, certain };
 }
 async function analyzeSprites(context) {
     const defaults = context.inventory.settings.defaultPlayerSprites;
@@ -158,8 +208,9 @@ async function analyzeSprites(context) {
             ? defaultPlayerSpriteId : null;
     const playerGeometryStatus = playerSpriteId !== null ? "authored-frame-count"
         : firstPlayerCandidate === null && context.scene.type === "LOGO" ? "not-configured" : "unresolved";
-    const scriptReferences = scriptSpriteReferences(context.scene);
-    const actorSpriteIds = context.scene.actors
+    const references = sceneSpriteReferences(context.scene, context.shared);
+    const scriptReferences = references.eventSprites;
+    const actorSpriteIds = references.actors
         .map((actor) => typeof actor.spriteSheetId === "string" ? actor.spriteSheetId : "")
         .filter(Boolean);
     const uniqueSpriteIds = new Set([...actorSpriteIds, ...scriptReferences]);
@@ -275,7 +326,7 @@ async function analyzeSprites(context) {
     let pinnedActorInstances = 0;
     let actorInstancesWithIncompleteScanlineGeometry = 0;
     let actorInstancesWithMismatchedSpriteMode = 0;
-    for (const actor of context.scene.actors) {
+    for (const actor of references.actors) {
         const spriteId = typeof actor.spriteSheetId === "string" ? actor.spriteSheetId : "";
         const sprite = byId.get(spriteId);
         staticOamObjects += sprite?.summary.maximumFrameObjects ?? 0;
@@ -311,11 +362,6 @@ async function analyzeSprites(context) {
         }
         if (!geometryComplete)
             actorInstancesWithIncompleteScanlineGeometry += 1;
-        if (typeof actor.paletteId === "string" && actor.paletteId.length > 0) {
-            const slot = context.objectPalettes.findIndex((palette) => palette?.id === actor.paletteId);
-            if (slot >= 0)
-                referencedSlots.add(slot);
-        }
     }
     return {
         sprites,
@@ -334,7 +380,42 @@ async function analyzeSprites(context) {
         actorInstancesWithIncompleteScanlineGeometry,
         actorInstancesWithMismatchedSpriteMode,
         referencedSlots,
+        unreadableSpriteCount: summaries.length - spriteGeometries.length,
+        // GB Studio draws a scene's player with the first sprite it finds when none is set; which one is not known here.
+        spriteReferencesCertain: references.certain && (playerSpriteId !== null || context.scene.type === "LOGO"),
     };
+}
+// GB Studio colours a sprite tile from its own paletteIndex (actors have no palette of their own). Slot 7 also colours
+// emote bubbles, so only slots 0-6 can be shown to be unused, and only when every sprite the scene can draw is known.
+const EMOTE_SPRITE_PALETTE_SLOT = 7;
+function unusedSpritePaletteSlots(scene, colorMode, spriteAnalysis) {
+    if (colorMode === "mono" || spriteAnalysis.sprites.length === 0 || spriteAnalysis.unreadableSpriteCount > 0 || !spriteAnalysis.spriteReferencesCertain)
+        return [];
+    const assigned = Array.isArray(scene.spritePaletteIds) ? scene.spritePaletteIds.slice(0, EMOTE_SPRITE_PALETTE_SLOT) : [];
+    return assigned.flatMap((paletteId, slot) => typeof paletteId === "string" && paletteId.length > 0 && !spriteAnalysis.referencedSlots.has(slot) ? [slot] : []);
+}
+function unusedSpritePaletteDiagnostic(scene, unused, spriteAnalysis) {
+    const used = Array.from(spriteAnalysis.referencedSlots).sort((left, right) => left - right);
+    return {
+        severity: "warning",
+        code: "UNUSED_SPRITE_PALETTE_SLOTS",
+        message: `Scene ${scene.name || scene.id} assigns sprite palette slot${unused.length === 1 ? "" : "s"} ${unused.join(", ")}, but no sprite tile in it uses ${unused.length === 1 ? "that slot" : "them"}; its sprites use slot${used.length === 1 ? "" : "s"} ${used.join(", ")}.`,
+        suggestedAction: "Each sprite tile's paletteIndex picks its slot (an actor has no palette of its own). Import the sprite with asset_import sprite.paletteIndex set to the slot, or assign the palette to a slot the sprites use with palette_assign target sprite.",
+        ...(typeof scene.resourcePath === "string" ? { resourcePath: scene.resourcePath } : {}),
+    };
+}
+export async function spritePaletteWarnings(inventory, shared) {
+    const colorMode = projectColorMode(inventory.settings);
+    const warnings = [];
+    for (const scene of inventory.scenes) {
+        if (colorMode === "mono" || configuredOverrideCount(scene.spritePaletteIds) === 0)
+            continue;
+        const spriteAnalysis = await analyzeSprites({ inventory, scene, shared });
+        const unused = unusedSpritePaletteSlots(scene, colorMode, spriteAnalysis);
+        if (unused.length > 0)
+            warnings.push(unusedSpritePaletteDiagnostic(scene, unused, spriteAnalysis));
+    }
+    return warnings;
 }
 export async function analyzeSceneGraphics(projectPath, input, access) {
     if (input.detail !== undefined && input.detail !== "summary" && input.detail !== "tiles") {
@@ -361,13 +442,16 @@ export async function analyzeSceneGraphics(projectPath, input, access) {
     const effectiveUniqueTiles = metricsStatus === "unknown" ? null : (allowFlips ? uniqueTilesWithFlips : uniqueTiles);
     const backgroundLimit = context.colorMode === "color" ? 384 : 192;
     const spriteAvailability = context.colorMode === "color" ? { minimum: 128, maximum: 192 } : { minimum: 64, maximum: 96 };
-    const spriteAnalysis = await analyzeSprites(context);
+    const spriteAnalysis = await analyzeSprites({ ...context, shared: await authoringScripts(context.inventory) });
     const spriteTileUsageUnknown = spriteAnalysis.sprites.some((sprite) => sprite.tileCount === null);
     const spriteTileUsage = spriteTileUsageUnknown ? null : spriteAnalysis.sprites.reduce((total, sprite) => total + (sprite.tileCount ?? 0), 0);
     const histogram = paletteHistogram(context.tileColors);
     const usedTileSlots = Object.keys(histogram).map(Number).filter((slot) => slot < HARDWARE_PALETTE_SLOTS);
     const uiPalette = resolveUiPalette(context.inventory, access);
     const diagnostics = analysis.violations.map(({ severity, code, message }) => ({ severity, code, message }));
+    const unusedSpriteSlots = unusedSpritePaletteSlots(context.scene, context.colorMode, spriteAnalysis);
+    if (unusedSpriteSlots.length > 0)
+        diagnostics.push(unusedSpritePaletteDiagnostic(context.scene, unusedSpriteSlots, spriteAnalysis));
     if (context.metadata.autoColor === true) {
         diagnostics.push({
             severity: "warning",
@@ -570,7 +654,7 @@ export async function analyzeSceneGraphics(projectPath, input, access) {
         },
     };
 }
-function validColors(value) {
+export function validColors(value) {
     if (!Array.isArray(value) || value.length !== 4)
         return undefined;
     const colors = value.map((color) => typeof color === "string" ? color.replace(/^#/, "").toUpperCase() : "");
@@ -584,7 +668,7 @@ function monoColors(settings) {
         settings.customColorsBlack,
     ]) ?? [...FALLBACK_PALETTE_COLORS];
 }
-async function renderSceneGraphics(context, sourcePath, displayMode) {
+async function renderSceneGraphics(context, sourcePath, displayMode, colorCorrection = "none") {
     let source;
     try {
         source = PNG.sync.read(await readFile(sourcePath));
@@ -601,7 +685,9 @@ async function renderSceneGraphics(context, sourcePath, displayMode) {
     const output = new PNG({ width: source.width, height: source.height });
     const limitations = new Set([
         "Static authored-source projection; not an emulator frame or gameplay capture.",
-        "Does not reconstruct actors, overlays, UI, camera motion, runtime palette changes, or hardware color correction.",
+        colorCorrection === "chromatic"
+            ? "Does not reconstruct actors, overlays, UI, camera motion, or runtime palette changes; colors approximate the Chromatic's display with the hermretro player's color correction."
+            : "Does not reconstruct actors, overlays, UI, camera motion, runtime palette changes, or hardware color correction.",
     ]);
     if (context.metadata.autoColor === true) {
         limitations.add("Automatic background colorization is not reconstructed from authored source.");
@@ -626,9 +712,11 @@ async function renderSceneGraphics(context, sourcePath, displayMode) {
                 unresolvedPalettePixels += 1;
             if (slot >= HARDWARE_PALETTE_SLOTS)
                 opaqueAttributePixels += 1;
-            output.data[pixelIndex] = Number.parseInt(displayColor.slice(0, 2), 16);
-            output.data[pixelIndex + 1] = Number.parseInt(displayColor.slice(2, 4), 16);
-            output.data[pixelIndex + 2] = Number.parseInt(displayColor.slice(4, 6), 16);
+            const rgb = [0, 2, 4].map((offset) => Number.parseInt(displayColor.slice(offset, offset + 2), 16));
+            const [red, green, blue] = colorCorrection === "chromatic" ? chromaticDisplayColor(...rgb) : rgb;
+            output.data[pixelIndex] = red;
+            output.data[pixelIndex + 1] = green;
+            output.data[pixelIndex + 2] = blue;
             output.data[pixelIndex + 3] = source.data[pixelIndex + 3];
         }
     }
@@ -645,6 +733,7 @@ async function renderSceneGraphics(context, sourcePath, displayMode) {
             width: source.width,
             height: source.height,
             displayMode,
+            colorCorrection,
             provenance: "authored-source-projection",
             emulatorFrame: false,
             confidence: unsupportedSourcePixels === 0 && unresolvedPalettePixels === 0 && opaqueAttributePixels === 0 &&
@@ -663,15 +752,20 @@ export async function previewSceneGraphics(projectPath, input, access) {
         throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene graphics previews must use the .png extension.");
     }
     const context = await loadSceneGraphicsContext(projectPath, input.sceneId, access);
+    const pixels = context.width * context.height * 64;
+    const magnification = input.magnification ?? (pixels * 4 <= MAX_PREVIEW_PIXELS ? 2 : 1);
+    if (!Number.isSafeInteger(magnification) || magnification < 1 || magnification > 4 || pixels * magnification * magnification > MAX_PREVIEW_PIXELS * 4) {
+        throw new GameStudioProjectError("INVALID_PREVIEW_OPTIONS", "Scene previews take integer magnification 1–4 within the preview pixel budget.");
+    }
     const outputPath = await resolveProjectPath(context.inventory.projectRoot, input.outputPath, { allowRoot: false });
     const sourcePath = await resolveProjectPath(context.inventory.projectRoot, context.background.resourcePath, { mustExist: true });
     if (outputPath === sourcePath) {
         throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene previews must not overwrite authored background source artwork.");
     }
-    const rendered = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color");
+    const rendered = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color", input.colorCorrection);
     await mkdir(path.dirname(outputPath), { recursive: true });
     const confirmedOutput = await resolveProjectPath(context.inventory.projectRoot, outputPath, { allowRoot: false });
-    const png = PNG.sync.write(rendered.image);
+    const png = PNG.sync.write(scaledImage(rendered.image, magnification));
     const file = await open(confirmedOutput, "wx", 0o600).catch((error) => {
         if (error instanceof Error && "code" in error && error.code === "EEXIST") {
             throw new GameStudioProjectError("PREVIEW_OUTPUT_EXISTS", "The scene preview output already exists and was preserved. Choose a new project-local .png outputPath.");
@@ -685,7 +779,7 @@ export async function previewSceneGraphics(projectPath, input, access) {
     finally {
         await file.close();
     }
-    return { ...rendered.metadata, outputPath: confirmedOutput };
+    return { ...rendered.metadata, magnification, outputPath: confirmedOutput };
 }
 /** The existing authored projection, composed without intermediate preview files or emulator work. */
 export async function previewSceneContactSheet(projectPath, input, access) {
@@ -701,7 +795,7 @@ export async function previewSceneContactSheet(projectPath, input, access) {
         throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene contact sheets require a new project-local .png output.");
     }
     const columns = input.columns ?? Math.min(3, input.sceneIds.length);
-    const magnification = input.magnification ?? 1;
+    let magnification = input.magnification ?? 1;
     if (!Number.isSafeInteger(columns) || columns < 1 || columns > 8 ||
         !Number.isSafeInteger(magnification) || magnification < 1 || magnification > 4) {
         throw new GameStudioProjectError("INVALID_PREVIEW_OPTIONS", "Scene sheets require 1–8 columns and integer magnification 1–4.");
@@ -717,6 +811,10 @@ export async function previewSceneContactSheet(projectPath, input, access) {
         const sourcePath = await resolveProjectPath(context.inventory.projectRoot, context.background.resourcePath, { mustExist: true });
         selected.push({ context, sourcePath });
     }
+    if (input.magnification === undefined) {
+        const dimensions = selected.map(({ context }) => ({ width: context.width * 8, height: context.height * 8 }));
+        magnification = contactSheetLayout(dimensions, columns, 2).fits ? 2 : 1;
+    }
     const root = selected[0].context.inventory.projectRoot;
     const outputPath = await resolveProjectPath(root, input.outputPath, { allowRoot: false });
     if (selected.some(({ context, sourcePath }) => context.inventory.projectRoot !== root || sourcePath === outputPath)) {
@@ -725,7 +823,7 @@ export async function previewSceneContactSheet(projectPath, input, access) {
     const images = [];
     const scenes = [];
     for (const [index, { context, sourcePath }] of selected.entries()) {
-        const { image, metadata } = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color");
+        const { image, metadata } = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color", input.colorCorrection);
         const png = PNG.sync.write(image);
         const sha256 = createHash("sha256").update(png).digest("hex");
         images.push({ png, sha256, label: `SCENE ${index + 1} / ${metadata.displayMode.toUpperCase()}`, caption: "STATIC / NOT GAMEPLAY" });

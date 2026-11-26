@@ -137,6 +137,20 @@ function familyShadeIndices(family, sprite) {
     }
     return indices;
 }
+function spriteTileUse(orientedTiles, tileWidth, tileHeight, spriteMode = "8x16") {
+    const rows = spriteMode === "8x8" ? 1 : 2;
+    const objects = new Set();
+    for (let tileX = 0; tileX < tileWidth; tileX += 1) {
+        for (let tileY = 0; tileY + rows <= tileHeight; tileY += rows) {
+            const parts = Array.from({ length: rows }, (_, row) => orientedTiles.get((tileY + row) * tileWidth + tileX));
+            if (parts.some((part) => part === undefined) || parts.every((part) => !/[^0]/.test(part[0])))
+                continue;
+            const joined = (orientation, upsideDown) => (upsideDown ? [...parts].reverse() : parts).map((part) => part[orientation]).join("|");
+            objects.add([joined(0, false), joined(1, false), joined(2, true), joined(3, true)].sort()[0]);
+        }
+    }
+    return objects.size * rows;
+}
 function encodedPattern(pixels, indices) {
     return pixels.map((pixel) => (pixel === null ? 0 : indices.get(pixel) ?? 0).toString()).join("");
 }
@@ -227,6 +241,7 @@ export function analyzeGraphicsImage(image, assetPath, options = {}) {
     const tilePatterns = new Set();
     const flippedTilePatterns = new Set();
     const invariantTilePatterns = new Set();
+    const orientedTiles = new Map();
     const tilePalettes = [];
     const encodableTiles = [];
     const sourceColors = new Set();
@@ -322,7 +337,7 @@ export function analyzeGraphicsImage(image, assetPath, options = {}) {
                 });
             }
             if (encodable) {
-                encodableTiles.push(tile);
+                encodableTiles.push({ ...tile, tileX, tileY });
                 tilePalettes.push(tile.colors);
             }
         }
@@ -339,9 +354,10 @@ export function analyzeGraphicsImage(image, assetPath, options = {}) {
             encodedPattern(orientPixels(tile.pixels, true, false), indices),
             encodedPattern(orientPixels(tile.pixels, false, true), indices),
             encodedPattern(orientPixels(tile.pixels, true, true), indices),
-        ].sort();
+        ];
+        orientedTiles.set(tile.tileY * tileWidth + tile.tileX, orientations);
         tilePatterns.add(pattern);
-        flippedTilePatterns.add(orientations[0] ?? "");
+        flippedTilePatterns.add([...orientations].sort()[0] ?? "");
     }
     if (packing.exceedsHardwareLimit) {
         addViolation({
@@ -351,7 +367,9 @@ export function analyzeGraphicsImage(image, assetPath, options = {}) {
         });
     }
     const allowFlipDeduplication = options.allowFlipDeduplication ?? colorMode === "color";
-    const usedTiles = allowFlipDeduplication ? flippedTilePatterns.size : tilePatterns.size;
+    const usedTiles = kind === "sprite"
+        ? spriteTileUse(orientedTiles, tileWidth, tileHeight, options.spriteMode)
+        : allowFlipDeduplication ? flippedTilePatterns.size : tilePatterns.size;
     const tileLimit = colorMode === "color" ? 384 : 192;
     const totalTiles = tileWidth * tileHeight;
     const invalidTiles = totalTiles - encodableTiles.length;
@@ -359,7 +377,9 @@ export function analyzeGraphicsImage(image, assetPath, options = {}) {
     if (usedTiles > tileLimit) {
         addViolation({
             code: "TILE_BUDGET_EXCEEDED",
-            message: `Image uses ${usedTiles} unique tiles, exceeding the ${tileLimit}-tile native ${colorMode} mode budget.`,
+            message: kind === "sprite"
+                ? `Sprite uses ${usedTiles} tiles as GB Studio compiles it (distinct ${options.spriteMode === "8x8" ? "8 × 8 tiles" : "8 × 16 pairs"} after flip deduplication), exceeding the ${tileLimit}-tile native ${colorMode} mode sprite budget.`
+                : `Image uses ${usedTiles} unique tiles, exceeding the ${tileLimit}-tile native ${colorMode} mode budget.`,
             severity: "error",
         });
     }

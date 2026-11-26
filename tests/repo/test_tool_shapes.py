@@ -266,7 +266,7 @@ class ToolShapeTests(unittest.TestCase):
         self.assertEqual(
             mismatches(self.tools, LISTED),
             {},
-            "FIX: give these fields one shape in the engine (dist/server.js), or list the differing path in "
+            "FIX: give these fields one shape in the engine (its dist/ modules), or list the differing path in "
             "tests/repo/test_tool_shapes.py (OWN, GROUPS, NARROWER or WIDER) with why it really differs",
         )
 

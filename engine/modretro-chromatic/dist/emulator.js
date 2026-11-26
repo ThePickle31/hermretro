@@ -10,7 +10,7 @@ import { assertSafePlatformPath, isPathWithinRoot, runtimeExecutablePaths, sanit
 export const MAX_EMULATOR_FRAMES = 3_600;
 export const MAX_EMULATOR_TIMELINE_ACTIONS = 128;
 export const MAX_EMULATOR_TIMELINE_CHECKPOINTS = 64;
-export const MAX_EMULATOR_INSPECTION_BYTES = 256;
+export const MAX_EMULATOR_INSPECTION_BYTES = 2_048;
 export const MAX_EMULATOR_OAM_OBJECTS = 40;
 export const EMULATOR_CLOCK_HZ = 4_194_304;
 export const EMULATOR_DOTS_PER_FRAME = 70_224;
@@ -25,7 +25,9 @@ export const MAX_EMULATOR_REVIEW_ACTIONS = 4_096;
 export const MAX_EMULATOR_REVIEW_IMAGES = 8;
 export const MAX_EMULATOR_REVIEW_METADATA_BYTES = 2 * 1024 * 1024;
 export const MAX_EMULATOR_STEP_SAMPLES = 8;
+export const MAX_EMULATOR_STEP_INPUTS = 64;
 export const MAX_EMULATOR_SAMPLE_BYTES = 128 * 1024;
+const MAX_EMULATOR_REPLAY_MS = 600_000;
 export const EMULATOR_BUTTONS = [
     "a",
     "b",
@@ -67,6 +69,10 @@ export class EmulatorTimelineError extends EmulatorError {
         this.appliedButtons = details.appliedButtons;
     }
 }
+const LOOK_ONLY_STEP = "A step advances at least one frame and samples its last; to look at the current frame without advancing, use emulator_observe, and to advance without images, set includeImages:false";
+/** The worker's refusal once its recording is finalized (stopped, or failed at a limit), and how to go on. */
+const FINALIZED_RECORDING = "This recording is finalized; restart the ROM before advancing or changing inputs";
+const FINALIZED_RECORDING_RECOVERY = "A finalized recording (stopped, or failed at a recording limit) ends its session's play: boot again with emulator_run (restart:true, or recording:{} to record a new attempt), or continue from where it ended with emulator_replay, passing the recordingPath and branchId that emulator_recording returned for it";
 /** A persistent, root-bounded session around an optional PyBoy installation. */
 export class EmulatorService {
     projectRoot;
@@ -94,6 +100,7 @@ export class EmulatorService {
     #releaseRecordingAccess;
     #recordingWorkerClosed = Promise.resolve();
     #recordingWorkers = new Set();
+    #replaySource;
     constructor(options = {}) {
         this.#platform = options.platform ?? process.platform;
         const configuredRoot = options.projectRoot ?? process.env.GB_STUDIO_PROJECT_ROOT ?? process.cwd();
@@ -167,10 +174,7 @@ export class EmulatorService {
     async run(romPath, options = {}, signal) {
         if (signal?.aborted)
             throw new EmulatorError("The emulator open request was cancelled before execution");
-        const validatedRom = this.#resolvePath(romPath, { existing: true });
-        if (![".gb", ".gbc"].includes(extname(validatedRom).toLowerCase())) {
-            throw new EmulatorError("The emulator requires an existing .gb or .gbc ROM");
-        }
+        const validatedRom = this.#resolveRom(romPath);
         const initialFrames = options.initialFrames ?? 120;
         this.#validateFrames(initialFrames, 0);
         if (options.cgb !== undefined && typeof options.cgb !== "boolean") {
@@ -180,18 +184,8 @@ export class EmulatorService {
             throw new EmulatorError("The restart option must be a boolean");
         }
         const recording = this.#validateRecordingOptions(options.recording);
-        let romDigest;
-        try {
-            romDigest = createHash("sha256").update(readFileSync(validatedRom)).digest("hex");
-        }
-        catch (error) {
-            throw new EmulatorError(`The emulator ROM could not be read: ${validatedRom}`, {
-                cause: error,
-            });
-        }
-        if (this.#worker !== undefined && this.#workerClosures.has(this.#worker)) {
-            throw new EmulatorError("The emulator worker is closing; wait for cleanup before opening a ROM");
-        }
+        const romDigest = this.#romDigest(validatedRom);
+        this.#assertWorkerOpen();
         if (options.restart !== true &&
             recording === undefined &&
             this.active &&
@@ -200,7 +194,112 @@ export class EmulatorService {
             (options.cgb === undefined || options.cgb === this.#activeColorMode)) {
             return this.status();
         }
+        const opened = await this.#openSession("open", {
+            romPath: validatedRom,
+            initialFrames,
+            ...(options.cgb === undefined ? {} : { cgb: options.cgb }),
+            ...(recording === undefined ? {} : { recording }),
+            ...(options.symbols === undefined ? {} : { symbols: options.symbols }),
+        }, { validatedRom, romDigest, recording, signal });
+        if (recording !== undefined)
+            this.#replaySource = undefined;
+        return opened;
+    }
+    /** Boot a ROM as a recorded attempt booted and play its inputs again; the session stays open where it ends. */
+    async replay(romPath, options = {}, signal) {
+        if (signal?.aborted)
+            throw new EmulatorError("The emulator replay request was cancelled before execution");
+        if (options === null || typeof options !== "object" || Array.isArray(options) ||
+            Object.keys(options).some((key) => !["recordingPath", "sessionId", "branchId", "toActionIndex", "onDivergence", "recording", "symbols"].includes(key))) {
+            throw new EmulatorError("Replay accepts recordingPath, sessionId, branchId, toActionIndex, onDivergence, recording and symbols");
+        }
+        if (options.sessionId !== undefined && (typeof options.sessionId !== "string" || !/^[0-9a-f]{32}$/u.test(options.sessionId))) {
+            throw new EmulatorError("Replay sessionId must be a recording's 32-character session id");
+        }
+        const validatedRom = this.#resolveRom(romPath);
+        if (options.toActionIndex !== undefined)
+            this.#validateInteger(options.toActionIndex, "toActionIndex", 0, Number.MAX_SAFE_INTEGER);
+        if (options.onDivergence !== undefined && !["stop", "continue"].includes(options.onDivergence)) {
+            throw new EmulatorError("onDivergence must be stop or continue");
+        }
+        // Until a replay has played its source's whole route, that source stays the default, not the shorter attempt
+        // the replay recorded.
+        const source = this.#recordingSelection(options.recordingPath === undefined && this.#replaySource !== undefined
+            ? { ...this.#replaySource, ...(options.branchId === undefined ? {} : { branchId: options.branchId }) }
+            : options);
+        const recording = this.#validateRecordingOptions(options.recording ?? {});
+        const romDigest = this.#romDigest(validatedRom);
+        this.#assertWorkerOpen();
+        const replayed = await this.#openSession("replay", {
+            romPath: validatedRom,
+            ...source,
+            ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+            ...(options.toActionIndex === undefined ? {} : { toActionIndex: options.toActionIndex }),
+            ...(options.onDivergence === undefined ? {} : { onDivergence: options.onDivergence }),
+            ...(recording === undefined ? {} : { recording }),
+            ...(options.symbols === undefined ? {} : { symbols: options.symbols }),
+        }, { validatedRom, romDigest, recording, signal, timeoutMs: Math.max(this.#requestTimeoutMs, MAX_EMULATOR_REPLAY_MS) });
+        this.#validateReplay(replayed);
+        const { source: played, replayedActions } = replayed.replay;
+        this.#replaySource = replayedActions < played.actionCount ? { recordingPath: played.recordingPath, branchId: played.branchId } : undefined;
+        return replayed;
+    }
+    #assertWorkerOpen() {
+        if (this.#worker !== undefined && this.#workerClosures.has(this.#worker)) {
+            throw new EmulatorError("The emulator worker is closing; wait for cleanup before opening a ROM");
+        }
+    }
+    /** The SHA-256 of the ROM run and replay would open for romPath, validated as they validate it. */
+    romSha256(romPath) {
+        return this.#romDigest(this.#resolveRom(romPath));
+    }
+    #resolveRom(romPath) {
+        const validatedRom = this.#resolvePath(romPath, { existing: true });
+        if (![".gb", ".gbc"].includes(extname(validatedRom).toLowerCase())) {
+            throw new EmulatorError("The emulator requires an existing .gb or .gbc ROM");
+        }
+        return validatedRom;
+    }
+    #romDigest(validatedRom) {
+        try {
+            return createHash("sha256").update(readFileSync(validatedRom)).digest("hex");
+        }
+        catch (error) {
+            throw new EmulatorError(`The emulator ROM could not be read: ${validatedRom}`, {
+                cause: error,
+            });
+        }
+    }
+    #validateReplay(result) {
+        const replay = result?.replay;
+        if (replay === null || typeof replay !== "object" || !["matched", "diverged"].includes(replay.status) ||
+            (replay.status === "diverged") !== (replay.divergence !== undefined) ||
+            !Number.isSafeInteger(replay.comparedFrames) || !Number.isSafeInteger(replay.replayedActions) ||
+            replay.replayedActions > replay.toActionIndex ||
+            !["every-frame", "partial", "retained-frames"].includes(replay.coverage) || typeof replay.deterministic !== "boolean" ||
+            typeof replay.source?.recordingPath !== "string" || !Number.isSafeInteger(replay.source.actionCount) ||
+            replay.toActionIndex > replay.source.actionCount) {
+            throw new EmulatorError("The replay returned an inconsistent report");
+        }
+        if (!Array.isArray(result.samples) || result.samples.length < 1 || result.samples.length > 3) {
+            throw new EmulatorError("The replay did not return its bounded images");
+        }
+        for (const sample of result.samples) {
+            const bytes = typeof sample?.pngBase64 === "string" ? Buffer.from(sample.pngBase64, "base64") : Buffer.alloc(0);
+            if (!["expected", "actual", "end"].includes(sample.role) || !Number.isSafeInteger(sample.frame) ||
+                bytes.length < 24 || bytes.length > MAX_EMULATOR_SAMPLE_BYTES ||
+                !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+                bytes.readUInt32BE(16) !== 160 || bytes.readUInt32BE(20) !== 144 ||
+                createHash("sha256").update(bytes).digest("hex") !== sample.sha256) {
+                throw new EmulatorError("The replay returned an image that failed PNG dimension or SHA-256 verification");
+            }
+        }
+    }
+    /** End the current session and start the worker's next one: a ROM opened or a recording replayed. */
+    async #openSession(method, params, { validatedRom, romDigest, recording, signal, timeoutMs }) {
         const generation = ++this.#sessionGeneration;
+        const previous = this.#sessionBinding();
+        const previousWorker = this.#worker;
         this.#clearActiveSession();
         this.#recordingRequested = recording !== undefined;
         if (recording !== undefined) {
@@ -217,12 +316,7 @@ export class EmulatorService {
         };
         signal?.addEventListener("abort", cancel, { once: true });
         try {
-            const opening = this.#request("open", {
-                romPath: validatedRom,
-                initialFrames,
-                ...(options.cgb === undefined ? {} : { cgb: options.cgb }),
-                ...(recording === undefined ? {} : { recording }),
-            });
+            const opening = this.#request(method, params, timeoutMs);
             openingWorker = this.#worker;
             const state = await opening;
             if (signal?.aborted || generation !== this.#sessionGeneration) {
@@ -239,6 +333,21 @@ export class EmulatorService {
         }
         catch (error) {
             operationFailure = error instanceof EmulatorError ? error : new EmulatorError(error instanceof Error ? error.message : String(error), { cause: error });
+            if (method === "replay" && operationFailure.execution?.status === "pre-execution-rejected" &&
+                generation === this.#sessionGeneration && this.#worker === openingWorker) {
+                // The worker refuses a replay before ending its session: that session goes on. A worker started for the
+                // replay alone has nothing to go on with, so it closes and gives the recording lease back.
+                this.#restoreSessionBinding(previous);
+                if (previousWorker === undefined) {
+                    try {
+                        await this.close();
+                    }
+                    catch (cleanup) {
+                        operationFailure.cleanup = { status: "failed", error: cleanup instanceof Error ? cleanup.message : String(cleanup) };
+                    }
+                }
+                throw operationFailure;
+            }
             // A rejected open can leave its worker and recording-access lease alive
             // even though no active ROM was established. Use the ordinary owned
             // transport closure, without closing a session that superseded this run.
@@ -490,6 +599,7 @@ export class EmulatorService {
     /** The sole interactive play primitive: exact inputs, exact frames, genuine samples. */
     async playStep(options, signal) {
         let execution = { status: "pre-execution-rejected" };
+        let step;
         let cancellation;
         let operationFailure;
         const cancel = () => {
@@ -497,28 +607,19 @@ export class EmulatorService {
             void cancellation.catch(() => undefined);
         };
         try {
-            if (options === null || typeof options !== "object" || Array.isArray(options) ||
-                Object.keys(options).some((key) => !["buttons", "frames", "sampleCount"].includes(key))) {
-                throw new EmulatorError("A stepped action requires only buttons, frames, and optional sampleCount");
-            }
-            this.#validateButtonSet(options.buttons);
-            this.#validateFrames(options.frames);
-            execution.requestedFrames = options.frames;
-            const sampleCount = options.sampleCount ?? 4;
-            this.#validateInteger(sampleCount, "Step sample count", 1, MAX_EMULATOR_STEP_SAMPLES);
+            step = this.#stepInputs(options);
+            execution.requestedFrames = step.frames;
             if (signal?.aborted)
                 throw new EmulatorError("The stepped action was cancelled before execution");
             if (!this.active)
                 throw new EmulatorError("No emulator session is running; run a ROM first");
             signal?.addEventListener("abort", cancel, { once: true });
             // No authoritative response means unknown execution, never measured zero.
-            execution = { status: "unknown", requestedFrames: options.frames };
-            const result = await this.#request("play_step", {
-                buttons: [...options.buttons], frames: options.frames, sampleCount,
-            });
-            this.#validateObservationExecution(result, options);
+            execution = { status: "unknown", requestedFrames: step.frames };
+            const result = await this.#request("play_step", { inputs: step.inputs });
+            this.#validateObservationExecution(result, step);
             execution = {
-                status: "completed", requestedFrames: options.frames,
+                status: "completed", requestedFrames: step.frames,
                 startFrame: result.startFrame, frame: result.frame, advancedFrames: result.advancedFrames,
                 appliedButtons: result.appliedButtons,
                 ...(result.recordingSpan === undefined ? {} : { recordingSpan: result.recordingSpan }),
@@ -526,23 +627,25 @@ export class EmulatorService {
             if (signal?.aborted)
                 throw new EmulatorError("The stepped action completed before cancellation cleanup");
             // Preserve execution above even if subsequent image validation/read fails.
-            this.#validateObservation(result, { ...options, sampleCount });
+            this.#validateObservation(result, step);
             execution.sampledButtons = result.sampledButtons;
             return { ...result, execution };
         }
         catch (error) {
             const failure = error instanceof EmulatorError ? error : new EmulatorError(error instanceof Error ? error.message : String(error), { cause: error });
             if (failure.execution?.status === "unknown") {
-                execution = { ...failure.execution, requestedFrames: options.frames };
+                execution = { ...failure.execution, requestedFrames: step?.frames };
             }
             else if (error instanceof EmulatorTimelineError &&
                 Number.isSafeInteger(error.startFrame) && error.startFrame >= 0 &&
                 Number.isSafeInteger(error.frame) && error.frame >= error.startFrame &&
                 error.advancedFrames === error.frame - error.startFrame &&
-                Number.isSafeInteger(options?.frames) && error.advancedFrames <= options.frames) {
+                Number.isSafeInteger(step?.frames) && error.advancedFrames <= step.frames) {
                 execution = {
-                    status: error.advancedFrames === options.frames ? "completed" : "known-partial",
-                    requestedFrames: options.frames, startFrame: error.startFrame,
+                    status: error.advancedFrames === step.frames ? "completed" : "known-partial",
+                    requestedFrames: step.frames,
+                    ...(step.inputs.length > 1 && Number.isSafeInteger(error.failedActionIndex) ? { failedInputIndex: error.failedActionIndex } : {}),
+                    startFrame: error.startFrame,
                     frame: error.frame, advancedFrames: error.advancedFrames,
                     ...(error.appliedButtons === undefined ? {} : { appliedButtons: error.appliedButtons }),
                     ...(error.sampledButtons === undefined ? {} : { sampledButtons: error.sampledButtons }),
@@ -550,7 +653,7 @@ export class EmulatorService {
                 };
             }
             else if (failure.execution?.status === "pre-execution-rejected") {
-                execution = { status: "pre-execution-rejected", requestedFrames: options.frames };
+                execution = { status: "pre-execution-rejected", requestedFrames: step?.frames };
             }
             failure.execution = execution;
             failure.imageDelivery = {
@@ -581,6 +684,69 @@ export class EmulatorService {
         this.#validateObservation(result);
         return result;
     }
+    /** A step's ordered inputs as the worker runs them; the single buttons/frames form is one input. */
+    #stepInputs(options) {
+        if (options === null || typeof options !== "object" || Array.isArray(options)) {
+            throw new EmulatorError("A stepped action requires an options object");
+        }
+        let inputs;
+        if (options.inputs !== undefined) {
+            if (Object.keys(options).length !== 1) {
+                throw new EmulatorError("A stepped action takes an inputs list alone, without buttons, frames or sampleCount");
+            }
+            if (!Array.isArray(options.inputs) || options.inputs.length > MAX_EMULATOR_STEP_INPUTS) {
+                throw new EmulatorError(`A stepped action requires 1–${MAX_EMULATOR_STEP_INPUTS} inputs`);
+            }
+            if (options.inputs.every((input) => input?.frames === 0)) {
+                throw new EmulatorError(LOOK_ONLY_STEP);
+            }
+            inputs = options.inputs.map((input, index) => {
+                if (input === null || typeof input !== "object" || Array.isArray(input) ||
+                    Object.keys(input).some((key) => !["buttons", "frames", "sample"].includes(key))) {
+                    throw new EmulatorError(`Step input ${index} requires only buttons, frames, and optional sample`);
+                }
+                if (input.sample !== undefined && typeof input.sample !== "boolean") {
+                    throw new EmulatorError(`Step input ${index} sample must be a boolean`);
+                }
+                this.#validateButtonSet(input.buttons);
+                this.#validateFrames(input.frames);
+                return { buttons: [...input.buttons], frames: input.frames, samples: input.sample === true || index === options.inputs.length - 1 ? 1 : 0 };
+            });
+        }
+        else {
+            if (Object.keys(options).some((key) => !["buttons", "frames", "sampleCount"].includes(key))) {
+                throw new EmulatorError("A stepped action requires buttons, frames, and optional sampleCount, or an inputs list");
+            }
+            if ((options.frames === undefined && options.buttons === undefined) || options.frames === 0 || options.sampleCount === 0) {
+                throw new EmulatorError(LOOK_ONLY_STEP);
+            }
+            this.#validateButtonSet(options.buttons);
+            this.#validateFrames(options.frames);
+            const sampleCount = options.sampleCount ?? 1;
+            this.#validateInteger(sampleCount, "Step sample count", 1, MAX_EMULATOR_STEP_SAMPLES);
+            inputs = [{ buttons: [...options.buttons], frames: options.frames, samples: Math.min(sampleCount, options.frames) }];
+        }
+        const frames = inputs.reduce((total, input) => total + input.frames, 0);
+        if (frames > MAX_EMULATOR_FRAMES) {
+            throw new EmulatorError(`One stepped action advances at most ${MAX_EMULATOR_FRAMES} frames in all; continue in another call`);
+        }
+        if (inputs.reduce((total, input) => total + input.samples, 0) > MAX_EMULATOR_STEP_SAMPLES) {
+            throw new EmulatorError(`One stepped action returns at most ${MAX_EMULATOR_STEP_SAMPLES} samples, the last frame included; mark fewer inputs with sample:true`);
+        }
+        return { inputs, frames };
+    }
+    /** Where each requested sample lands: evenly spaced within its input, ending on the input's last frame. */
+    #sampleFrames(startFrame, inputs) {
+        const frames = [];
+        let inputStart = startFrame;
+        for (const [inputIndex, input] of inputs.entries()) {
+            for (let index = 1; index <= input.samples; index += 1) {
+                frames.push({ frame: inputStart + Math.floor(index * input.frames / input.samples), inputIndex });
+            }
+            inputStart += input.frames;
+        }
+        return frames;
+    }
     #validateButtonSet(buttons) {
         if (!Array.isArray(buttons) || buttons.length > EMULATOR_BUTTONS.length ||
             buttons.some((button) => !EMULATOR_BUTTONS.includes(button)) || new Set(buttons).size !== buttons.length) {
@@ -599,7 +765,7 @@ export class EmulatorService {
         this.#validateButtonSet(result.activeButtons);
         this.#validateButtonSet(result.appliedButtons);
         if (!sameButtons(result.appliedButtons, result.activeButtons) ||
-            (step !== undefined && !sameButtons(result.appliedButtons, step.buttons))) {
+            (step !== undefined && !sameButtons(result.appliedButtons, step.inputs.at(-1).buttons))) {
             throw new EmulatorError("The stepped observation returned inconsistent applied controller input");
         }
     }
@@ -610,13 +776,14 @@ export class EmulatorService {
             throw new EmulatorError("The stepped observation must contain native 160×144 framebuffers");
         }
         const sameButtons = (left, right) => [...left].sort().join(",") === [...right].sort().join(",");
-        const count = step === undefined ? 1 : Math.min(step.sampleCount ?? 4, step.frames);
+        const expected = step === undefined ? [{ frame: result.startFrame }] : this.#sampleFrames(result.startFrame, step.inputs);
+        const count = expected.length;
         if (!Array.isArray(result.samples) || result.samples.length !== count) {
             throw new EmulatorError("The stepped observation did not return the requested bounded samples");
         }
         for (const [index, sample] of result.samples.entries()) {
-            const frame = result.startFrame + (step === undefined ? 0 : Math.floor((index + 1) * step.frames / count));
-            if (sample === null || typeof sample !== "object" || sample.frame !== frame ||
+            if (sample === null || typeof sample !== "object" || sample.frame !== expected[index].frame ||
+                sample.inputIndex !== expected[index].inputIndex ||
                 sample.width !== 160 || sample.height !== 144 || typeof sample.pngBase64 !== "string" ||
                 sample.pngBase64.length > Math.ceil(MAX_EMULATOR_SAMPLE_BYTES / 3) * 4 ||
                 !/^[A-Za-z0-9+/]*={0,2}$/u.test(sample.pngBase64) ||
@@ -628,7 +795,7 @@ export class EmulatorService {
             if (index === count - 1 && !sameButtons(result.sampledButtons, sample.sampledButtons)) {
                 throw new EmulatorError("The observation's sampled buttons disagree with its final framebuffer sample");
             }
-            if (step !== undefined && !sameButtons(sample.sampledButtons, step.buttons)) {
+            if (step !== undefined && !sameButtons(sample.sampledButtons, step.inputs[sample.inputIndex].buttons)) {
                 throw new EmulatorError("The sampled framebuffer does not describe the requested controller input");
             }
             const bytes = Buffer.from(sample.pngBase64, "base64");
@@ -727,7 +894,8 @@ export class EmulatorService {
             checkpoints: validatedCheckpoints,
         });
     }
-    async inspect(options) {
+    /** keepSession: a timeout fails this read only, leaving the session running (a diagnostic read after a step). */
+    async inspect(options, { keepSession = false } = {}) {
         if (options === null || typeof options !== "object") {
             throw new EmulatorError("Emulator inspection requires a bounded inspection view");
         }
@@ -786,10 +954,14 @@ export class EmulatorService {
             default:
                 throw new EmulatorError("Unsupported emulator inspection view");
         }
-        return this.#request("inspect", { ...options });
+        return this.#request("inspect", { ...options }, this.#requestTimeoutMs, { keepSession });
     }
-    async status() {
-        return this.#request("state", {});
+    /** The APU's registers on the current frame, without ticking. */
+    async audio() {
+        return this.#request("audio", {});
+    }
+    async status({ keepSession = false } = {}) {
+        return this.#request("state", {}, this.#requestTimeoutMs, { keepSession });
     }
     async close() {
         const worker = this.#worker;
@@ -846,6 +1018,17 @@ export class EmulatorService {
                 clearTimeout(timer);
         }
     }
+    #sessionBinding() {
+        return { romPath: this.#activeRomPath, romDigest: this.#activeRomDigest, colorMode: this.#activeColorMode, recordingPath: this.#activeRecordingPath, lastRecordingPath: this.#lastRecordingPath, recordingRequested: this.#recordingRequested };
+    }
+    #restoreSessionBinding(binding) {
+        this.#activeRomPath = binding.romPath;
+        this.#activeRomDigest = binding.romDigest;
+        this.#activeColorMode = binding.colorMode;
+        this.#activeRecordingPath = binding.recordingPath;
+        this.#lastRecordingPath = binding.lastRecordingPath;
+        this.#recordingRequested = binding.recordingRequested;
+    }
     #clearActiveSession() {
         this.#activeRomPath = undefined;
         this.#activeRomDigest = undefined;
@@ -882,7 +1065,21 @@ export class EmulatorService {
         const outputPath = this.#resolvePath(value.outputPath ?? `artifacts/playtests/session-${randomUUID()}`, { existing: false });
         if (existsSync(outputPath))
             throw new EmulatorError("A recording output directory must be new; existing attempts are never overwritten");
+        this.#assertRecordingDestination(outputPath);
         return { ...value, outputPath };
+    }
+    /** Recordings, archives and archive references are inventoried byte for byte: a new recording goes outside them. */
+    #assertRecordingDestination(outputPath) {
+        const refused = new EmulatorError("A recording output directory must not be inside another recording, the recording archives or an archived recording's reference");
+        if (this.#recordingMaintenance.isArchived(outputPath) ||
+            isPathWithinRoot(resolve(this.projectRoot, "artifacts", ".recording-access"), outputPath, this.#platform))
+            throw refused;
+        for (let folder = dirname(outputPath); isPathWithinRoot(this.projectRoot, folder, this.#platform); folder = dirname(folder)) {
+            if (existsSync(resolve(folder, "recording.json")) || existsSync(resolve(folder, ".recording-archive.json")))
+                throw refused;
+            if (folder === this.projectRoot)
+                break;
+        }
     }
     #resolveDirectory(path) {
         const resolved = this.#resolvePath(path, { existing: false });
@@ -1181,9 +1378,10 @@ export class EmulatorService {
         clearTimeout(request.timeout);
         this.#pending.delete(response.id);
         if (response.error !== undefined) {
-            const message = typeof response.error.message === "string"
+            const reported = typeof response.error.message === "string"
                 ? response.error.message
                 : "The PyBoy emulator reported an unknown error";
+            const message = reported === FINALIZED_RECORDING ? `${reported}. ${FINALIZED_RECORDING_RECOVERY}` : reported;
             const details = response.error;
             if (typeof details.failedActionIndex === "number" &&
                 typeof details.advancedFrames === "number" &&
@@ -1226,19 +1424,25 @@ export class EmulatorService {
             request.resolve(response.result);
         }
     }
-    async #request(method, params) {
+    async #request(method, params, timeoutMs = this.#requestTimeoutMs, { keepSession = false } = {}) {
         const artifactOnly = ["recording_status", "recording_export", "recording_review", "clip"].includes(method) && typeof params.recordingPath === "string";
-        if (method !== "open" && !artifactOnly && this.#worker === undefined) {
+        if (method !== "open" && method !== "replay" && !artifactOnly && this.#worker === undefined) {
             throw new EmulatorError("No emulator session is running; run a ROM first");
         }
         const worker = this.#startWorker();
         const id = this.#nextRequestId++;
         const result = await new Promise((resolveRequest, rejectRequest) => {
             const timeout = setTimeout(() => {
+                if (keepSession) {
+                    // A late answer to this request is ignored; a worker that never answers fails the next request instead.
+                    this.#pending.delete(id);
+                    rejectRequest(new EmulatorError(`The emulator ${method} request timed out; the session is still running`));
+                    return;
+                }
                 const error = new EmulatorError(`The emulator ${method} request timed out`);
                 this.#failWorker(worker, error);
                 void this.#terminateWorker(worker);
-            }, this.#requestTimeoutMs);
+            }, timeoutMs);
             timeout.unref();
             this.#pending.set(id, {
                 resolve: resolveRequest,

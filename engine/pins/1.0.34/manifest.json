@@ -3,11 +3,11 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 517,
+ "file_count": 522,
  "symlink_count": 0,
- "total_bytes": 36279222,
+ "total_bytes": 36582476,
  "suffix_counts": {
-  ".js": 142,
+  ".js": 147,
   ".map": 140,
   ".md": 94,
   ".gbsres": 42,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "5877256904904099f6f82d276caa49ad1c6e5389504a548fb47758870d46e671",
+ "aggregate_sha256": "79e4bafeff9ce5e868671806d0458eb91f94e1384149d65c4c229d130882af0b",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -145,9 +145,9 @@
   {
    "path": "dist/actors.js",
    "type": "file",
-   "size": 20712,
+   "size": 27101,
    "mode": "0o644",
-   "sha256": "5f9a88653a0acfabe4d26044172c8b3548bd49975b3ddc271791bdf43a5b107a"
+   "sha256": "04d6b253884fc2b42cea7bd020d4be0671dbc5a7c6b0d0d072c8cf50cf3fd012"
   },
   {
    "path": "dist/actors.js.map",
@@ -159,9 +159,9 @@
   {
    "path": "dist/assets.js",
    "type": "file",
-   "size": 35588,
+   "size": 41459,
    "mode": "0o644",
-   "sha256": "9aa78b4f3c1e45bf9f798d2e977263a00e19b90c82af15baf70a921451f19de3"
+   "sha256": "cb5bc308b9216f0d2809c0bb5d51faad3a242e82c37037c81c6143ced2de6d32"
   },
   {
    "path": "dist/assets.js.map",
@@ -171,11 +171,18 @@
    "sha256": "cd46c8265ea1ec3c62546254365d440670486dc7c635fd260bf91666108fd970"
   },
   {
+   "path": "dist/audio.js",
+   "type": "file",
+   "size": 40865,
+   "mode": "0o644",
+   "sha256": "a04eee7d635ac222e36e5f2d848ce5ddeb0de57307af70d1a42e5598f11a9956"
+  },
+  {
    "path": "dist/build-provenance.js",
    "type": "file",
-   "size": 11955,
+   "size": 14218,
    "mode": "0o644",
-   "sha256": "020aa9cf846dbeb68e3d82e7dc0a822e7c68c29a51bb53fd7c32382ced3ef34a"
+   "sha256": "f6fa8a7e2b0c54fc846336374d362c56299f2e0f885ff44fb273a39ee128ffcb"
   },
   {
    "path": "dist/build-provenance.js.map",
@@ -187,9 +194,9 @@
   {
    "path": "dist/build.js",
    "type": "file",
-   "size": 46372,
+   "size": 70225,
    "mode": "0o644",
-   "sha256": "bb7c78bfa44d66efbd072448fbf2e24a60a82f31d322906a32672e94ff34a3dc"
+   "sha256": "9b5a7e3a5d47d3583b410be7a2d0d0e4d96493fcb3402c9d85752d0b4f0640cd"
   },
   {
    "path": "dist/build.js.map",
@@ -285,9 +292,9 @@
   {
    "path": "dist/contact-sheet.js",
    "type": "file",
-   "size": 31770,
+   "size": 33766,
    "mode": "0o644",
-   "sha256": "982a9da71dd5c7083b3f51594796f8e81566d1372b71c7ba70a3eba725bab427"
+   "sha256": "8a7a3b244bf8a49dfe7a4602e9f0022c24d2102ab90da031161ee0deaa9b56f0"
   },
   {
    "path": "dist/contact-sheet.js.map",
@@ -593,9 +600,9 @@
   {
    "path": "dist/emulator.js",
    "type": "file",
-   "size": 65093,
+   "size": 78708,
    "mode": "0o644",
-   "sha256": "530decfc0b6797c21e93a19afce367320e41592fe6678b30390f89c090e34bac"
+   "sha256": "29c7e4d45f9ca8212e309488ed739e9f51182f9a36a6f3ce61c7ee4d96d50af4"
   },
   {
    "path": "dist/emulator.js.map",
@@ -607,9 +614,9 @@
   {
    "path": "dist/engine-fields.js",
    "type": "file",
-   "size": 9561,
+   "size": 9582,
    "mode": "0o644",
-   "sha256": "d268f3a2df8926d129f23b4535e03ba1b7fa04ee6fd69a08b53743e508b1c306"
+   "sha256": "039551972730cc64986132fd0f12a149d1b633e91063029ea3206d6d9f01ebb1"
   },
   {
    "path": "dist/engine-fields.js.map",
@@ -619,11 +626,25 @@
    "sha256": "45b154fcb4216941d70f5c7a5097a44f41a654ea167696740442c3d23f3c412a"
   },
   {
+   "path": "dist/entry.js",
+   "type": "file",
+   "size": 105246,
+   "mode": "0o644",
+   "sha256": "3ed23f7cd91b295679e306cff548b0c905137f2f8cffb77fc395b9b7c0fb6c21"
+  },
+  {
+   "path": "dist/event-catalog.js",
+   "type": "file",
+   "size": 32362,
+   "mode": "0o644",
+   "sha256": "7f86ccd158a7506a9afdcfcad7f565b6bc6a0c1c79adfc499881077688a14932"
+  },
+  {
    "path": "dist/game-scripts.js",
    "type": "file",
-   "size": 20865,
+   "size": 21679,
    "mode": "0o644",
-   "sha256": "b4ce3f25aa917e7ed0d3f1495ec22fff7f927e8d6c22ef72db42c99f7daabfd2"
+   "sha256": "142964289262fa50ce6a635237c2717ca2e54f2d13053393239ee525fc4de2fb"
   },
   {
    "path": "dist/game-scripts.js.map",
@@ -670,9 +691,9 @@
   {
    "path": "dist/graphics.js",
    "type": "file",
-   "size": 19344,
+   "size": 20730,
    "mode": "0o644",
-   "sha256": "dd1e36ce424d38cccfd9d17a95fceb1c7c8bf8242292618e1fc80f74fa8b565d"
+   "sha256": "e70ef47b17590acbefdbf1798b301e7d829f3a40883d19b6886fb0a0a6f10b7c"
   },
   {
    "path": "dist/graphics.js.map",
@@ -726,9 +747,9 @@
   {
    "path": "dist/native-device-capture.js",
    "type": "file",
-   "size": 76908,
+   "size": 76703,
    "mode": "0o644",
-   "sha256": "8bfe8c8df9640b75e3bd46e91306c99e4b2816e9a59011dcd04fe3813f2761b9"
+   "sha256": "f75c7d4f987e73a2902d076579f1e7d33ec50fdb279117c4de9758efccbbe576"
   },
   {
    "path": "dist/native-device-capture.js.map",
@@ -754,9 +775,9 @@
   {
    "path": "dist/native-script-events.js",
    "type": "file",
-   "size": 7878,
+   "size": 11767,
    "mode": "0o644",
-   "sha256": "a5d5adaa74066b29dbf7b233c4257e9e26ef2115f128598fa65004ab40406f79"
+   "sha256": "e4186c59090c886cee0df4861076188d5393ff9d4d2ec2f7785acbcf6f3c3bf6"
   },
   {
    "path": "dist/native-script-events.js.map",
@@ -768,9 +789,9 @@
   {
    "path": "dist/native-sprite-metadata.js",
    "type": "file",
-   "size": 12200,
+   "size": 12207,
    "mode": "0o644",
-   "sha256": "297b0fbe55f73f89775dee99577a205b72cda1792e720d77af9a0cda0d30f2ca"
+   "sha256": "d30bf080c2978f1a71e6fd917039d9c5641cc72001fa2eb6e7a6b5daec598bc8"
   },
   {
    "path": "dist/native-sprite-metadata.js.map",
@@ -796,9 +817,9 @@
   {
    "path": "dist/palettes.js",
    "type": "file",
-   "size": 23747,
+   "size": 25268,
    "mode": "0o644",
-   "sha256": "327b0d41712a0a8a02619244dce12de8472cab265960b8335bc07453fba28398"
+   "sha256": "dac0b5f31ad79848bd1db869d77920f156e49e2f313d37a424df9958a7d4e058"
   },
   {
    "path": "dist/palettes.js.map",
@@ -850,11 +871,18 @@
    "sha256": "d62cad7cce29b4bf291810b339d1ea49f383bd1a5613d4e9734fa73ff3538f84"
   },
   {
+   "path": "dist/project-error.js",
+   "type": "file",
+   "size": 499,
+   "mode": "0o644",
+   "sha256": "9b8b04f9fa7ec7401087daefbcf331fbe7dfd97aa72d7e1e1b56bec44c4991be"
+  },
+  {
    "path": "dist/project-files.js",
    "type": "file",
-   "size": 31852,
+   "size": 31865,
    "mode": "0o644",
-   "sha256": "95c50c61791e2dccef667cd54d38b0d867f299a7224625f2e80b21102f69d526"
+   "sha256": "1144b00188fe2606377afdce078f71f3d5401978641f0d789e8f80dcfb1515db"
   },
   {
    "path": "dist/project-files.js.map",
@@ -880,9 +908,9 @@
   {
    "path": "dist/project-session.js",
    "type": "file",
-   "size": 35254,
+   "size": 35302,
    "mode": "0o644",
-   "sha256": "2f4aef692f90aecbfca1b092d916f71cdfd5f1aa5b3444a15cac2208fd2888f8"
+   "sha256": "efd43384034154fee11eec8dab2409c4d38852fedaa0f7116d36d05878262f16"
   },
   {
    "path": "dist/project-session.js.map",
@@ -894,9 +922,9 @@
   {
    "path": "dist/project-snapshot.js",
    "type": "file",
-   "size": 28690,
+   "size": 28791,
    "mode": "0o644",
-   "sha256": "d45ae7dcaebf6c990ac985e4967acfca7c79c5431b280e7a25e3443e369f1366"
+   "sha256": "e67da8c7484e8e5af2b8235806fb8ef46f9de3ea14df19470ff94bd67098ba7d"
   },
   {
    "path": "dist/project-snapshot.js.map",
@@ -906,11 +934,18 @@
    "sha256": "c98672fca2701b501c3a25d3d0ce5c9af3ccbc7768008b4f5776dc22790c6bbc"
   },
   {
+   "path": "dist/project-tree-watcher.js",
+   "type": "file",
+   "size": 6335,
+   "mode": "0o644",
+   "sha256": "21a2034ba38851927d313acda70772049ce9460954e0cdc9c885798acff6bd6a"
+  },
+  {
    "path": "dist/project-world-index.js",
    "type": "file",
-   "size": 66698,
+   "size": 68951,
    "mode": "0o644",
-   "sha256": "c1263d617e7643a188e80cdf286709836872a8ec5ec2b29b484dde75c3604f91"
+   "sha256": "7d59f2db2a3f407b132a0f0a9dd4a717edf2619c76443da7ae8aae8a12d429a5"
   },
   {
    "path": "dist/project-world-index.js.map",
@@ -922,9 +957,9 @@
   {
    "path": "dist/project.js",
    "type": "file",
-   "size": 56099,
+   "size": 58146,
    "mode": "0o644",
-   "sha256": "273c2262519c84813e3dfd82f7e10eefd2d7b59aa9775e47eecdd48e24dc21fa"
+   "sha256": "8e70b18a2598f3319742cb59c37d849224f8a6a3d7cc0efc9913d31a0f11c217"
   },
   {
    "path": "dist/project.js.map",
@@ -936,9 +971,9 @@
   {
    "path": "dist/recording-archive.js",
    "type": "file",
-   "size": 35954,
+   "size": 35964,
    "mode": "0o644",
-   "sha256": "7137d98aeda4b2a8d17325489d6c0d650620d6a812fbd7b83bfa187a93d7cdff"
+   "sha256": "785bbf73f72b036ec8cf64f3801a3fba48729bf7d411a650d5dc1ad9df9013a9"
   },
   {
    "path": "dist/recording-archive.js.map",
@@ -1020,9 +1055,9 @@
   {
    "path": "dist/scene-batch.js",
    "type": "file",
-   "size": 72876,
+   "size": 76923,
    "mode": "0o644",
-   "sha256": "02db72d5ae70f46d37f7e92d024a0b83ac8d3dfb6e7f3220620b29079538d5e0"
+   "sha256": "32282e3c729f0b8b59db26040cd641f7cb1efe57a9f1fdb201df12503e5e3fab"
   },
   {
    "path": "dist/scene-batch.js.map",
@@ -1034,9 +1069,9 @@
   {
    "path": "dist/scene-graphics.js",
    "type": "file",
-   "size": 44382,
+   "size": 51249,
    "mode": "0o644",
-   "sha256": "f1b74c4a95bbb34a2bed7ee51c901085331acdfd11ea1c552f8e7844bc48ffe3"
+   "sha256": "8cccffdcaf2eb245bc11d128a88805a8c81ed1787804267c0a35b208d774e3f4"
   },
   {
    "path": "dist/scene-graphics.js.map",
@@ -1048,9 +1083,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3083587,
+   "size": 3071035,
    "mode": "0o644",
-   "sha256": "8adc0d43fa5b20b979936aca6e7bc8a45b16cc414e967253de845770db0a107b"
+   "sha256": "5dbcf186698c78cf7511bcca24e170148aa013471c7990efcfb276fdca3a14ec"
   },
   {
    "path": "dist/server.js.map",
@@ -1062,9 +1097,9 @@
   {
    "path": "dist/source-debug.js",
    "type": "file",
-   "size": 21249,
+   "size": 44121,
    "mode": "0o644",
-   "sha256": "8fdc87c38e4920e10bf3da111dc10c7730f0b58d2e251b4ea6c6a19c97fe0f98"
+   "sha256": "3effc6bc71a20a676e6ceafd23f91052387f8cef1b1dffac5c593d7ba67fb5e0"
   },
   {
    "path": "dist/source-debug.js.map",
@@ -1076,9 +1111,9 @@
   {
    "path": "dist/sprites.js",
    "type": "file",
-   "size": 24127,
+   "size": 32728,
    "mode": "0o644",
-   "sha256": "d4bf27c5dee688b337775da205c65bd170b62f1512b1b6ebb3f4c15f9596a82a"
+   "sha256": "713a9b0e879a6b0dc0d9b68462e94a9bb7020c21ae96408f0645d40d0b2ad693"
   },
   {
    "path": "dist/sprites.js.map",
@@ -1146,9 +1181,9 @@
   {
    "path": "dist/tool-domains/playtest.js",
    "type": "file",
-   "size": 19680,
+   "size": 21792,
    "mode": "0o644",
-   "sha256": "6e2a845488d4fe2e85e0dd12ce7cb3924f863d3f57f070e3983350a9d81c9f20"
+   "sha256": "9db93cf4e0aaa4f60e52c55afb0f73bfb2645f315f64593b1410637118543543"
   },
   {
    "path": "dist/tool-domains/playtest.js.map",
@@ -1160,9 +1195,9 @@
   {
    "path": "dist/tool-domains/register.js",
    "type": "file",
-   "size": 23118,
+   "size": 27247,
    "mode": "0o644",
-   "sha256": "c1daed9cf35919131072c1419e60cb6b699fda59838d9e93748dad67249d3825"
+   "sha256": "57c6de816b6646aa319edaf99787e5d8a2aae2afb3fae79fa996b1f36a4eb737"
   },
   {
    "path": "dist/tool-domains/register.js.map",
@@ -1174,9 +1209,9 @@
   {
    "path": "dist/tool-domains/schemas.js",
    "type": "file",
-   "size": 18662,
+   "size": 29429,
    "mode": "0o644",
-   "sha256": "dc3062fdf6e356a8ffaae59c57933bd3fcec1ba0c2fb3e73e1c5cd5da36e4632"
+   "sha256": "7695d5e34712a25fc9c3a73d6f5f20ebb395e3fbcfc302fd268438188f28302b"
   },
   {
    "path": "dist/tool-domains/schemas.js.map",
@@ -1216,9 +1251,9 @@
   {
    "path": "dist/triggers.js",
    "type": "file",
-   "size": 15348,
+   "size": 16043,
    "mode": "0o644",
-   "sha256": "a1a06661d94c53bc0ad4a13366648250f7a5281d1688134a6a2d6ac499440d7b"
+   "sha256": "900b1b5b6590bffaf1ffff2134eff672b3bc683355dba08896d8a7eec1b26afd"
   },
   {
    "path": "dist/triggers.js.map",
@@ -1468,9 +1503,9 @@
   {
    "path": "dist/web-build.js",
    "type": "file",
-   "size": 45122,
+   "size": 49783,
    "mode": "0o644",
-   "sha256": "774c131f69e4720a19d4b1052d698ec3e93779432f8bc50ad400dd32489731e3"
+   "sha256": "aea611c73beacbc00e34f7035e7d69888d59a8e974e037cb6c133f044d633337"
   },
   {
    "path": "dist/web-build.js.map",
@@ -1594,9 +1629,9 @@
   {
    "path": "dist/web-preview.js",
    "type": "file",
-   "size": 70296,
+   "size": 70145,
    "mode": "0o644",
-   "sha256": "321ddd8d2be6ae67c1cee0769d2ef5ed7d2cb95c2a0c682395e88ae377c0b2ea"
+   "sha256": "0e495617b4478636b8d86105008c54604b52f87eff9abaafa77c822b50b0e359"
   },
   {
    "path": "dist/web-preview.js.map",
@@ -1622,9 +1657,9 @@
   {
    "path": "dist/world-script-graph.js",
    "type": "file",
-   "size": 50569,
+   "size": 50576,
    "mode": "0o644",
-   "sha256": "3e936ade67791592d8a94f65d2c13493aee10c7f25f6e82ab25341ae6671990d"
+   "sha256": "21a0ae5aced63cea527c22bbdf29c7d725bfb07c4c83923a04fbbef5707baf3a"
   },
   {
    "path": "dist/world-script-graph.js.map",

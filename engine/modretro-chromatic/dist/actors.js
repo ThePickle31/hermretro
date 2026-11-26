@@ -1,13 +1,113 @@
 import { lstat, unlink } from "node:fs/promises";
 import path from "node:path";
-import { projectRelativePath, readProjectJsonWithRevision, resolveProjectPath, resourceRevision, stableResourceId, withProjectResourceWriteLock, writeProjectJsonAtomic, } from "./project-files.js";
+import { projectRelativePath, readProjectJsonWithRevision, resolveProjectPath, resourceRevision, resourceSlug, stableResourceId, withProjectResourceWriteLock, writeProjectJsonAtomic, } from "./project-files.js";
 import { GameStudioProjectError, inventoryProject, resolveNativeAssetIdentity, } from "./project.js";
-import { explicitlyPatchedNativeScriptCoordinates, findInvalidNativeScriptEvent, } from "./native-script-events.js";
+import { explicitlyPatchedNativeScriptValues, findInvalidNativeScriptEvent, withNativeScriptEventIds, } from "./native-script-events.js";
 const UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
-const IMMUTABLE_KEYS = new Set(["id", "_resourceType", "_index", "symbol", "resourcePath"]);
+export const IMMUTABLE_KEYS = new Set(["id", "_resourceType", "_index", "symbol", "resourcePath"]);
 const DIRECTIONS = new Set(["up", "down", "left", "right"]);
 export function isJsonObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+const EMITTED_LABEL_SUFFIXES = {
+    scene: ["init", "p_hit1", "p_hit2", "p_hit3", "collisions", "actors", "triggers", "sprites", "projectiles"],
+    actor: ["interact", "update", "hit1", "hit2", "hit3"],
+    trigger: ["interact"],
+    script: [],
+};
+function emittedLabels(kind, symbol) {
+    return [symbol, ...EMITTED_LABEL_SUFFIXES[kind].map((suffix) => `${symbol}_${suffix}`)];
+}
+function symbolOwners(inventory) {
+    const owners = [];
+    for (const scene of inventory.scenes) {
+        owners.push({ kind: "scene", resource: scene, scene });
+        for (const actor of scene.actors ?? [])
+            owners.push({ kind: "actor", resource: actor, scene });
+        for (const trigger of scene.triggers ?? [])
+            owners.push({ kind: "trigger", resource: trigger, scene });
+    }
+    for (const script of inventory.scripts ?? [])
+        owners.push({ kind: "script", resource: script });
+    return owners.filter((owner) => typeof owner.resource.symbol === "string" && owner.resource.symbol);
+}
+export function takenResourceSymbols(inventory, exceptId) {
+    const taken = new Set();
+    for (const { kind, resource } of symbolOwners(inventory)) {
+        if (exceptId !== undefined && resource.id === exceptId)
+            continue;
+        for (const label of emittedLabels(kind, resource.symbol))
+            taken.add(label);
+    }
+    for (const asset of inventory.assets ?? []) {
+        if (typeof asset.symbol === "string" && asset.symbol)
+            taken.add(asset.symbol);
+    }
+    return taken;
+}
+function symbolAvailable(kind, symbol, taken) {
+    return emittedLabels(kind, symbol).every((label) => !taken.has(label));
+}
+export function uniqueResourceSymbol(kind, name, taken) {
+    const base = `${kind}_${resourceSlug(name, kind)}`;
+    let symbol = base;
+    for (let suffix = 2; !symbolAvailable(kind, symbol, taken); suffix++)
+        symbol = `${base}_${suffix}`;
+    return symbol;
+}
+export function renamedResourceSymbol(kind, previous, next, taken) {
+    const current = typeof next.symbol === "string" ? next.symbol : "";
+    const sameSlug = resourceSlug(String(next.name), kind)
+        === resourceSlug(typeof previous.name === "string" ? previous.name : "", kind);
+    return current && sameSlug && symbolAvailable(kind, current, taken)
+        ? current
+        : uniqueResourceSymbol(kind, next.name, taken);
+}
+function describeSymbolOwner({ kind, resource, scene }) {
+    const owner = `${kind} ${resource.name || resource.id} (id ${resource.id})`;
+    return scene && kind !== "scene" ? `${owner} in scene ${scene.name || scene.id}` : owner;
+}
+function duplicateSymbolAdvice(owners) {
+    const renamable = owners.filter((owner) => owner.kind === "actor" || owner.kind === "trigger");
+    if (renamable.length === 0) {
+        const scenes = owners.filter((owner) => owner.kind === "scene");
+        return `Give ${scenes.length === owners.length ? "all but one scene" : "each scene"} its own symbol (scene_update properties.symbol)`;
+    }
+    const tools = [...new Set(renamable.map((owner) => `${owner.kind}_update name`))].join(" or ");
+    if (renamable.length === owners.length)
+        return `Rename all but one (${tools}) to give each its own symbol`;
+    return `Rename the ${[...new Set(renamable.map((owner) => owner.kind))].join(" and ")} (${tools}) so each has its own symbol`;
+}
+export function duplicateSymbolDiagnostics(inventory) {
+    const byLabel = new Map();
+    for (const owner of symbolOwners(inventory)) {
+        for (const label of emittedLabels(owner.kind, owner.resource.symbol)) {
+            const owners = byLabel.get(label) ?? [];
+            owners.push(owner);
+            byLabel.set(label, owners);
+        }
+    }
+    const reported = new Set();
+    const diagnostics = [];
+    for (const [label, owners] of byLabel) {
+        const ownerKey = owners.map((owner) => owner.resource.id).join("\0");
+        if (owners.length < 2 || owners.every((owner) => owner.kind === "script") || reported.has(ownerKey))
+            continue;
+        reported.add(ownerKey);
+        const shared = owners.every((owner) => owner.resource.symbol === label);
+        const listed = owners.map((owner) => owner.resource.symbol === label
+            ? describeSymbolOwner(owner)
+            : `${describeSymbolOwner(owner)} through symbol ${owner.resource.symbol}`).join(", ");
+        diagnostics.push({
+            severity: "error",
+            code: "DUPLICATE_SYMBOL",
+            message: shared
+                ? `Symbol ${label} is shared by ${listed}; GB Studio compiles them as one. ${duplicateSymbolAdvice(owners)}`
+                : `Compiled name ${label} is used by ${listed}; GB Studio writes one over the other. ${duplicateSymbolAdvice(owners)}`,
+            resourcePath: owners[owners.length - 1].resource.resourcePath,
+        });
+    }
+    return diagnostics;
 }
 export function validateResourceName(value, label) {
     if (typeof value !== "string" || value.trim().length === 0) {
@@ -26,10 +126,15 @@ export function assertSafeResourceProperties(value, label, root = true) {
         return;
     for (const [key, child] of Object.entries(value)) {
         if (UNSAFE_KEYS.has(key) || (root && IMMUTABLE_KEYS.has(key))) {
-            throw new GameStudioProjectError("INVALID_PROPERTY", `${label} cannot modify reserved property ${key}`);
+            throw new GameStudioProjectError("INVALID_PROPERTY", reservedPropertyMessage(label, key));
         }
         assertSafeResourceProperties(child, label, false);
     }
+}
+export function reservedPropertyMessage(label, key) {
+    return key === "symbol"
+        ? `${label} cannot set symbol: a symbol follows the name, so rename the resource to change it`
+        : `${label} cannot modify reserved property ${key}`;
 }
 export function mergeResourceObjects(existing, changes) {
     const merged = { ...existing };
@@ -60,7 +165,7 @@ export function findSceneActor(scene, actorId, access) {
     return actor;
 }
 /** Match the actual distributed actor shape and existing deterministic dialogue IDs. */
-export function createActorResource(input, id, index, slug) {
+export function createActorResource(input, id, index, symbol) {
     const script = [];
     if (input.dialogue !== undefined) {
         script.push({
@@ -74,7 +179,7 @@ export function createActorResource(input, id, index, slug) {
         _resourceType: "actor",
         id,
         _index: index,
-        symbol: `actor_${slug}`,
+        symbol,
         prefabId: "",
         name: validateResourceName(input.name, "Actor name"),
         coordinateType: "tiles",
@@ -115,7 +220,15 @@ export function mergeActorChanges(existing, input) {
                 ? validateResourceName(value, "Actor name")
                 : value;
     }
-    return mergeResourceObjects(existing, updates);
+    return withNativeScriptEventIds(mergeResourceObjects(existing, updates));
+}
+// GB Studio never reads an actor's paletteId. One kept from before is left alone; a request that gives one (properties)
+// or changes it is refused.
+export function assertNoActorPalette(actor, previous, properties) {
+    const given = (value) => value !== undefined && value !== "";
+    if (given(actor.paletteId) && (actor.paletteId !== previous?.paletteId || given(properties?.paletteId))) {
+        throw new GameStudioProjectError("ACTOR_PALETTE_UNSUPPORTED", "GB Studio never reads an actor's paletteId, so it would change nothing. In color, each sprite tile's paletteIndex picks one of the scene's eight sprite palette slots: import the sprite with asset_import sprite.paletteIndex (0-7), then put the palette in that slot with palette_assign target sprite. Actors that share one sprite share its slot.");
+    }
 }
 /** Check the merged resource so `properties` cannot bypass coordinate/reference validation. */
 export function validateActorResource(inventory, scene, actor, previous, options = {}) {
@@ -148,6 +261,7 @@ export function validateActorResource(inventory, scene, actor, previous, options
     if (spriteSheetId !== "" && !sprite) {
         throw new GameStudioProjectError("SPRITE_NOT_FOUND", `Actor ${String(actor.id ?? actor.name)} references missing sprite ${spriteSheetId}`);
     }
+    assertNoActorPalette(actor, previous, options.properties);
     const unit = coordinateType === "pixels" ? 8 : 1;
     const boundsWidth = typeof sprite?.boundsWidth === "number" && sprite.boundsWidth > 0
         ? Math.ceil(sprite.boundsWidth / 8) * unit
@@ -163,7 +277,7 @@ export function validateActorResource(inventory, scene, actor, previous, options
             throw new GameStudioProjectError("INVALID_INPUT", `Actor ${key} must be an event array`);
         }
     }
-    const invalid = findInvalidNativeScriptEvent(actor, previous, options);
+    const invalid = findInvalidNativeScriptEvent(actor, previous, { ...options, projectRoot: inventory.projectRoot });
     if (invalid)
         throw new GameStudioProjectError("INVALID_EVENT", invalid.message);
 }
@@ -342,10 +456,14 @@ export async function updateActor(projectPath, input, access) {
         const original = format === "distributed"
             ? loaded.json
             : findLegacySceneCollectionResource(loaded.json, scene.id, "actors", input.actorId);
-        const actor = mergeActorChanges(original, input);
+        let actor = mergeActorChanges(original, input);
+        if (actor.name !== original.name)
+            actor = { ...actor, symbol: renamedResourceSymbol("actor", original, actor, takenResourceSymbols(await inventoryProject(projectPath, access), input.actorId)) };
         const validationContext = format === "legacy" ? access ?? await inventoryProject(projectPath) : context;
         validateActorResource(validationContext, ownerScene, actor, original, {
-            explicitlyPatchedCoordinates: explicitlyPatchedNativeScriptCoordinates(input.properties),
+            explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(input.properties),
+            properties: input.properties,
+            legacyDescriptor: format === "legacy" ? loaded.json : undefined,
         });
         const updated = format === "distributed" ? actor : rewriteLegacySceneCollection({ descriptor: loaded.json }, scene.id, "actors", (resources) => resources.map((resource) => resource.id === input.actorId ? actor : resource));
         await assertExpectedResourceRevision(context.projectRoot, target, loaded.revision);

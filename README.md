@@ -168,14 +168,15 @@ and set up again from the hermretro page; nothing is moved for you.
 ## Test
 
 `python tools/check.py` runs the fast checks the same way CI does (`full` adds the acceptance run; see
-`AGENTS.md`). The pinned dev tools are set up once: `python tools/py/setup.py` (ruff, the Python linter and
-formatter, into `.dev/py`) and, for page work, `npm ci --prefix tools/npm --ignore-scripts`. `python tools/check.py fix`
+`AGENTS.md`). The pinned dev tools are set up once with `python tools/dev setup`: ruff (the Python linter and
+formatter, into `.dev/py`), the page's npm tools and the engine's build tools. `python tools/check.py fix`
 applies the automatic lint fixes (a bare `# noqa: E402` gets its standard reason) and the Python formatting.
 The individual commands:
 
 ```sh
 python -m unittest discover -s tests -t .                   # fast unit tests (no Hermes needed)
 node tools/bundle/bundle.mjs --check                            # the generated files match page/
+node tools/engine/bundle.mjs --check                            # the engine's dist/server.js matches its modules
 node --test 'tests/page/**/*test*.mjs'                # page tests, including the built page in jsdom
 HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py   # the toolchain the acceptance run needs, in <folder>
 HERMRETRO_DEPS_ROOT=<folder> python tests/acceptance/broker_acceptance.py   # real engine, compiler and emulator (~2 min)

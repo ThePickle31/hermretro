@@ -558,7 +558,7 @@ export function readRecording(root, resolvePath, options = {}) {
                     throw new Error("Checkpoint identity is duplicated in the recording");
                 checkpoints[row.checkpointId] = row;
             }
-            else if (!["controller", "pause", "resume", "failure", "capture", "outcome"].includes(kind)) {
+            else if (!["controller", "pause", "resume", "failure", "capture", "outcome", "replay"].includes(kind)) {
                 throw new Error("Unsupported recording event kind");
             }
             if (review !== undefined && (prefixPin === undefined || sequence <= prefixPin.eventCount)) {

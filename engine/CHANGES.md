@@ -6,6 +6,11 @@ files (`THIRD_PARTY_NOTICES.md`):
 `git diff engine-upstream-<version> HEAD -- engine/modretro-chromatic` shows every change. One line per change: the
 files, what changed and why.
 
+The changes are made in the engine's `dist/` modules (the server's own is `dist/entry.js`), and
+`node tools/engine/bundle.mjs` builds `dist/server.js` from them. The entries before "the bundle is built from its
+modules" below were made in the bundle itself; where one names `dist/server.js` and a module, the change is now in
+that module.
+
 - `dist/server.js`, `dist/device-capture/linux-helper.js`: the path ffmpeg reads the Chromatic's video from during
   Linux hardware capture is `/dev/fd/6` instead of the equivalent per-process path under the proc filesystem (two
   places in each file). On Linux `/dev/fd` links to that same directory, so ffmpeg opens the same file; the
@@ -321,3 +326,11 @@ files, what changed and why.
     so an inherited one cannot make two settings share a key.
   - What a stopped or failed compiler changed in the cache is removed, and the whole cache after a build whose
     engine or compiler stopped before it finished. Windows keeps a fresh folder per build.
+- `dist/entry.js` (new), `dist/server.js` and every module our changes touched: the bundle is built from its
+  modules. Each change made in the bundle so far is now in its module, written as the module's source
+  (`dist/entry.js` is the server's own module, rebuilt from the bundle, as ModRetro's release ships none); the new
+  `dist/audio.js`, `dist/event-catalog.js` and `dist/project-tree-watcher.js` are modules of their own; a helper one
+  module's change used from another is exported and imported; `GameStudioProjectError` moves from `dist/project.js`
+  (which re-exports it) to the new `dist/project-error.js`, so `dist/project-files.js`, which the backend's writer
+  lock loads directly, loads without the project model behind it. `dist/server.js` is what `node tools/engine/bundle.mjs`
+  builds from them (`python tools/check.py engine` checks it), holding the same modules as before.

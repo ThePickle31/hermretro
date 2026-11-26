@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { PNG } from "pngjs";
+import { chromaticDisplayColor } from "./palettes.js";
 import { assertSafePlatformPath, isPathWithinRoot } from "./platform.js";
 export const GAME_BOY_FRAME_WIDTH = 160;
 export const GAME_BOY_FRAME_HEIGHT = 144;
@@ -391,6 +392,43 @@ function compositeFrame(canvas, source, previous, left, top, magnification, high
     }
     return changedPixels;
 }
+/** Recolors decoded RGBA pixels in place with the hermretro player's color correction. */
+function chromaticCorrectImage(image) {
+    for (let offset = 0; offset < image.data.length; offset += 4) {
+        image.data.set(chromaticDisplayColor(image.data[offset], image.data[offset + 1], image.data[offset + 2]), offset);
+    }
+    return image;
+}
+/** A frame as returned: color-corrected first when asked, then enlarged, decoding the PNG once. */
+export function displayPng(bytes, { colorCorrection = "none", magnification = 1 }) {
+    if (!Number.isSafeInteger(magnification) || magnification < 1 || magnification > MAX_CONTACT_SHEET_MAGNIFICATION) {
+        throw new ContactSheetError(`Image magnification must be an integer between 1 and ${MAX_CONTACT_SHEET_MAGNIFICATION}`);
+    }
+    if (colorCorrection !== "chromatic" && magnification === 1)
+        return bytes;
+    const source = PNG.sync.read(bytes, { checkCRC: true });
+    if (colorCorrection === "chromatic")
+        chromaticCorrectImage(source);
+    if (magnification === 1)
+        return PNG.sync.write(source, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
+    const canvas = new PNG({ width: source.width * magnification, height: source.height * magnification });
+    compositeFrame(canvas, source, undefined, 0, 0, magnification, false);
+    return PNG.sync.write(canvas, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
+}
+export function contactSheetLayout(dimensions, columns, magnification) {
+    const rows = Math.ceil(dimensions.length / columns);
+    const fontScale = magnification >= 3 ? 2 : 1;
+    const lineHeight = (FONT_HEIGHT + 3) * fontScale;
+    const imageWidth = Math.max(GAME_BOY_FRAME_WIDTH, ...dimensions.map((entry) => entry.width)) * magnification;
+    const imageHeight = Math.max(...dimensions.map((entry) => entry.height)) * magnification;
+    const cardWidth = imageWidth + PADDING * 2;
+    const cardHeight = imageHeight + PADDING * 3 + lineHeight * 2;
+    const headerHeight = PADDING + lineHeight * 2;
+    const width = GUTTER + columns * (cardWidth + GUTTER);
+    const height = headerHeight + GUTTER + rows * (cardHeight + GUTTER);
+    const fits = width <= MAX_CANVAS_DIMENSION && height <= MAX_CANVAS_DIMENSION && width * height <= MAX_CANVAS_PIXELS;
+    return { rows, fontScale, lineHeight, imageWidth, imageHeight, cardWidth, cardHeight, headerHeight, width, height, fits };
+}
 /**
  * Compose existing PNG bytes only: no filesystem access, capture, worker call,
  * sampling, or provenance inference. Callers retain their original metadata.
@@ -437,28 +475,21 @@ export function renderContactSheetPng(options) {
         }
         return { width, height };
     });
-    const rows = Math.ceil(options.images.length / columns);
-    const fontScale = magnification >= 3 ? 2 : 1;
-    const lineHeight = (FONT_HEIGHT + 3) * fontScale;
-    const imageWidth = Math.max(GAME_BOY_FRAME_WIDTH, ...dimensions.map((entry) => entry.width)) * magnification;
-    const imageHeight = Math.max(...dimensions.map((entry) => entry.height)) * magnification;
-    const cardWidth = imageWidth + PADDING * 2;
-    const cardHeight = imageHeight + PADDING * 3 + lineHeight * 2;
-    const headerHeight = PADDING + lineHeight * 2;
-    const width = GUTTER + columns * (cardWidth + GUTTER);
-    const height = headerHeight + GUTTER + rows * (cardHeight + GUTTER);
-    if (width > MAX_CANVAS_DIMENSION || height > MAX_CANVAS_DIMENSION || width * height > MAX_CANVAS_PIXELS) {
+    const { rows, fontScale, lineHeight, imageWidth, imageHeight, cardWidth, cardHeight, headerHeight, width, height, fits } = contactSheetLayout(dimensions, columns, magnification);
+    if (!fits) {
         throw new ContactSheetError("The contact-sheet dimensions exceed the maximum safe canvas size");
     }
     // All dimensions and aggregate allocation bounds are checked before decoding.
     const images = options.images.map(({ png }) => {
         options.signal?.throwIfAborted();
+        let image;
         try {
-            return PNG.sync.read(png, { checkCRC: true });
+            image = PNG.sync.read(png, { checkCRC: true });
         }
         catch (error) {
             throw new ContactSheetError("The contact-sheet image is not a valid PNG", { cause: error });
         }
+        return options.colorCorrection === "chromatic" ? chromaticCorrectImage(image) : image;
     });
     const canvas = new PNG({ width, height });
     fillRectangle(canvas, 0, 0, width, height, CANVAS_COLOR);
