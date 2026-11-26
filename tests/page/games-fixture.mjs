@@ -26,7 +26,8 @@ export function libraryGames(now2) {
       rom: { path: '/o.gbc', sha256: 'sha-old', size: 1, builtAt: now2 - 900 }, webExport: true, thumb: null, chat: null, error: null,
       card: { title: 'Old Orbit', tagline: null, description: null, about: null, genres: ['Puzzle'], tags: [], controls: {},
         complete: false, missing: ['tagline', 'description', 'cover'], hasCover: false, coverForBuild: null },
-      layout: { ok: true, problems: [], warnings: [{ code: 'UNKNOWN_ENTRY', path: 'notes.txt', message: 'notes.txt is not part of the game layout; it stays local.' }] } }
+      layout: { ok: true, problems: [], warnings: [{ code: 'UNKNOWN_ENTRY', path: 'notes.txt', message: 'notes.txt is not part of the game layout; it stays local.' }] },
+      duplicateId: ['/home/u/ChromaticGames/OldOrbitCopy'] }
   ]
 }
 

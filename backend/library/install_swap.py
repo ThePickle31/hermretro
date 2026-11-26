@@ -33,7 +33,8 @@ from . import game_card, layout
 STATE = ".hermretro-installs"
 MAX_FOLDER_CHARS = 60
 _held = threading.local()
-RECORDS = (layout.IDENTITY_FILE, layout.INSTALL_FILE, layout.PUBLISH_FILE)
+# Records an update never carries: each belongs to the files it was made for (the LICENSE hermretro wrote, too).
+RECORDS = (layout.IDENTITY_FILE, layout.INSTALL_FILE, layout.PUBLISH_FILE, layout.LICENCE_FILE)
 # build/ entries an update never carries: the game's ROM comes with the update and web/ is made again from it.
 _FRESH_BUILD = frozenset({*(name.rsplit("/", 1)[1] for name in layout.GAME_ROMS), "web"})
 

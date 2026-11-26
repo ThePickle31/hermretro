@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 f7a2a67bddb5750b2c48cbab92d17fcb0be9d1dd13666d226d994117a4a84c38
- * body: sha256 1c092cd9d33f488a2c15ae8344e26c80bb7cde79ccbdb83887992b27c6937021
+ * sources: sha256 2ebfa91afdb725258e6a45c231ad785ef71f7f473ec085453c1baadcc450f844
+ * body: sha256 19aa04fedcedfff4076019a1c61b1f75149cd9ff6ecf32500e1e3b2a48957847
  */
 import{atom,Button,Codicon,CopyButton,host,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";
 import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";import{jsx,jsxs}from"react/jsx-runtime";var ID="hermretro";var ROUTE="/hermretro";var DEMO_ID="demo";var DEMO_GAME={id:DEMO_ID,title:"Hello Color",kind:"gbdk",note:"ModRetro example"};var STUDIO_PROFILE="hermretro";var ENABLE_COMMAND=`herme\
@@ -1712,13 +1712,15 @@ u",props:{ctx,game,hardwareOn,item}},"more")].filter(Boolean);return jsxs("div",
 "solid"}`,disabled:pending,onClick:()=>void run(action.run),type:"button",children:[jsx(Codicon,{name:action.icon,size:13}),action.label]})}),jsx("button",{"aria-expanded":open,"aria-haspopup":"menu",
 "aria-label":`More for ${title}`,className:`caret ${action.tone??"solid"}`,onClick:()=>setOpen(!open),type:"button",children:jsx(Codicon,{name:"chevron-down",size:12})}),open?jsx("div",{"aria-label":`${title}\
  actions`,className:"cs-gmenu",role:"menu",children:rows}):null]})}function LayoutTag({layout}){const findings=[...layout?.problems??[],...layout?.warnings??[]];if(!findings.length){return null}return jsxs(
-"span",{className:`cs-gst ${layout.problems?.length?"bad":"warn"}`,title:findings.map(item=>item.path||item.code).join("\n"),children:[jsx("i",{}),"Layout"]})}function GameCard({ctx,game,hardwareOn,onPlay,
-onMakeCover}){const title=game.displayTitle||game.title;const card=game.card??null;const playable=game.state!=="unbuilt"&&game.state!=="failed";const[tone,status]=GAME_STATUS[game.state]??GAME_STATUS.
-unbuilt;const meta=gameMeta(game,{kind:false});const built=meta[meta.length-1];return jsxs("article",{className:"cs-gcard",children:[jsx(Cartridge,{disabled:!playable,game,label:playable?`Play ${title}`:
-title,note:playable?"Title screen after first play":"No build yet",onClick:()=>onPlay(game.id),play:playable,title}),jsxs("div",{className:"info",children:[jsx("h3",{title,children:title}),game.state===
-"failed"&&game.error?jsx("p",{className:"cs-gtag bad",title:game.error,children:game.error}):card?.tagline?jsx("p",{className:"cs-gtag",title:[card.description||card.tagline,card.genres?.length?card.genres.
-join(" · "):null].filter(Boolean).join("\n"),children:card.tagline}):jsx("p",{className:"cs-gtag none",children:"No description yet"}),jsxs("div",{className:"cs-gline",title:meta.join(" · "),children:[
-jsxs("span",{className:`cs-gst ${tone}`,children:[jsx("i",{}),status]}),jsx("span",{children:built}),jsx(LayoutTag,{layout:game.layout})]})]}),jsx(GameActions,{ctx,game,hardwareOn,onMakeCover,onPlay})]})}function DeviceStrip({hardwareOn,onSetUpDevice}){return hardwareOn?jsxs("div",{className:"cs-dev on",children:[jsx("span",{className:"dot"}),jsx("span",{className:"nm",children:"Chromatic hardware too\
+"span",{className:`cs-gst ${layout.problems?.length?"bad":"warn"}`,title:findings.map(item=>item.path||item.code).join("\n"),children:[jsx("i",{}),"Layout"]})}function DuplicateTag({folders}){if(!folders?.
+length){return null}return jsxs("span",{className:"cs-gst warn",title:folders.join("\n"),children:[jsx("i",{}),"Same id"]})}function GameCard({ctx,game,hardwareOn,onPlay,onMakeCover}){const title=game.
+displayTitle||game.title;const card=game.card??null;const playable=game.state!=="unbuilt"&&game.state!=="failed";const[tone,status]=GAME_STATUS[game.state]??GAME_STATUS.unbuilt;const meta=gameMeta(game,
+{kind:false});const built=meta[meta.length-1];return jsxs("article",{className:"cs-gcard",children:[jsx(Cartridge,{disabled:!playable,game,label:playable?`Play ${title}`:title,note:playable?"Title scr\
+een after first play":"No build yet",onClick:()=>onPlay(game.id),play:playable,title}),jsxs("div",{className:"info",children:[jsx("h3",{title,children:title}),game.state==="failed"&&game.error?jsx("p",
+{className:"cs-gtag bad",title:game.error,children:game.error}):card?.tagline?jsx("p",{className:"cs-gtag",title:[card.description||card.tagline,card.genres?.length?card.genres.join(" · "):null].filter(
+Boolean).join("\n"),children:card.tagline}):jsx("p",{className:"cs-gtag none",children:"No description yet"}),jsxs("div",{className:"cs-gline",title:meta.join(" · "),children:[jsxs("span",{className:`\
+cs-gst ${tone}`,children:[jsx("i",{}),status]}),jsx("span",{children:built}),jsx(LayoutTag,{layout:game.layout}),jsx(DuplicateTag,{folders:game.duplicateId})]})]}),jsx(GameActions,{ctx,game,hardwareOn,
+onMakeCover,onPlay})]})}function DeviceStrip({hardwareOn,onSetUpDevice}){return hardwareOn?jsxs("div",{className:"cs-dev on",children:[jsx("span",{className:"dot"}),jsx("span",{className:"nm",children:"Chromatic hardware too\
 ls are on"}),jsx(Small,{children:"Install puts the flash prompt in the game's chat. Hermes asks before it writes the cartridge, unless Approvals are off."})]}):jsxs("div",{className:"cs-dev",children:[
 jsx("span",{className:"dot"}),jsx("span",{className:"nm",children:"Playing in the emulator."}),jsx(Small,{children:"Set up a Chromatic to install games on a real cartridge."}),jsx("span",{className:"c\
 s-grow"}),jsx(Button,{onClick:onSetUpDevice,size:"sm",variant:"outline",children:"Set up my Chromatic"})]})}function InstallButton({ctx,game,hardwareOn,label="Install"}){return jsx(AsyncButton,{disabled:!hardwareOn||

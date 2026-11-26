@@ -31,9 +31,9 @@ EDIT_GAME = (
 GAME_RULES = (
     "Read and change the game's .gbsres and .gbsproj files only through the chromatic_* tools, never yourself, and "
     "never open another game's project. Draw art as PNG files and bring it and audio in with chromatic_asset_import; "
-    "never write anything under build/, and never build, export or playtest the game with other programs. Run helper "
+    "never write under build/, and never build, export or playtest the game with other programs. Run helper "
     "code from a script file, not python -c or a heredoc. When no tool can do what the game needs, tell the user what "
-    "is missing. hermretro owns README.md, .hermretro/ and game.json's id, gameVersion and rom. Do not create or "
+    "is missing. hermretro owns README.md, LICENSE, .hermretro/ and game.json's id, gameVersion and rom. Do not create or "
     "change skills unless the user asks."
 )
 

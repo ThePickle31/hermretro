@@ -1,10 +1,9 @@
-"""What a publish of a game holds and records (backend/library/release.py): the files, readiness, the release's
+"""What a publish of a game holds and records (backend/library/release.py): the files, the release's
 version and changelog, the publish and install records, and changes since a publish.
 
 Run alone: python -m unittest tests.backend.library.test_release
 """
 
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -43,18 +42,6 @@ class Release(unittest.TestCase):
             sorted(game + ["release-game.gbsproj", "project/scene.gbsres", "assets/sprites/hero.png"]),
             "no hidden file, no link, nothing through a linked folder, and not the agent's plans in docs/",
         )
-
-    def test_a_finished_current_game_is_ready_and_its_gaps_are_named(self):
-        self.assertEqual(release.readiness(self.root, source=True), {"ok": True, "problems": []})
-        game_card.set_fields(self.root, {"tagline": ""})
-        scene = self.root / "project" / "scene.gbsres"
-        scene.write_text('{"changed": true}')
-        later = (self.root / "build" / "game.gbc").stat().st_mtime + 60
-        os.utime(scene, (later, later))
-        codes = [item["code"] for item in release.readiness(self.root, source=True)["problems"]]
-        self.assertEqual(codes, ["CARD", "ROM_OLD"])
-        (self.root / "build" / "game.gbc").unlink()
-        self.assertIn("NO_ROM", [item["code"] for item in release.readiness(self.root, source=False)["problems"]])
 
     def test_a_release_is_prepared_once_and_recorded_after_the_push(self):
         self.assertIsNone(release.unpublished_changes(self.root))

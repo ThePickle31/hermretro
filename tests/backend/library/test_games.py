@@ -284,6 +284,7 @@ class GamesRpc(unittest.TestCase):
                 "card",
                 "layout",
                 "install",
+                "duplicateId",
                 "displayTitle",
             },
             "the games RPC's keys changed: change describe (backend/library/shelf.py), this set, the "

@@ -300,7 +300,7 @@ instead of throwing.
 
 | RPC | Params | Result |
 |---|---|---|
-| `games` | none | `{ ok, games[], unavailable[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `layout: { ok, problems[], warnings[] }` (the game folder's layout, `backend/library/layout.py`), `install: { source, url, ref, commit, mode, rom, installedAt, edited } \| null` (where a game installed from a link came from, `backend/library/installs.py`; null for a game made here), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
+| `games` | none | `{ ok, games[], unavailable[], pending[], demo, device, gamesDir }`: the library (`<hermretro home>/library/games.json`, see `backend/system/paths.py`). Each game (`describe` in `backend/library/shelf.py`): `id, title, projectRoot, kind, state, rom: { path, sha256, size, builtAt } \| null, webExport, web: { sha256, builtAt } \| null, thumb, cover` (whether `thumb` is the cover art), `card` (below, or null), `layout: { ok, problems[], warnings[] }` (the game folder's layout, `backend/library/layout.py`), `install: { source, url, ref, commit, mode, rom, installedAt, edited } \| null` (where a game installed from a link came from, `backend/library/installs.py`; null for a game made here), `duplicateId` (the other library folders holding a game with this one's id, a folder copied by hand; null when none), `displayTitle, chat, session, error`; what each means: `.agents/skills/hermretro-dev-page/references/player.md`, "`games` → library". |
 | `game_build_status` | `{ id }` | `{ ok, game: { id, title, projectRoot, rom, webExport, web, chat, session }, device: { hardwareEnabled } }`: one game's artifacts and chat routing, with the same field shapes as `games` (chat title is null). `INVALID` for an invalid id, `NO_GAME` for an absent entry or project folder, `UNAVAILABLE` for a read failure. |
 | `game_thumb` | `{ id, png }` | `{ ok }`: stores the first title screen for the shelf and preserves any existing thumbnail |
 | `player` | `{ id? }` (none or `demo`: the demo cartridge) | `{ ok, url, romSha256, title, demo?, skins, skin }` on the loopback player server (`skins`: `{ id, name, swatch }` of each device skin; `skin`: the default) |
@@ -586,8 +586,31 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 { version: 1, title, tagline, description, about, genres: [..], tags: [..], controls: { button: action },
   cover: "cover.png", coverSha256, coverForBuild /* ROM sha when the cover was set */, createdAt, updatedAt,
   id /* the portable game id */, gameVersion /* "0.1.0" until a release */, rom /* "build/game.gbc" */,
-  remixOf? /* { id, version } of the game a remix came from */ }
+  remixOf? /* { id, version } of the game a remix came from */,
+  format /* the folder's format, layout.FORMAT_VERSION; an install refuses a newer one */,
+  license? /* MIT, CC-BY-4.0, CC-BY-SA-4.0, CC-BY-NC-4.0, CC0-1.0 or All-Rights-Reserved (licence.py) */,
+  author? /* the licence's copyright holder, else "the authors of <title>" */,
+  romSha256? /* the last successful build's ROM, what an install checks; absent until a build */,
+  builtWith? /* { engine, verified, gbStudio?, gbStudioCommit?, repeatable? }: what built it; absent until a build.
+                The GB Studio parts only when verified: the CLI the build ran is the one the toolchain's setup installed */ }
 ```
+
+- **Written by hermretro** (`layout.ensure` and, after each successful build of the game's ROM, `build_record.record_build`
+  with the build's own `outputPath` and ROM SHA-256): `id`, `gameVersion`, `rom`, `format`, `romSha256`, `builtWith`,
+  and `LICENSE` from `license` (when missing, or one it wrote: their digests are `.hermretro/licence.json`, so one a
+  history restore brings back is still its own; a `LICENSE` of the user's own is kept, and an update never carries the
+  record). `format`, `romSha256`, `builtWith` and that `LICENSE` never count as an edit of an installed game.
+- **Publishing** (`publish_ready.readiness(root, source=, last_build=)` → `{ ok, problems, warnings }`, `last_build`
+  the library's `lastBuild`): the layout's problems (incl. `FORMAT_NEWER`), `CARD`, `NO_LICENSE`, `NO_LICENSE_TEXT`,
+  `LICENSE_STALE` (the `LICENSE` hermretro wrote is another licence), `NO_ROM`, `ROM_OLD` (`pipeline.rom_state`: not
+  the last build of the sources by their digest), `ROM_UNFIT` (not a ROM a Chromatic cartridge holds, `cartridge.py`),
+  `ROM_SHA_STALE` (`romSha256` is not this ROM: build again), `NO_SOURCE`, the scan's blocking findings, and
+  `INSTALL_<code>`: what an install of exactly the published files would refuse (`install_git.tree_problems`,
+  `install_check.take_payload` and `check`). `publish_ready.scan(root, source=)` (`publish_scan.py`) → `{ blocking,
+  warnings }` over exactly `release.files` (no GB Studio `.bak`/`.new` leftovers), each read without following links:
+  `SECRET` and `HOME_PATH` (with `line`; a ROM's printable strings too), `UNREADABLE`, `FILE_TOO_LARGE` (over 20 MB),
+  `TOO_LARGE` (over 50 MB in all), `TOO_MANY` (over 5000 files); the warnings `NOT_TEXT` (a file it could not read as
+  text) and `PLUGIN_CODE` (the code under `plugins/`, `files`).
 
 - **Required to present:** title (1–60), tagline (8–90), description (40–400), 1–3 genres from `Action,
   Adventure, Arcade, Exploration, Platformer, Puzzle, Racing, Role-playing, Rhythm, Shooter, Simulation,
@@ -597,11 +620,11 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 - **Cover:** a PNG of at most 512 KB, exactly 160×144, every pixel opaque, 3–32 colours (pixel art, drawn natively, never
   Image Generation), not a byte-identical copy of a PNG under `assets/` (any case of `.png`). Read by `backend/library/game_cover.py`
   with the standard library (8-bit and palette PNGs, not interlaced).
-- `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, cover?,
-  project? }`: with no fields it reports the card; otherwise it checks every field and stores all or
+- `chromatic_game_info` `{ title?, tagline?, description?, about?, genres?, tags?, controls?, license?, cover?,
+  project? }` (`license` only as the user chose it): with no fields it reports the card; otherwise it checks every field and stores all or
   nothing (`INVALID_GAME_INFO` with `problems`), copying `cover` into the project. Answers `{ ok, card,
   file, complete, missing, problems, nextStep }`.
-- `games[].card` = `{ title, tagline, description, about, genres, tags, controls, complete, missing,
+- `games[].card` = `{ title, tagline, description, about, genres, tags, controls, license, complete, missing,
   hasCover, coverForBuild }`; with a valid cover, `thumb` is the cover (else the captured title screen).
 
 ## The game object
@@ -618,8 +641,9 @@ One entry of the `games` RPC's `games[]` (`describe` in `backend/library/shelf.p
 | webExport, web | Whether a web export exists; its ROM `{ sha256, builtAt }`, or null |
 | thumb, cover | A data URL for the shelf (the cover, else the captured title screen, else null); whether it is the cover |
 | layout | `layout.check()` (`backend/library/layout.py`): `{ ok, problems, warnings }`, each `{ code, path, message }`; a problem blocks presenting, a warning names what stays local |
+| duplicateId | `shelf.mark_duplicates()`: an array of the absolute paths of the other library folders whose game has this one's id (`.hermretro/identity.json`; one folder reached two ways counts once), or null; the card shows a Same id tag naming them |
 | install | `shelf.installed_from()`: for a game installed from a link, `source` (its canonical repository and folder), `url`, `ref` (its branch), `commit` (installed), `mode` (`game` or `game+source`), `rom` (the ROM the install checked, relative; a game alone's `rom` above is that file), `installedAt` (seconds) and `edited` (its files changed since); null for a game made here. On disk, `.hermretro/install.json`: `backend/library/README.md`, "Installing a game from a link" |
-| card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |
+| card | `game_card.public()` (`backend/library/game_card.py`), or null without `game.json`: `title`, `tagline`, `description`, `about` (text or null), `genres`, `tags` (lists of text), `controls` (`{ button: what it does }`, `{}` when none), `license` (one of `licence.LICENSES`, or null when the card names none or not one of those), `complete`, `missing` (the fields still needed to present), `hasCover`, `coverForBuild` (the ROM sha the cover was set for, or null) |
 | chat | `{ sessionId, title, conversationId, profile, thisProfile }` of the chat working on it (the last to select it), or null |
 | session | The Build conversation bound to it: `{ storedId, createdAt, thisProfile, profileName, exists }`, or null |
 

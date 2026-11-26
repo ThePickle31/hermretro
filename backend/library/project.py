@@ -94,6 +94,14 @@ def built_rom_sha256(structured: dict) -> str | None:
     return sha if isinstance(sha, str) else None
 
 
+def build_cli(structured: dict) -> str | None:
+    """The GB Studio CLI a ``rom_build`` ran, from its structured result (its first argument), or None."""
+    args = structured.get("args")
+    if structured.get("builder") != "gb-studio-cli" or not isinstance(args, list) or not args:
+        return None
+    return args[0] if isinstance(args[0], str) else None
+
+
 def project_kind(root: Path) -> str:
     return "gbstudio" if project_file(root) else "gbdk"
 

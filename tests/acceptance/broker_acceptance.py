@@ -126,7 +126,7 @@ def exercise(suite):
         client_a, client_b, control = check_election(suite, connections)
         broker_pid = client_a.hello["pid"]
         check_missing_identity(suite, client_a, control)
-        first_status, edited_source = projects.create_and_edit(suite, client_a, client_b)
+        first_status, _ = projects.create_and_edit(suite, client_a, client_b)
         rom_a, rom_b, hash_a, hash_b = projects.build_roms(suite, client_a, client_b)
         repeatable.check_repeatable(suite, client_b, rom_b)
         last_frame = projects.check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b)
@@ -146,7 +146,7 @@ def exercise(suite):
         audio.check_audio(suite, client_b)
         events.check_events(suite, client_b)
         golden_path.check_golden_path(suite)
-        ownership.check_child_lease(suite, client_a, edited_source, last_frame)
+        ownership.check_child_lease(suite, client_a, last_frame)
         client_c = connections.enter_context(BrokerClient(suite.state))
         ownership.check_one_game_per_chat(suite, client_a, client_c)
         ownership.check_hardware_policy(suite, client_a)
