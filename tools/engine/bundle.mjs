@@ -48,10 +48,34 @@ function made(where) {
   leftovers.add(where);
   return where;
 }
+// Removes what this process made. Never throws, so it cannot hide the error that stopped the build; a folder it
+// could not remove is named.
 function removed(where) {
-  rmSync(where, { recursive: true, force: true });
+  try {
+    if (existsSync(where) && lstatSync(where).isDirectory()) writable(where);
+    rmSync(where, { recursive: true, force: true });
+  } catch (error) {
+    console.error(`could not remove ${where}: ${error.message}`);
+  }
   leftovers.delete(where);
   if (!leftovers.size) process.off("SIGINT", stopped).off("SIGTERM", stopped);
+}
+
+// Leaves every import of a file under scripts/ outside the bundle, as a path from the bundle's folder (an import from
+// dist/device-capture/ of ../../scripts/x.mjs is ../scripts/x.mjs in dist/server.js), as esbuild writes a path it
+// matches with a pattern.
+function scriptsBeside(stage) {
+  const scripts = path.join(stage, "scripts");
+  return {
+    name: "scripts-beside",
+    setup(build) {
+      build.onResolve({ filter: /^\.\.?\// }, ({ path: request, resolveDir }) => {
+        const target = path.resolve(resolveDir, request);
+        if (!target.startsWith(`${scripts}${path.sep}`)) return undefined;
+        return { path: path.relative(path.join(stage, "dist"), target).split(path.sep).join("/"), external: true };
+      });
+    },
+  };
 }
 
 // ModRetro's options, unchanged except that the build never writes (the caller does).
@@ -68,8 +92,10 @@ function options(stage) {
     write: false,
     metafile: true,
     sourcemap: false,
-    // These dependency-free helpers resolve assets relative to their own files.
-    external: [path.join(stage, "scripts", "*")],
+    // These dependency-free helpers resolve assets relative to their own files. ModRetro's build said this with the
+    // pattern `<engine>/scripts/*`; a plugin says it for any folder name (a `*` in the path would be a second
+    // wildcard to esbuild).
+    plugins: [scriptsBeside(stage)],
     banner: { js: 'import { createRequire as __mcpCreateRequire } from "node:module"; const require = __mcpCreateRequire(import.meta.url);' },
     legalComments: "inline",
     logLevel: "silent",
@@ -88,10 +114,11 @@ function noLinks(where) {
 }
 
 // Copies keep their folders' modes; a read-only one would stop the build writing its entry or removing the copy.
+// Folders are opened before what is in them is listed, so a read-only folder inside a read-only one is reached.
 function writable(folder) {
   chmodSync(folder, 0o700);
-  for (const entry of readdirSync(folder, { withFileTypes: true, recursive: true })) {
-    if (entry.isDirectory()) chmodSync(path.join(entry.parentPath, entry.name), 0o700);
+  for (const entry of readdirSync(folder, { withFileTypes: true })) {
+    if (entry.isDirectory() && !entry.isSymbolicLink()) writable(path.join(folder, entry.name));
   }
 }
 

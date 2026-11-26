@@ -102,6 +102,15 @@ DIFFERENT = {
         "try {\n  const first = first;\n} catch (error) {\n  console.log(error.message);\n}\n",
         "try {\n  const second = second;\n} catch (error) {\n  console.log(error.message);\n}\n",
     ),
+    "private names": (
+        "class A {\n  #x = 1;\n  #y = 2;\n  get v() {\n    return this.#x;\n  }\n}\nconsole.log(new A().v);\n",
+        "class A {\n  #y = 1;\n  #x = 2;\n  get v() {\n    return this.#x;\n  }\n}\nconsole.log(new A().v);\n",
+    ),
+    "a template's raw text": ("console.log(String.raw`\\x61`);\n", "console.log(String.raw`a`);\n"),
+    "a parenthesised target in a pattern": (
+        "let f;\n[f = () => {}] = [];\nconsole.log(f.name);\n",
+        "let f;\n[(f) = () => {}] = [];\nconsole.log(f.name);\n",
+    ),
 }
 # Bundles that must compare the same as themselves.
 VALID = {
@@ -183,6 +192,27 @@ class EngineBundleTests(unittest.TestCase):
             done = self.build(env={**os.environ, "TMPDIR": tmp})
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(os.listdir(tmp), [])
+        # A copy that fails after it made a read-only folder still leaves nothing, and says why it failed.
+        secret = self.engine / "scripts" / "secret.mjs"
+        secret.write_text("export const secret = 1;\n")
+        secret.chmod(0o000)
+        self.addCleanup(secret.chmod, 0o644)
+        with tempfile.TemporaryDirectory() as tmp:
+            done = self.build(env={**os.environ, "TMPDIR": tmp})
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("EACCES", done.stderr)
+            self.assertNotIn("could not remove", done.stderr)
+            self.assertEqual(os.listdir(tmp), [])
+
+    def test_a_temporary_folder_with_a_star_in_its_path_builds(self):
+        self.assertEqual(self.build().returncode, 0)
+        expected = self.bundle.read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            starred = Path(tmp) / "a*b"
+            starred.mkdir()
+            done = self.build(env={**os.environ, "TMPDIR": str(starred)})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(self.bundle.read_bytes(), expected)
 
     def test_check_sees_a_changed_byte(self):
         self.assertEqual(self.build().returncode, 0)
@@ -290,6 +320,12 @@ class EngineBundleTests(unittest.TestCase):
         done = self.compare(built, renamed)
         self.assertEqual(done.returncode, 1)
         self.assertIn("differ only in the names of 1 bindings:\n  path -> path7", done.stdout)
+        # Removing one of two names for the same import is not a rename.
+        both = 'import { basename as aa, basename as bb } from "node:path";\nconsole.log(aa);\n'
+        done = self.compare(both, 'import { basename as aa } from "node:path";\nconsole.log(aa);\n')
+        self.assertEqual(done.returncode, 1)
+        self.assertNotIn("differ only in the names", done.stdout)
+        self.assertIn("imported only by the first", done.stdout)
 
     def test_a_build_that_writes_more_than_the_bundle_is_refused(self):
         (self.engine / "dist" / "look.css").write_text("body { color: red; }\n")

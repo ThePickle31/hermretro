@@ -4,11 +4,12 @@
 //   node tools/engine/compare_bundles.mjs <before> <after>    exit 0 only when they hold the same program
 //
 // Both bundles are parsed and compared as syntax trees, every name included. Only what cannot change what runs is
-// left out: layout, comments, how a literal is spelled (`0x10` and `16`), parentheses that group nothing (a
-// parenthesised assignment target is kept: `f = () => {}` names the function and `(f) = () => {}` does not), the
-// shorthand of `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import statements stand: what is imported
-// is compared as a set, and the order in which modules are first requested (source and attributes) as a list. The
-// one thing a program could see that is not compared is a function's source text (Function.prototype.toString).
+// left out: layout, comments, how a literal is spelled (`0x10` and `16`; a template's raw text is kept), parentheses
+// that group nothing (a parenthesised assignment target is kept: `f = () => {}` names the function and
+// `(f) = () => {}` does not), the shorthand of `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import
+// statements stand: what is imported is compared as a list sorted, and the order in which modules are first requested
+// (source and attributes) as a list. What a program could see that is not compared is where its code stands: a
+// function's source text (Function.prototype.toString) and the line and column numbers a stack trace gives.
 //
 // When the bundles differ, the report names the modules whose statements differ (a module is the run of statements
 // after a bundler's marker comment, `// dist/<module>.js`) and the first statement where they part. When every
@@ -25,7 +26,7 @@ import { MISSING, TOOLS } from "./bundle.mjs";
 const MARK = /^ ((?:\.\.\/)*(?:dist|node_modules|scripts|src)\/\S+)$/;
 const HEADER = "(bundle header)";
 // Node fields that say where or how something is written, not what it is.
-const UNCOMPARED = new Set(["type", "start", "end", "range", "loc", "raw"]);
+const UNCOMPARED = new Set(["type", "start", "end", "range", "loc"]);
 const PROPERTIES = new Set(["Property", "MethodDefinition", "PropertyDefinition"]);
 
 function loadParsers() {
@@ -47,7 +48,12 @@ function importedBy(specifier, declaration) {
   return ["import", kind, declaration.source.value, name, attributesOf(declaration)];
 }
 
-const propertyName = (node) => (node.computed ? null : node.key.type === "Identifier" ? node.key.name : node.key.value);
+// A property's own name when it is written as one: `a`, `"a"`, `1`, or `#a` for a private name.
+function propertyName(node) {
+  if (node.computed) return null;
+  if (node.key.type === "PrivateIdentifier") return `#${node.key.name}`;
+  return node.key.type === "Identifier" ? node.key.name : String(node.key.value);
+}
 
 // The comparable form of a node. `named(identifier)` says what an identifier that is not a property's own name stands
 // for: itself (its name) when names are compared, or the binding it refers to when renaming is looked for.
@@ -63,8 +69,6 @@ function form(node, named) {
       return ["Literal", node.value === null ? "null" : typeof node.value, node.value];
     case "ParenthesizedExpression":
       return form(node.expression, named);
-    case "AssignmentExpression":
-      return ["AssignmentExpression", node.operator, node.left.type === "ParenthesizedExpression" ? ["parenthesised", form(node.left.expression, named)] : form(node.left, named), form(node.right, named)];
     case "ExportSpecifier":
       return ["ExportSpecifier", form(node.local, named), node.exported.name ?? node.exported.value];
   }
@@ -74,12 +78,16 @@ function form(node, named) {
     if (UNCOMPARED.has(field)) continue;
     // `{ a }` is `{ a: a }`, except that `{ __proto__ }` makes an own property and `{ __proto__: a }` the prototype.
     if (field === "shorthand" && own !== "__proto__") continue;
-    fields.push(field, field === "key" && own !== null ? ["name", own] : form(value, named));
+    if (field === "key" && own !== null) fields.push(field, ["name", own, node.key.type]);
+    // A parenthesised target (`(f) = ...`, `[(f) = ...] = ...`) gives an anonymous function no name.
+    else if (field === "left" && value.type === "ParenthesizedExpression") fields.push(field, ["parenthesised", form(value.expression, named)]);
+    else fields.push(field, form(value, named));
   }
   return fields;
 }
 
-// The program as { requests, imports: Set, statements: [{ module, line, key }] }, with identifiers as named() says.
+// The program as { requests, imports (sorted, one entry for each binding), statements: [{ module, line, key }] },
+// with identifiers as named() says.
 function program(ast, markers, named) {
   const moduleAt = (position) => {
     let name = HEADER;
@@ -90,7 +98,7 @@ function program(ast, markers, named) {
     return name;
   };
   const requests = [];
-  const imports = new Set();
+  const imports = [];
   const statements = [];
   for (const statement of ast.body) {
     if (statement.source) {
@@ -98,13 +106,13 @@ function program(ast, markers, named) {
       if (!requests.includes(request)) requests.push(request);
     }
     if (statement.type === "ImportDeclaration") {
-      if (!statement.specifiers.length) imports.add(JSON.stringify(importedBy(null, statement)));
-      for (const specifier of statement.specifiers) imports.add(JSON.stringify([...importedBy(specifier, statement), named(specifier.local)]));
+      if (!statement.specifiers.length) imports.push(JSON.stringify(importedBy(null, statement)));
+      for (const specifier of statement.specifiers) imports.push(JSON.stringify([...importedBy(specifier, statement), named(specifier.local)]));
       continue;
     }
     statements.push({ module: moduleAt(statement.start), line: statement.loc.start.line, key: JSON.stringify(form(statement, named)) });
   }
-  return { requests, imports, statements };
+  return { requests, imports: imports.sort(), statements };
 }
 
 function parse(text, { acorn }) {
@@ -142,8 +150,19 @@ function places({ ast }, { scope }) {
   return placed;
 }
 
+// The entries of a not in b, counting repeats.
+function without(a, b) {
+  const left = [...b];
+  return a.filter((item) => {
+    const at = left.indexOf(item);
+    if (at === -1) return true;
+    left.splice(at, 1);
+    return false;
+  });
+}
+
 function same(a, b) {
-  return JSON.stringify(a.requests) === JSON.stringify(b.requests) && JSON.stringify([...a.imports].sort()) === JSON.stringify([...b.imports].sort()) && a.statements.length === b.statements.length && a.statements.every((statement, index) => statement.key === b.statements[index].key);
+  return JSON.stringify(a.requests) === JSON.stringify(b.requests) && JSON.stringify(a.imports) === JSON.stringify(b.imports) && a.statements.length === b.statements.length && a.statements.every((statement, index) => statement.key === b.statements[index].key);
 }
 
 // { same, renamed: null or [{ before, after }], requests, imports: { removed, added }, modules, parted }
@@ -163,10 +182,12 @@ export function compareBundles(before, after, parsers = loadParsers()) {
       return ["binding", entry.place];
     }),
   );
-  const renamed = same(x, y) ? [...names[0]].filter(([place, name]) => names[1].get(place) !== name).map(([place, name]) => ({ before: name, after: names[1].get(place) })) : null;
+  const changed = same(x, y) ? [...names[0]].filter(([place, name]) => names[1].get(place) !== name).map(([place, name]) => ({ before: name, after: names[1].get(place) })) : [];
+  // A difference in no name is not a rename: something else differs that the places cannot tell apart.
+  const renamed = changed.length ? changed : null;
 
   const requests = JSON.stringify(a.requests) === JSON.stringify(b.requests) ? null : { before: a.requests, after: b.requests };
-  const imports = { removed: [...a.imports].filter((item) => !b.imports.has(item)), added: [...b.imports].filter((item) => !a.imports.has(item)) };
+  const imports = { removed: without(a.imports, b.imports), added: without(b.imports, a.imports) };
   const grouped = (statements) => {
     const modules = new Map();
     for (const { module, key } of statements) modules.set(module, [...(modules.get(module) ?? []), key]);
