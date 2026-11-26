@@ -22,7 +22,8 @@ const { act } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const { jsx, jsxs } = await import('react/jsx-runtime')
 const { PAGES } = await import('../../page/pages/index.js')
-const { NAV_PAGES, pageProblems, startPages, wirePages } = await import('../../page/app/registry.js')
+const { NAV_PAGES, pageProblems, startPages, visiblePages, wirePages } = await import('../../page/app/registry.js')
+const { flagsOn } = await import('../../page/app/flags.js')
 const { createEvents, emit, on, PAGE_EVENTS } = await import('../../page/app/events.js')
 const { createSlots, PAGE_SLOTS, Slot } = await import('../../page/app/slots.js')
 const { PageView } = await import('../../page/app/page-view.js')
@@ -221,6 +222,47 @@ test('descriptors are checked: ids, labels, Page or tabs, unknown fields, descri
   for (const part of ['id must be a unique lowercase name', 'label must be', 'give the page a Page component, or tabs', 'unknown field "colour"', 'needs a one-line description']) {
     assert.ok(text.includes(part), part)
   }
+})
+
+// Feature flags (app/flags.js): a page or a tab names one, and is hidden until it is on.
+const FAKE_FLAGS = { editor: { hides: 'the editor', setting: false }, deep: { hides: 'a tab', setting: true } }
+const tabbed = (id, tabs, extra = {}) => ({ id, label: id, tabs: tabs.map(([tab, more]) => ({ id: tab, label: tab, Page: Text(tab), ...more })), ...extra })
+
+test('a flag must be listed, never on the first page, and its page or tab runs nothing for users', () => {
+  const problemsOf = pages => pageProblems(pages, FAKE_FLAGS).join('\n')
+
+  assert.equal(problemsOf([fakePage('home'), fakePage('editor', { flag: 'editor' }), tabbed('tools', [['one'], ['two', { flag: 'deep' }]])]), '')
+  assert.match(problemsOf([fakePage('home'), fakePage('x', { flag: 'typo' })]), /flag "typo" is not in app\/flags.js \(known: editor, deep\)/)
+  assert.match(pageProblems([fakePage('home'), fakePage('x', { flag: 'editor' })]).join('\n'), /\(known: none\)/)
+  assert.match(problemsOf([fakePage('home', { flag: 'editor' })]), /the first page cannot be flagged/)
+
+  const busy = problemsOf([
+    fakePage('home', { slots: { 'home.panel': 'a panel' }, events: { 'home.done': 'doc' } }),
+    fakePage('editor', { flag: 'editor', register: () => {}, listens: { 'home.done': () => {} } }),
+    tabbed('tools', [['one'], ['two', { flag: 'deep', contributes: { 'home.panel': [Text('x')] } }]])
+  ])
+
+  for (const key of ['register', 'listens', 'contributes']) {
+    assert.match(busy, new RegExp(`cannot have ${key}: it would run for users who cannot see it`), key)
+  }
+})
+
+test('visible pages: what the flags that are on show, each page unchanged unless a tab of it is hidden', () => {
+  const home = fakePage('home')
+  const editor = fakePage('editor', { flag: 'editor' })
+  const tools = tabbed('tools', [['one'], ['two', { flag: 'deep' }]])
+  const hidden = tabbed('hidden', [['only', { flag: 'deep' }]])
+  const pages = [home, editor, tools, hidden]
+  const ids = list => list.map(page => `${page.id}${page.tabs ? `[${page.tabs.map(tab => tab.id)}]` : ''}`)
+
+  assert.deepEqual(ids(visiblePages(new Set(), pages)), ['home', 'tools[one]'])
+  assert.deepEqual(ids(visiblePages(new Set(['editor', 'deep']), pages)), ['home', 'editor', 'tools[one,two]', 'hidden[only]'])
+  assert.equal(visiblePages(new Set(['deep']), pages)[1], tools, 'a page none of whose tabs is hidden keeps its descriptor')
+  assert.deepEqual(ids(visiblePages(new Set(), [home, { ...hidden, Page: Text('own') }])), ['home', 'hidden[]'], 'a page with its own Page stays without tabs')
+  assert.deepEqual(visiblePages(new Set()), NAV_PAGES, 'no real page is hidden while no flag is on')
+
+  assert.deepEqual([...flagsOn(undefined)], [], 'nothing is on until status answers')
+  assert.deepEqual([...flagsOn({ flags: ['editor'] })], ['editor'])
 })
 
 test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', async () => {

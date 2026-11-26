@@ -18,7 +18,7 @@ from ..broker import (
 )
 from ..hermes import host
 from ..hermes.declare import rpc
-from ..system import host as host_os, paths
+from ..system import flags, host as host_os, paths
 from ..system.events import emit
 from . import claude_login, progress as onboarding, provision, recovery, releases, studio_profile, studio_providers
 
@@ -120,6 +120,8 @@ def rpc_status(ctx):
                 "engine": paths.verify_engine(),
                 "deps": provision.summary(),
                 "hardware_enabled": bool(ctx.get_config("hardware_enabled", False)),
+                # The feature flags that are on (page/app/flags.js): the page shows what they hide.
+                "flags": flags.enabled(ctx.get_config),
                 "broker": {"running": False},
                 "project": None,
                 "profile": studio_profile.describe(host._data_dir().parents[1]),

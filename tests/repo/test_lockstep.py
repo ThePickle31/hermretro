@@ -11,6 +11,8 @@ the page's name list page/app/rpc-names.js (RPC_<NAME>, through page/app/rpc.js;
 bundle check).
 Adding a hook: @hook(...) in backend/<feature>/hooks.py; a hook name no feature used before also goes under
 provides_hooks in plugin.yaml.
+Adding a feature flag with a switch (2 places): its line in page/app/flags.js with `setting: true`, and a
+`flag_<name>` bool with `default: false` in plugin.yaml's config_schema.
 Tool and skill counts elsewhere in the tests are derived, not typed.
 """
 
@@ -28,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.features import FEATURES  # noqa: E402 - the repository root goes on sys.path first
 from backend.hermes import contracts, declare  # noqa: E402 - the repository root goes on sys.path first
-from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import flags, paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.hermes.test_registration import Recorder, load_plugin, plugin_storage  # noqa: E402 - the repository root goes on sys.path first
 
 # Hermes's own tools that the Build page names in its step list (not plugin tools).
@@ -90,6 +92,24 @@ def manifest_list(manifest: str, key: str) -> list[str]:
     return items
 
 
+def page_flags(source: str) -> dict[str, bool]:
+    """Each flag in page/app/flags.js and whether it has a switch, from its one line
+    `  name: { hides: '...', setting: true|false },`: a line in any other form fails here instead of being skipped."""
+    found = re.search(r"^export const FLAGS = Object\.freeze\(\{\n(.*?)^\}\)", source, re.M | re.S)
+    if not found:
+        raise AssertionError("page/app/flags.js has no `export const FLAGS = Object.freeze({` ... `})`")
+    listed = {}
+    for line in found.group(1).splitlines():
+        if line.strip():
+            match = re.fullmatch(r"  ([a-z][a-z0-9_]*): \{ hides: '[^']+', setting: (true|false) \},?", line)
+            if not match:
+                raise AssertionError(
+                    f"page/app/flags.js: {line.strip()!r} is not `  name: {{ hides: '...', setting: true|false }},`"
+                )
+            listed[match[1]] = match[2] == "true"
+    return listed
+
+
 class LockStep(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -136,6 +156,38 @@ class LockStep(unittest.TestCase):
                 manifest_list(f"provides_tools:\n  - chromatic_a\n  {entry}\nnext: 1\n", "provides_tools")
             self.assertIn(entry, str(caught.exception))
         self.assertEqual(manifest_list("provides_tools:\n  - a\n\n  - b\nnext:\n  - c\n", "provides_tools"), ["a", "b"])
+
+    def test_every_flag_with_a_switch_has_its_setting_and_every_setting_a_flag(self):
+        manifest = read("plugin.yaml")
+        listed = page_flags(read("page/app/flags.js"))
+        self.assertEqual(
+            set(flags.switches(manifest)),
+            {name for name, setting in listed.items() if setting},
+            "a flag_<name> in plugin.yaml's config_schema without `setting: true` in page/app/flags.js, or the other way"
+            "\nFIX: give the flag both, or neither (page/app/flags.js says how)",
+        )
+        for name in flags.switches(manifest):
+            block = re.search(rf"^  {flags.SETTING_PREFIX}{name}:\n((?:    .*\n)*)", manifest, re.M).group(1)
+            for line in ("type: bool", "default: false"):
+                self.assertIn(
+                    f"    {line}\n", block, f"plugin.yaml {flags.SETTING_PREFIX}{name}: a flag's switch is off"
+                )
+
+    def test_a_flag_line_in_another_form_is_refused_not_skipped(self):
+        frame = "export const FLAGS = Object.freeze({{\n{}\n}})\n"
+        self.assertEqual(
+            page_flags(frame.format("  a: { hides: 'A', setting: true },\n\n  b: { hides: 'B', setting: false }")),
+            {"a": True, "b": False},
+        )
+        self.assertEqual(page_flags(frame.format("")), {})
+        for entry in (
+            "  a: { setting: true },",
+            "  A: { hides: 'A', setting: true },",
+            "  // a: { hides: 'A', setting: true },",
+        ):
+            with self.subTest(entry=entry), self.assertRaises(AssertionError) as caught:
+                page_flags(frame.format(entry))
+            self.assertIn(entry.strip(), str(caught.exception))
 
     def test_every_tool_has_step_words_and_every_step_word_names_a_real_tool(self):
         source = read("page/pages/build/transcript/step-words.js")

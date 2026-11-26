@@ -43,7 +43,8 @@ import { StudioNav } from './nav.js'
 import { NotRunning } from './not-running.js'
 import { BackgroundLayer } from './background-layer.js'
 import { PageView } from './page-view.js'
-import { NAV_PAGES, pageById } from './registry.js'
+import { flagsOn } from './flags.js'
+import { pageById, visiblePages } from './registry.js'
 import { UpdateChip } from './update/chip.js'
 import { UpdateCard } from './update/update-card.js'
 import { UpdateDialog } from './update/update-dialog.js'
@@ -75,7 +76,7 @@ export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
   // Build's selection and player survive a backend outage that unmounts the page.
-  const [{ page, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
+  const [{ page: asked, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
     let stored = 'build'
 
     try {
@@ -115,6 +116,14 @@ export function StudioPage({ ctx }) {
   // Only an answer changes it: one failed poll must not swap a running Build chat for the repair panel.
   if (running) {
     routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio)
+  }
+  // The pages and tabs the feature flags that are on show (app/flags.js). A page they hide is never on screen: asking
+  // for it (the remembered page, go) opens the first page instead, and the remembered one waits for its flag.
+  const pages = visiblePages(flagsOn(status.data))
+  const currentPage = pages.find(item => item.id === asked) ?? pages[0]
+  const page = currentPage.id
+  if (running && page !== asked) {
+    setNavigation(current => (current.page === asked ? pageVisit(page, current.visit + 1) : current))
   }
   const hardwareOn = Boolean(status.data?.hardware_enabled)
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn
@@ -385,7 +394,6 @@ export function StudioPage({ ctx }) {
   }
 
   // ── what every page gets ──
-  const currentPage = pageById(page) ?? NAV_PAGES[0]
   const shell = {
     ctx,
     page,
@@ -507,7 +515,7 @@ export function StudioPage({ ctx }) {
               {
                 nav: { page, playing: Boolean(stage && game && player.data?.url), setupPending: running && Boolean(auto) },
                 onGo: go,
-                pages: NAV_PAGES,
+                pages,
                 update: pluginUpdate,
                 viaProfile
               },

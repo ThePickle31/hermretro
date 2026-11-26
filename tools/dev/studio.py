@@ -38,8 +38,20 @@ SCRIPTS = HERE / "scripts"
 # the sandbox's state is cleared or restored, and never put in a snapshot.
 HEAVY = ("installs", "cache")
 # The only parts of the caller's environment the sandbox's processes get: no keys or tokens, and no display, so
-# nothing they start can open a window.
-KEEP_ENV = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "TMPDIR", "XDG_RUNTIME_DIR", "SHELL")
+# nothing they start can open a window. HERMRETRO_FLAGS turns on feature flags in the sandbox (page/app/flags.js).
+KEEP_ENV = (
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "TMPDIR",
+    "XDG_RUNTIME_DIR",
+    "SHELL",
+    "HERMRETRO_FLAGS",
+)
 # What each process's command line contains, checked before it is stopped.
 MARKERS = {"model": "script_model.py", "gateway": "gateway run", "browser": "studio_browser.mjs"}
 

@@ -28,6 +28,34 @@ player (`PlayerStage` in `app/studio-page.js`, shown on the Emulator page) full 
 which needs `pad`); content beside the player needs a change to that shell. Add the page to the registry (`page/pages/index.js`) and to
 the registry test's nav list (`tests/page/registry.test.mjs`) in the same place.
 
+## Behind a flag
+
+Unfinished work can reach `main` hidden behind a feature flag. `page/app/flags.js` is the only list of flags:
+
+1. Add the flag: one line in `FLAGS`, `<snake_name>: { hides: '<what it hides>', setting: false },`.
+2. Hide a page or a tab: `flag: '<snake_name>'` in its descriptor. The registry refuses a name `flags.js` does not
+   list, a flag on the first page (a hidden page falls back to it), and `listens`, `contributes` or `register` on a
+   flagged page or tab, which would run for users who cannot see it: add those when the flag ships.
+3. Turn it on for yourself: `HERMRETRO_FLAGS=<name>[,<name>]` in the gateway's environment (the sandbox passes it
+   through from yours). The status answer's `flags` lists what is on (`backend/system/flags.py`); until it answers,
+   nothing is.
+4. Only for a flag users may try: `setting: true`, and its switch in `plugin.yaml`'s `config_schema`, which Hermes
+   shows in its plugin settings:
+
+   ```yaml
+     flag_<snake_name>:
+       type: bool
+       default: false
+       label: <Label>
+   ```
+
+   `tests/repo/test_lockstep.py` fails when the two disagree.
+5. Ship it: delete its line in `flags.js`, its `flag:` lines and its `plugin.yaml` entry.
+
+A hidden page is out of the nav, and asking for it (the remembered page, `shell.go`) opens the first page while the
+remembered one waits for its flag; a hidden tab is out of its page's tab bar, and a page left with neither tabs nor
+a `Page` is hidden too. Its code still ships, and the install scanner reads it.
+
 ## Reference content
 
 Reference content (how something works, rather than something to do) goes on the page it is about, not on a
