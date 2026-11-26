@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..hermes import api as hermes_api
 from ..library import Registry
+from ..player import DEMO_ID
 from ..system import paths
 from . import provision, studio_profile
 
@@ -29,7 +30,8 @@ LOGS = ("broker.stderr.log", "trace.jsonl", "trace.jsonl.1")
 LIBRARY = ("games.json", "games.lock", "thumbs")
 # Forks of a deleted chat become chats of their own: deleted in the next round.
 CHAT_ROUNDS = 5
-SETTINGS_KEY = f"plugins.entries.{paths.PLUGIN_ID}.settings"
+# Where Hermes keeps the plugin's settings: `settings`, and `config` (the older place it still reads a setting from).
+SETTINGS_KEYS = ("settings", "config")
 
 
 def _bytes(*places: Path) -> int:
@@ -62,11 +64,25 @@ def _in_library(*names: str) -> list[Path]:
     return [library / name for name in names] if library else []
 
 
-def _game_roots() -> list[Path]:
-    """The library's games' folders; none when the library cannot be read."""
+class Refused(Exception):
+    """A part the reset will not delete as things stand: ``code`` and the message say why."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _game_roots(strict: bool = False) -> list[Path]:
+    """The library's games' folders. Only from the library's own file: a library folder or ``games.json`` that is a
+    link (someone else's library) lists none. Unreadable, it lists none, or with ``strict`` raises Refused."""
+    library = _real_folder(paths.library_dir())
     try:
-        games = Registry(paths.library_dir()).load()["games"]
-    except Exception:  # noqa: BLE001 - an unreadable library has no games to list
+        if library is None or (library / "games.json").is_symlink():
+            raise ValueError("the library is a link to another")
+        games = Registry(library).load()["games"]
+    except Exception as error:  # noqa: BLE001 - an unreadable library has no games to list
+        if strict:
+            raise Refused("LIBRARY_UNREADABLE", f"The game library could not be read ({error}).") from error
         return []
     return [
         Path(entry["projectRoot"])
@@ -75,14 +91,16 @@ def _game_roots() -> list[Path]:
     ]
 
 
-def _own_games() -> list[Path]:
+def _own_games(strict: bool = False) -> list[Path]:
     """The library's games in hermretro's games folder: the ones a reset deletes, with their captures (a game opened
     from a folder of the user's own leaves the library, never the disk). Only a folder recorded at its real path: one
     a link now stands in for is left alone."""
     if _real_folder(paths.games_dir()) is None:
         return []
     games = paths.games_dir().resolve()
-    return [root for root in _game_roots() if root.resolve() == root and root.is_relative_to(games) and root != games]
+    return [
+        root for root in _game_roots(strict) if root.resolve() == root and root.is_relative_to(games) and root != games
+    ]
 
 
 def _log_files() -> list[Path]:
@@ -91,13 +109,18 @@ def _log_files() -> list[Path]:
 
 
 def _capture_folders(data: Path) -> list[Path]:
-    return [data / "frames", *_in_library(CAPTURES), *(root / CAPTURES for root in _own_games())]
+    # The library's captures/ holds the demo cartridge's (player.demo_captures_root), and only that folder is ours.
+    demo = [folder / DEMO_ID for folder in _in_library(CAPTURES)]
+    return [data / "frames", *demo, *(root / CAPTURES for root in _own_games())]
 
 
 def _chat_ids() -> list[str]:
     """The studio profile's chats (a chat's delegates go with it), read-only from its session database; none when
-    there is no studio profile. Raises sqlite3.Error when the database cannot be read."""
+    there is no studio profile. Raises sqlite3.Error when the database cannot be read, or is a link (another
+    profile's store: never its chats)."""
     database = studio_profile.studio_dir() / "state.db"
+    if database.is_symlink():
+        raise sqlite3.DatabaseError("its session database is a link to another")
     if not database.is_file():
         return []
     with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as db:
@@ -111,6 +134,7 @@ def _delete_chats() -> dict:
         return {"ok": False, "code": "NOT_OURS", "error": "The hermretro profile is not one hermretro made."}
     try:
         last = None
+        found = len(_chat_ids())
         for _round in range(CHAT_ROUNDS):
             ids = _chat_ids()
             if not ids:
@@ -124,7 +148,12 @@ def _delete_chats() -> dict:
     except sqlite3.Error as error:
         return {"ok": False, "code": "CHATS_UNREADABLE", "error": f"The studio chats could not be read ({error})."}
     if left:
-        return {"ok": False, "code": "CHATS_LEFT", "error": f"{len(left)} studio chats could not be deleted ({last})."}
+        return {
+            "ok": False,
+            "code": "CHATS_LEFT",
+            "error": f"{len(left)} studio chats could not be deleted ({last}).",
+            "partly": len(left) < found,
+        }
     return {"ok": True, "removed_bytes": 0}
 
 
@@ -152,12 +181,13 @@ def plan(data: Path) -> dict:
     }
 
 
-def _places(part: str, data: Path) -> list[Path] | None:
-    """What deleting ``part`` removes; None for a part there is not."""
+def _stages(part: str, data: Path) -> list[list[Path]] | None:
+    """What deleting ``part`` removes, in stages: a stage goes only once the one before it is gone entirely, so the
+    library (which lists the games) outlives any game folder that could not be deleted. None for a part there is not."""
     if part == "history":
-        return [data / "snapshots"]
+        return [[data / "snapshots"]]
     if part == "logs":
-        return [*_log_files(), *_capture_folders(data)]
+        return [[*_log_files(), *_capture_folders(data)]]
     if part == "games":
         games = _real_folder(paths.games_dir())
         # A games folder the user configured holds more than hermretro's games: only those leave it.
@@ -166,9 +196,17 @@ def _places(part: str, data: Path) -> list[Path] | None:
         elif os.environ.get("HERMRETRO_GAMES_DIR") is None:
             own = _children(games)
         else:
-            own = [*_own_games(), games / ".hermretro-installs"]
-        return [*own, *_in_library(*LIBRARY), data / "asset-versions", data / "asset-version-locks"]
+            own = [*_own_games(strict=True), games / ".hermretro-installs"]
+        return [own, [*_in_library(*LIBRARY), data / "asset-versions", data / "asset-version-locks"]]
     return None
+
+
+def _places(part: str, data: Path) -> list[Path]:
+    """Every place of every stage, for the plan's sizes (none when the part would be refused)."""
+    try:
+        return [place for stage in _stages(part, data) or [] for place in stage]
+    except Refused:
+        return []
 
 
 def clear(part: str, data: Path, homes: list[Path]) -> dict:
@@ -182,23 +220,30 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
             entry = ((hermes_api.read_profile_config(home).get("plugins") or {}).get("entries") or {}).get(
                 paths.PLUGIN_ID
             )
-            if isinstance(entry, dict) and entry.get("settings"):
-                hermes_api.write_profile_config_key(home, SETTINGS_KEY, {})
+            for key in SETTINGS_KEYS:
+                if isinstance(entry, dict) and entry.get(key):
+                    hermes_api.write_profile_config_key(home, f"plugins.entries.{paths.PLUGIN_ID}.{key}", {})
         return {"ok": True, "removed_bytes": 0}
-    places = _places(part, data)
-    if places is None:
+    try:
+        stages = _stages(part, data)
+    except Refused as refused:
+        return {"ok": False, "code": refused.code, "error": str(refused)}
+    if stages is None:
         return {"ok": False, "code": "UNKNOWN_PART", "error": f"There is no part {part!r} to reset."}
-    before = _bytes(*places)
-    for place in places:
-        _remove(place)
-    # A file the system refused to delete (read-only, in use) is said, never counted as gone.
-    left = [place for place in places if place.exists() or place.is_symlink()]
-    removed = before - _bytes(*left)
-    if left:
-        return {
-            "ok": False,
-            "code": "PARTLY_REMOVED",
-            "error": f"{len(left)} of its files or folders could not be deleted, such as {left[0]}.",
-            "removed_bytes": removed,
-        }
+    removed = 0
+    for stage in stages:
+        before = _bytes(*stage)
+        for place in stage:
+            _remove(place)
+        # A file the system refused to delete (read-only, in use) is said, never counted as gone.
+        left = [place for place in stage if place.exists() or place.is_symlink()]
+        removed += before - _bytes(*left)
+        if left:
+            return {
+                "ok": False,
+                "code": "PARTLY_REMOVED",
+                "error": f"{len(left)} of its files or folders could not be deleted, such as {left[0]}.",
+                "removed_bytes": removed,
+                "partly": removed > 0 or len(left) < len(stage),
+            }
     return {"ok": True, "removed_bytes": removed}

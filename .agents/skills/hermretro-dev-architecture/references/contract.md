@@ -290,12 +290,16 @@ One step of the factory reset; the page calls it once per part it deletes, in th
 `stop` does only that. While a part is deleted, the player saves no capture (`player.captures_paused`). `games` empties the games folder (only the library's games in it when `HERMRETRO_GAMES_DIR`
 is set), deletes the library's own files (`games.json`, its lock, `thumbs/`) and kept image versions; a
 game in a folder of the user's own leaves the library but stays on disk with its captures, and a game folder a link
-now stands in for is never followed, nor is a games or library folder that is a link. `logs` deletes the broker's
-logs, saved frames, the demo cartridge's captures and the captures of the games in the games folder. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
-studio profile's `state.db`, in rounds, since a deleted chat's forks become chats of their own), only in the profile
-hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read. `settings` clears `plugins.entries.hermretro.settings` in this profile and the one hermretro was
-installed into, so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`
-(the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `PARTLY_REMOVED` (something could not be deleted; `removed_bytes` says what was), `CHATS_LEFT`,
+now stands in for is never followed, nor is a games or library folder (or `games.json`) that is a link. The library
+goes only once every game folder is gone, so a retry still finds what is left (`LIBRARY_UNREADABLE` when a games
+folder the user configured has no readable library to say which games are hermretro's). `logs` deletes the broker's
+logs, saved frames, the demo cartridge's captures (`<library>/captures/demo`) and the captures of the games in the
+games folder. A capture asked for while a part is deleted is refused, not written afterwards. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
+studio profile's `state.db`, never one that is a link, in rounds, since a deleted chat's forks become chats of their own), only in the profile
+hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
+reads) in this profile and the one hermretro was installed into, so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`
+(the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `PARTLY_REMOVED` (something could not be deleted; `removed_bytes` says what was), `CHATS_LEFT`
+(`partly` with either: some of the part did go), `LIBRARY_UNREADABLE`,
 `CHATS_UNREADABLE`, `NOT_OURS`, `BUSY`
 (a call is running or the broker did not stop within 15 s), `WORKER_STILL_RUNNING`, `UNAVAILABLE`, or one of
 `remove_tools`'s.

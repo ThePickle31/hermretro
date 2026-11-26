@@ -28,7 +28,9 @@ const notLoaded = () => Object.assign(new Error('unknown method'), { code: -3260
 
 export const host = {
   state: {
-    gateway: readable('open'), focusedSessionId: readable('rt-1'), focusedStoredSessionId: readable('st-1'), profile: readable('default')
+    gateway: readable('open'), focusedSessionId: readable('rt-1'), focusedStoredSessionId: readable('st-1'),
+    // The profile the app is on: scenario.appProfile, default 'default'.
+    profile: { get: () => scenario.appProfile ?? 'default' }
   },
   // The profile the app is on.
   request: async (method, params) => {

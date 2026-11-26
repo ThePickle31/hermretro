@@ -25,6 +25,21 @@ export function connectionOf(target) {
   return target?.route?.connectionId || host.activeConnectionId?.() || 'local'
 }
 
+/** The profile the app itself is on now (where a target without a route goes). */
+export function appProfile() {
+  try {
+    return host.state.profile?.get?.() ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Whether `target` still reaches the Hermes it was chosen on (`here`, and for a target without a route the profile the
+ *  app was on then, `ambient`): the app switching connection or profile must not move a confirmed reset. */
+function stillOn(target, here, ambient) {
+  return !target || (target.route ? connectionOf(target) === here : connectionOf(target) === here && appProfile() === ambient)
+}
+
 // What the page remembers across the reload an update ends with, so the settings page that loads says how it went.
 export const RESET_MARKER = 'resetDone'
 
@@ -93,7 +108,7 @@ async function backendPart(target, part) {
   const answer = await requestOn(target, RPC_RESET, { part }, PART_TIMEOUT_MS)
 
   if (!answer?.ok) {
-    throw Object.assign(new Error(answer?.error || `${label(part)} could not be deleted.`), { removed: Number(answer?.removed_bytes) || 0, partly: answer?.code === 'PARTLY_REMOVED' })
+    throw Object.assign(new Error(answer?.error || `${label(part)} could not be deleted.`), { removed: Number(answer?.removed_bytes) || 0, partly: Boolean(answer?.partly) })
   }
 
   return Number(answer.removed_bytes) || 0
@@ -127,12 +142,13 @@ function remember(ctx, key, value) {
  *  checkout), `version` the installed version. `onStep(i)` follows `resetSteps(choices)`. Resolves to the summary the
  *  done screen shows, never throws: `{ deleted, kept, failed: { step, error } | null, update, from }`, `update` being
  *  runUpdate's outcome (null when the update did not run). */
-export async function runReset({ ctx, choices, here, target, studio, install, version, onStep = () => {} }) {
+export async function runReset({ ctx, choices, here, ambient, target, studio, install, version, onStep = () => {} }) {
   const steps = resetSteps(choices)
   const gone = new Set()
   // What is still there: the parts no finished step deleted (the profile takes its chats and build history).
   const kept = () => RESET_PARTS.filter(part => !gone.has(part.id)).map(part => part.label)
-  const summary = { deleted: 0, kept: kept(), failed: null, update: null, from: version }
+  // `here`: the restart after a reload checks it too.
+  const summary = { deleted: 0, kept: kept(), failed: null, update: null, from: version, here }
   const profileGone = choices.profile === 'delete'
 
   for (const [index, step] of steps.entries()) {
@@ -140,8 +156,8 @@ export async function runReset({ ctx, choices, here, target, studio, install, ve
 
     try {
       // Every step goes to the Hermes the choices were made on: never to another the app switched to meanwhile.
-      if (connectionOf(target) !== here) {
-        throw new Error('Hermes is on another connection now.')
+      if (![target, gone.has('profile') ? null : studio, step.id === 'update' ? install : null].every(each => stillOn(each, here, ambient))) {
+        throw new Error('Hermes is on another connection or profile now.')
       }
 
       // A turn under way must not lose its game or its chat: before each step, nothing may be running in the studio

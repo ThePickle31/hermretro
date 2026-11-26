@@ -19,13 +19,20 @@ CAPTURE_NAMESPACE = uuid.UUID("5d0c7f39-3b8e-4f4f-9a43-2f6c3c7d1a11")
 MEDIA_EXTENSIONS = {".png": "image/png", ".webm": "video/webm", ".mp4": "video/mp4"}
 # Held while a capture is written, and by the factory reset while it deletes captures and game folders.
 _WRITING = threading.Lock()
+# How many times the captures were paused for a delete: a capture asked for before one ended is not written after it.
+_pauses = 0
 
 
 @contextmanager
 def captures_paused():
-    """No capture is written while this is held (one in progress finishes first)."""
+    """No capture is written while this is held (one in progress finishes first), and none asked for meanwhile is
+    written afterwards."""
+    global _pauses
     with _WRITING:
-        yield
+        try:
+            yield
+        finally:
+            _pauses += 1
 
 
 def demo_captures_root() -> Path:
@@ -82,8 +89,11 @@ def save_capture(
         extension = "mp4"
     else:
         extension = "webm"
+    asked = _pauses
     with _WRITING:
-        # A game deleted meanwhile (the factory reset) gets no captures folder of its own again.
+        # Deleted meanwhile (the factory reset): no captures folder comes back.
+        if _pauses != asked:
+            raise PlayerError("The captures were just reset. Save it again.")
         if not is_demo(identifier) and not Path(root).is_dir():
             raise PlayerError("The game is no longer there.")
         return _write_capture(root, identifier, kind, extension, media, metadata, extra)

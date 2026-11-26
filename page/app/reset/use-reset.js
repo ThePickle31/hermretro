@@ -7,14 +7,14 @@ import { routeProfile, routing } from '#app/routing.js'
 import { RPC_RESET_PLAN, RPC_STATUS } from '#app/rpc.js'
 import { refreshDesktopHalf, requestOn } from '#app/update/flow.js'
 import { setUpdating } from '#app/update/lock.js'
-import { connectionOf, DEFAULT_CHOICES, forgetReset, pendingReset, resetSteps, runReset, settleChoices } from './reset-steps.js'
+import { appProfile, connectionOf, DEFAULT_CHOICES, forgetReset, pendingReset, resetSteps, runReset, settleChoices } from './reset-steps.js'
 
 const NO_PROFILE = 'No studio profile'
 
 /** `profile` on the Hermes connection `here`: the app itself when it is on that profile there, else that profile's
  *  route there; null when there is none. A profile of the same name on another connection is never picked. */
 async function profileOn(profile, here) {
-  if (host.state.profile?.get?.() === profile && connectionOf({ route: null }) === here) {
+  if (appProfile() === profile && connectionOf({ route: null }) === here) {
     return { route: null, profile }
   }
 
@@ -63,6 +63,8 @@ async function readContext() {
 
   return {
     here,
+    // The profile the app is on: a call without a route goes there, so the reset stops if the app moves.
+    ambient: appProfile(),
     target,
     studio,
     install,
@@ -159,7 +161,9 @@ export function useReset(ctx) {
 
     try {
       // The gateway restarted is the app's current one: not when Hermes has switched to another since the reset.
-      if (state.context && connectionOf({ route: null }) !== state.context.here) {
+      const here = state.context?.here ?? state.summary?.here
+
+      if (here && connectionOf({ route: null }) !== here) {
         throw new Error('Hermes is on another connection now.')
       }
 

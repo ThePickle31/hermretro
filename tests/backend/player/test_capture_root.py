@@ -30,7 +30,7 @@ class CaptureRootTest(unittest.TestCase):
         self.assertIsNone(player.capture_root("../etc", resolve))
         resolve.assert_not_called()
 
-    def test_a_capture_waits_while_they_are_paused_and_a_game_that_is_gone_gets_none(self):
+    def test_a_capture_asked_for_during_a_pause_is_refused_and_a_game_that_is_gone_gets_none(self):
         root = self.places.base / "Frog"
         root.mkdir()
         saved, refused = [], []
@@ -48,10 +48,13 @@ class CaptureRootTest(unittest.TestCase):
             writer.start()
             writer.join(0.2)
             self.assertEqual(saved, [], "nothing is written while the reset holds them")
-            root.rmdir()
         writer.join(2)
-        self.assertEqual((saved, refused), ([], ["The game is no longer there."]))
-        self.assertFalse(root.exists(), "the deleted game's folder is not made again")
+        self.assertEqual((saved, refused), ([], ["The captures were just reset. Save it again."]))
+        self.assertFalse((root / "captures").exists(), "no captures folder comes back after the delete")
+        root.rmdir()
+        with self.assertRaises(player.PlayerError):
+            player.save_capture(root, "aaa111aaa111", "screenshot", PNG_MAGIC + b"x", "image/png", None)
+        self.assertFalse(root.exists(), "a game that is gone gets no folder again")
 
 
 if __name__ == "__main__":

@@ -71,7 +71,9 @@ class Reset(unittest.TestCase):
         self.assertFalse(parts["toolchain"]["custom"])
         self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 8 + 7)  # a folder of the user's own keeps its captures
 
-    def test_games_empty_the_games_folder_and_library_and_leave_a_folder_of_the_users_own(self):
+    def test_games_empty_the_games_folder_and_library_and_leave_a_folder_of_the_users_own(
+        self,
+    ):
         answer = reset.clear("games", self.data, [])
         self.assertTrue(answer["ok"])
         self.assertEqual(list(self.games.iterdir()), [])
@@ -108,7 +110,10 @@ class Reset(unittest.TestCase):
     def test_what_could_not_be_deleted_is_said(self):
         with mock.patch.object(reset, "_remove"):
             answer = reset.clear("history", self.data, [])
-        self.assertEqual((answer["ok"], answer["code"], answer["removed_bytes"]), (False, "PARTLY_REMOVED", 0))
+        self.assertEqual(
+            (answer["ok"], answer["code"], answer["removed_bytes"]),
+            (False, "PARTLY_REMOVED", 0),
+        )
 
     def test_history_and_logs_delete_only_their_own(self):
         reset.clear("history", self.data, [])
@@ -127,7 +132,9 @@ class Reset(unittest.TestCase):
             db.execute("CREATE TABLE sessions (id TEXT, parent_session_id TEXT)")
             db.executemany("INSERT INTO sessions VALUES (?, ?)", rows)
 
-    def test_chats_are_deleted_with_hermes_own_command_forks_too_and_any_left_are_said(self):
+    def test_chats_are_deleted_with_hermes_own_command_forks_too_and_any_left_are_said(
+        self,
+    ):
         # "a" has a delegate (deleted with it) and a fork, which becomes a chat of its own once "a" is gone.
         self._chats([("a", None), ("b", None), ("a-sub", "a"), ("a-fork", "a")])
         ran = []
@@ -137,8 +144,14 @@ class Reset(unittest.TestCase):
             if arguments[2] == "b":
                 return  # refused
             with sqlite3.connect(home / "state.db") as db:
-                db.execute("DELETE FROM sessions WHERE id = ? OR id = ?", (arguments[2], f"{arguments[2]}-sub"))
-                db.execute("UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?", (arguments[2],))
+                db.execute(
+                    "DELETE FROM sessions WHERE id = ? OR id = ?",
+                    (arguments[2], f"{arguments[2]}-sub"),
+                )
+                db.execute(
+                    "UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?",
+                    (arguments[2],),
+                )
 
         with (
             mock.patch.object(studio_profile, "studio_is_ours", lambda: True),
@@ -148,7 +161,26 @@ class Reset(unittest.TestCase):
             answer = reset.clear("chats", self.data, [])
         self.assertEqual(ran[:2], ["a", "b"])
         self.assertIn("a-fork", ran[2:])  # the next round
-        self.assertEqual((answer["ok"], answer["code"]), (False, "CHATS_LEFT"))
+        self.assertEqual(
+            (answer["ok"], answer["code"], answer["partly"]),
+            (False, "CHATS_LEFT", True),
+        )
+
+    def test_a_linked_session_database_is_another_profiles_and_never_touched(self):
+        other = self.places.base / "other"
+        other.mkdir()
+        with sqlite3.connect(other / "state.db") as db:
+            db.execute("CREATE TABLE sessions (id TEXT, parent_session_id TEXT)")
+            db.execute("INSERT INTO sessions VALUES ('x', NULL)")
+        self.studio.mkdir()
+        (self.studio / "state.db").symlink_to(other / "state.db")
+        with (
+            mock.patch.object(studio_profile, "studio_is_ours", lambda: True),
+            mock.patch.object(studio_profile, "run_hermes") as ran,
+        ):
+            answer = reset.clear("chats", self.data, [])
+        self.assertEqual(answer["code"], "CHATS_UNREADABLE")
+        ran.assert_not_called()
 
     def test_a_hermretro_profile_hermretro_did_not_make_keeps_its_chats(self):
         self._chats([("a", None)])
@@ -169,6 +201,43 @@ class Reset(unittest.TestCase):
         self.assertTrue((target / "games.json").is_file())
         self.assertTrue((target / CAPTURES_DEMO).is_file())
 
+    def test_logs_take_only_the_demo_captures_from_the_library(self):
+        library = self.places.home / "library"
+        write(library / CAPTURES_DEMO, 4)
+        write(library / "captures" / "mine.txt", 1)
+        reset.clear("logs", self.data, [])
+        self.assertFalse((library / CAPTURES_DEMO).exists())
+        self.assertTrue((library / "captures" / "mine.txt").is_file())
+
+    def test_a_linked_games_list_never_says_what_to_delete(self):
+        library = self.places.home / "library"
+        other = self.places.base / "other-library"
+        other.mkdir()
+        os.replace(library / "games.json", other / "games.json")
+        (library / "games.json").symlink_to(other / "games.json")
+        with mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(self.games)}):
+            answer = reset.clear("games", self.data, [])
+        self.assertEqual(answer["code"], "LIBRARY_UNREADABLE")
+        self.assertTrue((self.frog / "frog.gbsproj").is_file())
+
+    def test_the_library_stays_while_a_game_folder_could_not_be_deleted(self):
+        real = reset._remove
+
+        def stubborn(place):
+            if place != self.frog:
+                real(place)
+
+        with (
+            mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(self.games)}),
+            mock.patch.object(reset, "_remove", stubborn),
+        ):
+            answer = reset.clear("games", self.data, [])
+        self.assertEqual(answer["code"], "PARTLY_REMOVED")
+        self.assertTrue(
+            (self.places.home / "library" / "games.json").is_file(),
+            "so a retry still finds the game",
+        )
+
     def test_games_leave_the_demo_captures_to_logs(self):
         write(self.places.home / "library" / CAPTURES_DEMO, 4)
         reset.clear("games", self.data, [])
@@ -184,7 +253,18 @@ class Reset(unittest.TestCase):
             reset.clear("settings", self.data, [Path("/a"), Path("/b")])
         written.assert_called_once_with(Path("/a"), "plugins.entries.hermretro.settings", {})
 
-    def test_the_rpc_stops_the_broker_with_its_idle_workers_and_refuses_a_busy_one(self):
+    def test_settings_in_the_older_place_hermes_still_reads_go_too(self):
+        older = {"plugins": {"entries": {"hermretro": {"config": {"hardware_enabled": True}}}}}
+        with (
+            mock.patch.object(reset.hermes_api, "read_profile_config", lambda home: older),
+            mock.patch.object(reset.hermes_api, "write_profile_config_key") as written,
+        ):
+            reset.clear("settings", self.data, [Path("/a")])
+        written.assert_called_once_with(Path("/a"), "plugins.entries.hermretro.config", {})
+
+    def test_the_rpc_stops_the_broker_with_its_idle_workers_and_refuses_a_busy_one(
+        self,
+    ):
         rpc = reset_rpcs.rpc_reset(None)
         self.assertEqual(rpc({"part": "everything"})["code"], "UNKNOWN_PART")
         busy = FakeBrokerClient({"ok": False, "denied": {"code": "BUSY"}})

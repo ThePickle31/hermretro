@@ -19,12 +19,16 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     }
   }
   scenario.routes = [STUDIO]
-  scenario.byMethod['plugin.hermretro.status'] = () => ({ ok: true, plugin: { version: '1.2.3', installed_in: installedIn }, profile: { studio: { exists: true } } })
-  scenario.byMethod['plugins.manage'] = params => { log.push(`update:${params.action}`); return { ok: true, unchanged: true } }
+  let version = '1.2.3'
+  let updated = false
+  scenario.byMethod['plugin.hermretro.status'] = () => ({ ok: true, plugin: { version, installed_in: installedIn }, profile: { studio: { exists: true } } })
+  scenario.byMethod['plugins.manage'] = params => { log.push(`update:${params.action}`); return updated ? { ok: true } : { ok: true, unchanged: true } }
+  scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true })
   scenario.requestProfileHook = (route, method, params) => {
     if (method === 'plugin.hermretro.reset_plan') return plan
     if (method === 'plugin.hermretro.reset') { log.push(params.part); return { ok: true, removed_bytes: 1e6 } }
     if (method === 'session.active_list') return { sessions: active }
+    if (method === 'plugins.manage') { log.push(`studio:${params.action}`); return { ok: true, gateway_reloaded: true } }
     throw new Error(`unexpected ${method}`)
   }
   const dialog = () => document.querySelector('[role=dialog]')
@@ -103,6 +107,38 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await click('Close', dialog())
 
+  log.length = 0; updated = true
+  await open(); await pick('Studio profile', 'Keep'); await confirm()
+  check('a newer version is installed and loaded into the hermretro profile last', () => {
+    assert.deepEqual(log.slice(-3), ['update:update', 'studio:toggle', 'studio:toggle'])
+    assert.equal(scenario.storage.resetDone.update.kind, 'updated')
+  })
+  await page.close()
+  version = '1.2.4'
+  const reloaded = await mount(settingsPages[0]); await settle(40)
+  check('the settings page the app loads next opens on how the reset ended, on the new version', () => {
+    assert.match(said(), /hermretro is reset/)
+    assert.match(said(), /Version1\.2\.3 → 1\.2\.4/)
+  })
+  await click('Close', dialog())
+  check('closing it forgets the summary', () => { assert.equal(scenario.storage.resetDone ?? null, null) })
+  updated = false; version = '1.2.3'
+
+  log.length = 0
+  await open(); await pick('Studio profile', 'Keep')
+  const step = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => {
+    if (method === 'plugin.hermretro.reset' && params.part === 'stop') scenario.appProfile = 'work'
+    return step(route, method, params)
+  }
+  await confirm()
+  check('the app switching profile partway never sends the update to the other profile', () => {
+    assert.deepEqual(log, ['stop', 'history', 'logs', 'chats', 'settings', 'toolchain'])
+    assert.match(said(), /Stopped atUpdating hermretro: Hermes is on another connection or profile now/)
+  })
+  scenario.requestProfileHook = step; scenario.appProfile = undefined
+  await click('Close', dialog())
+
   log.length = 0; active = [{ status: 'working', title: 'Frog Post' }]
   await open(); await confirm()
   check('nothing is deleted while a game is being built', () => {
@@ -170,5 +206,5 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /The hermretro profile cannot be reached right now/)
     assert.ok(!dialog().querySelector('[data-segmented]'))
   })
-  await page.close()
+  await reloaded.close()
 })
