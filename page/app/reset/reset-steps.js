@@ -24,7 +24,8 @@ export const DEFAULT_CHOICES = Object.fromEntries(RESET_PARTS.map(part => [part.
 export const RESET_MARKER = 'resetDone'
 
 // The backend's parts, in the order they are deleted (the contract's `reset`).
-const BACKEND_PARTS = ['history', 'games', 'chats', 'settings', 'toolchain', 'logs']
+// Logs before Games: a deleted game takes its captures, and its folder is how Logs & captures finds them.
+const BACKEND_PARTS = ['history', 'logs', 'games', 'chats', 'settings', 'toolchain']
 const PART_TIMEOUT_MS = 600_000
 const label = id => RESET_PARTS.find(part => part.id === id)?.label ?? id
 
@@ -127,14 +128,17 @@ export async function runReset({ ctx, choices, target, studio, install, version,
     onStep(index)
 
     try {
-      if (step.id === 'stop') {
-        // A turn under way must not lose its game or its chat: nothing is deleted while one runs.
+      // A turn under way must not lose its game or its chat: before each step, nothing may be running in the studio
+      // (a chat started from elsewhere after the first check is caught at the next step).
+      if (step.id !== 'update' && !gone.has('profile')) {
         const building = await busyChats(studio)
 
         if (building.length) {
           throw new Error(busySentence(building, 'reset hermretro'))
         }
+      }
 
+      if (step.id === 'stop') {
         await backendPart(target, 'stop')
       } else if (BACKEND_PARTS.includes(step.id)) {
         summary.deleted += await backendPart(target, step.id)
@@ -148,7 +152,8 @@ export async function runReset({ ctx, choices, target, studio, install, version,
           install,
           studio: profileGone ? null : studio,
           busy: () => busyChats(profileGone ? null : studio),
-          // The stop step was refused while the toolchain installed, and nothing has started one since.
+          // The stop step was refused while the toolchain installed, and the update lock (held from the start of the
+          // reset) keeps Setup from starting one since.
           confirmInstallIdle: async () => null,
           installed: () => remember(ctx, UPDATE_PENDING, { at: Date.now(), error: null }),
           refused: () => remember(ctx, UPDATE_PENDING, null),

@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 47307b1a3f599f514a9f5e0236c8374bc12160083f837bd53b6ac052618257f8
- * body: sha256 6b8edf377cb636555d5abd6e062083a9f42cf9472f9570252466810956a9c883
+ * sources: sha256 4c22d39ea8aed4b5bc18494989819886d457e3395a3d34945b2d7fc00df20980
+ * body: sha256 38eb31d00d06fbe1af766136528b4acbb1d2615bdfc77cffc3b9177970f85285
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -3808,7 +3808,7 @@ async function runReload({install,studio,busy=async()=>[],confirmInstallIdle,loa
 Could not check whether a game is being built (${String(error?.message??error)})`}}if(building.length){return{kind:"busy",chats:building}}const loaded=await loadIntoStudio({install,studio,busy,confirmInstallIdle,
 onWaiting,waitMs,checkTries});if(!loaded.ok){return{kind:"failed",error:loaded.error}}if(!loaded.reloaded){return{kind:"restart"}}loadedNow();return{kind:"reloaded",pageRefreshed:await refreshDesktopHalf()}}var RESET_PARTS=[{id:"games",label:"Games"},{id:"history",label:"Build history"},{id:"chats",label:"Studio chats"},{id:"profile",label:"Studio profile"},{id:"settings",label:"Plugin settings"},{id:"to\
 olchain",label:"Toolchain & engine"},{id:"logs",label:"Logs & captures"}];var DEFAULT_CHOICES=Object.fromEntries(RESET_PARTS.map(part=>[part.id,part.id==="games"?"keep":"delete"]));var RESET_MARKER="r\
-esetDone";var BACKEND_PARTS=["history","games","chats","settings","toolchain","logs"];var PART_TIMEOUT_MS=6e5;var label=id=>RESET_PARTS.find(part=>part.id===id)?.label??id;function settleChoices(choices,locked={}){
+esetDone";var BACKEND_PARTS=["history","logs","games","chats","settings","toolchain"];var PART_TIMEOUT_MS=6e5;var label=id=>RESET_PARTS.find(part=>part.id===id)?.label??id;function settleChoices(choices,locked={}){
 const settled={...choices};const forced={};for(const[id,why]of Object.entries(locked)){if(why){settled[id]="keep";forced[id]=why}}const takes=(owner,part,why)=>{if(settled[owner]==="delete"&&!forced[part]){
 settled[part]="delete";forced[part]=why}};takes("profile","chats","Deleted with the studio profile");takes("profile","history","Deleted with the studio profile");takes("games","history","Deleted with \
 Games");return{choices:settled,forced}}function resetSteps(choices){const deleted=id=>choices[id]==="delete"&&!(id==="chats"&&choices.profile==="delete");return[{id:"stop",label:"Stopping the studio"},
@@ -3818,16 +3818,16 @@ async function backendPart(target,part){const answer=await requestOn(target,RPC_
 answer.removed_bytes)||0}function pendingReset(ctx){try{const summary=ctx.storage.get(RESET_MARKER,null);return summary&&typeof summary==="object"?summary:null}catch{return null}}function forgetReset(ctx){
 remember2(ctx,RESET_MARKER,null)}function remember2(ctx,key,value){try{ctx.storage.set(key,value)}catch{}}async function runReset({ctx,choices,target,studio,install,version,onStep=()=>{}}){const steps=resetSteps(
 choices);const gone=new Set;const kept=()=>RESET_PARTS.filter(part=>!gone.has(part.id)).map(part=>part.label);const summary={deleted:0,kept:kept(),failed:null,update:null,from:version};const profileGone=choices.
-profile==="delete";for(const[index,step]of steps.entries()){onStep(index);try{if(step.id==="stop"){const building=await busyChats(studio);if(building.length){throw new Error(busySentence(building,"res\
-et hermretro"))}await backendPart(target,"stop")}else if(BACKEND_PARTS.includes(step.id)){summary.deleted+=await backendPart(target,step.id)}else if(step.id==="profile"){await deleteStudioProfile(studio);
-gone.add("chats").add("history")}else if(install){remember2(ctx,RESET_MARKER,summary);summary.update=await runUpdate({install,studio:profileGone?null:studio,busy:()=>busyChats(profileGone?null:studio),
-confirmInstallIdle:async()=>null,installed:()=>remember2(ctx,UPDATE_PENDING,{at:Date.now(),error:null}),refused:()=>remember2(ctx,UPDATE_PENDING,null),remember:marker=>{remember2(ctx,UPDATE_PENDING,null);
-remember2(ctx,UPDATE_MARKER,{...marker,from:version});remember2(ctx,RESET_MARKER,{...summary,update:{kind:"updated",restart:marker.restart}})}});if(summary.update.kind==="partial"){remember2(ctx,UPDATE_PENDING,
-{at:Date.now(),error:summary.update.error??null})}}}catch(error){summary.failed={step:step.label,error:String(error?.message??error)};break}if(step.id!=="stop"&&step.id!=="update"){gone.add(step.id);summary.
-kept=kept()}}if(summary.update){remember2(ctx,RESET_MARKER,summary)}return summary}var CHOICES=[{id:"keep",label:"Keep"},{id:"delete",label:"Delete"}];var CONFIRM_WORD="reset";function detail(id,parts2){const part=parts2[id]??{};const size=part.bytes>0?formatBytes(part.bytes):null;if(id===
-"games"){return[`${part.count??0} ${part.count===1?"game":"games"}`,size].filter(Boolean).join(" · ")}if(id==="chats"){return`${part.count??0} ${part.count===1?"chat":"chats"}`}return id==="profile"?
-"Model, sign-in, SOUL":size}function Choose({reset}){const{parts:parts2}=reset.context;return jsx("ul",{className:"cs-rst-parts",children:RESET_PARTS.map(({id,label:label2})=>jsxs("li",{className:"cs-\
-rst-part",children:[jsxs("div",{className:"cs-rst-name",children:[jsx("b",{children:label2}),jsx("span",{children:[detail(id,parts2),reset.forced[id]].filter(Boolean).join(" · ")})]}),jsx(SegmentedControl,
+profile==="delete";for(const[index,step]of steps.entries()){onStep(index);try{if(step.id!=="update"&&!gone.has("profile")){const building=await busyChats(studio);if(building.length){throw new Error(busySentence(
+building,"reset hermretro"))}}if(step.id==="stop"){await backendPart(target,"stop")}else if(BACKEND_PARTS.includes(step.id)){summary.deleted+=await backendPart(target,step.id)}else if(step.id==="profi\
+le"){await deleteStudioProfile(studio);gone.add("chats").add("history")}else if(install){remember2(ctx,RESET_MARKER,summary);summary.update=await runUpdate({install,studio:profileGone?null:studio,busy:()=>busyChats(
+profileGone?null:studio),confirmInstallIdle:async()=>null,installed:()=>remember2(ctx,UPDATE_PENDING,{at:Date.now(),error:null}),refused:()=>remember2(ctx,UPDATE_PENDING,null),remember:marker=>{remember2(
+ctx,UPDATE_PENDING,null);remember2(ctx,UPDATE_MARKER,{...marker,from:version});remember2(ctx,RESET_MARKER,{...summary,update:{kind:"updated",restart:marker.restart}})}});if(summary.update.kind==="part\
+ial"){remember2(ctx,UPDATE_PENDING,{at:Date.now(),error:summary.update.error??null})}}}catch(error){summary.failed={step:step.label,error:String(error?.message??error)};break}if(step.id!=="stop"&&step.
+id!=="update"){gone.add(step.id);summary.kept=kept()}}if(summary.update){remember2(ctx,RESET_MARKER,summary)}return summary}var CHOICES=[{id:"keep",label:"Keep"},{id:"delete",label:"Delete"}];var CONFIRM_WORD="reset";function detail(id,parts2){const part=parts2[id]??{};const size=part.bytes>0?formatBytes(part.bytes):null;if(id===
+"games"){return[`${part.count??0} ${part.count===1?"game":"games"}`,size].filter(Boolean).join(" · ")}if(id==="chats"){return part.count==null?null:`${part.count} ${part.count===1?"chat":"chats"}`}return id===
+"profile"?"Model, sign-in, SOUL":size}function Choose({reset}){const{parts:parts2}=reset.context;return jsx("ul",{className:"cs-rst-parts",children:RESET_PARTS.map(({id,label:label2})=>jsxs("li",{className:"\
+cs-rst-part",children:[jsxs("div",{className:"cs-rst-name",children:[jsx("b",{children:label2}),jsx("span",{children:[detail(id,parts2),reset.forced[id]].filter(Boolean).join(" · ")})]}),jsx(SegmentedControl,
 {"aria-label":label2,disabled:Boolean(reset.forced[id]),onChange:value=>reset.choose(id,value),options:CHOICES,sizing:"equal",value:reset.choices[id]})]},id))})}function Column({title,kind,ids,parts:parts2}){
 return jsxs("div",{className:"cs-rst-col","data-kind":kind,children:[jsx("h4",{children:title}),jsx("ul",{children:ids.map(id=>jsxs("li",{children:[jsx("span",{children:RESET_PARTS.find(part=>part.id===
 id).label}),jsx("span",{children:parts2[id]?.bytes>0?formatBytes(parts2[id].bytes):""})]},id))})]})}function Confirm2({reset}){const ids=RESET_PARTS.map(part=>part.id);const{parts:parts2}=reset.context;
@@ -3850,18 +3850,19 @@ CONFIRM_WORD,onClick:reset.run,size:"sm",variant:"destructive",children:"Reset"}
 restart,size:"sm",variant:"default",children:reset.restarting?"Restarting…":"Reload & restart gateway"},"restart")];default:return[cancel]}}var TITLES={running:"Resetting hermretro",done:"hermretro \
 is reset"};function ResetDialog({reset}){const running=reset.phase==="running";const failedRun=reset.phase==="done"&&reset.summary?.failed;return jsx(Dialog,{open:reset.phase!=="closed",onOpenChange:open=>{
 if(!open&&!running){reset.close()}},children:jsxs(DialogContent,{className:"cs-rst-dlg",showCloseButton:!running,children:[jsx(DialogHeader,{children:jsx(DialogTitle,{children:failedRun?"The reset sto\
-pped":TITLES[reset.phase]??"Factory reset hermretro"})}),body(reset),jsx(DialogFooter,{className:"cs-rst-foot",children:footer(reset)})]})})}var NO_PROFILE="No studio profile";async function readContext(){const{data:status}=await callBackend(RPC_STATUS);if(!status?.ok){throw new Error(status?.error||"hermretro did not answer.")}const installedIn=status.
-plugin?.installed_in??null;const studio=await studioReloadTarget(Boolean(status.profile?.is_studio||status.profile?.studio?.exists));const target=studio??{route:routing.route,profile:routing.profile};
-const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(plan?.error||"What hermretro keeps could not be read.")}const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.
-profile===STUDIO_PROFILE;return{target,studio,install:await installTarget(installedIn),version:status.plugin?.version??null,parts:plan.parts,locked:{chats:studio?null:NO_PROFILE,profile:studio?holdsPlugin?
-"hermretro is installed here":null:NO_PROFILE,toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){const[state,setState]=useState(()=>{const summary=pendingReset(ctx);
-return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(false);const[typed,setTyped]=useState("");const context=state.
+pped":TITLES[reset.phase]??"Factory reset hermretro"})}),body(reset),jsx(DialogFooter,{className:"cs-rst-foot",children:footer(reset)})]})})}var NO_PROFILE="No studio profile";function connectionOf(target){return target?.route?.connectionId||host.activeConnectionId?.()||"local"}async function readContext(){const{data:status}=await callBackend(
+RPC_STATUS);if(!status?.ok){throw new Error(status?.error||"hermretro did not answer.")}const installedIn=status.plugin?.installed_in??null;const here=connectionOf({route:routing.route});const same=target2=>target2&&
+connectionOf(target2)===here?target2:null;const studio=same(await studioReloadTarget(Boolean(status.profile?.is_studio||status.profile?.studio?.exists)));const target=studio??{route:routing.route,profile:routing.
+profile};const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(plan?.error||"What hermretro keeps could not be read.")}const holdsPlugin=Boolean(installedIn?.linked)||
+installedIn?.profile===STUDIO_PROFILE;return{target,studio,install:same(await installTarget(installedIn)),version:status.plugin?.version??null,parts:plan.parts,locked:{chats:studio?null:NO_PROFILE,profile:studio?
+holdsPlugin?"hermretro is installed here":null:NO_PROFILE,toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){const[state,setState]=useState(()=>{const summary=pendingReset(
+ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(false);const[typed,setTyped]=useState("");const context=state.
 context??null;const settled=settleChoices(choices,context?.locked);useEffect(()=>{if(state.phase!=="loading"){return}let live=true;readContext().then(found=>live&&setState({phase:"choose",context:found}),
 error=>live&&setState({phase:"failed",error:String(error?.message??error)}));return()=>{live=false}},[state.phase]);const updated=state.phase==="done"&&state.summary?.update?.kind==="updated";useEffect(
 ()=>{if(!updated||state.version){return}callBackend(RPC_STATUS).then(({data})=>data?.plugin?.version&&setState(current=>({...current,version:data.plugin.version})),()=>{})},[updated]);const run=async()=>{
 const steps=resetSteps(settled.choices);setState(current=>({...current,phase:"running",steps,step:0}));setUpdating(true);let summary;try{summary=await runReset({ctx,choices:settled.choices,...context,
 onStep:step=>setState(current=>({...current,step}))})}finally{setUpdating(false)}setState(current=>({...current,phase:"done",summary}))};const close=()=>{if(state.phase==="running"){return}forgetReset(
-ctx);setChoices(DEFAULT_CHOICES);setTyped("");setState({phase:"closed"})};const restart=async()=>{setRestarting(true);try{await host.restartGateway();forgetReset(ctx);await refreshDesktopHalf()}catch(error){
+ctx);setChoices(DEFAULT_CHOICES);setTyped("");setState({phase:"closed"})};const restart=async()=>{setRestarting(true);try{if(await host.restartGateway()!==false){forgetReset(ctx);await refreshDesktopHalf()}}catch(error){
 host.notify({kind:"error",message:`The gateway did not restart: ${String(error?.message??error)}`})}finally{setRestarting(false)}};return{...state,choices:settled.choices,forced:settled.forced,typed,type:setTyped,
 choose:(id,value)=>setChoices(current=>({...current,[id]:value})),deleteAll:()=>setChoices(Object.fromEntries(Object.keys(DEFAULT_CHOICES).map(id=>[id,"delete"]))),open:()=>setState({phase:"loading"}),
 confirm:()=>setState(current=>({...current,phase:"confirm"})),back:()=>setState(current=>({...current,phase:"choose"})),close,run:()=>void run(),canRestart:typeof host.restartGateway==="function",restarting,

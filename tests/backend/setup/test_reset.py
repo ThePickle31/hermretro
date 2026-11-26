@@ -66,7 +66,7 @@ class Reset(unittest.TestCase):
         self.assertEqual(parts["history"]["bytes"], 30)
         self.assertGreaterEqual(parts["toolchain"]["bytes"], 1000)
         self.assertFalse(parts["toolchain"]["custom"])
-        self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 8 + 7 + 3)
+        self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 8 + 7)  # a folder of the user's own keeps its captures
 
     def test_games_empty_the_games_folder_and_library_and_leave_a_folder_of_the_users_own(self):
         answer = reset.clear("games", self.data, [])
@@ -84,6 +84,29 @@ class Reset(unittest.TestCase):
             reset.clear("games", self.data, [])
         self.assertEqual(sorted(p.name for p in self.games.iterdir()), ["notes.txt"])
 
+    def test_a_library_folder_the_user_configured_keeps_its_other_files(self):
+        library = self.places.home / "library"
+        write(library / "notes.txt", 2)
+        with mock.patch.dict(os.environ, {"HERMRETRO_LIBRARY_DIR": str(library)}):
+            reset.clear("games", self.data, [])
+        self.assertEqual(sorted(p.name for p in library.iterdir()), ["notes.txt"])
+
+    def test_a_game_folder_a_link_now_stands_in_for_is_never_followed(self):
+        target = self.places.base / "precious"
+        write(target / "captures" / "keep.png", 3)
+        moved = self.places.base / "moved"
+        os.replace(self.frog, moved)
+        self.frog.symlink_to(target)
+        with mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(self.games)}):
+            reset.clear("logs", self.data, [])
+            reset.clear("games", self.data, [])
+        self.assertTrue((target / "captures" / "keep.png").is_file())
+
+    def test_what_could_not_be_deleted_is_said(self):
+        with mock.patch.object(reset, "_remove"):
+            answer = reset.clear("history", self.data, [])
+        self.assertEqual((answer["ok"], answer["code"], answer["removed_bytes"]), (False, "PARTLY_REMOVED", 0))
+
     def test_history_and_logs_delete_only_their_own(self):
         reset.clear("history", self.data, [])
         self.assertFalse((self.data / "snapshots").exists())
@@ -91,7 +114,7 @@ class Reset(unittest.TestCase):
         self.assertFalse((self.run_dir / "trace.jsonl").exists())
         self.assertFalse((self.data / "frames").exists())
         self.assertFalse((self.frog / "captures").exists())
-        self.assertFalse((self.elsewhere / "captures").exists())
+        self.assertTrue((self.elsewhere / "captures" / "clip.webm").is_file())
         self.assertTrue((self.run_dir / "broker.token").is_file())
         self.assertTrue((self.frog / "frog.gbsproj").is_file())
 

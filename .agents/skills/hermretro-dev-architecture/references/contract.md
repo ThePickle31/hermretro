@@ -269,12 +269,12 @@ What the factory reset (Settings → Plugins → hermretro) would delete, part b
 
 ```
 { ok: true, parts: {
-    games: { bytes, count },        // the games folder, the library, kept image versions; count: the library's games
+    games: { bytes, count },        // what deleting the games removes; count: the library's games
     history: { bytes },             // build history (this profile's snapshots)
-    chats: { count },               // the studio profile's chats
+    chats: { count },               // the studio profile's chats; null when they cannot be read
     settings: {},                   // hermretro's settings in Hermes
     toolchain: { bytes, custom },   // <hermretro home>/.cache; custom: a folder the user configured (left alone)
-    logs: { bytes } } }             // the broker's logs, saved frames, every library game's captures/
+    logs: { bytes } } }             // the broker's logs, saved frames, the captures of the games in the games folder
 { ok: false, error }
 ```
 
@@ -283,15 +283,18 @@ and build history with it.
 
 ### `reset` — params `{ part }`
 
-One step of the factory reset; the page calls it once per part it deletes, in this order: `stop`, `history`, `games`,
-`chats`, `settings`, `toolchain`, `logs`. Every part but `settings` first asks the broker to stop with its idle workers
+One step of the factory reset; the page calls it once per part it deletes, in this order: `stop`, `history`, `logs`,
+`games`, `chats`, `settings`, `toolchain`; before each one it checks that no studio chat is building. Every part but `settings` first asks the broker to stop with its idle workers
 (`{"op": "shutdown", "replace": true}`) and holds its election lock while it deletes (`backend/setup/broker_stop.py`);
 `stop` does only that. `games` empties the games folder (only the library's games in it when `HERMRETRO_GAMES_DIR`
-is set) and the library, and deletes kept image versions; a game in a folder of the user's own leaves the library but
-stays on disk. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
-studio profile's `state.db`), `CHATS_LEFT` when some remain. `settings` clears `plugins.entries.hermretro.settings` in this profile and the one hermretro was
+is set), deletes the library's own files (`games.json`, its lock, `thumbs/`, `captures/`) and kept image versions; a
+game in a folder of the user's own leaves the library but stays on disk with its captures, and a game folder a link
+now stands in for is never followed. `logs` deletes the broker's logs, saved frames and the captures of the games in
+the games folder. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
+studio profile's `state.db`), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read. `settings` clears `plugins.entries.hermretro.settings` in this profile and the one hermretro was
 installed into, so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`
-(the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `CHATS_LEFT`, `BUSY`
+(the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `PARTLY_REMOVED` (something could not be deleted; `removed_bytes` says what was), `CHATS_LEFT`,
+`CHATS_UNREADABLE`, `BUSY`
 (a call is running or the broker did not stop within 15 s), `WORKER_STILL_RUNNING`, `UNAVAILABLE`, or one of
 `remove_tools`'s.
 

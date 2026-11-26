@@ -68,7 +68,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   await typeInto(dialog().querySelector('input'), 'reset')
   await click('Reset', dialog()); await settle(60)
   check('the backend parts go first, in order, then the update', () => {
-    assert.deepEqual(log, ['stop', 'history', 'chats', 'settings', 'toolchain', 'logs', 'update:update'])
+    assert.deepEqual(log, ['stop', 'history', 'logs', 'chats', 'settings', 'toolchain', 'update:update'])
     assert.ok(!scenario.calls.some(call => call[0] === 'deleteProfile'))
   })
   check('the done screen says what was deleted, kept and the version', () => {
@@ -77,8 +77,16 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /KeptGames, Studio profile/)
     assert.match(said(), /Version1\.2\.3, up to date/)
   })
+  scenario.restartAnswer = false
   await click('Reload & restart gateway', dialog()); await settle()
-  check('Reload & restart gateway restarts Hermes\'s gateway', () => { assert.ok(scenario.calls.some(call => call[0] === 'restartGateway')) })
+  check('a restart the user says no to keeps the done screen and its summary', () => {
+    assert.ok(scenario.calls.some(call => call[0] === 'restartGateway'))
+    assert.match(said(), /hermretro is reset/)
+    assert.equal(typeof scenario.storage.resetDone, 'object'); assert.ok(scenario.storage.resetDone)
+  })
+  scenario.restartAnswer = true
+  await click('Reload & restart gateway', dialog()); await settle()
+  check('a restart that goes ahead forgets the summary', () => { assert.equal(scenario.storage.resetDone ?? null, null) })
   await click('Close', dialog())
 
   log.length = 0
@@ -89,7 +97,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await confirm()
   check('the profile is deleted through Hermes after the backend parts, taking its chats with it', () => {
-    assert.deepEqual(log, ['stop', 'history', 'settings', 'toolchain', 'logs', 'update:update'])
+    assert.deepEqual(log, ['stop', 'history', 'logs', 'settings', 'toolchain', 'update:update'])
     assert.deepEqual(scenario.calls.filter(call => call[0] === 'deleteProfile'), [['deleteProfile', 'hermretro']])
   })
   await click('Close', dialog())
@@ -104,12 +112,35 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await click('Close', dialog())
 
+  log.length = 0; active = []
+  const answer = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => {
+    if (method === 'plugin.hermretro.reset' && params.part === 'stop') active = [{ status: 'working', title: 'Owl' }]
+    return answer(route, method, params)
+  }
+  await open(); await confirm()
+  check('a build started after the first check stops the reset at the next step', () => {
+    assert.deepEqual(log, ['stop'])
+    assert.match(said(), /Stopped atBuild history: A game is being built in "Owl"/)
+  })
+  scenario.requestProfileHook = answer
+  await click('Close', dialog())
+
   active = []; installedIn = { profile: 'hermretro', linked: false }
   await open()
   check('the studio profile stays when hermretro is installed in it', () => {
     assert.match(said(), /Studio profileModel, sign-in, SOUL · hermretro is installed here/)
     assert.equal(chosen('Studio profile'), 'Keep')
     assert.ok(choice('Studio profile').querySelector('button').disabled)
+  })
+  await click('Cancel', dialog())
+
+  installedIn = { profile: 'default', linked: false }; scenario.routes = [{ ...STUDIO, connectionId: 'vps' }]
+  scenario.byMethod['plugin.hermretro.reset_plan'] = plan
+  await open()
+  check('a hermretro profile on another Hermes connection is never touched', () => {
+    assert.match(said(), /Studio profileModel, sign-in, SOUL · No studio profile/)
+    assert.equal(chosen('Studio profile'), 'Keep')
   })
   await page.close()
 })

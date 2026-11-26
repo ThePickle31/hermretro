@@ -63,7 +63,8 @@ export const host = {
     scenario.calls.push(['deleteProfile', typeof profile === 'string' ? profile : profile?.profile])
     if (scenario.deleteProfileError) throw scenario.deleteProfileError
   },
-  restartGateway: async () => { scenario.calls.push(['restartGateway']) },
+  // scenario.restartAnswer: what the restart resolves to (false: the user said no, or it failed).
+  restartGateway: async () => { scenario.calls.push(['restartGateway']); return scenario.restartAnswer },
   notify: notice => scenario.notices.push(notice),
   newChat: profile => scenario.calls.push(['newChat', profile ?? null]),
   composer: { insertText: async (target, text) => { scenario.calls.push(['insert', target]); scenario.inserted.push([target, text]); return true } },

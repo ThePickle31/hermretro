@@ -11,6 +11,11 @@ import { DEFAULT_CHOICES, forgetReset, pendingReset, resetSteps, runReset, settl
 
 const NO_PROFILE = 'No studio profile'
 
+/** The Hermes connection a target reaches: its route's, else the one the app itself is on. */
+function connectionOf(target) {
+  return target?.route?.connectionId || host.activeConnectionId?.() || 'local'
+}
+
 /** Everything the dialog needs before anything is deleted: where each call goes, and what each part holds. */
 async function readContext() {
   const { data: status } = await callBackend(RPC_STATUS)
@@ -20,7 +25,10 @@ async function readContext() {
   }
 
   const installedIn = status.plugin?.installed_in ?? null
-  const studio = await studioReloadTarget(Boolean(status.profile?.is_studio || status.profile?.studio?.exists))
+  // Everything goes to the Hermes that answered: a profile of the same name on another connection is someone else's.
+  const here = connectionOf({ route: routing.route })
+  const same = target => (target && connectionOf(target) === here ? target : null)
+  const studio = same(await studioReloadTarget(Boolean(status.profile?.is_studio || status.profile?.studio?.exists)))
   // The backend's parts read this profile's plugin data (build history): the hermretro profile's when there is one.
   const target = studio ?? { route: routing.route, profile: routing.profile }
   const plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
@@ -35,7 +43,7 @@ async function readContext() {
   return {
     target,
     studio,
-    install: await installTarget(installedIn),
+    install: same(await installTarget(installedIn)),
     version: status.plugin?.version ?? null,
     parts: plan.parts,
     locked: {
@@ -128,9 +136,11 @@ export function useReset(ctx) {
     setRestarting(true)
 
     try {
-      await host.restartGateway()
-      forgetReset(ctx)
-      await refreshDesktopHalf()
+      // False when the user said no to Hermes's question, or the restart failed: the done screen stays to try again.
+      if ((await host.restartGateway()) !== false) {
+        forgetReset(ctx)
+        await refreshDesktopHalf()
+      }
     } catch (error) {
       host.notify({ kind: 'error', message: `The gateway did not restart: ${String(error?.message ?? error)}` })
     } finally {

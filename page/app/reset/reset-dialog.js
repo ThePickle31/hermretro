@@ -20,7 +20,7 @@ function detail(id, parts) {
   }
 
   if (id === 'chats') {
-    return `${part.count ?? 0} ${part.count === 1 ? 'chat' : 'chats'}`
+    return part.count == null ? null : `${part.count} ${part.count === 1 ? 'chat' : 'chats'}`
   }
 
   return id === 'profile' ? 'Model, sign-in, SOUL' : size
