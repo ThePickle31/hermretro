@@ -7,11 +7,14 @@ needs (the suite's time on a CI runner is close to its limit)."""
 import hashlib
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from tests.acceptance.checkpoints import signature_bytes
 from tests.acceptance.fixture import structured
 from tests.support import encode_png
+
+WINDOWS = sys.platform == "win32"
 
 # A worker opens one project's folder only: the copy gets an owner (and a worker) of its own.
 OWNER_R = {"profile": "s01-profile", "conversation_id": "conv-R"}
@@ -147,7 +150,8 @@ def check_repeatable(suite, client, rom_b: str):
         and rebuilt.get("success") is True
         and rebuilt["sha256"] == original
         and bool(first_compiled and first_compiled["engine"])
-        and again_compiled == {"engine": 0, "game": first_compiled["game"]},
+        # Windows keeps a fresh compiler folder per build.
+        and again_compiled == {"engine": first_compiled["engine"] if WINDOWS else 0, "game": first_compiled["game"]},
         original=original,
         rebuilt=rebuilt["sha256"] or rebuilt.get("error"),
         compiled=[first_compiled, again_compiled],

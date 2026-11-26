@@ -31632,7 +31632,7 @@ async function sharedBuildToolchain(gbStudioCli) {
   };
   try {
     for (const part of parts) {
-      if (!await add(part))
+      if (await realpath7(part) !== part || !await add(part))
         return void 0;
     }
   } catch (error2) {
@@ -31711,7 +31711,7 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
     await writeFile(path16.join(directory, SHARED_BUILD_TOOLCHAIN), toolchain, { mode: 384 });
     await writeFile(path16.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
     const engineSources = path16.join(path16.dirname(gbStudioCli), "..", "..", "appData", "engine", "gbvm", "src");
-    return { directory, claim, engineSources, cacheBefore: await sharedCacheState(cache) };
+    return { directory, claim, projectDirectory: path16.dirname(projectFile), engineSources, cacheBefore: await sharedCacheState(cache) };
   } catch (error2) {
     await rm3(claim, { force: true }).catch(() => {
     });
@@ -31775,7 +31775,10 @@ async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
       return;
     // GB Studio writes its cache only after compiling, without replacing files atomically: what a compiler that
     // was stopped or failed changed there is forgotten.
-    if (compilerSucceeded) {
+    if (compilerSucceeded && await gameBringsCompilerInput(shared.projectDirectory)) {
+      // A plugin or engine code that arrived during the build: what it compiled is not kept.
+      await rm3(path16.join(shared.directory, SHARED_BUILD_CACHE), { recursive: true, force: true });
+    } else if (compilerSucceeded) {
       await keepOnlyEngineObjects(shared);
     } else {
       const cacheAfter = await sharedCacheState(path16.join(shared.directory, SHARED_BUILD_CACHE));
