@@ -15,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.library import installs, layout, ownership, release  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import install_build, installs, layout, ownership, release  # noqa: E402 - the repository root goes on sys.path first
 from backend.library.games import Registry  # noqa: E402
 from backend.library.installs import InstallError  # noqa: E402
 from backend.system import paths  # noqa: E402
@@ -33,7 +33,11 @@ class Workers:
     """The broker's side, faked: which games were held, and a game that is open somewhere."""
 
     def __init__(self):
-        self.held, self.busy = [], set()
+        self.held, self.busy, self.built = [], set(), []
+
+    def test_build(self, root):
+        self.built.append(str(root))
+        return {"built": True, "sha256": None, "matches": None, "commit": None, "error": None}
 
     def hold(self, root):
         if str(root) in self.busy:
@@ -243,14 +247,34 @@ class Installing(Base):
         commit_all(repo, "a folder named like a project")
         self.assertIn("BAD_PROJECT", self.problems(link))
 
-    def test_plugins_need_the_users_consent(self):
+    def test_a_game_with_its_source_is_built_only_with_the_users_consent(self):
         repo, link = make_game_repo(self.repos, source=True)
         (repo / "plugins" / "fx").mkdir(parents=True)
         (repo / "plugins" / "fx" / "engine.c").write_text("void run(void) {}")
         commit_all(repo, "plugin")
-        self.assertTrue(self.inspect(link)["needsPluginConsent"])
-        self.refused("PLUGINS", lambda: self.install(link))
-        self.assertEqual(self.install(link, allow_plugins=True)["mode"], "game+source")
+        found = self.inspect(link)
+        self.assertTrue(found["needsBuildConsent"])
+        self.assertEqual(found["plugins"], ["plugins/fx/engine.c"])  # shown to the user, not a refusal
+        installed = self.install(link)
+        root = Path(installed["root"])
+        self.assertFalse(install_build.allowed(root))  # installed, playing the ROM it came with, never built
+        self.assertTrue(installed["testBuildDue"])
+        self.assertNotIn("testBuild", installed)
+        self.assertEqual(self.workers.built, [])
+        again = self.install(link, allow_build=True)  # the same commit, now allowed: built once
+        self.assertTrue(install_build.allowed(root))
+        self.assertEqual(self.workers.built, [str(root)])
+        self.assertEqual(again["testBuild"]["built"], True)
+        consent = release.installed(root)["buildConsent"]
+        self.assertEqual(consent["commit"], release.installed(root)["commit"])
+        self.assertEqual(consent["digest"], release.installed(root)["sourceDigest"])
+
+    def test_a_game_alone_needs_no_consent_and_is_never_built(self):
+        _, link = make_game_repo(self.repos)
+        self.assertFalse(self.inspect(link)["needsBuildConsent"])
+        root = Path(self.install(link, allow_build=True)["root"])
+        self.assertFalse(install_build.allowed(root))
+        self.assertEqual(self.workers.built, [])
 
     def test_one_game_id_per_machine(self):
         _, link = make_game_repo(self.repos)
@@ -397,14 +421,18 @@ class Updating(Base):
         self.refused("GAME_BUSY", lambda: self.update(root))
         self.assertEqual(release.installed(root)["commit"], git(repo, "rev-parse", "HEAD~1"))
 
-    def test_plugins_added_by_an_update_need_consent(self):
+    def test_an_update_asks_for_consent_to_build_again(self):
         repo, link = make_game_repo(self.repos, source=True)
-        root = Path(self.install(link)["root"])
+        root = Path(self.install(link, allow_build=True)["root"])
+        self.assertTrue(install_build.allowed(root))
         (repo / "plugins").mkdir()
         (repo / "plugins" / "engine.c").write_text("void x(void) {}")
         commit_all(repo, "plugin")
-        self.refused("PLUGINS", lambda: self.update(root))
-        self.assertTrue(self.update(root, allow_plugins=True)["changed"])
+        updated = self.update(root)
+        self.assertTrue(updated["changed"])
+        self.assertFalse(install_build.allowed(root))  # consent was for the commit before
+        self.assertEqual(self.workers.built, [str(root)])  # built for the first commit only
+        self.assertNotIn("testBuild", updated)
 
     def test_the_branch_is_kept_through_inspect_install_and_update(self):
         repo, link = make_game_repo(self.repos)

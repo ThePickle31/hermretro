@@ -86,7 +86,7 @@ class Ownership(unittest.TestCase):
         lane = self.lane("st-frog", self.frog)
         lane.engine.closed = True  # the worker died
         fresh = Engine(self.frog)
-        self.broker.new_engine = lambda _name: fresh
+        self.broker.new_engine = lambda _name, _workspace=None: fresh
         self.broker.pinned_hash = canonical_hash([])
         self.registry.unbind(self.frog_id, "st-frog", PROFILE)
         self.broker.ensure_engine(lane)
@@ -98,7 +98,7 @@ class Ownership(unittest.TestCase):
         lane = self.lane("st-frog", self.frog)
         lane.engine.closed = True
         fresh = Engine(self.frog)
-        self.broker.new_engine = lambda _name: fresh
+        self.broker.new_engine = lambda _name, _workspace=None: fresh
         self.broker.pinned_hash = canonical_hash([])
         self.broker.ensure_engine(lane)
         self.assertEqual(fresh.calls[0][0], "project_select")

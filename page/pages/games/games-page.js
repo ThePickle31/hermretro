@@ -32,11 +32,25 @@ function DeviceStrip({ hardwareOn, onSetUpDevice }) {
       })
 }
 
-export function InstallButton({ ctx, game, hardwareOn, label = 'Install' }) {
+/** Install on Chromatic: the flash prompt in the game's own conversation. An installed game's is its Build
+ *  conversation only: the game opens on Build with the prompt in its message box (sending it makes and binds the
+ *  conversation when it has none), never a new chat nor one it had before Stop editing. */
+export async function requestInstall(ctx, game, go) {
+  const prompt = installPrompt(game)
+
+  if (!game.install) {
+    return sendToGameChat(ctx, game, prompt)
+  }
+
+  emit('games.chatPromptRequested', { game, prompt })
+  go?.('build', game.id)
+}
+
+export function InstallButton({ ctx, game, go, hardwareOn, label = 'Install' }) {
   return jsx(AsyncButton, {
-    disabled: !hardwareOn || !game.rom,
+    disabled: !hardwareOn || !game.rom || (Boolean(game.install) && !go),
     icon: 'desktop-download',
-    run: () => sendToGameChat(ctx, game, installPrompt(game)),
+    run: () => requestInstall(ctx, game, go),
     title: !hardwareOn ? 'Needs your Chromatic' : !game.rom ? 'Build it first' : "Puts the flash prompt in this game's chat; Hermes asks before writing",
     variant: 'outline',
     children: label
@@ -56,7 +70,7 @@ function DeviceChip({ hardwareOn, onSetUpDevice }) {
       })
 }
 
-export function GamesPage({ ctx, games, libraryError, hardwareOn, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
+export function GamesPage({ ctx, games, libraryError, hardwareOn, onInstall, onPlay, onNewGame, onSetUpDevice, onMakeCover }) {
   const list = games.data?.games
   const folder = jsx(GamesFolder, { ctx, path: games.data?.gamesDir }, 'folder')
   const newGame = jsxs(Button, { onClick: onNewGame, size: 'sm', variant: 'default', children: [jsx(Codicon, { name: 'add', size: 14 }), 'New game'] })
@@ -120,7 +134,7 @@ export function GamesPage({ ctx, games, libraryError, hardwareOn, onPlay, onNewG
       {
         className: 'cs-shelf',
         children: [
-          ...list.map(game => jsx(GameCard, { ctx, game, hardwareOn, onMakeCover, onPlay }, game.id)),
+          ...list.map(game => jsx(GameCard, { ctx, game, hardwareOn, onInstall: onInstall ?? (game => requestInstall(ctx, game)), onMakeCover, onPlay }, game.id)),
           jsxs(
             'article',
             {
@@ -174,6 +188,7 @@ export function Games({ shell }) {
       emit('games.coverRequested', { game, prompt: COVER_PROMPT })
       shell.go('build', game.id)
     },
+    onInstall: game => requestInstall(shell.ctx, game, shell.go),
     onNewGame: () => shell.go('build', 'new'),
     onPlay: shell.play,
     onSetUpDevice: shell.setUpDevice

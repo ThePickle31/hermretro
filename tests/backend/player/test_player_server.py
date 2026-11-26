@@ -24,7 +24,7 @@ from backend.player import captures, frame  # noqa: E402 - the repository root g
 from backend.player import server as player_server  # noqa: E402 - the repository root goes on sys.path first
 from backend.player import skins  # noqa: E402 - the repository root goes on sys.path first
 from backend.library import rpcs as library_rpcs  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_installed_game, make_rom  # noqa: E402 - the repository root goes on sys.path first
 
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -395,6 +395,79 @@ class PlayerRpcs(unittest.TestCase):
         listed = library_rpcs.rpc_captures(self.ctx)({"id": self.gid})["captures"]
         self.assertEqual([Path(c["path"]).name for c in listed], ["a.png", "c.png", "b.png"])
         self.assertEqual(listed[0]["createdAt"], "2026-03-01T00:00:00.000Z")
+
+
+class InstalledGames(unittest.TestCase):
+    """A game installed from a link plays its ROM in the bundled player, never a web export it carries or builds."""
+
+    def setUp(self):
+        self.home = isolated_home(self)
+        patch = mock.patch.object(hermes_host, "try_connect", lambda _dir: (None, None))
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.ctx = mock.Mock()
+        self.ctx.get_config.return_value = False
+
+    def play(self, identifier):
+        answer = library_rpcs.rpc_player(self.ctx)({"id": identifier})
+        self.assertTrue(answer["ok"], answer)
+        return answer, answer["url"][: -len("index.html")]
+
+    def test_a_game_without_its_source_plays_its_checked_rom_in_the_bundled_player(self):
+        identifier, root = make_installed_game(self.home)
+        rom = (root / "build" / "game.gbc").read_bytes()
+        answer, base = self.play(identifier)
+        self.assertEqual(answer["romSha256"], hashlib.sha256(rom).hexdigest())
+        status, _headers, body = fetch(answer["url"])
+        self.assertEqual(status, 200)
+        html = body.decode()
+        self.assertIn("js/script.js", html)  # the bundled player's own page
+        context = json.loads(re.search(r'id="codex-web-annotations-context">(.*?)</script>', html).group(1))
+        self.assertEqual(context["romPath"], "rom/game.gbc")
+        status, _headers, body = fetch(base + "gbstudio.json")
+        self.assertEqual((status, json.loads(body)["rom"]), (200, "rom/game.gbc"))
+        self.assertEqual(fetch(base + "rom/game.gbc")[2], rom)
+        self.assertEqual(fetch(base + "rom/hello-color.gbc")[0], 404)
+        self.assertEqual(fetch(base + "js/binjgb.wasm")[2], (frame.demo_web_dir() / "js" / "binjgb.wasm").read_bytes())
+
+    def test_a_game_with_its_source_never_serves_a_web_export_even_a_complete_one(self):
+        identifier, root = make_installed_game(self.home, source=True)
+        export = make_export(self.home.base / "export")  # a whole GB Studio web export, its runtime included
+        shutil.copytree(export / "build" / "web", root / "build" / "web")
+        (root / "build" / "web" / "index.html").write_text(
+            INDEX.replace("<head>", "<head><script>window.author=1</script>")
+        )
+        answer, base = self.play(identifier)
+        html = fetch(answer["url"])[2].decode()
+        self.assertNotIn("window.author", html)
+        self.assertNotEqual(fetch(base + "js/script.js")[2], b"// game")
+        self.assertEqual(fetch(base + "js/binjgb.wasm")[2], (frame.demo_web_dir() / "js" / "binjgb.wasm").read_bytes())
+        self.assertEqual(fetch(base + "rom/test.gbc")[0], 404)
+
+    def test_the_frame_and_its_rom_are_bound_to_one_rom(self):
+        identifier, root = make_installed_game(self.home, source=True)
+        answer, base = self.play(identifier)
+        self.assertIn(f"rom-{answer['romSha256']}/", answer["url"])
+        (root / "build" / "game.gbc").write_bytes(make_rom(fill=3))  # rebuilt while the player loads
+        self.assertEqual(fetch(base + "rom/game.gbc")[0], 409)
+        self.assertEqual(fetch(answer["url"])[0], 409)
+        fresh, fresh_base = self.play(identifier)
+        self.assertEqual(fetch(fresh_base + "rom/game.gbc")[2], make_rom(fill=3))
+
+    def test_a_rom_reached_through_a_link_is_not_played(self):
+        identifier, root = make_installed_game(self.home, source=True)
+        outside = self.home.base / "elsewhere.gbc"
+        outside.write_bytes(make_rom(fill=5))
+        (root / "build" / "game.gbc").unlink()
+        (root / "build" / "game.gbc").symlink_to(outside)
+        self.assertFalse(library_rpcs.rpc_player(self.ctx)({"id": identifier})["ok"])
+
+    def test_a_changed_rom_does_not_play(self):
+        identifier, root = make_installed_game(self.home)
+        (root / "build" / "game.gbc").write_bytes(b"\0" * 32768)
+        answer = library_rpcs.rpc_player(self.ctx)({"id": identifier})
+        self.assertFalse(answer["ok"])
+        self.assertIn("installed with", answer["error"])
 
 
 class DemoCartridge(unittest.TestCase):

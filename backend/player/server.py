@@ -32,6 +32,7 @@ from .captures import MEDIA_EXTENSIONS, capture_root, find_capture, save_capture
 from .frame import (
     ANNOTATION_MOUNT,
     DEMO_ROM_PATH,
+    SHELL_CONFIG,
     PlayerError,
     annotations_dir,
     build_for,
@@ -39,6 +40,8 @@ from .frame import (
     demo_web_dir,
     frame_document,
     is_demo,
+    shell_config,
+    shell_rom_path,
     patched_view,
 )
 
@@ -46,6 +49,8 @@ logger = logging.getLogger(__name__)
 
 MAX_CAPTURE_BYTES = 132 * 1024 * 1024  # the engine's 128 MiB video limit plus form overhead
 MAX_JSON_BYTES = 64 * 1024
+# A frame bound to one ROM: ``rom-<SHA-256>/`` before its own paths.
+PINNED = re.compile(r"rom-([0-9a-f]{64})(?:/(.*))?")
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -119,8 +124,17 @@ class PlayerServer:
     def base(self, identifier: str) -> str:
         return f"http://127.0.0.1:{self.port}/{self.token}/{identifier}/"
 
-    def url(self, identifier: str) -> str:
-        return self.base(identifier) + "index.html"
+    def url(self, identifier: str, pin: str | None = None) -> str:
+        """The frame's page; ``pin`` (a ROM's SHA-256) puts it, and everything it loads, under ``rom-<pin>/``, so the
+        ROM it asks for is exactly that one (``frame.shell_build``)."""
+        return self.base(identifier) + (f"rom-{pin}/" if pin else "") + "index.html"
+
+    def play_url(self, identifier: str, root: Path | None) -> str:
+        """``url`` for what the game plays: pinned to its ROM when the shell plays it (``library.plays_in_shell``)."""
+        if root is None or is_demo(identifier) or not library.plays_in_shell(root):
+            return self.url(identifier)
+        found = library.verified(root)
+        return self.url(identifier, found["sha256"] if found else None)
 
     def capture_url(self, identifier: str, cid: str) -> str:
         return self.base(identifier) + f"codex-captures/{cid}/media"
@@ -160,6 +174,7 @@ class _Handler(BaseHTTPRequestHandler):
     server_version = "ChromaticStudioPlayer"
     sys_version = ""
     protocol_version = "HTTP/1.1"
+    pin: str | None = None  # the ROM a pinned frame was opened on (_route)
 
     def log_message(self, format, *args):  # noqa: A002 - base class name  # keep the gateway log quiet; failures are logged explicitly
         pass
@@ -239,6 +254,8 @@ class _Handler(BaseHTTPRequestHandler):
         if "\\" in rel or "\0" in rel or any(seg in ("..", ".") for seg in rel.split("/")):
             self._text(400, "Bad path.")
             return None
+        pinned = PINNED.fullmatch(rel)  # a frame bound to one ROM (PlayerServer.url's pin)
+        self.pin, rel = (pinned.group(1), pinned.group(2) or "") if pinned else (None, rel)
         return player, identifier, Path(root), rel
 
     def do_OPTIONS(self):
@@ -264,6 +281,8 @@ class _Handler(BaseHTTPRequestHandler):
             player, identifier, root, rel = routed
             if rel in ("", "index.html"):
                 build = build_for(identifier, root)
+                if self.pin and build["romSha256"] != self.pin:
+                    return self._text(409, "The game changed since it was opened. Press Play again.")
                 # A HEAD response needs the document length without issuing a capture token.
                 generation = "0" * 32 if self.command == "HEAD" else player.issue_generation(identifier)
                 return self._send(200, frame_document(root, build, generation), "text/html; charset=utf-8")
@@ -331,6 +350,10 @@ class _Handler(BaseHTTPRequestHandler):
                 rom = demo_rom()
                 return self._file(rom) if rom else self._text(404, "Not found.")
             web = demo_web_dir().resolve()
+        elif library.plays_in_shell(root):
+            if rel == SHELL_CONFIG or rel.startswith("rom/"):
+                return self._shell_rom(root, rel)
+            web = demo_web_dir().resolve()
         else:
             web = library.web_dir(root).resolve()
         target = (web / rel).resolve()
@@ -342,9 +365,23 @@ class _Handler(BaseHTTPRequestHandler):
             return self._text(404, "Not found.")
         return self._file(target)
 
+    def _shell_rom(self, root: Path, rel: str):
+        """A shell-played game's ``gbstudio.json`` and ROM: the bytes ``library.verified`` read and hashed, and only
+        while they are the ROM the frame was opened on (its pin); 409 when the game changed since."""
+        found = library.verified(root)
+        if found is None or (self.pin and found["sha256"] != self.pin):
+            return self._text(409, "The game changed since it was opened. Press Play again.")
+        path = shell_rom_path(found["relative"])
+        if rel == SHELL_CONFIG:
+            return self._send(200, shell_config(found["relative"]), "application/json; charset=utf-8")
+        if rel != path:
+            return self._text(404, "Not found.")
+        return self._send(200, found["bytes"], MIME[".gbc"])
+
     def _annotation(self, root: Path, name: str, identifier: str = ""):
         if re.fullmatch(r"binjgb-[a-f0-9]{64}\.wasm", name):
-            wasm = (demo_web_dir() if is_demo(identifier) else library.web_dir(root)) / "js" / "binjgb.wasm"
+            shell = is_demo(identifier) or library.plays_in_shell(root)
+            wasm = (demo_web_dir() if shell else library.web_dir(root)) / "js" / "binjgb.wasm"
             if wasm.is_file() and library.file_sha256(wasm) == name[7:71]:
                 return self._file(wasm, "application/wasm")
             return self._text(404, "The game runtime changed.")

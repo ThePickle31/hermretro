@@ -30,6 +30,8 @@ class ControlMixin(InstallMixin):
             return {"ok": True, "install": install}
         if op in ("hold_game", "release_game"):
             return self.game_hold(request)
+        if op == "test_build":
+            return self.test_build(request)
         if op == "install_status":
             return {"ok": True, "install": self.install_status()}
         if op == "install_cancel":

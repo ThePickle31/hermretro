@@ -5,7 +5,7 @@ import { buildPrompt } from '#app/game-prompts.js'
 import { AGENT } from '#app/ids.js'
 import { Slot } from '#app/slots.js'
 import { Cartridge } from './cartridge.js'
-import { fixPrompt, gameMeta, installPrompt } from './model.js'
+import { fixPrompt, gameMeta } from './model.js'
 
 export const COVER_PROMPT =
   'Make this game\u2019s card: draw a 160x144 pixel-art cover in the game\u2019s own palette and write its tagline, description and genres, with chromatic_game_info.'
@@ -14,11 +14,16 @@ const GAME_STATUS = {
   ready: ['good', 'Ready'],
   changed: ['warn', 'Changed'],
   failed: ['bad', 'Build failed'],
-  unbuilt: ['quiet', 'Not built']
+  unbuilt: ['quiet', 'Not built'],
+  romChanged: ['bad', 'ROM changed']
 }
 
 /** The one action a game needs next: Play, or Build & play / Fix in chat / Build in chat. */
 function primaryAction(ctx, game, onPlay) {
+  if (game.state === 'romChanged') {
+    return { icon: 'play', label: 'Play', tone: 'outline', disabled: true, title: 'ROM changed since it was installed', run: () => null }
+  }
+
   if (game.state === 'failed') {
     return { icon: 'tools', label: 'Fix in chat', tone: 'outline', title: 'Puts the build error in its chat, not sent', run: () => sendToGameChat(ctx, game, fixPrompt(game)) }
   }
@@ -46,13 +51,13 @@ async function revealGame(ctx, game) {
 }
 
 /** A1 "split Play": the game's next action and, behind the arrow, everything else it can do. */
-function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
+function GameActions({ ctx, game, hardwareOn, onInstall, onPlay, onMakeCover }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const wrap = useRef(null)
   const title = game.displayTitle || game.title
   const action = primaryAction(ctx, game, onPlay)
-  const built = game.state !== 'failed' && game.state !== 'unbuilt'
+  const built = !['failed', 'unbuilt', 'romChanged'].includes(game.state)
   const card = game.card ?? null
 
   useEffect(() => {
@@ -117,7 +122,7 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
   const rows = [
     game.state === 'changed' && game.webExport ? item('play', 'Play last build', () => onPlay(game.id)) : null,
     built
-      ? item('desktop-download', 'Install on Chromatic', () => sendToGameChat(ctx, game, installPrompt(game)), {
+      ? item('desktop-download', 'Install on Chromatic', () => onInstall(game), {
           disabled: !hardwareOn || !game.rom,
           why: !hardwareOn ? 'Needs your Chromatic' : !game.rom ? 'Build it first' : "Puts the flash prompt in its chat; Hermes asks before writing"
         })
@@ -137,7 +142,7 @@ function GameActions({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
         label: action.title,
         children: jsxs('button', {
           className: `main ${action.tone ?? 'solid'}`,
-          disabled: pending,
+          disabled: pending || action.disabled === true,
           onClick: () => void run(action.run),
           type: 'button',
           children: [jsx(Codicon, { name: action.icon, size: 13 }), action.label]
@@ -177,10 +182,10 @@ function DuplicateTag({ folders }) {
   return jsxs('span', { className: 'cs-gst warn', title: folders.join('\n'), children: [jsx('i', {}), 'Same id'] })
 }
 
-export function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
+export function GameCard({ ctx, game, hardwareOn, onInstall, onPlay, onMakeCover }) {
   const title = game.displayTitle || game.title
   const card = game.card ?? null
-  const playable = game.state !== 'unbuilt' && game.state !== 'failed'
+  const playable = !['unbuilt', 'failed', 'romChanged'].includes(game.state)
   const [tone, status] = GAME_STATUS[game.state] ?? GAME_STATUS.unbuilt
   const meta = gameMeta(game, { kind: false })
   const built = meta[meta.length - 1]
@@ -213,7 +218,7 @@ export function GameCard({ ctx, game, hardwareOn, onPlay, onMakeCover }) {
           })
         ]
       }),
-      jsx(GameActions, { ctx, game, hardwareOn, onMakeCover, onPlay })
+      jsx(GameActions, { ctx, game, hardwareOn, onInstall, onMakeCover, onPlay })
     ]
   })
 }

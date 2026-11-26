@@ -13,6 +13,7 @@ from .client import (
     ensure_broker,
     game_hold,
     request_shutdown,
+    test_build,
     try_connect,
 )
 
@@ -26,6 +27,7 @@ __all__ = [
     "ensure_broker",
     "game_hold",
     "request_shutdown",
+    "test_build",
     "try_connect",
 ]
 

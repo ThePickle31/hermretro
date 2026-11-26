@@ -8,8 +8,10 @@ it came from with ``record_install``; a remix is ``layout.new_identity`` on the 
 
 Records, in ``.hermretro/`` (never published):
     publish.json  {repo, commit, version, source, payload, t}  the last publish; ``payload`` is ``payload_digest``
-    install.json  {source: {canonical, url, ref, subdir}, commit, mode, rom: {path, sha256}, fingerprint, installedAt}
-                  where an installed game came from (installs.py)
+    install.json  {source: {canonical, url, ref, subdir}, commit, mode, rom: {path, sha256}, fingerprint, installedAt,
+                  sourceDigest?, buildConsent?, testBuild?}  where an installed game came from (installs.py); a game
+                  with its source also has the digest of the source as installed and, once the user allowed it and
+                  it was built here, ``install_build``'s records
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import time
 from pathlib import Path
 
 from . import game_card, layout, licence
+from .freshness import source_digest
 from .layout import INSTALL_FILE, PUBLISH_FILE
 from .project import GAME_FILES, file_sha256, project_file
 
@@ -167,6 +170,8 @@ def record_install(root: Path, *, source: dict, commit: str, mode: str, rom: dic
         "fingerprintVersion": FINGERPRINT_VERSION,
         "installedAt": time.time(),
     }
+    if mode == "game+source":  # what a build of it reads, as its author published it (install_build)
+        record["sourceDigest"] = source_digest(root)
     layout.write_state(root, INSTALL_FILE, record)
     return record
 

@@ -26,7 +26,8 @@ export { buildShowing, isBuildSession } from './chat/store.js'
 export { createBuildPlayerVisit } from './player/use-inline-player.js'
 export { toolResultObject, unwrapCalls } from './chat/tool-results.js'
 
-/** Make cover art on the Games shelf: put the request in that game's message box, not sent. */
+/** Make cover art (or Install an installed game) on the Games shelf: put the request in that game's message box, not
+ *  sent. Its own Build conversation only, never another chat it had. */
 function coverRequested({ game, prompt }) {
   const own = game.session && game.session.thisProfile !== false && game.session.exists !== false
 
@@ -63,6 +64,7 @@ export const BUILD_PAGE = {
   },
   listens: {
     'games.coverRequested': coverRequested,
+    'games.chatPromptRequested': coverRequested,
     'setup.firstIdea': takeFirstIdea,
     'emulator.presented': presentation => notePresented(presentation)
   }

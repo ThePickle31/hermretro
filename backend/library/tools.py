@@ -10,7 +10,7 @@ from .. import player as player_server
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
-from . import licence, freshness, game_card, layout, pipeline, playtest_tools, report_tools
+from . import freshness, game_card, layout, licence, pipeline, play, playtest_tools, report_tools
 from . import games as library
 from .tool_args import tool_error, tool_project
 
@@ -85,11 +85,11 @@ def present_game_handler(args: dict, **kwargs) -> str:
         registry = host._registry()
         entry = registry.get(library.game_id(root)) or {}
         sources = freshness.source_digest(Path(root))  # one walk of the sources for the whole call
-        fresh, stale, next_step = library.export_freshness(
+        fresh, stale, next_step = play.playable_freshness(
             Path(root), entry.get("lastBuild"), entry.get("lastWebExport"), sources
         )
         # Asked for as it is, an intact copy of an earlier build is shown, marked as not the sources as they stand.
-        if not fresh and not (unfinished and freshness.intact_export(Path(root))):
+        if not fresh and not (unfinished and play.playable_intact(Path(root))):
             return tool_error(stale or "The playable copy is not this build.", "BUILD_FIRST", next_step)
         held = pipeline.gate("chromatic_present_game", Path(root), entry.get("lastBuild"), sources=sources)
         if held and not unfinished:
@@ -141,7 +141,7 @@ def present_game_handler(args: dict, **kwargs) -> str:
             return tool_error(f"{root} is not an existing project folder.", "PROJECT_NOT_FOUND")
         record = presented["presentation"]
         emit("library.game_presented", game=record["gameId"], root=root)
-        url = player_server.get_server(host._game_root).url(record["gameId"])
+        url = player_server.get_server(host._game_root).play_url(record["gameId"], Path(root))
         return json.dumps(
             {
                 "ok": True,

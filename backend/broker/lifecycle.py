@@ -21,7 +21,7 @@ from .engine import EngineError
 from .lane import Denied, Lane
 
 # The requests that run work: a tool call, the page's install start, the doctor's throwaway worker.
-WORK_OPS = frozenset({"call", "install_start", "doctor"})
+WORK_OPS = frozenset({"call", "install_start", "doctor", "test_build"})
 
 # What a conversation is told on its first call to the next broker when this one retired while its worker was idle.
 UPDATE_NOTICE = (

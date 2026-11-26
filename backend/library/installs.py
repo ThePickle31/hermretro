@@ -29,7 +29,7 @@ import tempfile
 from pathlib import Path
 
 from ..system import paths
-from . import game_card, install_check, install_git, install_swap, layout, release
+from . import game_card, install_build, install_check, install_git, install_swap, layout, release
 from .games import Registry
 from .install_source import Source, SourceError, resolve, within
 
@@ -53,7 +53,8 @@ class InstallError(Exception):
 
 def inspect(link, *, registry: Registry | None = None, allow_local: bool = False) -> dict:
     """What the link holds now, read from a fetch in a temporary folder outside the games: ``{ok, source, commit,
-    title, id, version, format, mode, rom, cover, readme, problems, warnings, needsPluginConsent, alreadyInstalled}``.
+    title, id, version, format, mode, rom, cover, readme, problems, warnings, needsBuildConsent, plugins,
+    alreadyInstalled}``.
     ``source`` (``{canonical, url, ref, subdir}``) and ``commit`` are what ``install`` is given."""
     source = _settled(link, allow_local)
     with tempfile.TemporaryDirectory(prefix="hermretro-inspect-") as workspace:
@@ -79,7 +80,8 @@ def inspect(link, *, registry: Registry | None = None, allow_local: bool = False
             "readme": _readme(game),
             "problems": [],
             "warnings": report["warnings"],
-            "needsPluginConsent": report["needsPluginConsent"],
+            "needsBuildConsent": report["needsBuildConsent"],
+            "plugins": report["plugins"],
             "alreadyInstalled": _holders(_registry(registry), card["id"], source),
         }
 
@@ -91,12 +93,14 @@ def install(
     workers,
     registry: Registry | None = None,
     games_dir: Path | None = None,
-    allow_plugins: bool = False,
+    allow_build: bool = False,
     allow_local: bool = False,
 ) -> dict:
     """Install the game ``source`` (a link, or ``inspect``'s ``source``) holds at ``commit`` into the games folder and
-    the library: ``{ok, root, title, mode, commit, changed, testBuildDue}``. A game already installed from the same
-    source is updated instead (``update``'s answer). Raises ``InstallError`` and changes nothing when it cannot."""
+    the library: ``{ok, root, title, mode, commit, changed, testBuildDue, testBuild?}``. A game already installed from
+    the same source is updated instead (``update``'s answer). ``allow_build`` is the user's consent to build a game
+    with its source here (``install_build``): it is then built once (``workers.test_build``) and ``testBuild`` is that
+    build's record or why it did not run. Raises ``InstallError`` and changes nothing when it cannot."""
     source = _settled(source, allow_local)
     if not install_git.is_commit(commit):
         raise InstallError("BAD_COMMIT", "Install the exact commit inspect read (40 hex digits).")
@@ -106,35 +110,36 @@ def install(
     staging = Path(tempfile.mkdtemp(prefix=".install-", dir=games))
     try:
         game, head, report = _prepare(source, staging, commit)
-        _consent(report, allow_plugins)
         identifier = report["card"]["id"]
         with install_swap.id_lock(games, identifier):
             holders = _holders(registry, identifier, source) or _recover_orphan(registry, games, identifier, source)
             if not holders:
-                _finish(game, source, head, report)
+                _finish(game, source, head, report, allow_build)
                 with install_swap.games_lock(games):
                     root = _guard_swap(lambda: install_swap.unique_folder(games, report["card"]["title"]))
                     os.rename(game, root)
                 registry.upsert(str(root))  # a failure here leaves a folder the next install recovers
-                return _done(root, report["mode"], head, changed=True)
-            same = [holder for holder in holders if holder["sameSource"]]
-            if not same:
-                raise InstallError(
-                    "ALREADY_HAVE",
-                    "You already have this game from another source. Remix it to keep both.",
-                    alreadyInstalled=holders,
+                done = _done(root, report["mode"], head, changed=True)
+            else:
+                same = [holder for holder in holders if holder["sameSource"]]
+                if not same:
+                    raise InstallError(
+                        "ALREADY_HAVE",
+                        "You already have this game from another source. Remix it to keep both.",
+                        alreadyInstalled=holders,
+                    )
+                return update(
+                    same[0]["root"],
+                    source=source,
+                    commit=commit,
+                    workers=workers,
+                    registry=registry,
+                    allow_build=allow_build,
+                    allow_local=allow_local,
                 )
-            return update(
-                same[0]["root"],
-                source=source,
-                commit=commit,
-                workers=workers,
-                registry=registry,
-                allow_plugins=allow_plugins,
-                allow_local=allow_local,
-            )
     finally:
         _clean(staging)
+    return _built(done, workers)  # outside the locks: the broker takes the game's folder lock to build it
 
 
 def check_update(root: Path, *, allow_local: bool = False) -> dict:
@@ -154,12 +159,39 @@ def update(
     commit: str | None = None,
     source=None,
     registry: Registry | None = None,
-    allow_plugins: bool = False,
+    allow_build: bool = False,
     allow_local: bool = False,
 ) -> dict:
     """Install the newest commit of the game's recorded source (or ``source``, the one the user reviewed, and exactly
-    ``commit``) over the installed game. ``{ok, root, mode, commit, changed, testBuildDue, kept?, remix?}``, or
-    ``{needsChoice: True}`` with nothing changed while the user edited the game since it was installed."""
+    ``commit``) over the installed game. ``{ok, root, mode, commit, changed, testBuildDue, testBuild?, kept?,
+    remix?}``, or ``{needsChoice: True}`` with nothing changed while the user edited the game since it was installed.
+    Consent to build (``allow_build``) is for the commit installed, so an update asks for it again."""
+    return _built(
+        _update(
+            Path(root),
+            workers=workers,
+            choice=choice,
+            commit=commit,
+            source=source,
+            registry=registry,
+            allow_build=allow_build,
+            allow_local=allow_local,
+        ),
+        workers,
+    )  # outside the locks: the broker takes the game's folder lock to build it
+
+
+def _update(
+    root: Path,
+    *,
+    workers,
+    choice: str | None = None,
+    commit: str | None = None,
+    source=None,
+    registry: Registry | None = None,
+    allow_build: bool = False,
+    allow_local: bool = False,
+) -> dict:
     root = Path(root)
     if choice is not None and choice not in CHOICES:
         raise InstallError("BAD_CHOICE", f"Choose one of {', '.join(CHOICES)}.")
@@ -181,13 +213,14 @@ def update(
         try:
             game, head, report = _prepare(source, staging, commit)
             if head == record.get("commit") and not edited and source.record() == record["source"]:
+                if allow_build and record["mode"] == "game+source":
+                    install_build.allow(root)  # the same commit, now allowed: built once below
                 return _done(root, record["mode"], head, changed=False)
-            _consent(report, allow_plugins)
             if report["card"]["id"] != layout.game_identity(root):
                 raise InstallError(
                     "ANOTHER_GAME", "The source now holds a different game; it was not installed over this one."
                 )
-            _finish(game, source, head, report)
+            _finish(game, source, head, report, allow_build)
             if not edited and release.local_edits(root) is True:  # edited while the update was fetched
                 return {"ok": False, "needsChoice": True, "root": str(root), "choices": list(CHOICES)}
             try:
@@ -258,20 +291,27 @@ def _prepare(source: Source, workspace: Path, commit: str | None = None) -> tupl
     return game, head, report
 
 
-def _consent(report: dict, allow_plugins: bool) -> None:
-    if report["needsPluginConsent"] and not allow_plugins:
-        raise InstallError(
-            "PLUGINS",
-            "This game's source has GB Studio plugins: code that runs on this computer when the game is built.",
-            needsPluginConsent=True,
-        )
+def _built(done: dict, workers) -> dict:
+    """``done``, after the one build here of a game with its source the user allowed (``workers.test_build``):
+    ``testBuild`` is its record, or ``{built: false, error}`` when it could not run (the game is installed either
+    way, and plays the ROM it came with)."""
+    if not done.get("testBuildDue") or not install_build.allowed(Path(done["root"])):
+        return done
+    try:
+        built = workers.test_build(Path(done["root"]))
+    except Exception as error:  # noqa: BLE001 - the install stands; the build is told as not made
+        built = {"built": False, "error": getattr(error, "message", None) or str(error)}
+    return {**done, "testBuild": built}
 
 
-def _finish(game: Path, source: Source, commit: str, report: dict) -> None:
-    """The fetched game as an installed game, still in staging: its layout and its install record."""
+def _finish(game: Path, source: Source, commit: str, report: dict, allow_build: bool = False) -> None:
+    """The fetched game as an installed game, still in staging: its layout, its install record and, for a game with
+    its source the user allowed to build, that consent (for this commit)."""
     layout.ensure(game)
     rom = {"path": report["rom"]["path"], "sha256": report["rom"]["sha256"]}
     release.record_install(game, source=source.record(), commit=commit, mode=report["mode"], rom=rom)
+    if allow_build and report["mode"] == "game+source":
+        install_build.allow(game)
 
 
 def _guard_swap(step):
@@ -315,8 +355,9 @@ def _done(root: Path, mode: str, commit: str | None, *, changed: bool) -> dict:
         "mode": mode,
         "commit": commit,
         "changed": changed,
-        # A game with its source is built once on this computer, so its ROM is known to come from that source.
-        "testBuildDue": changed and mode == "game+source",
+        # A game with its source is built once on this computer (with the user's consent, ``install_build``), so its
+        # ROM is known to come from that source.
+        "testBuildDue": mode == "game+source" and install_build.test_build(root) is None,
     }
 
 

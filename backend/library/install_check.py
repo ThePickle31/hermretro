@@ -7,9 +7,13 @@ source (``game+source``, the folder has one ``.gbsproj``) the ``.gbsproj`` and t
 checkout, so no fetched browser code is ever served: the playable copy is made again here. A game alone that carries
 source folders without a project is refused.
 
-``check(game)`` then answers ``{ok, mode, card, rom, problems, warnings, needsPluginConsent}`` about that folder: a
+``check(game)`` then answers ``{ok, mode, card, rom, problems, warnings, needsBuildConsent, plugins}`` about that folder: a
 hermretro game whose ROM a Chromatic cartridge can hold. Each finding is ``{code, path, message}``. Every file read
 here is a regular file read with a size limit; links were refused before checkout (``install_git.tree_problems``).
+A game with its source needs the user's consent before it is built here (``needsBuildConsent``): building runs its
+author's code on this computer, not only ``plugins/`` (listed in ``plugins``, for the user to see) but the project's
+own engine (``assets/engine/``) and the compiler settings GB Studio hands to a shell. Without it, it plays the ROM it
+shipped with.
 """
 
 from __future__ import annotations
@@ -24,6 +28,8 @@ from . import cartridge, game_card, layout
 from .game_cover import check_cover
 from .project import GAME_FILES, canonical_rom
 
+# How many of a game's plugin files inspect lists.
+MAX_LISTED = 50
 MAX_TOTAL_BYTES = 50 * 1024 * 1024
 MAX_FILES = 5000
 
@@ -82,7 +88,11 @@ def check(game: Path) -> dict:
     if mode == "game+source" and not (game / "project").is_dir() and "scenes" not in _project_json(game):
         problems.append(_finding("NO_SOURCE", "project", "The game's project/ folder is missing."))
     plugins = game / "plugins"
-    consent = mode == "game+source" and plugins.is_dir() and any(path.is_file() for path in plugins.rglob("*"))
+    listed = (
+        sorted(path.relative_to(game).as_posix() for path in plugins.rglob("*") if path.is_file())[:MAX_LISTED]
+        if mode == "game+source" and plugins.is_dir()
+        else []
+    )
     return {
         "ok": not problems,
         "mode": mode,
@@ -90,7 +100,8 @@ def check(game: Path) -> dict:
         "rom": rom_info,
         "problems": problems,
         "warnings": warnings,
-        "needsPluginConsent": consent,
+        "needsBuildConsent": mode == "game+source",
+        "plugins": listed,
     }
 
 

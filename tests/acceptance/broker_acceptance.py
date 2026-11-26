@@ -3,8 +3,8 @@
 
 Covers election, identity, private workers, lossless results, art and audio import, source-mode live state, the test
 plan's bound checks replayed, authoring (symbols, scene transactions and their operations files, script events), the
-event catalog and build warnings, the golden path (one game through the studio's whole workflow with the plugin's
-tools and hooks), writer handoff, delegated children, hardware gating, worker and broker crash recovery and replaced
+event catalog and build warnings, games installed from a link (played, inspected, test-built), the golden path (one
+game through the studio's whole workflow with the plugin's tools and hooks), writer handoff, delegated children, hardware gating, worker and broker crash recovery and replaced
 watched folders, the broker's replacement after an update and the upgrade from a broker from before it. It does not
 cover anything that needs Hermes itself (host-injected identity, real compaction, pixels reaching a model).
 
@@ -35,6 +35,7 @@ from tests.acceptance import (  # noqa: E402 - direct script entry point
     debugging,
     events,
     golden_path,
+    installed,
     ownership,
     playtest,
     projects,
@@ -129,6 +130,7 @@ def exercise(suite):
         first_status, _ = projects.create_and_edit(suite, client_a, client_b)
         rom_a, rom_b, hash_a, hash_b = projects.build_roms(suite, client_a, client_b)
         repeatable.check_repeatable(suite, client_b, rom_b)
+        installed.check_installed_games(suite, client_b, rom_b)
         last_frame = projects.check_emulators(suite, client_a, client_b, rom_a, rom_b, hash_a, hash_b)
         replay.check_replay(suite, client_b, rom_b)
         tool_friction.check_tool_friction(suite, client_b, rom_b)

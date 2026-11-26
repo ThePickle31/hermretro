@@ -12,6 +12,7 @@ the real backend package (tests/repo/test_test_imports.py refuses it)."""
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import tempfile
 import time
@@ -390,3 +391,44 @@ def commit_all(repo: Path, message: str) -> str:
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", message)
     return git(repo, "rev-parse", "HEAD")
+
+
+class _NoWorkers:
+    """The broker's hold on a game, for an install in a test: nothing has the game open."""
+
+    def hold(self, root):
+        pass
+
+    def release(self, root):
+        pass
+
+    def test_build(self, root):
+        return {"built": False, "error": "no broker in this test"}
+
+
+def make_installed_game(
+    home: SimpleNamespace, *, source: bool = False, chat: str | None = None, allow_build: bool = False, **game
+) -> tuple[str, Path]:
+    """A game installed from a link into the library, as ``installs.install`` puts one there: a ``make_game_repo``
+    repository installed through its ``file://`` link (``source`` with its project; ``allow_build`` the user's consent
+    to build it, recorded, with no build run). ``chat`` binds it to that conversation id. Returns ``(library id,
+    folder)``."""
+    from backend.library import installs  # the library's own install, imported where it is used
+
+    registry = hermes_host._registry()
+    repo, link = make_game_repo(home.base / "repos" / secrets.token_hex(4), source=source, **game)
+    found = installs.inspect(link, registry=registry, allow_local=True)
+    done = installs.install(
+        found["source"],
+        found["commit"],
+        workers=_NoWorkers(),
+        registry=registry,
+        games_dir=paths.games_dir(create=True),
+        allow_local=True,
+        allow_build=allow_build,
+    )
+    root = Path(done["root"])
+    identifier = registry.game_for_root(str(root))["id"]
+    if chat is not None:
+        registry.bind(identifier, chat, hermes_host._profile_identity())
+    return identifier, root

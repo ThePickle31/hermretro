@@ -102,7 +102,7 @@ test("each page's own Page is imported into index.js from its own file, not defi
 test('events are declared once, by the page their name starts with', () => {
   const declared = PAGE_EVENTS.declared()
 
-  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.coverRequested', 'setup.demoRequested', 'setup.firstIdea'])
+  assert.deepEqual([...declared.keys()].sort(), ['emulator.presented', 'games.chatPromptRequested', 'games.coverRequested', 'setup.demoRequested', 'setup.firstIdea'])
 
   for (const [name, { owner }] of declared) {
     assert.ok(name.startsWith(`${owner}.`), name)
@@ -152,12 +152,18 @@ test('a listener that throws is logged and never stops the others', () => {
   assert.ok(logged[0].includes('a listener of "a.done" failed'))
 })
 
-test('pages listen for their whole life: a cover request and a presentation reach Build', () => {
+test('pages listen for their whole life: a cover request, an install request and a presentation reach Build', () => {
   startPages({})
   startPages({}) // registering again replaces the listeners: nothing is handled twice
 
   emit('games.coverRequested', { game: { id: 'frog', session: { storedId: 'st-9', thisProfile: true, exists: true } }, prompt: 'Draw it' })
   assert.deepEqual(BUILD_INJECT.get()['st-9'], { seq: 1, text: 'Draw it' })
+  // An installed game's Install: its own Build conversation's message box, or the new one Build binds on sending.
+  emit('games.chatPromptRequested', { game: { id: 'frog', session: { storedId: 'st-9', thisProfile: true, exists: true } }, prompt: 'Flash it' })
+  assert.deepEqual(BUILD_INJECT.get()['st-9'], { seq: 2, text: 'Flash it' })
+  emit('games.chatPromptRequested', { game: { id: 'toad', chat: { sessionId: 'old-chat' } }, prompt: 'Flash toad' })
+  assert.deepEqual(BUILD_INJECT.get()[''], { seq: 1, text: 'Flash toad' })
+  assert.equal(BUILD_INJECT.get()['old-chat'], undefined)
 
   emit('emulator.presented', { gameId: 'frog', seq: 3, note: 'try it', t: 5 })
   assert.deepEqual(BUILD_PRESENTED.get().frog, { seq: 3, note: 'try it', t: 5 })

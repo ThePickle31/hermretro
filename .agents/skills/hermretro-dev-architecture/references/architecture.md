@@ -89,7 +89,7 @@ layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
 | `backend/assets/` | RPCs `asset`, `asset_info`, `asset_restore`, `assets`; `post_llm_call`, `post_tool_call` (kept image versions) | nothing; `assets.image_restored`; listens to `library.build_reported`, `library.game_moved` |
 | `backend/history/` | RPCs `builds`, `build_restore`; `post_tool_call` (a snapshot after each build); listens to `library.game_moved` | nothing; `history.build_kept` |
 | `backend/player/` | nothing | the loopback player server (`get_server`, `game_build`, …) |
-| `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `BrokerUnavailable`, `BrokerNotRunning`, `BrokerRestarting`, `OtherCopyBusy`) |
+| `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `game_hold`, `test_build`, `BrokerUnavailable`, `BrokerNotRunning`, `BrokerRestarting`, `OtherCopyBusy`) |
 | `backend/system/` | nothing | a shared layer: `paths.py`, `host.py`, `events.py`, `hermes_home.py` |
 
 `__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
@@ -144,7 +144,7 @@ pull request body. The rest log through `host.logger` and keep its name.
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
 (ModRetro's CLI, pinned SHA-256; removing downloads), `backend/broker/broker.py` (the single authority: identity,
-admission, the hardware gate), `lane.py` (a conversation's engine worker and writer leases), `control.py`
+admission, the hardware gate), `lane.py` (a conversation's engine worker and writer leases), `selection.py` (which projects it may open, ownership), `installed.py` (installed games' conversations, `test_build`), `control.py`
 (control ops, the page's install), `lifecycle.py` (admission, shutdown, retirement, notices), `server.py` (the user-only Unix socket), `client.py` (finds or starts the
 broker; refuses a stale one), `backend/system/paths.py` (every location, the code fingerprint, the version).
 

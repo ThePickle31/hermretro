@@ -40,7 +40,7 @@
 
 ## Front door
 
-`backend.library`: `Registry`, `after_build`, `built_rom_sha256`, `source_digest`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `installed_rom`, `folder_lock`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
+`backend.library`: `Registry`, `after_build`, `built_rom_sha256`, `source_digest`, `ROM_STEM`, `canonical_rom`, `plays_game_rom`, `installed_rom`, `install_record`, `is_installed`, `plays_in_shell`, `rom_only_record`, `verified`, `shell_rom`, `no_shell_rom`, `build_allowed`, `record_test_build`, `editable`, `folder_lock`, `game_id`, `valid_id`, `cover_path`, `project_file`, `has_web_export`, `web_dir`, `web_rom`, `file_sha256`, `read_json`, `SELECTORS`, `PNG_MAGIC`. Standard library only (the broker and the player import it).
 
 ## Tests
 
@@ -182,14 +182,15 @@ later, passing `workers=game_workers.BrokerWorkers()`.
   both checksums; a cartridge type GB Studio or GBDK writes, `cartridge.CARTRIDGE_TYPES`; `.gbc` only for a colour
   game), equal to the card's `romSha256`, which a game alone must have (`NO_ROM_SHA`), a usable cover (its size read
   from its header before it is decoded, and never decoded past what that size needs), and the project's folder for a
-  game with its source. `plugins/` with files needs `allow_plugins` (their code runs when the game is built), on an
-  update too.
+  game with its source. A game with its source installs either way, but is built here only with the user's consent
+  (`needsBuildConsent`; `plugins` lists its plugin files for them to see), see the test build below.
 - **`inspect(link)`** answers what the link holds (title, id, version, format, mode, ROM, cover, README, problems,
-  plugin consent, the games that already have its id) with the exact `commit` and `source` (`{canonical, url, ref,
+  `needsBuildConsent` and `plugins`, the games that already have its id) with the exact `commit` and `source` (`{canonical, url, ref,
   subdir}`). **`install(source, commit, workers=)`** installs that commit (`SOURCE_MOVED` when the branch moved), gives
   it its layout and record and renames it into place (`<Title>`, `<Title> 2`, …), then registers it; a folder an
   earlier install placed but did not register is found by its id and registered instead of copied. `testBuildDue`
-  says a game with its source is to be built once here.
+  says a game with its source has not been built here from the commit installed; `allow_build=True` (also on an
+  update, and on installing the same commit again) is the user's consent, and then it is built at once.
 - **One id per machine**: installing a game the library has from the same source is an update; from another source it
   is refused (`ALREADY_HAVE`).
 - **`check_update(root)`** reads the branch with `git ls-remote`. **`update(root, workers=, choice=)`** installs the
@@ -226,10 +227,34 @@ later, passing `workers=game_workers.BrokerWorkers()`.
   changes when a folder moves (`Registry.move`).
 - **Out of scope here**: building an installed game's source runs its project's own content through GB Studio
   (plugins, custom HTML header settings), its own trust boundary, for the build step.
+- **Playing it** (`play.py`): an installed game always plays its ROM in the player's shell (the bundled GB Studio
+  player the demo cartridge uses, `player/web`), with its source or without, never a web export: a web export is GB
+  Studio's `index.html` with the project's settings in it, and GB Studio's custom HTML header setting lets a project
+  put its author's script there, so even a copy built here from imported source could run that script. Every ROM the
+  shell plays is read once (`verified`: a regular file in the game's folder reached through no link, at most 8 MiB),
+  and the player serves exactly those bytes under a URL pinned to their SHA-256 (`rom-<sha>/`; 409 once they
+  changed). A game without its source (`rom_only_record`: installed so, or the edited copy an update kept, whose
+  `.hermretro/kept-rom.json` keeps the checked ROM) plays only its checked ROM while it is those bytes: the shelf
+  shows no other file in `build/` for it, and `romChanged` when that ROM changed. One with its source plays its own
+  `build/game.gb[c]`. The games RPC describes that ROM as its `rom`/`webExport`/`web` (`shell: true`);
+  `chromatic_present_game` takes a game alone's checked ROM as current (`play.playable_freshness`,
+  `pipeline.rom_state`), its test plan's checks still applying.
+- **Its conversation**: a game alone has no project; its own chat's worker has its folder as its workspace and runs
+  only reads, the emulator and the hardware tools on its checked ROM (`backend/broker/installed.py`). The Install on
+  Chromatic prompt goes to the game's own Build conversation and claims only what was verified for its very ROM.
+- **The test build** (`install_build.py`): building a game with its source runs its author's code here (its plugins,
+  the project's own engine in `assets/engine/`, compiler settings GB Studio hands to a shell), so it waits for the
+  user's consent, `install.json`'s `buildConsent: {commit, digest, at}` for the commit installed and the digest of its
+  source as installed (`sourceDigest`; an update asks again, the user's own edits since do not). Then
+  `BrokerWorkers.test_build` builds it once in the broker (`test_build`), under an exclusive hold and the game's
+  folder lock, which records `testBuild: {sha256, commit, matches, t}` (`matches`: the ROM it was installed with, the
+  author's `romSha256` the install checked, never what `game.json` says now) and an ordinary `lastBuild`, so it can
+  be presented like a build in its chat. Builds are repeatable, so the same source gives the same bytes.
 
 Tests: `test_installs.py`, `test_install_swap.py`, `test_install_git.py`, `test_install_source.py`,
-`test_cartridge.py`, `test_game_workers.py` (real git repositories through `file://`),
-`tests/backend/broker/test_game_holds.py`, `tests/backend/history/test_moved_game.py`.
+`test_cartridge.py`, `test_game_workers.py`, `test_play.py` (real git repositories through `file://`),
+`tests/backend/broker/test_game_holds.py`, `tests/backend/broker/test_installed_chat.py`,
+`tests/backend/history/test_moved_game.py`, `tests/acceptance/installed.py`.
 
 ## Captures
 
