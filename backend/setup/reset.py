@@ -159,8 +159,17 @@ def _delete_chats() -> dict:
 
 
 def _profile_holds_data() -> bool:
+    """Whether deleting the studio profile would take more than it says: hermretro's own folders or a library game
+    configured or made inside it (its workspace, say)."""
     studio = studio_profile.studio_dir().resolve()
-    folders = (paths.hermretro_home(), paths.games_dir(), paths.library_dir(), paths.DEPS_ROOT)
+    folders = (
+        paths.hermretro_home(),
+        paths.games_dir(),
+        paths.library_dir(),
+        paths.DEPS_ROOT,
+        paths.setup_root(),
+        *_game_roots(),
+    )
     return any(folder.resolve().is_relative_to(studio) for folder in folders)
 
 
@@ -193,7 +202,9 @@ def _stages(part: str, data: Path) -> list[list[Path]] | None:
     """What deleting ``part`` removes, in stages: a stage goes only once the one before it is gone entirely, so the
     library (which lists the games) outlives any game folder that could not be deleted. None for a part there is not."""
     if part == "history":
-        return [[data / "snapshots"]]
+        # Every kept version: of builds (snapshots) and of the games' images. Both live in this profile's plugin data,
+        # so deleting the studio profile takes them too.
+        return [[data / "snapshots", data / "asset-versions", data / "asset-version-locks"]]
     if part == "logs":
         return [[*_log_files(), *_capture_folders(data)]]
     if part == "games":
@@ -205,7 +216,7 @@ def _stages(part: str, data: Path) -> list[list[Path]] | None:
             own = _children(games)
         else:
             own = [*_own_games(strict=True), games / ".hermretro-installs"]
-        return [own, [*_in_library(*LIBRARY), data / "asset-versions", data / "asset-version-locks"]]
+        return [own, _in_library(*LIBRARY)]
     return None
 
 
@@ -229,6 +240,9 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
             entry = ((hermes_api.read_profile_config(home).get("plugins") or {}).get("entries") or {}).get(
                 paths.PLUGIN_ID
             )
+            # Never through a link: Hermes would write its target, maybe another profile's config.
+            if (home / "config.yaml").is_symlink():
+                continue
             for key in SETTINGS_KEYS:
                 if isinstance(entry, dict) and entry.get(key):
                     hermes_api.write_profile_config_key(home, f"plugins.entries.{paths.PLUGIN_ID}.{key}", {})

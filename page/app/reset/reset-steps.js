@@ -124,6 +124,11 @@ export function forgetReset(ctx) {
   remember(ctx, RESET_MARKER, null)
 }
 
+/** Whether an unfinished update's mark is for this install (a mark from before marks named one counts as this). */
+function sameInstall(pending, install) {
+  return !pending.profile || (pending.profile === install.profile && pending.connectionId === connectionOf(install))
+}
+
 function stored(ctx, key) {
   try {
     return ctx.storage.get(key, null)
@@ -174,20 +179,34 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
         summary.deleted += await backendPart(target, step.id)
       } else if (step.id === 'profile') {
         await deleteStudioProfile(studio)
-        gone.add('chats').add('history')
+        gone.add('chats').add('history').add('settings')
+
+        // Hermes moves the app off the profile it deleted, to its default one: the restart expects that.
+        if (summary.ambient === STUDIO_PROFILE) {
+          summary.ambient = 'default'
+        }
       } else if (install) {
+        // An earlier update that installed but did not finish loading is finished, never read as up to date; one left
+        // unfinished on another Hermes is not this one's to finish or to forget.
+        const pending = stored(ctx, UPDATE_PENDING)
+
+        if (pending && !sameInstall(pending, install)) {
+          throw new Error('Another hermretro update is unfinished. Finish it on the hermretro page first.')
+        }
+
+        const mark = error => remember(ctx, UPDATE_PENDING, { at: Date.now(), error, connectionId: connectionOf(install), profile: install.profile })
+
         // The page the app loads after an update shows the done screen from this.
         remember(ctx, RESET_MARKER, summary)
         summary.update = await runUpdate({
           install,
-          // An earlier update that installed but did not finish loading is finished, never read as up to date.
-          resume: Boolean(stored(ctx, UPDATE_PENDING)),
+          resume: Boolean(pending),
           studio: profileGone ? null : studio,
           busy: () => busyChats(profileGone ? null : studio),
           // The stop step was refused while the toolchain installed, and the update lock (held from the start of the
           // reset) keeps Setup from starting one since.
           confirmInstallIdle: async () => null,
-          installed: () => remember(ctx, UPDATE_PENDING, { at: Date.now(), error: null }),
+          installed: () => mark(null),
           refused: () => remember(ctx, UPDATE_PENDING, null),
           remember: marker => {
             remember(ctx, UPDATE_PENDING, null)
@@ -197,7 +216,7 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
         })
 
         if (summary.update.kind === 'partial') {
-          remember(ctx, UPDATE_PENDING, { at: Date.now(), error: summary.update.error ?? null })
+          mark(summary.update.error ?? null)
         }
       }
     } catch (error) {

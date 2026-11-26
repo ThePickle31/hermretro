@@ -61,9 +61,12 @@ export const host = {
   },
   navigate: path => scenario.navigations.push(path),
   // A profile deleted the way the app's own dialog does it, and the gateway restarted (both recorded in calls).
+  // Like the app's: deleting the profile the app is on moves the app to its default profile.
   deleteProfile: async profile => {
-    scenario.calls.push(['deleteProfile', typeof profile === 'string' ? profile : profile?.profile])
+    const name = typeof profile === 'string' ? profile : profile?.profile
+    scenario.calls.push(['deleteProfile', name, typeof profile === 'string' ? null : (profile?.connectionId ?? null)])
     if (scenario.deleteProfileError) throw scenario.deleteProfileError
+    if ((scenario.appProfile ?? 'default') === name) scenario.appProfile = 'default'
   },
   // scenario.restartAnswer: what the restart resolves to (false: the user said no, or it failed).
   restartGateway: async () => { scenario.calls.push(['restartGateway']); return scenario.restartAnswer },

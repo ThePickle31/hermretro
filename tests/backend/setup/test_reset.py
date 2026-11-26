@@ -66,7 +66,7 @@ class Reset(unittest.TestCase):
         parts = reset.plan(self.data)["parts"]
         self.assertEqual(parts["games"]["count"], 2)
         self.assertGreaterEqual(parts["games"]["bytes"], 100)
-        self.assertEqual(parts["history"]["bytes"], 30)
+        self.assertEqual(parts["history"]["bytes"], 30 + 6)  # build snapshots and kept image versions
         self.assertGreaterEqual(parts["toolchain"]["bytes"], 1000)
         self.assertFalse(parts["toolchain"]["custom"])
         self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 8 + 7)  # a folder of the user's own keeps its captures
@@ -78,7 +78,7 @@ class Reset(unittest.TestCase):
         self.assertTrue(answer["ok"])
         self.assertEqual(list(self.games.iterdir()), [])
         self.assertEqual(list((self.places.home / "library").iterdir()), [])
-        self.assertFalse((self.data / "asset-versions").exists())
+        self.assertTrue((self.data / "asset-versions").exists(), "kept image versions belong to Build history")
         self.assertTrue((self.elsewhere / "owl.gbsproj").is_file())
         self.assertTrue((self.data / "snapshots").is_dir())
         self.assertTrue((self.cache / "toolchain").is_dir())
@@ -118,6 +118,7 @@ class Reset(unittest.TestCase):
     def test_history_and_logs_delete_only_their_own(self):
         reset.clear("history", self.data, [])
         self.assertFalse((self.data / "snapshots").exists())
+        self.assertFalse((self.data / "asset-versions").exists())
         reset.clear("logs", self.data, [])
         self.assertFalse((self.run_dir / "trace.jsonl").exists())
         self.assertFalse((self.data / "frames").exists())
@@ -241,6 +242,24 @@ class Reset(unittest.TestCase):
     def test_a_studio_profile_holding_the_games_says_so(self):
         with mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(self.studio / "games")}):
             self.assertTrue(reset.plan(self.data)["parts"]["profile"]["holds"])
+
+    def test_a_library_game_inside_the_studio_profile_says_it_holds_games(self):
+        games = json.loads((self.places.home / "library" / "games.json").read_text())
+        games["games"]["cccccccccccc"] = {"id": "cccccccccccc", "projectRoot": str(self.studio / "workspace" / "Cat")}
+        (self.places.home / "library" / "games.json").write_text(json.dumps(games))
+        self.assertTrue(reset.plan(self.data)["parts"]["profile"]["holds"])
+
+    def test_settings_never_go_through_a_linked_config(self):
+        home = self.places.base / "linked-home"
+        home.mkdir()
+        (home / "config.yaml").symlink_to(self.places.base / "someone-elses.yaml")
+        set_here = {"plugins": {"entries": {"hermretro": {"settings": {"hardware_enabled": True}}}}}
+        with (
+            mock.patch.object(reset.hermes_api, "read_profile_config", lambda _home: set_here),
+            mock.patch.object(reset.hermes_api, "write_profile_config_key") as written,
+        ):
+            reset.clear("settings", self.data, [home])
+        written.assert_not_called()
 
     def test_a_linked_captures_folder_in_the_library_is_never_followed(self):
         library = self.places.home / "library"

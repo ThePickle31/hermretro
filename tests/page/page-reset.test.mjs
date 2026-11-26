@@ -23,7 +23,8 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   scenario.routes = [STUDIO, HOME]
   let version = '1.2.3'
   let updated = false
-  scenario.byMethod['plugin.hermretro.status'] = () => ({ ok: true, plugin: { version, installed_in: installedIn }, profile: { studio: { exists: true } } })
+  let named = { exists: true, ours: true, installed: true }
+  scenario.byMethod['plugin.hermretro.status'] = () => ({ ok: true, plugin: { version, installed_in: installedIn }, profile: { studio: named } })
   scenario.byMethod['plugins.manage'] = params => { log.push(`update:${params.action}`); return updated ? { ok: true } : { ok: true, unchanged: true } }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true })
   scenario.requestProfileHook = (route, method, params) => {
@@ -32,6 +33,11 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
       const answer = scenario.byMethod[method]
       if (!answer) throw Object.assign(new Error('unknown method'), { code: -32601 })
       return typeof answer === 'function' ? answer(params) : answer
+    }
+    // The hermretro profile answers as itself, when hermretro is set up there.
+    if (method === 'plugin.hermretro.status') {
+      if (!named.installed) throw Object.assign(new Error('unknown method'), { code: -32601 })
+      return { ...scenario.byMethod['plugin.hermretro.status'](), profile: { is_studio: true } }
     }
     if (method === 'plugin.hermretro.reset_plan') return plan
     if (method === 'plugin.hermretro.reset') { log.push(params.part); return { ok: true, removed_bytes: 1e6 } }
@@ -112,7 +118,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   await confirm()
   check('the profile is deleted through Hermes after the backend parts, taking its chats with it', () => {
     assert.deepEqual(log, ['stop', 'history', 'logs', 'settings', 'toolchain', 'update:update'])
-    assert.deepEqual(scenario.calls.filter(call => call[0] === 'deleteProfile'), [['deleteProfile', 'hermretro']])
+    assert.deepEqual(scenario.calls.filter(call => call[0] === 'deleteProfile'), [['deleteProfile', 'hermretro', 'local']])
   })
   await click('Close', dialog())
 
@@ -207,6 +213,44 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await click('Cancel', dialog())
 
+  installedIn = { profile: 'default', linked: false }; named = { exists: true, ours: false, installed: false }
+  const plans = () => scenario.calls.filter(call => call[0] === 'requestProfile' && call[1] === 'hermretro' && call[2] === 'plugin.hermretro.reset_plan').length
+  const asked = plans()
+  scenario.byMethod['plugin.hermretro.reset_plan'] = plan
+  await open()
+  check('a profile of the user\'s own named hermretro is never asked or touched', () => {
+    assert.equal(plans(), asked)
+    assert.match(said(), /Studio chats2 chats · Not made by hermretro/)
+    assert.equal(chosen('Studio profile'), 'Keep')
+  })
+  await click('Cancel', dialog())
+  named = { exists: true, ours: true, installed: true }
+
+  log.length = 0; scenario.storage.updatePending = { at: 1, error: null, connectionId: 'vps', profile: 'default' }
+  await open(); await pick('Studio profile', 'Keep'); await confirm()
+  check('an update left unfinished on another Hermes is neither finished nor forgotten here', () => {
+    assert.ok(!log.includes('update:update'))
+    assert.match(said(), /Stopped atUpdating hermretro: Another hermretro update is unfinished/)
+    assert.equal(scenario.storage.updatePending.connectionId, 'vps')
+  })
+  await click('Close', dialog())
+  scenario.storage.updatePending = null
+
+  scenario.appProfile = 'hermretro'
+  const before = scenario.calls.filter(call => call[0] === 'restartGateway').length
+  await open(); await confirm()
+  check('after deleting the studio profile the app was on, the app is on its default profile', () => {
+    assert.equal(scenario.appProfile, 'default')
+    assert.match(said(), /hermretro is reset/)
+  })
+  scenario.restartAnswer = false
+  await click('Reload & restart gateway', dialog()); await settle()
+  check('and Reload & restart gateway still restarts it there', () => {
+    assert.equal(scenario.calls.filter(call => call[0] === 'restartGateway').length, before + 1)
+  })
+  await click('Close', dialog())
+  scenario.appProfile = undefined
+
   installedIn = { profile: 'default', linked: false }; plan.parts.profile = { ours: false }
   await open()
   check('a hermretro profile hermretro did not make keeps its chats and itself', () => {
@@ -234,7 +278,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   scenario.requestProfileHook = whole
   await click('Close', dialog())
 
-  installedIn = { profile: 'default', linked: false }; scenario.routes = [{ ...STUDIO, connectionId: 'vps' }]
+  installedIn = { profile: 'default', linked: false }; scenario.routes = [{ ...STUDIO, connectionId: 'vps' }, HOME]
   scenario.byMethod['plugin.hermretro.reset_plan'] = plan
   await open()
   check('a hermretro profile only on another Hermes connection stops the reset before anything is chosen', () => {
