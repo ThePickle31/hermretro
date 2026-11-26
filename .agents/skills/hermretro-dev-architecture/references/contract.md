@@ -50,7 +50,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 | `library.build_reported` | `game` (library id, str; `null` without a project), `assets` (absolute image paths, list of str) | `chromatic_build_report` accepted a build card | assets (keeps the shown images) |
 | `library.game_presented` | `game` (library id, str), `root` (project folder, str) | `chromatic_present_game` showed a game | — |
 | `library.game_moved` | `old`, `new` (library ids, str), `old_root`, `new_root` (folders, str) | an installed game's update kept the user's edited copy as a game of its own in a new folder (`keep_both`) | history (moves the game's snapshots), assets (moves its images' kept versions) |
-| `setup.tools_removed` | `root` (the emptied download folder, str) | `remove_tools` emptied the download folder | — |
+| `setup.tools_removed` | `root` (the emptied download folder, str) | `remove_tools`, or the factory reset's `reset` (`toolchain`), emptied the download folder | — |
 | `setup.studio_profile_ready` | `profile` (profile name, str) | `studio_profile` finished the profile | — |
 | `assets.image_restored` | `path` (the image's absolute path, str) | `asset_restore` put a kept version back | — |
 | `history.build_kept` | `game` (library id, str), `root` (the real project folder, `pathlib.Path`) | a successful build was kept as a snapshot | — |
@@ -262,6 +262,55 @@ can start meanwhile). Returns `{ ok, removed_bytes, left_bytes, root }` or `{ ok
 `UNAVAILABLE` (the handshake or shutdown could not be confirmed),
 `CUSTOM_LOCATION` (`HERMRETRO_DEPS_ROOT` / `GB_STUDIO_SETUP_ROOT` set), `UNEXPECTED_LOCATION` or `PARTLY_REMOVED`
 (some files could not be deleted; a retry finishes them). Setup can then install again.
+
+### `reset_plan` — no params
+
+What the factory reset (Settings → Plugins → hermretro) would delete, part by part, for its choices:
+
+```
+{ ok: true, parts: {
+    games: { bytes, count },        // what deleting the games removes; count: the library's games
+    history: { bytes },             // kept versions: build snapshots and image versions (this profile's)
+    chats: { count },               // the studio profile's chats, forks included; null when they cannot be read
+    profile: { ours, holds },       // ours: the hermretro profile is the one hermretro made; holds: hermretro's
+                                    // own folders, its toolchain or a library game are inside it
+    settings: {},                   // hermretro's settings in Hermes
+    toolchain: { bytes, custom },   // <hermretro home>/.cache; custom: a folder the user configured (left alone)
+    logs: { bytes } } }             // the broker's logs, saved frames, the captures of the games in the games folder
+{ ok: false, error }
+```
+
+The studio profile is Hermes's own: the page deletes it through Hermes (`host.deleteProfile`), which takes its chats,
+build history and its copy of the plugin settings with it. Every call of the reset, `status` first, goes through an explicit profile
+route on the Hermes connection the app is on as the dialog opens, so switching the app's connection or profile does
+not move it. A profile named hermretro that hermretro did not make and set up is never asked.
+
+### `reset` — params `{ part }`
+
+One step of the factory reset; the page calls it once per part it deletes, in this order: `stop`, `history`, `logs`,
+`games`, `chats` (not when the studio profile is deleted), `settings`, `toolchain`, and `links` after the profile; before each one it checks that no studio chat is building. Every part but `settings` and `links` first asks the broker to stop with its idle workers
+(`{"op": "shutdown", "replace": true}`) and holds its election lock while it deletes (`backend/setup/broker_stop.py`);
+`stop` does only that. While a part is deleted, the player saves no capture (`player.captures_paused`). `games` empties the games folder (only the library's games in it when `HERMRETRO_GAMES_DIR`
+is set), deletes the library's own files (`games.json`, its lock, `thumbs/`); a
+game in a folder of the user's own leaves the library but stays on disk with its captures, and a game folder a link
+now stands in for is never followed, nor is a games or library folder (or `games.json`) that is a link. The library
+goes only once every game folder is gone, so a retry still finds what is left (`LIBRARY_UNREADABLE` when a games
+folder the user configured has no readable library to say which games are hermretro's). `logs` deletes the broker's
+logs, saved frames, the demo cartridge's captures (`<library>/captures/demo`) and the captures of the games in the
+games folder. A capture asked for while a part is deleted (counted from when its upload began) is refused, not written
+afterwards. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
+studio profile's `state.db`, never one that is a link, in rounds until one changes nothing, since a deleted chat's forks become chats of their own), only in the profile
+hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read; then every game
+lets go of the conversations that went (`Registry.forget_chats`: its Build session, its chat link and the pending New
+Game conversations), even when some remain. `links` (no choice of its own) does that for all of them: the page asks
+it, through the profile hermretro is installed in, after Hermes deleted the studio profile with its chats. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
+reads) in this profile and the one hermretro was installed into, never through a `config.yaml` that is a link
+(`CONFIG_LINKED` says which profile's were left), so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`
+(the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `PARTLY_REMOVED` (something could not be deleted; `removed_bytes` says what was), `CHATS_LEFT`
+(`partly` with either, and with `toolchain`'s `PARTLY_REMOVED`: some of the part did go), `LIBRARY_UNREADABLE`,
+`CHATS_UNREADABLE`, `NOT_OURS`, `CONFIG_LINKED`, `BUSY`
+(a call is running or the broker did not stop within 15 s), `WORKER_STILL_RUNNING`, `UNAVAILABLE`, or one of
+`remove_tools`'s.
 
 ### `releases` — no params
 

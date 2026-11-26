@@ -188,6 +188,30 @@ class Registry:
             self._save(data)
         return old_id, new_id
 
+    def forget_chats(self, kept: set[str] | None = None) -> None:
+        """Games let go of conversations that are gone (the factory reset deleted the studio's chats): a Build
+        session, a chat link and a New Game conversation not yet claimed, unless named in ``kept`` (the session ids
+        still there; None: none are). A first plan still owed stays owed."""
+        if not self.path.exists():
+            return
+        kept = kept or set()
+        with self._locked():
+            data = self.load()
+            for entry in data["games"].values():
+                if not isinstance(entry, dict):
+                    continue
+                session, chat = entry.get("session"), entry.get("chat")
+                if isinstance(session, dict) and not (
+                    {session.get("storedId"), *bindings.session_aliases(session)} & kept
+                ):
+                    if session.get("plan") is True:
+                        entry.setdefault("initialPlan", True)
+                    del entry["session"]
+                if isinstance(chat, dict) and not ({chat.get("sessionId"), chat.get("conversationId")} & kept):
+                    del entry["chat"]
+            data["pending"] = {stored: value for stored, value in (data.get("pending") or {}).items() if stored in kept}
+            self._save(data)
+
     def forget_builds(self, root: str) -> None:
         """Drop the recorded build and playable copy of a game whose files were replaced (an update)."""
         identifier = game_id(os.path.realpath(root))

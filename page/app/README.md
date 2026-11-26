@@ -12,7 +12,9 @@ the pages, `registry.js` checks each page's descriptor, declares their events an
 (the hermretro profile), `chat-insert.js` and `prompt-block.js` (prompts into chats),
 `ids.js`, `tools.js` (agent tool names), `game-prompts.js`, `format.js`, `paths.js`. `update/`: updating hermretro
 from the page (the header chip, the corner card, the update dialog and its steps, the release notes, the state pages
-read as `shell.pluginUpdate`).
+read as `shell.pluginUpdate`). `reset/`: hermretro's page under Settings → Plugins (`settings-page.js`, registered by `page/index.js`): the
+factory reset, its dialog and its steps (`reset-steps.js`: the backend's `reset_plan` and `reset`, then the studio chats
+or profile through Hermes, then the update).
 
 **Feature flags:** `flags.js` lists every flag; the shell shows only the pages and tabs the flags that are on
 show (`visiblePages` in `registry.js`, read from the status answer's `flags`).
@@ -29,7 +31,7 @@ pages, only `#pages/index.js`. Pages may use the plumbing and hubs, never the sh
 
 **Tests:** `tests/page/registry.test.mjs` (registry, events, slots, tabs, feature flags, stylesheet order); `tests/page/page-update.test.mjs`
 (the update chip and its steps), `tests/page/page-update-busy.test.mjs` (no update while a game is being built),
-`tests/page/page-update-retry.test.mjs` (approvals kept, a half-done update finished); every
+`tests/page/page-update-retry.test.mjs` (approvals kept, a half-done update finished); `tests/page/page-reset.test.mjs` (the factory reset: choices, confirm, its steps in order, the restart); every
 `tests/page/page-*.test.mjs` drives the shell through the built bundle.
 
 ## Adding a tab

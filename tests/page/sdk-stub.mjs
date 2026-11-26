@@ -5,7 +5,7 @@
 // invalidateQueries (a no-op) and setQueryData(queryKey, value or updater) / getQueryData(queryKey) over one cache,
 // scenario.queryData (a Map keyed by JSON.stringify(queryKey)). Anything else from react-query is not here: add it.
 import { useSyncExternalStore } from 'react'
-import { jsx } from 'react/jsx-runtime'
+import { jsx, jsxs } from 'react/jsx-runtime'
 
 export const scenario = {
   status: null, doctor: null, activity: null, queries: [], notices: [], navigations: [], storage: {},
@@ -28,7 +28,9 @@ const notLoaded = () => Object.assign(new Error('unknown method'), { code: -3260
 
 export const host = {
   state: {
-    gateway: readable('open'), focusedSessionId: readable('rt-1'), focusedStoredSessionId: readable('st-1'), profile: readable('default')
+    gateway: readable('open'), focusedSessionId: readable('rt-1'), focusedStoredSessionId: readable('st-1'),
+    // The profile the app is on: scenario.appProfile, default 'default'.
+    profile: { get: () => scenario.appProfile ?? 'default' }
   },
   // The profile the app is on.
   request: async (method, params) => {
@@ -58,6 +60,16 @@ export const host = {
     return scenario.byProfile[route.profile]
   },
   navigate: path => scenario.navigations.push(path),
+  // A profile deleted the way the app's own dialog does it, and the gateway restarted (both recorded in calls).
+  // Like the app's: deleting the profile the app is on moves the app to its default profile.
+  deleteProfile: async profile => {
+    const name = typeof profile === 'string' ? profile : profile?.profile
+    scenario.calls.push(['deleteProfile', name, typeof profile === 'string' ? null : (profile?.connectionId ?? null)])
+    if (scenario.deleteProfileError) throw scenario.deleteProfileError
+    if ((scenario.appProfile ?? 'default') === name) scenario.appProfile = 'default'
+  },
+  // scenario.restartAnswer: what the restart resolves to (false: the user said no, or it failed).
+  restartGateway: async () => { scenario.calls.push(['restartGateway']); return scenario.restartAnswer },
   notify: notice => scenario.notices.push(notice),
   newChat: profile => scenario.calls.push(['newChat', profile ?? null]),
   composer: { insertText: async (target, text) => { scenario.calls.push(['insert', target]); scenario.inserted.push([target, text]); return true } },
@@ -133,3 +145,19 @@ export const randomUuid = () => `uuid-${Math.random().toString(16).slice(2)}`
 export const PALETTE_AREA = 'palette'
 export const ROUTES_AREA = 'routes'
 export const SIDEBAR_NAV_AREA = 'sidebar.nav'
+// Settings rows and the dialog, as plain elements: a dialog renders its content only while open.
+export const ListRow = props => jsxs('div', { 'data-row': '', children: [jsx('span', { children: props.title }), props.action ?? null] })
+export const Dialog = props => (props.open ? jsx('div', { role: 'dialog', children: props.children }) : null)
+export const DialogContent = props => jsx('div', { className: props.className, children: props.children })
+export const DialogHeader = el('div')
+export const DialogTitle = props => jsx('h2', { children: props.children })
+export const DialogFooter = props => jsx('div', { className: props.className, children: props.children })
+export const Input = props => jsx('input', { onChange: props.onChange, value: props.value })
+export const SegmentedControl = props =>
+  jsx('div', {
+    'aria-label': props['aria-label'],
+    'data-segmented': '',
+    children: props.options.map(option =>
+      jsx('button', { 'aria-pressed': option.id === props.value, disabled: props.disabled, onClick: () => props.onChange(option.id), type: 'button', children: option.label }, option.id)
+    )
+  })

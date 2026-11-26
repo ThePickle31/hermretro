@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,6 +17,27 @@ from .frame import DEMO_ID, PlayerError, is_demo
 
 CAPTURE_NAMESPACE = uuid.UUID("5d0c7f39-3b8e-4f4f-9a43-2f6c3c7d1a11")
 MEDIA_EXTENSIONS = {".png": "image/png", ".webm": "video/webm", ".mp4": "video/mp4"}
+# Held while a capture is written, and by the factory reset while it deletes captures and game folders.
+_WRITING = threading.Lock()
+# How many times the captures were paused for a delete: a capture asked for before one ended is not written after it.
+_pauses = 0
+
+
+def pauses() -> int:
+    """How many deletes have paused the captures so far: a capture noted before one must not be written after it."""
+    return _pauses
+
+
+@contextmanager
+def captures_paused():
+    """No capture is written while this is held (one in progress finishes first), and none asked for meanwhile is
+    written afterwards."""
+    global _pauses
+    with _WRITING:
+        try:
+            yield
+        finally:
+            _pauses += 1
 
 
 def demo_captures_root() -> Path:
@@ -55,7 +78,14 @@ def _free_name(directory: Path, stem: str, extension: str) -> Path:
 
 
 def save_capture(
-    root: Path, identifier: str, kind: str, media: bytes, media_type: str, metadata, extra: dict | None = None
+    root: Path,
+    identifier: str,
+    kind: str,
+    media: bytes,
+    media_type: str,
+    metadata,
+    extra: dict | None = None,
+    asked: int | None = None,
 ) -> dict:
     """Write ``<project>/captures/<iso>-<kind>.<ext>`` and its ``.json`` sidecar; return the receipt the
     player checks (``id``, ``kind``, ``bytes``, ``path``, ``metadataPath``, ``sha256``, ``createdAt``, urls)."""
@@ -71,6 +101,18 @@ def save_capture(
         extension = "mp4"
     else:
         extension = "webm"
+    # `asked`: the pause count when the request began (before an upload's body was read), else now.
+    asked = _pauses if asked is None else asked
+    with _WRITING:
+        # Deleted meanwhile (the factory reset): no captures folder comes back.
+        if _pauses != asked:
+            raise PlayerError("The captures were just reset. Save it again.")
+        if not is_demo(identifier) and not Path(root).is_dir():
+            raise PlayerError("The game is no longer there.")
+        return _write_capture(root, identifier, kind, extension, media, metadata, extra)
+
+
+def _write_capture(root: Path, identifier: str, kind: str, extension: str, media: bytes, metadata, extra) -> dict:
     directory = captures_dir(root, identifier)
     directory.mkdir(parents=True, exist_ok=True)
     created = datetime.now(UTC)

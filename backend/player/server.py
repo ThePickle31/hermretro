@@ -28,7 +28,7 @@ from urllib.parse import unquote, urlsplit
 
 from .. import library
 from . import skins
-from .captures import MEDIA_EXTENSIONS, capture_root, find_capture, save_capture
+from .captures import MEDIA_EXTENSIONS, capture_root, find_capture, pauses, save_capture
 from .frame import (
     ANNOTATION_MOUNT,
     DEMO_ROM_PATH,
@@ -309,13 +309,14 @@ class _Handler(BaseHTTPRequestHandler):
             if routed is None:
                 return
             player, identifier, root, rel = routed
+            asked = pauses()  # before the body: a capture upload under way while the reset deletes is not saved
             length = int(self.headers.get("Content-Length") or 0)
             limit = MAX_CAPTURE_BYTES if rel == "codex-captures" else MAX_JSON_BYTES
             if length < 0 or length > limit:
                 return self._text(413, "Too large.")
             body = self.rfile.read(length) if length else b""
             if rel == "codex-captures":
-                return self._capture_post(player, root, identifier, body)
+                return self._capture_post(player, root, identifier, body, asked)
             if rel == "codex-device":
                 try:
                     request = json.loads(body or b"{}")
@@ -410,7 +411,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._file(sidecar, "application/json; charset=utf-8")
         return self._json(200, {"id": rest[0], "media": path.name})
 
-    def _capture_post(self, player: PlayerServer, root: Path, identifier: str, body: bytes):
+    def _capture_post(self, player: PlayerServer, root: Path, identifier: str, body: bytes, asked: int):
         generation = self.headers.get("x-codex-preview-capture") or ""
         if not player.knows_generation(identifier, generation):
             return self._json(409, {"error": "The preview changed before saving. Keep the browser download."})
@@ -431,5 +432,6 @@ class _Handler(BaseHTTPRequestHandler):
             media_type,
             metadata,
             {"romSha256": build["romSha256"], "sourceRevision": build["sourceRevision"]},
+            asked=asked,
         )
         return self._json(200, receipt)

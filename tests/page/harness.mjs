@@ -99,9 +99,11 @@ async function load() {
 // The registered page and every helper the scenarios share.
 function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
   const registrations = []
+  const settingsPages = []
   const intervals = []
   const ctx = {
     registerMany: list => registrations.push(...list),
+    registerSettingsPage: entry => settingsPages.push(entry),
     setTimeout: (fn, ms) => { const id = setTimeout(fn, 0); return () => clearTimeout(id) },
     setInterval: (fn, ms) => { intervals.push({ fn, ms }); return () => { intervals.splice(intervals.findIndex(i => i.fn === fn), 1) } },
     os: { writeClipboard: async value => { scenario.clipboard.push(value); return true }, openExternal: async () => true, revealPath: async path => { scenario.revealed = path; return true } },
@@ -197,7 +199,7 @@ function environment({ act, createRoot, dom, emit, host, plugin, scenario }) {
 
   return {
     act, createRoot, dom, emit, host, plugin, scenario, buildScenario,
-    registrations, intervals, ctx, page, root, render, text, shows, hides, heading, WELCOME, headings, click, nav, tab, pageTab, currentTab,
+    registrations, settingsPages, intervals, ctx, page, root, render, text, shows, hides, heading, WELCOME, headings, click, nav, tab, pageTab, currentTab,
     currentPageTab, settle, button, typeInto, key, mount, checks, check, holdTimers,
     answered, notLoaded, cli, status, doctor, manifest, installAnswer, complete: completeStatus()
   }

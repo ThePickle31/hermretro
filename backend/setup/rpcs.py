@@ -1,9 +1,9 @@
-"""The Setup page's RPCs: status, doctor, activity, studio_profile, install, remove_tools and releases. Declared with
+"""The Setup page's RPCs: status, doctor, activity, studio_profile, install, remove_tools, releases, and the factory
+reset's reset_plan and reset (reset_rpcs.py). Declared with
 @rpc; registered in this order (backend/hermes/declare.py)."""
 
 from __future__ import annotations
 
-import contextlib
 import math
 import time
 from pathlib import Path
@@ -14,13 +14,14 @@ from ..broker import (
     BrokenBroker,
     LegacyBrokerHello,
     OtherCopyBusy,
-    request_shutdown,
 )
 from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import flags, host as host_os, paths
 from ..system.events import emit
 from . import claude_login, progress as onboarding, provision, recovery, releases, studio_profile, studio_providers
+from . import reset_rpcs as _reset_rpcs_mod
+from .broker_stop import BROKER_STOP_WAIT, broker_lock, broker_stopped
 
 logger = host.logger  # one logger for the Hermes side of the backend,
 
@@ -60,37 +61,6 @@ def _platform_report() -> dict:
 # The backend code this gateway process loaded. When the files on disk change (a plugin update), the running
 # Hermes keeps the old code until it restarts: the page says so.
 LOADED_FINGERPRINT = paths.code_fingerprint()
-
-
-BROKER_STOP_WAIT = 15.0  # seconds a stopping broker gets to close its workers
-
-
-_REMOVE_BUSY = (
-    "A game is open in a chat or an install is running. Close those chats (or wait for the install), then try again."
-)
-
-
-@contextlib.contextmanager
-def _broker_lock(run: Path, seconds: float | None = None):
-    """Hold the broker election lock, waiting for a stopping broker to let go of it. Yields False on timeout."""
-    import fcntl
-
-    with open(run / "broker.lock", "a+") as handle:
-        deadline = time.monotonic() + (BROKER_STOP_WAIT if seconds is None else seconds)
-        while True:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    yield False
-                    return
-                time.sleep(0.1)
-        try:
-            time.sleep(0.5)  # workers exit when the broker's pipe closes; give them a moment
-            yield True
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 @rpc("status")
@@ -289,10 +259,6 @@ _NO_CANCEL_MESSAGE = (
     "This install is run by an older hermretro background process that cannot cancel it, so it is still running. "
     "Wait for it to finish: this page moves on when the tools are verified."
 )
-_REMOVE_WORKER = (
-    "The last toolchain installer did not confirm it stopped, so the tools folder may still be in use. Quit and "
-    "reopen Hermes, then try again."
-)
 _START_WINDOW = 60.0
 _START_EXPIRED = "The install start expired. Check the install status and try again."
 _LEGACY_BUSY = "The previous version of hermretro is still running games. Finish or close those chats, then try again."
@@ -325,7 +291,7 @@ def _install_connect(*, retire_legacy: bool):
         raise OtherCopyBusy(_LEGACY_BUSY) from error
     # An acknowledged shutdown can still be closing workers. Wait for election release, then read
     # the journal or the broker that replaced it. This action never starts a broker.
-    with _broker_lock(run, seconds=max(0, deadline - time.monotonic())) as held:
+    with broker_lock(run, seconds=max(0, deadline - time.monotonic())) as held:
         if not held:
             raise BrokerUnavailable("The previous hermretro broker is still stopping.") from error
     return host.try_connect(run, deadline=deadline)
@@ -500,22 +466,9 @@ def rpc_remove_tools(ctx):
 
     def remove(params, **_kwargs):
         try:
-            run = paths.runtime_dir()
-            client, error = host.try_connect(run)  # never starts the broker
-            if error is not None and not isinstance(error, BrokerNotRunning):
-                raise BrokerUnavailable(str(error)) from error
-            if client is not None:
-                with client:
-                    if not request_shutdown(client):
-                        return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
-            # The broker's election lock: held by a running broker until it exits, and while we hold it any
-            # broker another call starts loses the election and exits, so nothing runs from the folder.
-            with _broker_lock(run) as held:
-                if not held:
-                    return {"ok": False, "code": "BUSY", "error": _REMOVE_BUSY}
-                if recovery.worker_left(recovery.read_journal()):
-                    # The broker exited, but the installer worker it could not close may still use the folder.
-                    return {"ok": False, "code": "WORKER_STILL_RUNNING", "error": _REMOVE_WORKER}
+            with broker_stopped() as refused:
+                if refused:
+                    return refused
                 removed = provision.remove_downloads()
             if removed.get("ok"):
                 emit("setup.tools_removed", root=removed.get("root"))
@@ -539,3 +492,15 @@ def rpc_releases(ctx):
         return releases.latest()
 
     return answer
+
+
+@rpc("reset_plan")
+def rpc_reset_plan(ctx):
+    """What each part of hermretro's data holds, for the factory reset's choices (reset.py)."""
+    return _reset_rpcs_mod.rpc_reset_plan(ctx)
+
+
+@rpc("reset")
+def rpc_reset(ctx):
+    """One step of the factory reset: stop the broker (``part`` stop) or delete one part (reset.py)."""
+    return _reset_rpcs_mod.rpc_reset(ctx)

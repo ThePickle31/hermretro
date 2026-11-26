@@ -13,9 +13,9 @@ export const ENABLE_COMMAND = `hermes plugins enable ${ID}`
 
 // The agent half's `config_schema` form lives under Settings ▸ Plugins keyed by
 // the agent plugin key (`?agent=`). `pluginSettingsHref()` builds `?plugin=`,
-// which addresses pages a DESKTOP half registers — this desktop half registers
-// none, so the agent route is the right deep link (it also resolves when the
-// form is folded under a desktop entry as "Agent settings"). `&profile=` is Settings' own scope hand-off (the
+// which addresses pages a DESKTOP half registers (this one's: the factory reset),
+// so the agent route is the right deep link to the form (it resolves when the
+// form is folded under that desktop entry as "Agent settings"). `&profile=` is Settings' own scope hand-off (the
 // Capabilities gear's): the form edits the hermretro profile, where the hardware tools are, even while the app is on
 // another profile. A Hermes without it ignores the parameter and edits the profile the app is on.
 export const AGENT_SETTINGS_HREF = `/settings?tab=plugins&agent=${ID}&profile=${STUDIO_PROFILE}`

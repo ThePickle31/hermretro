@@ -7,7 +7,7 @@ import { callBackend } from '#app/backend.js'
 import { ID, PLUGINS_HREF, STUDIO_PROFILE } from '#app/ids.js'
 import { RPC_RELEASES } from '#app/rpc.js'
 import { routing } from '#app/routing.js'
-import { busyChats, busySentence, installTarget, pluginRow, requestOn, runReload, runUpdate, studioReloadTarget, UPDATE_MARKER } from './flow.js'
+import { busyChats, busySentence, installTarget, pluginRow, requestOn, runReload, runUpdate, studioReloadTarget, UPDATE_MARKER, UPDATE_PENDING } from './flow.js'
 import { setUpdating } from './lock.js'
 import { releasesBetween } from './versions.js'
 
@@ -22,9 +22,6 @@ const installingSentence = verb => `The game tools are being installed. You can 
 // The new version whose corner card was put away (Later, or a click beside it): `{ version, target }`, the release and
 // Hermes's update target it was known by; the card does not come back for either.
 const SEEN = 'updateLater'
-// Hermes installed the new version but the rest (the hermretro profile, the page) did not finish: { at, error }. Kept
-// until a run finishes, so Finish update resumes it even though Hermes now answers "unchanged".
-const PENDING = 'updatePending'
 
 function stored(ctx, key) {
   try {
@@ -35,7 +32,7 @@ function stored(ctx, key) {
 }
 
 function pendingUpdate(ctx) {
-  const pending = stored(ctx, PENDING)
+  const pending = stored(ctx, UPDATE_PENDING)
 
   return pending && typeof pending === 'object' ? pending : null
 }
@@ -210,10 +207,10 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
         confirmInstallIdle,
         onStep: step => setState(current => ({ ...current, step })),
         onWaiting: waiting => setState(current => ({ ...current, waiting })),
-        installed: () => remember(ctx, PENDING, { at: Date.now(), error: null }),
-        refused: () => remember(ctx, PENDING, null),
+        installed: () => remember(ctx, UPDATE_PENDING, { at: Date.now(), error: null }),
+        refused: () => remember(ctx, UPDATE_PENDING, null),
         remember: marker => {
-          remember(ctx, PENDING, null)
+          remember(ctx, UPDATE_PENDING, null)
           remember(ctx, UPDATE_MARKER, { ...marker, from: version })
         }
       })
@@ -228,7 +225,7 @@ export function usePluginUpdate({ ctx, status, running, installing = false, inst
     const half = outcome.kind === 'partial' || (pendingUpdate(ctx) && ['failed', 'blocked'].includes(outcome.kind))
 
     if (half) {
-      remember(ctx, PENDING, { at: Date.now(), error: outcome.error ?? null })
+      remember(ctx, UPDATE_PENDING, { at: Date.now(), error: outcome.error ?? null })
       setState({ phase: 'partial', step: 0, error: outcome.error ?? null })
     } else if (outcome.kind === 'updated') {
       // The app reloads this page with its new copy; until then (or when it cannot), say where things stand.
