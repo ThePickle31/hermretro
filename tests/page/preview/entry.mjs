@@ -69,7 +69,7 @@ const notLoaded = { isError: true, isFetching: false, error: Object.assign(new E
 const MANIFEST = { bytes: 708_271_425, disk_bytes: 2_300_000_000, measured_on: 'linux-x64', exact: true, items: [
   { id: 'gbdk', component: 'gbdk', name: 'GBDK compiler', version: '4.5.0', source: 'github.com/gbdk-2020/gbdk-2020', bytes: 6_870_728, purpose: 'Compiles C for the Game Boy CPU' },
   { id: 'gbstudio', component: 'cli', name: 'GB Studio CLI', version: '4.3.2', source: 'github.com/chrismaltby/gb-studio', bytes: 18_130_254, purpose: 'Builds your game into a ROM' },
-  { id: 'gbvm', component: 'cli', name: 'GBVM', version: 'bd6f41c', source: 'github.com/chrismaltby/gbvm', bytes: 3_995_554, purpose: 'The Game Boy engine inside every game' },
+  { id: 'gbvm', component: 'cli', name: 'GBVM', version: 'bd6f41c', source: 'github.com/chrismaltby/gbvm', bytes: 3_995_554, purpose: "GB Studio's runtime, built into every ROM" },
   { id: 'packages', component: 'cli', name: 'GB Studio packages', version: 'yarn 4.4.1', source: 'registry.npmjs.org', bytes: 551_000_000, approx: true, purpose: 'The libraries GB Studio needs' },
   { id: 'uv', component: 'uv', name: 'uv', version: '0.12.6', source: 'github.com/astral-sh/uv', bytes: 20_274_889, purpose: 'Installs the Python parts' },
   { id: 'emulator', component: 'emulator', name: 'Python, PyBoy and Pillow', version: '3.13.12 · 2.7.0 · 12.3.0', source: 'python-build-standalone · pypi.org', bytes: 108_000_000, approx: true, purpose: 'The emulator Hermes playtests with' }] }
