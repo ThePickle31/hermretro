@@ -34,7 +34,9 @@ from ..broker import (  # noqa: F401 - used as host.try_connect (above)
 
 logger = logging.getLogger(__name__)
 
-_APPROVAL_TOOLS = {"chromatic_flash", "chromatic_play", "chromatic_setup"}
+_APPROVAL_TOOLS = {"chromatic_flash", "chromatic_play", "chromatic_setup", "chromatic_device_capture"}
+# The capture actions that open the physical device's feed; the others read or close what is already open.
+_CAPTURE_APPROVAL_ACTIONS = {"connect", "start_recording"}
 
 # Runtime session ids of delegated subagents alive in this process. The subagent_start hook and
 # the child's tool calls run in the same process, so this is host-observed, not model-supplied.
@@ -438,6 +440,8 @@ def make_pre_tool_call(ctx):
         if tool_name not in _APPROVAL_TOOLS or not ctx.get_config("hardware_enabled", False):
             return None  # disabled hardware is refused by the broker; nothing to approve
         args = args or {}
+        if tool_name == "chromatic_device_capture":
+            return _capture_approval(args)
         if tool_name == "chromatic_flash":
             message = (
                 "Write a ROM to the cartridge in the connected Chromatic. Existing cartridge game data is "
@@ -462,3 +466,19 @@ def make_pre_tool_call(ctx):
         return {"action": "approve", "message": message, "rule_key": f"hermretro:{tool_name}:{detail}"}
 
     return pre_tool_call
+
+
+def _capture_approval(args):
+    """Watching or recording the device writes nothing to it, so one rule key per action: the user's
+    "always" in Hermes's prompt then means always allow that kind of capture."""
+    action = args.get("action")
+    if action not in _CAPTURE_APPROVAL_ACTIONS:
+        return None
+    if action == "connect":
+        selection = args.get("selection") if isinstance(args.get("selection"), dict) else {}
+        message = f"Watch the connected Chromatic's USB video feed ({selection.get('videoLabel')})."
+    else:
+        duration = args.get("durationMs")
+        seconds = duration // 1000 if isinstance(duration, int) else 180  # the engine's default is 3 minutes
+        message = f"Record the connected Chromatic's USB video feed for up to {seconds} s."
+    return {"action": "approve", "message": message, "rule_key": f"hermretro:chromatic_device_capture:{action}"}
