@@ -472,13 +472,18 @@ def _capture_approval(args):
     """Watching or recording the device writes nothing to it, so one rule key per action: the user's
     "always" in Hermes's prompt then means always allow that kind of capture."""
     action = args.get("action")
-    if action not in _CAPTURE_APPROVAL_ACTIONS:
-        return None
+    if not isinstance(action, str) or action not in _CAPTURE_APPROVAL_ACTIONS:
+        return None  # a malformed action is the engine's to refuse
     if action == "connect":
         selection = args.get("selection") if isinstance(args.get("selection"), dict) else {}
-        message = f"Watch the connected Chromatic's USB video feed ({selection.get('videoLabel')})."
+        feed = "video and audio" if selection.get("audioId") else "video"
+        message = f"Watch the connected Chromatic's USB {feed} feed ({selection.get('videoLabel')})."
     else:
         duration = args.get("durationMs")
-        seconds = duration // 1000 if isinstance(duration, int) else 180  # the engine's default is 3 minutes
-        message = f"Record the connected Chromatic's USB video feed for up to {seconds} s."
+        if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+            duration = 180_000  # the engine's default is 3 minutes
+        message = (
+            f"Record the connected Chromatic's USB feed (video, and audio when connected) for up to "
+            f"{duration / 1000:g} s."
+        )
     return {"action": "approve", "message": message, "rule_key": f"hermretro:chromatic_device_capture:{action}"}
