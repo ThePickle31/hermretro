@@ -307,10 +307,13 @@ files, what changed and why.
   - The folder is the user's own (mode 700, checked); everything but the cache is removed before and after each build.
   - A build holds it through `.claim-<pid>-<uuid>` files, one for the engine and one for the compiler's process
     group, which can outlive the engine: the compiler starts through `/bin/sh` and waits on its standard input until
-    its claim is written. A claim is alive while its process or group is, for at most twice the longest build.
-    Another build meanwhile gets a fresh folder.
+    its claim is written. A claim is alive while its process or group is. Another build meanwhile gets a fresh
+    folder.
   - GB Studio's keys follow only `include "..."` lines, so a game with its own engine code (`assets/engine`, a
     plugin's `engine` or `engineAlt` folder) or a link among its plugins builds in a fresh folder, and the cache is
     dropped when the compiler changes (the CLI, its build worker, GB Studio's engine and GBDK, by content).
+  - Those keys also leave out the names in `data/game_globals.i` (two constants' names swapped can match a stale
+    script): the cache holds objects made with one `game_globals.i`, and a build that makes another is compiled
+    again without the cache.
   - What a stopped or failed compiler changed in the cache is removed, and the whole cache after a build whose
     engine or compiler stopped before it finished. Windows keeps a fresh folder per build.

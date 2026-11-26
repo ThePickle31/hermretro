@@ -31565,11 +31565,10 @@ async function removeIsolatedBuildDirectory(directory, projectRoot) {
 const SHARED_BUILD_CACHE = "_gbscache";
 const SHARED_BUILD_TOOLCHAIN = ".toolchain";
 const SHARED_BUILD_UNFINISHED = ".unfinished";
+const SHARED_BUILD_GLOBALS = ".globals";
 const SHARED_BUILD_CLAIM = /^\.claim-(\d+)-[0-9a-f-]{36}$/;
-// Longer than any build may run: an older claim is a reused process id, not a build.
-const SHARED_BUILD_CLAIM_EXPIRY_MS = 2 * MAX_TIMEOUT_MS;
 function sharedBuildKeeps(entry) {
-  return entry === SHARED_BUILD_CACHE || entry === SHARED_BUILD_TOOLCHAIN || SHARED_BUILD_CLAIM.test(entry);
+  return entry === SHARED_BUILD_CACHE || entry === SHARED_BUILD_TOOLCHAIN || entry === SHARED_BUILD_GLOBALS || SHARED_BUILD_CLAIM.test(entry);
 }
 function signalReaches(target) {
   try {
@@ -31579,17 +31578,10 @@ function signalReaches(target) {
     return !isSystemError(error2, "ESRCH");
   }
 }
-// A claim's process, or the process group it leads: the compiler's group outlives its first process.
-async function claimIsAlive(claim, pid) {
-  if (!(pid > 0) || !signalReaches(pid) && !signalReaches(-pid))
-    return false;
-  try {
-    return Date.now() - (await lstat9(claim)).mtimeMs < SHARED_BUILD_CLAIM_EXPIRY_MS;
-  } catch (error2) {
-    if (isSystemError(error2, "ENOENT"))
-      return false;
-    throw error2;
-  }
+// A claim's process, or the process group it leads: the compiler's group outlives its first process. A process that
+// took over a dead claim's id keeps it alive too, which only means fresh folders until it exits.
+function claimIsAlive(pid) {
+  return pid > 0 && (signalReaches(pid) || signalReaches(-pid));
 }
 async function clearSharedBuildDirectory(directory) {
   for (const entry of await readdir4(directory)) {
@@ -31708,7 +31700,7 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
         if (!owner || other === claim)
           continue;
         others = true;
-        if (await claimIsAlive(other, Number(owner[1]))) {
+        if (claimIsAlive(Number(owner[1]))) {
           await rm3(claim, { force: true });
           return void 0;
         }
@@ -31737,10 +31729,33 @@ function claimSharedBuildForCompiler(shared, pid) {
   writeFileSync2(claim, "", { flag: "wx", mode: 384 });
   shared.compilerClaim = { claim, pid };
 }
+// GB Studio's keys take from data/game_globals.i only the values a file uses, without their names, so swapping two
+// constants' names can match a stale object. The cache holds objects made with one game_globals.i: after a build
+// that found another, it is dropped and the game compiled again without it.
+async function sharedBuildGlobalsChanged(shared) {
+  const generated = await readFile5(path16.join(shared.directory, "_gbsbuild", "include", "data", "game_globals.i")).catch(() => Buffer.from("missing"));
+  const globals = createHash9("sha256").update(generated).digest("hex");
+  const recordedPath = path16.join(shared.directory, SHARED_BUILD_GLOBALS);
+  const recorded = shared.cacheBefore.size === 0 ? globals : await readFile5(recordedPath, "utf8").catch(() => "");
+  await writeFile(recordedPath, globals, { mode: 384 });
+  return recorded !== globals;
+}
+async function restartSharedBuild(shared) {
+  if (shared.compilerClaim) {
+    if (claimIsAlive(shared.compilerClaim.pid))
+      throw new Error("The game compiler's first run is still running; the build was not repeated without the cache.");
+    await rm3(shared.compilerClaim.claim, { force: true });
+    shared.compilerClaim = void 0;
+  }
+  await rm3(path16.join(shared.directory, SHARED_BUILD_CACHE), { recursive: true, force: true });
+  await clearSharedBuildDirectory(shared.directory);
+  await writeFile(path16.join(shared.directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
+  shared.cacheBefore = /* @__PURE__ */ new Map();
+}
 async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
   try {
     // A compiler group that is still running keeps the folder, and its unfinished mark drops the cache once it is gone.
-    if (shared.compilerClaim && await claimIsAlive(shared.compilerClaim.claim, shared.compilerClaim.pid))
+    if (shared.compilerClaim && claimIsAlive(shared.compilerClaim.pid))
       return;
     // GB Studio writes its cache only after compiling, without replacing files atomically: what a compiler that
     // was stopped or failed changed there is forgotten.
@@ -31971,10 +31986,10 @@ async function buildRom(options) {
       throw error2;
     }
   }
+  const startedAt = performance.now();
   const sharedBuild = builder === "gb-studio-cli" ? await claimSharedBuildDirectory(root, source, gbStudioCli).catch(() => void 0) : void 0;
   const temporaryDirectory = builder === "gb-studio-cli" ? sharedBuild?.directory ?? await createIsolatedBuildDirectory(root) : void 0;
   let compilerSucceeded = false;
-  const startedAt = performance.now();
   let exitCode = 0;
   let stdout = "";
   let stderr = "";
@@ -31999,13 +32014,18 @@ async function buildRom(options) {
           debugSkipped = error2 instanceof Error ? error2.message : String(error2);
         }
       }
-      const result2 = await runBuildCommand(command, args, {
+      const compile = () => runBuildCommand(command, args, {
         cwd: root,
         timeoutMs,
         signal: options.signal,
         environment: isolatedCompilerEnvironment(temporaryDirectory),
         ...sharedBuild ? { started: (pid) => claimSharedBuildForCompiler(sharedBuild, pid) } : {}
       });
+      let result2 = await compile();
+      if (sharedBuild && await sharedBuildGlobalsChanged(sharedBuild)) {
+        await restartSharedBuild(sharedBuild);
+        result2 = await compile();
+      }
       compilerSucceeded = true;
       stdout = result2.stdout;
       stderr = withoutNodeDeprecationNotice(result2.stderr);

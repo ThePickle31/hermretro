@@ -65,6 +65,49 @@ def web_rom(client, root: Path) -> str | None:
     return sha256(rom) if rom and Path(rom).resolve().is_relative_to(root.resolve()) else None
 
 
+def check_swapped_constants(suite, client, copy: Path):
+    """GB Studio's cache keys see the values of the constants a script uses but not their names: after two names are
+    swapped, the build must give the ROM a compile without the cache gives (the web compile, with no native ROM to
+    adopt). The project is put back after."""
+    variables = copy / "project" / "variables.gbsres"
+    scene = next((copy / "project" / "scenes").glob("*/scene.gbsres"))
+    saved = {path: path.read_text() for path in (variables, scene)}
+    data = json.loads(saved[scene])
+    script = {
+        "command": "EVENT_GBVM_SCRIPT",
+        "args": {"script": "VM_PUSH_CONST CONST_LEFT\nVM_PUSH_CONST CONST_RIGHT\nVM_POP 2", "references": []},
+        "id": "5f0d2c3a-8e41-4b6a-9d27-3c1e7a9b4f60",
+    }
+    scene.write_text(json.dumps({**data, "script": [*data.get("script", []), script]}, indent=2))
+
+    def name_constants(first: str, second: str) -> None:
+        constants = [
+            {"id": "0b6f1e4c-2d3a-4c5b-8e9f-1a2b3c4d5e01", "name": first, "symbol": first, "value": 3},
+            {"id": "0b6f1e4c-2d3a-4c5b-8e9f-1a2b3c4d5e02", "name": second, "symbol": second, "value": 10},
+        ]
+        variables.write_text(json.dumps({**json.loads(saved[variables]), "constants": constants}, indent=2))
+
+    try:
+        name_constants("CONST_LEFT", "CONST_RIGHT")
+        before = build(client, copy)
+        name_constants("CONST_RIGHT", "CONST_LEFT")
+        swapped = build(client, copy)
+        shutil.rmtree(copy / "build")
+        cold = web_rom(client, copy)
+    finally:
+        for path, text in saved.items():
+            path.write_text(text)
+    suite.check(
+        "R10",
+        "After two constants' names are swapped, keeping their values in order, the build gives the ROM a compile "
+        "without GB Studio's cache gives",
+        before.get("success") is True and swapped.get("success") is True and bool(cold) and swapped["sha256"] == cold,
+        before=before["sha256"] or before.get("error"),
+        swapped=swapped["sha256"] or swapped.get("error"),
+        cold=cold,
+    )
+
+
 def check_repeatable(suite, client, rom_b: str):
     """``rom_b``: B's ROM as B's last build made it, from the project as it is now."""
     copy = suite.work / "repeatable" / "elsewhere" / "deep" / "copy"
@@ -105,6 +148,7 @@ def check_repeatable(suite, client, rom_b: str):
         compiled=[first_compiled, again_compiled],
         ms=[copied.get("durationMs"), rebuilt.get("durationMs")],
     )
+    check_swapped_constants(suite, client, copy)
 
     unlisted_image = copy / "assets" / "backgrounds" / "unlisted.png"
     unlisted_image.parent.mkdir(parents=True, exist_ok=True)
