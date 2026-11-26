@@ -18,6 +18,8 @@ NODE = shutil.which("node")
 INSTALLED = (TOOLS / "npm" / "node_modules" / "esbuild" / "package.json").is_file()
 ENGINE_LOCK = ROOT / "engine" / "modretro-chromatic" / "scripts" / "runtime-package-lock.json"
 PNGJS_LICENCE = TOOLS / "npm" / "node_modules" / "pngjs" / "LICENSE"
+# ModRetro's own build of the engine bundle, which bundle.mjs must match byte for byte.
+MODRETRO_BUILD = ROOT / "engine" / "modretro-chromatic" / "scripts" / "bundle-mcp.mjs"
 
 
 def lock_naming(*packages: str) -> str:
@@ -84,6 +86,27 @@ class EngineBundleTests(unittest.TestCase):
         self.assertIn("__toESM(require_png(), 1)", text)
         self.assertEqual(self.run_bundle(), "b:function!")
         self.assertEqual(sorted(os.listdir(self.bundle.parent)), ["greet.js", "server.js"])
+
+    def test_the_bundle_is_byte_for_byte_what_modretros_build_makes(self):
+        self.assertEqual(self.build().returncode, 0)
+        # ModRetro's build (the engine's scripts/bundle-mcp.mjs) of the same modules, in a folder laid out as it wants:
+        # the entry as dist/server.js, the packages in node_modules and the device client it also bundles.
+        theirs = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        shutil.copytree(self.engine, theirs, dirs_exist_ok=True)
+        shutil.copy(self.entry, theirs / "dist" / "server.js")
+        (theirs / "scripts" / "device-client-deps.mjs").write_text("export const client = 1;\n")
+        shutil.copytree(TOOLS / "npm" / "node_modules" / "pngjs", theirs / "node_modules" / "pngjs")
+        script = (
+            f"const {{ bundleMcp }} = await import({json.dumps(MODRETRO_BUILD.as_uri())});"
+            f"process.stdout.write(bundleMcp({json.dumps(str(theirs))}).contents);"
+        )
+        # Its require("esbuild") finds the pinned esbuild, the version it names.
+        environment = {**os.environ, "NODE_PATH": str(TOOLS / "npm" / "node_modules")}
+        built = subprocess.run(
+            [NODE, "--input-type=module", "-e", script], capture_output=True, timeout=120, env=environment
+        )
+        self.assertEqual(built.returncode, 0, built.stderr.decode())
+        self.assertEqual(self.bundle.read_bytes(), built.stdout)
 
     def test_a_temporary_folder_reached_through_a_link_builds_the_same(self):
         # macOS reaches its temporary folder through a link; scripts/ must stay outside the bundle there too.

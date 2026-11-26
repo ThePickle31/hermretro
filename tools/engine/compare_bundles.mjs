@@ -138,14 +138,17 @@ function children(node) {
 }
 
 // The innermost nodes where two statements that differ part: the first pair of children that differ, while the two
-// hold as many children and only those differ.
+// hold as many children. Where one holds more (a statement added or taken out), the first child that differs, or
+// the first one only one of them has, with the other side's holder where it has none.
 function parting(a, b, named) {
   const key = (node) => JSON.stringify(form(node, named));
   for (;;) {
     const [x, y] = [children(a), children(b)];
-    const differing = x.length === y.length ? x.findIndex((child, index) => key(child) !== key(y[index])) : -1;
+    const differing = x.findIndex((child, index) => index >= y.length || key(child) !== key(y[index]));
+    const at = differing === -1 ? x.length : differing;
+    if (x.length !== y.length) return [x[at] ?? a, y[at] ?? b];
     if (differing === -1) return [a, b];
-    [a, b] = [x[differing], y[differing]];
+    [a, b] = [x[at], y[at]];
   }
 }
 

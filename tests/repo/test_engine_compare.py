@@ -232,6 +232,10 @@ class EngineCompareTests(unittest.TestCase):
         before = "function f() {\n  const a = 1;\n  return a;\n}\n"
         done = self.compare(before, before.replace("return a;", "return a + 1;"))
         self.assertIn("- 3: return a;\n  + 3: return a + 1;", done.stdout)
+        # A statement added inside a block: the report names it, not the block's first line on both sides.
+        before = "function f() {\n  a();\n  b();\n}\n"
+        done = self.compare(before, before.replace("  b();", "  c();\n  b();"))
+        self.assertIn("- 3: b();\n  + 3: c();", done.stdout)
         # A key spelled another way is the same key: the report goes on to what differs.
         before = 'const flags = {\n  "enabled": () => {\n    return false;\n  },\n};\n'
         after = before.replace('"enabled"', "enabled").replace("return false", "return true")
