@@ -244,7 +244,7 @@ class Tools(unittest.TestCase):
         for patch in (
             mock.patch.object(hermes_host, "_chat_project", lambda *_ids: str(self.root)),
             mock.patch.object(
-                library_tools.player_server, "get_server", **{"return_value.url.return_value": "http://x/"}
+                library_tools.player_server, "get_server", **{"return_value.play_url.return_value": "http://x/"}
             ),
         ):
             patch.start()

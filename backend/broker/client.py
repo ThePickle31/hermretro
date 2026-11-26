@@ -324,6 +324,12 @@ def game_hold(client: BrokerClient, root: str, *, hold: bool) -> dict:
     return client.request({"op": "hold_game" if hold else "release_game", "root": root})
 
 
+def test_build(client: BrokerClient, root: str) -> dict:
+    """Build a game installed with its source once (``backend/broker/installed.py``): ``{ok: True, built, sha256,
+    error}``, or ``{ok: False, denied: {code, message}}`` (``GAME_BUSY`` while a conversation has it open)."""
+    return client.request({"op": "test_build", "root": root})
+
+
 def try_connect(
     state_dir: Path, retire_broken: bool = False, *, deadline: float | None = None
 ) -> tuple[BrokerClient | None, Exception | None]:

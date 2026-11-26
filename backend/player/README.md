@@ -1,6 +1,6 @@
 # backend/player
 
-The loopback HTTP routes live in `server.py`. `frame.py` assembles the game or demo frame and adapts the engine player. `captures.py` owns media files, sidecars and stable capture IDs. `skins.py` reads bundled finishes and the user's skins folder.
+The loopback HTTP routes live in `server.py`. `frame.py` assembles the game or demo frame and adapts the engine player; a game installed from a link (`library.plays_in_shell`) plays its ROM in the demo's bundled player (`shell_build`: its `gbstudio.json` and `rom/game.gb[c]` served for that game), never a web export of its own. `captures.py` owns media files, sidecars and stable capture IDs. `skins.py` reads bundled finishes and the user's skins folder.
 
 ## What it adds
 

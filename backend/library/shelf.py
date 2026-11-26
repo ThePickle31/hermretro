@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import freshness, game_card, layout, project, release
+from . import freshness, game_card, install_build, layout, play, project, release
 
 # A failed build's error, as recorded in lastBuild and answered by the games RPC.
 ERROR_CHARS = 240
@@ -46,6 +46,18 @@ def last_build(entry: dict) -> dict:
     return last if isinstance(last, dict) else {}
 
 
+def artifacts_for(root: Path, last: dict, *, require_web_rom: bool = False) -> tuple[dict, float | None]:
+    """The game's ROM and what its player plays (``project.build_artifacts``). A game without its source has only its
+    checked ROM (``play``), never another file found in ``build/``: none when that ROM changed. A game the player's
+    shell plays shows that ROM as its playable copy."""
+    if play.rom_only_record(root) is not None:
+        artifacts = play.shell_artifacts(root, {"rom": None, "webExport": False, "web": None})
+        return artifacts, (artifacts["rom"] or {}).get("builtAt")
+    shell = play.plays_in_shell(root)
+    artifacts, built = project.build_artifacts(root, last, require_web_rom=require_web_rom and not shell)
+    return (play.shell_artifacts(root, artifacts) if shell else artifacts), built
+
+
 def game_details(entry: dict, identifier: str, root: Path, artifacts: dict) -> dict:
     """The player's title, build artifacts and chat routing. No card reads or source walk."""
     chat = entry.get("chat")
@@ -65,12 +77,10 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
     except OSError:
         pass
     last = last_build(entry)
-    artifacts, built = project.build_artifacts(root, last)
-    checked = release.installed_rom(root)
-    if checked is not None:  # a game installed without its source has the one ROM its install checked
-        rom, built = project._rom_info(Path(checked["romPath"]))
-        artifacts = {**artifacts, "rom": rom}
-    if last.get("ok") is False and (built is None or project.timestamp(last.get("t")) >= built):
+    artifacts, built = artifacts_for(root, last)
+    if play.rom_only_record(root) is not None:  # nothing to build: it is its checked ROM, or that ROM changed
+        state = "ready" if artifacts["rom"] else "romChanged"
+    elif last.get("ok") is False and (built is None or project.timestamp(last.get("t")) >= built):
         state = "failed"
     elif built is None:
         state = "unbuilt"
@@ -98,7 +108,9 @@ def describe(entry: dict, identifier: str, root: Path, thumb) -> dict:
 
 def installed_from(root: Path) -> dict | None:
     """Where a game installed from a link came from (``release.installed``), for the page: ``{source, url, ref,
-    commit, mode, rom, installedAt, edited}`` (``rom``: the ROM its install checked, relative); None for a game made
+    commit, mode, rom, romSha256, installedAt, edited, testBuild, buildAllowed}`` (``rom``/``romSha256``: the ROM its
+    install checked, relative, and its SHA-256; ``testBuild``: the build here of the commit installed,
+    ``install_build``, or None; ``buildAllowed``: whether the user allowed building it here); None for a game made
     here."""
     record = release.installed(root)
     if record is None:
@@ -112,6 +124,9 @@ def installed_from(root: Path) -> dict | None:
         "rom": (record.get("rom") or {}).get("path"),
         "installedAt": project.timestamp(record.get("installedAt"), None),
         "edited": release.local_edits(root) is True,
+        "romSha256": (record.get("rom") or {}).get("sha256"),  # what the install checked, the author's romSha256
+        "testBuild": install_build.test_build(root),
+        "buildAllowed": install_build.allowed(root) if record["mode"] == "game+source" else False,
     }
 
 

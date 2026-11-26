@@ -127,8 +127,52 @@ class PlayerError(Exception):
     pass
 
 
+# A game the shell plays (``library.plays_in_shell``): the bundled player with the game's ROM at ``rom/game.gb[c]``,
+# named in the ``gbstudio.json`` served for it.
+SHELL_CONFIG = "gbstudio.json"
+
+
+def shell_rom_path(relative: str) -> str:
+    """Where the shell's ``gbstudio.json`` names a game's ROM ``relative`` (``build/game.gb[c]``)."""
+    return "rom/game" + (".gbc" if relative.lower().endswith(".gbc") else ".gb")
+
+
+def shell_config(relative: str) -> bytes:
+    """The bundled player's ``gbstudio.json`` naming the game's ROM instead of the demo's."""
+    config = json.loads((demo_web_dir() / SHELL_CONFIG).read_text(encoding="utf-8"))
+    config["rom"] = shell_rom_path(relative)
+    config.pop("project", None)
+    return json.dumps(config).encode("utf-8")
+
+
+def _shell_player(web: Path) -> None:
+    if not ((web / "index.html").is_file() and (web / "js" / "binjgb.wasm").is_file()):
+        raise PlayerError("The bundled player is missing from the plugin folder.")
+
+
+def shell_build(root: Path) -> dict:
+    """``game_build`` for a game the shell plays: the bundled player and the game's ROM (``library.shell_rom``)."""
+    web = demo_web_dir()
+    _shell_player(web)
+    found = library.verified(root)
+    if found is None:
+        raise PlayerError(library.no_shell_rom(root))
+    return {
+        "web": web,
+        "rom": Path(root) / found["relative"],
+        "romPath": shell_rom_path(found["relative"]),
+        "romSha256": found["sha256"],
+        "runtimeSha256": library.file_sha256(web / "js" / "binjgb.wasm"),
+        "sourceRevision": "hermes-rom-" + found["sha256"][:16],
+        "shell": True,
+    }
+
+
 def game_build(root: Path) -> dict:
-    """What the frame needs to know about a game's web export, verified like the engine does."""
+    """What the frame needs to know about what a game plays: its ROM in the shell (``shell_build``), else its web
+    export, verified like the engine does."""
+    if library.plays_in_shell(root):
+        return shell_build(root)
     web = library.web_dir(root)
     if not library.has_web_export(root):
         raise PlayerError("This game has no playable web build yet.")
@@ -157,8 +201,7 @@ def game_build(root: Path) -> dict:
 def demo_build() -> dict:
     """``game_build`` for the demo cartridge: the bundled player and the engine's example ROM."""
     web = demo_web_dir()
-    if not ((web / "index.html").is_file() and (web / "js" / "binjgb.wasm").is_file()):
-        raise PlayerError("The bundled demo player is missing from the plugin folder.")
+    _shell_player(web)
     rom = demo_rom()
     if rom is None:
         raise PlayerError("The demo ROM (the engine's hello-color example) is missing.")

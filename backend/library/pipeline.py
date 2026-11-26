@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import finish_run, freshness, plan_checks, playtest, project
+from . import finish_run, freshness, plan_checks, play, playtest, project
 
 # The override's argument on both tools: the user's request to see (or have reported) the game as it is.
 OVERRIDE = "unfinished"
@@ -54,10 +54,16 @@ CHANGED = "Game files changed after the last build, so the ROM is not the game a
 
 def rom_state(root: Path, last_build: dict | None, sources: str | None = None) -> dict:
     """The game's ROM as ``{path, sha256, problem}``: ``problem`` says why it is not the last build of the sources as
-    they stand (None when it is). The library's record of the last build decides: none, a failed one, another ROM
+    they stand (None when it is); a game without its source is its checked ROM (``play.verified``). Otherwise the
+    library's record of the last build decides: none, a failed one, another ROM
     than it made, no record of its ROM or sources, or sources whose digest is not the one now (``sources``, else
     computed). Only digests count: file times never pass a ROM."""
     root = Path(root)
+    if play.rom_only_record(root) is not None:  # a game without its source is its checked ROM: nothing builds it
+        found = play.verified(root)
+        if found is None:
+            return {"path": None, "sha256": None, "problem": play.no_shell_rom(root)}
+        return {"path": str(root / found["relative"]), "sha256": found["sha256"], "problem": None}
     rom, sha256, why = finish_run.current_rom(root)
     if why or rom is None:
         return {"path": None, "sha256": None, "problem": "This game has no readable ROM in build/ yet."}

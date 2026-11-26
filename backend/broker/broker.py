@@ -29,9 +29,11 @@ from . import leases
 from .control import ControlMixin
 from .lifecycle import LifecycleMixin, Notices
 from .holds import HoldsMixin
+from .installed import InstalledMixin
 from .lane import DEFAULT_CALL_TIMEOUT, Denied, Lane, LaneMixin, canonical_hash
 from .engine import EngineError
 from .operations_file import scene_apply_arguments
+from .selection import SelectionMixin
 
 HARDWARE = frozenset({"device", "setup", "flash", "play", "device_capture"})
 PREPARE = frozenset({"toolchain_prepare"})
@@ -97,7 +99,7 @@ def _same_path(root: Path, asked, wanted: Path) -> bool:
     return first == second or (sys.platform == "darwin" and first.lower() == second.lower())
 
 
-class Broker(LaneMixin, ControlMixin, LifecycleMixin, HoldsMixin):
+class Broker(LaneMixin, SelectionMixin, ControlMixin, LifecycleMixin, HoldsMixin, InstalledMixin):
     def __init__(self, state_dir: Path, node: str):
         self.state_dir = state_dir
         self.node = node
@@ -265,16 +267,20 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin, HoldsMixin):
         if isinstance(session_id, str) and session_id and not delegated and session_id not in lane.sessions_seen:
             lane.sessions_seen.append(session_id)
             del lane.sessions_seen[:-16]
+        # A game without its source: its folder, checked on every call (delegated ones too) against the chat's binding.
+        lane.rom_workspace = self.rom_only_root(lane)
         self.refuse_held(lane, self._selection_target(lane, tool, arguments) if tool in SELECTORS else None)
         if tool in SELECTORS:
             self.guard_selection(owner, lane, tool, arguments)
 
+        self.guard_installed(lane, tool, kind, arguments)
         with self.table_lock:
             lane.last_used = time.monotonic()  # before the engine is fetched: see close_lane_if_idle
         engine = self.ensure_engine(lane)
         if not delegated and kind in ("read", "project-write", "runtime"):
             self.select_bound_game(lane, engine)
             self.refuse_held(lane, None)  # the game it selects for this conversation may be held
+        self.guard_installed(lane, tool, kind, arguments)  # again: the game may only now be selected (or reselected)
         if kind in ("project-write", "runtime"):
             self.guard_ownership(lane, arguments)  # only a game's own conversation changes it or runs it
         if tool == "rom_build" and lane.selected_root:
@@ -388,6 +394,7 @@ class Broker(LaneMixin, ControlMixin, LifecycleMixin, HoldsMixin):
             and policy.get("live_player")
             and not delegated
             and "sourcePath" not in arguments
+            and not (lane.selected_root and library.is_installed(Path(lane.selected_root)))
             and not result.get("isError")
             and (result.get("structuredContent") or {}).get("success") is not False
         ):

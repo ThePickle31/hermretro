@@ -20,9 +20,13 @@ from .games import (
 )
 from .games import _json as read_json
 from .freshness import plays_game_rom, source_digest
-from .ownership import engine_path
+from .ownership import editable, engine_path
 from .pipeline import after_build
+from .install_build import allowed as build_allowed
+from .install_build import record_test_build
+from .play import is_installed, no_shell_rom, plays_in_shell, rom_only_record, shell_rom, verified
 from .project import ROM_STEM, built_rom_sha256, canonical_rom
+from .release import installed as install_record
 from .release import installed_rom
 
 __all__ = [
@@ -31,20 +35,30 @@ __all__ = [
     "SELECTORS",
     "Registry",
     "after_build",
+    "build_allowed",
     "built_rom_sha256",
     "canonical_rom",
     "cover_path",
+    "editable",
     "engine_path",
     "file_sha256",
     "folder_lock",
     "game_id",
     "has_web_export",
+    "install_record",
     "installed_rom",
+    "is_installed",
+    "no_shell_rom",
     "plays_game_rom",
+    "plays_in_shell",
     "project_file",
     "read_json",
+    "record_test_build",
+    "rom_only_record",
+    "shell_rom",
     "source_digest",
     "valid_id",
+    "verified",
     "web_dir",
     "web_rom",
 ]

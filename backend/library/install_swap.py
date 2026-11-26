@@ -27,14 +27,14 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from ..system.events import emit
-from . import game_card, layout
+from . import game_card, layout, play
 
 # The games folder's own record folder: the install locks, and old copies kept after a failed update.
 STATE = ".hermretro-installs"
 MAX_FOLDER_CHARS = 60
 _held = threading.local()
 # Records an update never carries: each belongs to the files it was made for (the LICENSE hermretro wrote, too).
-RECORDS = (layout.IDENTITY_FILE, layout.INSTALL_FILE, layout.PUBLISH_FILE, layout.LICENCE_FILE)
+RECORDS = (layout.IDENTITY_FILE, layout.INSTALL_FILE, layout.PUBLISH_FILE, layout.LICENCE_FILE, play.KEPT_ROM_FILE)
 # build/ entries an update never carries: the game's ROM comes with the update and web/ is made again from it.
 _FRESH_BUILD = frozenset({*(name.rsplit("/", 1)[1] for name in layout.GAME_ROMS), "web"})
 
@@ -76,9 +76,12 @@ def keep_both(root: Path, new: Path, remix_name, games_lock, registry) -> dict:
         remix = remix_name()
         os.rename(root, remix)
         saved = _records(remix)
+        kept = play.rom_only_record(remix)  # a game without its source: the remix still plays its checked ROM
         try:
             layout.new_identity(remix, fresh_changelog=False)
             os.rename(new, root)
+            if kept is not None:
+                play.keep_rom(remix, kept)
         except Exception as error:
             _put_back(saved)
             _restore(remix, root, error)

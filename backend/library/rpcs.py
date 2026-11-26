@@ -12,7 +12,7 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import paths
 from . import games as library
-from . import project, shelf
+from . import play, shelf
 
 logger = host.logger
 
@@ -198,8 +198,8 @@ def rpc_game_build_status(ctx):
             root = shelf.registered_root(entry)
             if root is None:
                 return missing
-            artifacts, _ = project.build_artifacts(root, shelf.last_build(entry), require_web_rom=True)
-            game = shelf.game_details(entry, identifier, root, artifacts)
+            artifacts, _ = shelf.artifacts_for(root, shelf.last_build(entry), require_web_rom=True)
+            game = {**shelf.game_details(entry, identifier, root, artifacts), "install": shelf.installed_from(root)}
             _route_games([game], entries)
             return {
                 "ok": True,
@@ -260,18 +260,21 @@ def rpc_player(ctx):
             if root is None:
                 return {"ok": False, "error": "Unknown game."}
             title = library.project_title(root)
-            if not library.has_web_export(root):
+            if not play.plays_in_shell(root) and not library.has_web_export(root):
                 return {
                     "ok": False,
                     "title": title,
                     "error": f"{title} has no playable build yet. Ask Hermes in its chat to build the game, "
                     "then press Play again.",
                 }
-            build = player_server.game_build(root)
+            try:
+                build = player_server.game_build(root)
+            except player_server.PlayerError as error:
+                return {"ok": False, "title": title, "error": str(error)}
             server = player_server.get_server(host._game_root)
             return {
                 "ok": True,
-                "url": server.url(identifier),
+                "url": server.url(identifier, build["romSha256"] if build.get("shell") else None),
                 "romSha256": build["romSha256"],
                 "title": title,
                 **_skins(),

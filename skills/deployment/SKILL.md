@@ -129,6 +129,21 @@ evidence already available that identifies that file. If eligibility remains
 unclear, do not flash; ask only for the missing evidence. See the [flash guide](references/chromatic-device-testing.md#flash-the-exact-inspected-rom)
 for evidence examples and refusal wording.
 
+A game hermretro installed from a link carries its own evidence, and the Install on Chromatic
+prompt states only what hermretro verified for the exact ROM it names (path, size, SHA-256,
+repository and commit). Installed without its source, its author published that SHA-256 as
+`romSha256` in `game.json` and hermretro checked the ROM against it on install: when
+`chromatic_rom_inspect` returns that same SHA-256, that is a creator-published checksum
+matching the file, even if other files of the game changed since. When the inspected SHA-256
+differs, that evidence no longer applies: do not flash, and tell the user to update the game.
+Installed with its source, the prompt claims a build here only for the ROM its one allowed
+build made from the commit installed; that ROM is homebrew you built, and the prompt says when
+it is also the ROM the game was installed with. A copy the user kept of an edited install (a
+remix) has no install record, so its prompt makes no claim: treat its ROM like any other
+supplied ROM. When the prompt says there is no proof, ask for the missing evidence as for any
+other ROM. Either way, still refuse a
+known third-party commercial game.
+
 Before the first flash on a device, explain that it **will erase the selected
 cartridge’s existing game data, saves may be lost, and no backup is made**. Get
 explicit acknowledgement and permission to write; a bare flash request is not
