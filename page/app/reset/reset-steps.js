@@ -44,8 +44,7 @@ const PART_TIMEOUT_MS = 600_000
 const label = id => RESET_PARTS.find(part => part.id === id)?.label ?? id
 
 /** The choices as they apply: a part that cannot be deleted stays (`locked`: id → why), and a deleted part takes what
- *  lives inside it or is reached through it (Games, the studio chats and the studio profile take build history; the
- *  profile takes its chats and its settings). Answers
+ *  lives inside it (Games and the studio profile take build history; the profile takes its chats and its settings). Answers
  *  `{ choices, forced, notes }`: `forced` names why each overridden part is deleted or kept (its choice is locked),
  *  `notes` what a part still free to choose loses anyway. */
 export function settleChoices(choices, locked = {}) {
@@ -70,11 +69,18 @@ export function settleChoices(choices, locked = {}) {
   takes('profile', 'settings', 'Deleted with the studio profile')
   takes('profile', 'history', 'Deleted with the studio profile')
   takes('games', 'history', 'Deleted with Games')
-  // Build history is reached through its game's conversation: with the chats gone, kept history could not be opened.
-  takes('chats', 'history', 'Deleted with Studio chats')
 
-  // A deleted game takes the captures in its folder, whatever Logs & captures says: said, never locked.
-  const notes = settled.games === 'delete' && settled.logs !== 'delete' && !forced.logs ? { logs: 'Game captures go with Games' } : {}
+  // Said, never locked: a deleted game takes the captures in its folder, whatever Logs & captures says; and kept build
+  // history loses its numbered builds with the chats they were made in (dated snapshots and backups stay usable).
+  const notes = {}
+
+  if (settled.games === 'delete' && settled.logs !== 'delete' && !forced.logs) {
+    notes.logs = 'Game captures go with Games'
+  }
+
+  if (settled.chats === 'delete' && settled.history !== 'delete' && !forced.history) {
+    notes.history = 'Numbered builds go with the chats'
+  }
 
   return { choices: settled, forced, notes }
 }

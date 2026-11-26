@@ -92,7 +92,12 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await click('Back', dialog())
   await pick('Games', 'Keep'); await pick('Logs & captures', 'Delete'); await pick('Studio chats', 'Delete')
-  check('deleting the studio chats takes build history with it', () => { assert.match(said(), /Build history31\.0 MB · Deleted with Studio chats/) })
+  await pick('Build history', 'Keep')
+  check('keeping build history while the chats go is allowed, and says what it loses', () => {
+    assert.equal(chosen('Build history'), 'Keep')
+    assert.match(said(), /Build history31\.0 MB · Numbered builds go with the chats/)
+  })
+  await pick('Build history', 'Delete')
   await click('Continue', dialog())
   check('the confirm step says what goes and what stays, and waits for the word', () => {
     assert.match(said(), /Delete.*Build history.*Studio chats.*Toolchain & engine/)
@@ -226,6 +231,17 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.ok(choice('Studio profile').querySelector('button').disabled)
   })
   await click('Cancel', dialog())
+
+  // hermretro off (or older) in the studio profile: the error names it.
+  const before11 = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => {
+    if (route.profile === 'hermretro' && method === 'plugin.hermretro.reset_plan') throw Object.assign(new Error('unknown method'), { code: -32601 })
+    return before11(route, method, params)
+  }
+  await open()
+  check('a studio profile with hermretro off is named', () => { assert.match(said(), /Turn hermretro on in the hermretro profile/) })
+  await click('Close', dialog())
+  scenario.requestProfileHook = before11
 
   installedIn = { profile: 'default', linked: false }; named = { exists: true, ours: false, installed: false }
   const plans = () => scenario.calls.filter(call => call[0] === 'requestProfile' && call[1] === 'hermretro' && call[2] === 'plugin.hermretro.reset_plan').length
