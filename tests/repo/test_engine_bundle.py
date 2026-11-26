@@ -1,9 +1,9 @@
 """tools/engine/bundle.mjs and compare_bundles.mjs. A bundle built from an engine's modules runs, holds every module
 and the packages they import, keeps scripts/ beside it (the engine reaches the Chromatic CLI through it), and holds
-nothing but the engine's modules and the pinned packages, each licensed; --check sees a changed byte. The comparison
-calls two bundles the same when only what a bundler changes differs (names, layout, where imports stand) and
-different for anything that changes what runs. The pinned packages in tools/engine/npm are the engine's own locked
-versions."""
+nothing but the engine's modules and packages its lock names, each licensed; --check sees a changed byte. The
+comparison calls two bundles the same when only what a bundler changes differs (renamed bindings, layout, where
+imports stand) and different for anything that changes what runs: each such case is run in Node first, to show the
+two programs really do differ. The pinned packages in tools/engine/npm are the engine's own locked versions."""
 
 import json
 import os
@@ -17,6 +17,14 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools" / "engine"
 NODE = shutil.which("node")
 INSTALLED = (TOOLS / "npm" / "node_modules" / "esbuild" / "package.json").is_file()
+ENGINE_LOCK = ROOT / "engine" / "modretro-chromatic" / "scripts" / "runtime-package-lock.json"
+
+
+def lock_naming(*packages: str) -> str:
+    """An engine lock file naming only these of the real engine's locked packages."""
+    locked = json.loads(ENGINE_LOCK.read_text())["packages"]
+    return json.dumps({"packages": {"": {}, **{name: locked[name] for name in packages}}})
+
 
 ENGINE = {
     "package.json": '{"type": "module"}\n',
@@ -28,6 +36,7 @@ ENGINE = {
         "}\n"
     ),
     "scripts/helper.mjs": 'export const suffix = "!";\n',
+    "scripts/runtime-package-lock.json": lock_naming("node_modules/pngjs"),
     "licenses/bundled-javascript.txt": "# Bundled JavaScript dependency licenses\n\n## pngjs@7.0.0\n\nMIT\n",
 }
 ENTRY = (
@@ -50,6 +59,40 @@ export {
   pick
 };
 """
+# Modules the programs below import.
+HELPERS = {
+    "a.mjs": 'console.log("a");\n',
+    "b.mjs": 'console.log("b");\n',
+    "star.mjs": 'const v = 5;\nexport { v as "*" };\nexport const k = 1;\n',
+}
+# Pairs of programs that differ in what they do, though a careless comparison would call them the same.
+DIFFERENT = {
+    "import order": ('import "./a.mjs";\nimport "./b.mjs";\n', 'import "./b.mjs";\nimport "./a.mjs";\n'),
+    "a binding and a global": ("const a = 1;\nconsole.log(typeof a);\n", "const a = 1;\nconsole.log(typeof b);\n"),
+    "a namespace and an export named *": (
+        'import * as v from "./star.mjs";\nconsole.log(typeof v);\n',
+        'import { "*" as v } from "./star.mjs";\nconsole.log(typeof v);\n',
+    ),
+    "a name eval reads": (
+        'const a = 1;\nconsole.log(eval("typeof a"));\n',
+        'const b = 1;\nconsole.log(eval("typeof a"));\n',
+    ),
+    "a function's own name": ("function f() {}\nconsole.log(f.name);\n", "function g() {}\nconsole.log(g.name);\n"),
+    "a name given to an arrow": (
+        "const f = () => 1;\nconsole.log(f.name);\n",
+        "const g = () => 1;\nconsole.log(g.name);\n",
+    ),
+}
+# Bundles that must compare the same as themselves.
+VALID = {
+    "an imported binding exported again": 'import { suffix } from "../scripts/helper.mjs";\nexport { suffix };\n',
+    "a class that names itself": "class C {\n  static self = C;\n}\nexport { C };\n",
+    "an exported pattern with a default": "export const { a = 1 } = {};\n",
+    "a string like a separator": 'console.log("/*! hermretro-statement */");\n',
+    "imports only": 'import "./a.mjs";\nimport { k } from "./star.mjs";\n',
+    "a marker inside a template": "console.log(`\n// dist/c.js\nlevel1`);\n",
+    "statements ended by a line break": 'foo()\nimport "./a.mjs"\n[bar()];\n',
+}
 
 
 def bundle_with(**replacements: str) -> str:
@@ -71,8 +114,8 @@ class EngineBundleTests(unittest.TestCase):
         self.entry.write_text(ENTRY)
         self.bundle = self.engine / "dist" / "server.js"
 
-    def node(self, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
-        return subprocess.run([NODE, *args], cwd=ROOT, capture_output=True, text=True, timeout=120, env=env)
+    def node(self, *args: str, env: dict | None = None, cwd: Path = ROOT) -> subprocess.CompletedProcess:
+        return subprocess.run([NODE, *args], cwd=cwd, capture_output=True, text=True, timeout=120, env=env)
 
     def build(self, *extra: str, env: dict | None = None) -> subprocess.CompletedProcess:
         return self.node(
@@ -96,6 +139,7 @@ class EngineBundleTests(unittest.TestCase):
         # The modules are ES modules in Node's sense (package.json), so CommonJS imports use Node's interop.
         self.assertIn("__toESM(require_png(), 1)", text)
         self.assertEqual(self.run_bundle(), "b:function!")
+        self.assertEqual(sorted(os.listdir(self.bundle.parent)), ["greet.js", "server.js"])
 
     def test_a_temporary_folder_reached_through_a_link_builds_the_same(self):
         # macOS reaches its temporary folder through a link; scripts/ must stay outside the bundle there too.
@@ -108,6 +152,17 @@ class EngineBundleTests(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(self.bundle.read_bytes(), expected)
             self.assertEqual(os.listdir(real), [])
+
+    def test_a_read_only_folder_in_the_engine_is_built_and_cleaned_up(self):
+        folder = self.engine / "dist" / "fixed"
+        folder.mkdir()
+        (folder / "data.js").write_text("export const data = 1;\n")
+        folder.chmod(0o555)
+        self.addCleanup(folder.chmod, 0o755)
+        with tempfile.TemporaryDirectory() as tmp:
+            done = self.build(env={**os.environ, "TMPDIR": tmp})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(os.listdir(tmp), [])
 
     def test_check_sees_a_changed_byte(self):
         self.assertEqual(self.build().returncode, 0)
@@ -123,12 +178,20 @@ class EngineBundleTests(unittest.TestCase):
         self.assertIn("--out needs a path", done.stderr)
         self.assertFalse((ROOT / "--check").exists())
 
-    def test_a_package_without_its_licence_is_refused(self):
-        (self.engine / "licenses" / "bundled-javascript.txt").write_text("# Bundled JavaScript dependency licenses\n")
-        done = self.build()
-        self.assertEqual(done.returncode, 1)
-        self.assertIn("no licence for pngjs@7.0.0", done.stderr)
-        self.assertFalse(self.bundle.exists())
+    def test_a_package_without_its_licence_or_lock_entry_is_refused(self):
+        refusals = {
+            "licenses/bundled-javascript.txt": ("# Bundled JavaScript dependency licenses\n", "no licence for pngjs"),
+            "scripts/runtime-package-lock.json": (lock_naming(), "does not name pngjs@7.0.0"),
+        }
+        for rel, (text, said) in refusals.items():
+            with self.subTest(file=rel):
+                original = (self.engine / rel).read_text()
+                (self.engine / rel).write_text(text)
+                done = self.build()
+                (self.engine / rel).write_text(original)
+                self.assertEqual(done.returncode, 1)
+                self.assertIn(said, done.stderr)
+                self.assertFalse(self.bundle.exists())
 
     def test_a_package_from_outside_the_pinned_ones_is_refused(self):
         self.entry.write_text('import { value } from "sample-unpinned";\nexport const said = value;\n')
@@ -144,18 +207,22 @@ class EngineBundleTests(unittest.TestCase):
                 self.assertIn("neither the engine's modules nor the pinned packages", done.stderr)
                 shutil.rmtree(self.engine / "dist" / "node_modules", ignore_errors=True)
 
-    def test_a_module_reached_through_a_link_is_one_module(self):
-        (self.engine / "dist" / "count.js").write_text(
-            "globalThis.loads = (globalThis.loads ?? 0) + 1;\nexport const loads = () => globalThis.loads;\n"
-        )
-        (self.engine / "dist" / "alias.js").symlink_to("count.js")
-        self.entry.write_text(
-            'import { loads } from "./count.js";\nimport { loads as again } from "./alias.js";\n'
-            "export const said = `${loads()}${again()}`;\n"
-        )
-        done = self.build()
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(self.run_bundle(), "11")
+    def test_a_link_in_the_engine_is_refused(self):
+        (self.engine / "dist" / "alias.js").symlink_to(self.engine / "dist" / "greet.js")
+        done = self.build("--check")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("the engine's folders hold no links", done.stderr)
+        (self.engine / "dist" / "alias.js").unlink()
+        outside = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        # A dist/ that is itself a link is refused before anything is written through it.
+        shutil.move(self.engine / "dist", outside / "dist")
+        (self.engine / "dist").symlink_to(outside / "dist")
+        before = (outside / "dist" / "greet.js").read_text()
+        done = self.build("--check")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("the engine's folders hold no links", done.stderr)
+        self.assertEqual(sorted(os.listdir(outside / "dist")), ["greet.js"])
+        self.assertEqual((outside / "dist" / "greet.js").read_text(), before)
 
     def compare(self, before: str, after: str) -> subprocess.CompletedProcess:
         (self.engine / "before.js").write_text(before)
@@ -169,10 +236,10 @@ class EngineBundleTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("the bundles hold the same program", done.stdout)
 
-    def assertDifferent(self, before: str, after: str, said: str):
+    def assertDifferent(self, before: str, after: str):
         done = self.compare(before, after)
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
-        self.assertIn(said, done.stdout)
+        self.assertEqual(done.stderr, "")
 
     def test_the_comparison_ignores_what_a_bundler_changes(self):
         self.assertEqual(self.build().returncode, 0)
@@ -189,7 +256,7 @@ class EngineBundleTests(unittest.TestCase):
                 "basename2(value)": "basename(value)",
                 "var first = 1;": "var first3   =   (1);",
                 "{ first, value": "{ first: first3, value",
-                "sha256: \"x\", first }": "sha256: \"x\", first: first3 }",
+                'sha256: "x", first }': 'sha256: "x", first: first3 }',
                 "// dist/b.js\n": '// dist/b.js\nimport { dirname } from "node:path";\nimport { basename } from "node:path";\n',
             }
         )
@@ -207,23 +274,39 @@ class EngineBundleTests(unittest.TestCase):
         }
         for change, replacements in changes.items():
             with self.subTest(change=change):
-                after = bundle_with(**replacements)
-                self.assertDifferent(BUNDLE, after, "differ" if change != "an imported name" else "import only in")
+                self.assertDifferent(BUNDLE, bundle_with(**replacements))
 
     def test_the_comparison_sees_modules_run_in_another_order(self):
         a, b = BUNDLE.split("// dist/b.js\n")
         swapped = "// dist/b.js\n" + b.replace("export {\n  pick\n};\n", "") + a + "export {\n  pick\n};\n"
-        self.assertDifferent(BUNDLE, swapped, "first difference")
-        # A marker inside a template is text, not a module.
-        templated = BUNDLE.replace("`level1:", "`\n// dist/c.js\nlevel1:")
-        self.assertSame(templated, templated)
+        done = self.compare(BUNDLE, swapped)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("first difference", done.stdout)
+
+    def test_programs_that_run_differently_compare_different(self):
+        folder = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        for name, text in HELPERS.items():
+            (folder / name).write_text(text)
+        for case, (before, after) in DIFFERENT.items():
+            with self.subTest(case=case):
+                outputs = []
+                for name, text in (("before.mjs", before), ("after.mjs", after)):
+                    (folder / name).write_text(text)
+                    ran = self.node(str(folder / name), cwd=folder)
+                    outputs.append((ran.returncode, ran.stdout, ran.stderr.splitlines()[-1:]))
+                self.assertNotEqual(outputs[0], outputs[1], "the two programs should run differently")
+                self.assertDifferent(before, after)
+
+    def test_valid_bundles_compare_the_same_as_themselves(self):
+        for case, text in VALID.items():
+            with self.subTest(case=case):
+                self.assertSame(text, text)
+        self.assertDifferent(VALID["statements ended by a line break"], "foo()[bar()];\n")
 
 
 class EnginePackagesTests(unittest.TestCase):
     def test_the_pinned_packages_are_the_engines_locked_versions(self):
-        engine = json.loads((ROOT / "engine/modretro-chromatic/scripts/runtime-package-lock.json").read_text())[
-            "packages"
-        ]
+        engine = json.loads(ENGINE_LOCK.read_text())["packages"]
         pinned = json.loads((TOOLS / "npm" / "package-lock.json").read_text())["packages"]
         for name, package in engine.items():
             if not name:

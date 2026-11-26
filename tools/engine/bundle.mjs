@@ -10,9 +10,10 @@
 // temporary folder holding a copy of the engine's dist/, scripts/ and package.json and of the pinned packages as its
 // node_modules, so the bundle's module comments read as they always have (`// dist/emulator.js`,
 // `// node_modules/zod/...`) and modules resolve as they did for ModRetro. The bundle may hold only the engine's
-// modules and the pinned packages, each package with its licence in the engine.
+// modules and packages its lock file (scripts/runtime-package-lock.json) names at that version, each with its
+// licence in the engine; the engine's folders may hold no links (as its manifest requires).
 
-import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -24,6 +25,7 @@ export const ENGINE = path.join(ROOT, "engine", "modretro-chromatic");
 export const MISSING = "esbuild and the engine's packages were not found (npm ci --prefix tools/engine/npm --ignore-scripts)";
 // Every bundled package needs its licence here (each as a `## <name>@<version>` section).
 const LICENCES = path.join("licenses", "bundled-javascript.txt");
+const LOCK = path.join("scripts", "runtime-package-lock.json");
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]));
 // The build's own tools, which the bundle never includes.
 const NOT_COPIED = new Set([".bin", "esbuild", "@esbuild"]);
@@ -55,22 +57,24 @@ function options(stage) {
   };
 }
 
-// The name@version of each package the bundle includes, from the nearest package.json above each input.
+// Each package the bundle includes ({ folder under node_modules/, name, version }): for each input, the nearest
+// package.json above it with a name and version (a package's own folders may hold ones without). An input in no
+// package is refused.
 function bundledPackages(stage, inputs) {
-  const found = new Set();
+  const found = new Map();
   for (const input of inputs) {
     if (!input.startsWith("node_modules/")) continue;
-    for (let folder = path.dirname(path.join(stage, input)); folder !== stage; folder = path.dirname(folder)) {
-      const manifest = path.join(folder, "package.json");
-      if (!existsSync(manifest)) continue;
-      const { name, version } = JSON.parse(readFileSync(manifest, "utf8"));
-      if (name && version) {
-        found.add(`${name}@${version}`);
-        break;
-      }
+    let manifest = null;
+    let folder = path.dirname(input);
+    for (; folder !== "node_modules"; folder = path.dirname(folder)) {
+      const file = path.join(stage, folder, "package.json");
+      manifest = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
+      if (manifest?.name && manifest?.version) break;
     }
+    if (folder === "node_modules") throw new Error(`${input} is in no package with a name and version`);
+    found.set(folder, { folder, name: manifest.name, version: manifest.version });
   }
-  return [...found].sort();
+  return [...found.values()].sort((a, b) => a.folder.localeCompare(b.folder, "en"));
 }
 
 // Anything the bundle may not hold or import, as messages.
@@ -84,6 +88,25 @@ function refusals(result) {
   const foreign = inputs.filter((input) => !(input.startsWith("dist/") && !input.includes("/node_modules/")) && !input.startsWith("node_modules/"));
   if (foreign.length) problems.push(`the bundle took in files that are neither the engine's modules nor the pinned packages: ${foreign.join(", ")}`);
   return problems;
+}
+
+// Refuses a link at path or anywhere under it (the engine's folders hold none).
+function noLinks(where) {
+  const links = lstatSync(where).isSymbolicLink() ? [where] : [];
+  if (!links.length && lstatSync(where).isDirectory()) {
+    for (const entry of readdirSync(where, { withFileTypes: true, recursive: true })) {
+      if (entry.isSymbolicLink()) links.push(path.join(entry.parentPath, entry.name));
+    }
+  }
+  if (links.length) throw new Error(`the engine's folders hold no links: ${links.join(", ")}`);
+}
+
+// Copies keep their folders' modes; a read-only one would stop the build writing its entry or removing the copy.
+function writable(folder) {
+  chmodSync(folder, 0o700);
+  for (const entry of readdirSync(folder, { withFileTypes: true, recursive: true })) {
+    if (entry.isDirectory()) chmodSync(path.join(entry.parentPath, entry.name), 0o700);
+  }
 }
 
 // The temporary folder the build runs in, removed when the process is stopped before the build removes it.
@@ -108,13 +131,15 @@ function stageFolder() {
 // The bundle's bytes and the packages in it. Throws on anything ModRetro's build refused, on files from anywhere
 // but the engine's modules and the pinned packages, and on a package without its licence in the engine.
 export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbuild() }) {
+  for (const folder of ["dist", "scripts", "package.json"]) noLinks(path.join(engine, folder));
+  const locked = JSON.parse(readFileSync(path.join(engine, LOCK), "utf8")).packages;
   const { stage, done } = stageFolder();
   try {
-    // A link stays a link, relative to where it is, so a module reached through one is still one module.
-    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true, verbatimSymlinks: true });
-    cpSync(path.join(engine, "scripts"), path.join(stage, "scripts"), { recursive: true, verbatimSymlinks: true });
+    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true });
+    cpSync(path.join(engine, "scripts"), path.join(stage, "scripts"), { recursive: true });
     // Its "type": "module" makes the modules ES modules in Node's sense, which decides how they import CommonJS.
     cpSync(path.join(engine, "package.json"), path.join(stage, "package.json"));
+    writable(stage);
     cpSync(entry, path.join(stage, "dist", "server.js"));
     const packages = path.join(TOOLS, "node_modules");
     cpSync(packages, path.join(stage, "node_modules"), {
@@ -126,8 +151,10 @@ export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbui
     if (problems.length) throw new Error(problems.join("\n"));
     const inputs = Object.keys(result.metafile.inputs);
     const included = bundledPackages(stage, inputs);
+    const unlocked = included.filter(({ folder, name, version }) => locked[folder]?.version !== version || !folder.endsWith(`node_modules/${name}`));
+    if (unlocked.length) throw new Error(`${LOCK} does not name ${unlocked.map(({ name, version }) => `${name}@${version}`).join(", ")}`);
     const licences = readFileSync(path.join(engine, LICENCES), "utf8");
-    const unlicensed = included.filter((name) => !licences.includes(`\n## ${name}\n`));
+    const unlicensed = included.map(({ name, version }) => `${name}@${version}`).filter((name) => !licences.includes(`\n## ${name}\n`));
     if (unlicensed.length) throw new Error(`${LICENCES} has no licence for ${unlicensed.join(", ")}`);
     return { contents: Buffer.from(result.outputFiles[0].contents), packages: included, modules: inputs.length };
   } finally {
@@ -167,7 +194,16 @@ async function main(argv) {
     console.error("FIX: node tools/engine/bundle.mjs with the same arguments, then commit the bundle with its modules (never edit it by hand)");
     return 1;
   }
-  if (!current?.equals(contents)) writeFileSync(args.out, contents);
+  if (!current?.equals(contents)) {
+    // Beside it, then into its place: a stopped write never leaves half a bundle.
+    const partial = path.join(path.dirname(args.out), `.${path.basename(args.out)}.${process.pid}.tmp`);
+    try {
+      writeFileSync(partial, contents);
+      renameSync(partial, args.out);
+    } finally {
+      rmSync(partial, { force: true });
+    }
+  }
   console.log(`${current?.equals(contents) ? "unchanged" : "wrote"} ${shown} (${summary})`);
   return 0;
 }
