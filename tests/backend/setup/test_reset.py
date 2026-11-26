@@ -153,6 +153,11 @@ class Reset(unittest.TestCase):
                 ("a-fork", "a", '{"_branched_from": "a"}'),
             ]
         )
+        library = self.places.home / "library" / "games.json"
+        games = json.loads(library.read_text())
+        games["games"]["aaaaaaaaaaaa"]["chat"] = {"sessionId": "b"}
+        games["games"]["bbbbbbbbbbbb"]["session"] = {"storedId": "a"}
+        library.write_text(json.dumps(games))
         ran = []
 
         def hermes(home, *arguments):
@@ -185,6 +190,17 @@ class Reset(unittest.TestCase):
             (answer["ok"], answer["code"], answer["partly"]),
             (False, "CHATS_LEFT", True),
         )
+        games = json.loads(library.read_text())["games"]
+        self.assertEqual(games["aaaaaaaaaaaa"]["chat"], {"sessionId": "b"}, "a chat still there keeps its link")
+        self.assertNotIn("session", games["bbbbbbbbbbbb"], "one that went lets go")
+
+    def test_links_let_every_game_go_of_its_chats_after_the_profile_went(self):
+        library = self.places.home / "library" / "games.json"
+        games = json.loads(library.read_text())
+        games["games"]["aaaaaaaaaaaa"]["chat"] = {"sessionId": "x"}
+        library.write_text(json.dumps(games))
+        self.assertTrue(reset.clear("links", self.data, [])["ok"])
+        self.assertNotIn("chat", json.loads(library.read_text())["games"]["aaaaaaaaaaaa"])
 
     def test_a_linked_session_database_is_another_profiles_and_never_touched(self):
         other = self.places.base / "other"

@@ -29,6 +29,9 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true })
   scenario.requestProfileHook = (route, method, params) => {
     // The profile hermretro is installed in answers as the app's own does.
+    if ((route.profile === 'default' || route.profile === 'work') && method === 'plugin.hermretro.reset') {
+      log.push(`${params.part}@${route.profile}`); return { ok: true, removed_bytes: 0 }
+    }
     if (route.profile === 'default' || route.profile === 'work') {
       const answer = scenario.byMethod[method]
       if (!answer) throw Object.assign(new Error('unknown method'), { code: -32601 })
@@ -135,8 +138,8 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /Build history31\.0 MB · Deleted with the studio profile/)
   })
   await confirm()
-  check('the profile is deleted through Hermes after the backend parts, its chats first so no game points at one', () => {
-    assert.deepEqual(log, ['stop', 'history', 'logs', 'chats', 'settings', 'toolchain', 'update:update'])
+  check('the profile is deleted whole through Hermes after the backend parts, then no game points at its chats', () => {
+    assert.deepEqual(log, ['stop', 'history', 'logs', 'settings', 'toolchain', 'links@default', 'update:update'])
     assert.deepEqual(scenario.calls.filter(call => call[0] === 'deleteProfile'), [['deleteProfile', 'hermretro', 'local']])
   })
   await click('Close', dialog())

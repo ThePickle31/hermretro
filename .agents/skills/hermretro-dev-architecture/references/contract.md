@@ -288,7 +288,7 @@ not move it. A profile named hermretro that hermretro did not make and set up is
 ### `reset` — params `{ part }`
 
 One step of the factory reset; the page calls it once per part it deletes, in this order: `stop`, `history`, `logs`,
-`games`, `chats`, `settings`, `toolchain`; before each one it checks that no studio chat is building. Every part but `settings` first asks the broker to stop with its idle workers
+`games`, `chats` (not when the studio profile is deleted), `settings`, `toolchain`, and `links` after the profile; before each one it checks that no studio chat is building. Every part but `settings` first asks the broker to stop with its idle workers
 (`{"op": "shutdown", "replace": true}`) and holds its election lock while it deletes (`backend/setup/broker_stop.py`);
 `stop` does only that. While a part is deleted, the player saves no capture (`player.captures_paused`). `games` empties the games folder (only the library's games in it when `HERMRETRO_GAMES_DIR`
 is set), deletes the library's own files (`games.json`, its lock, `thumbs/`); a
@@ -300,9 +300,10 @@ logs, saved frames, the demo cartridge's captures (`<library>/captures/demo`) an
 games folder. A capture asked for while a part is deleted (counted from when its upload began) is refused, not written
 afterwards. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
 studio profile's `state.db`, never one that is a link, in rounds until one changes nothing, since a deleted chat's forks become chats of their own), only in the profile
-hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read; once they are all
-gone every game lets go of its conversation (`Registry.forget_chats`: its Build session, its chat link and the pending
-New Game conversations). It runs before the studio profile is deleted too. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
+hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read; then every game
+lets go of the conversations that went (`Registry.forget_chats`: its Build session, its chat link and the pending New
+Game conversations), even when some remain. `links` (no choice of its own) does that for all of them: the page asks
+it, through the profile hermretro is installed in, after Hermes deleted the studio profile with its chats. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
 reads) in this profile and the one hermretro was installed into, never through a `config.yaml` that is a link
 (`CONFIG_LINKED` says which profile's were left), so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`
 (the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `PARTLY_REMOVED` (something could not be deleted; `removed_bytes` says what was), `CHATS_LEFT`

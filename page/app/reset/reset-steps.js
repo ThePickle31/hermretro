@@ -85,10 +85,10 @@ export function settleChoices(choices, locked = {}) {
   return { choices: settled, forced, notes }
 }
 
-/** The run's steps, in order: stop, the backend's parts, the profile, the update. The chats go one by one even when
- *  the profile follows: that also lets every game go of its conversation. */
+/** The run's steps, in order: stop, the backend's parts, the profile, the update. A deleted profile takes its chats
+ *  (Hermes deletes it whole, even a chat it would not delete on its own). */
 export function resetSteps(choices) {
-  const deleted = id => choices[id] === 'delete'
+  const deleted = id => choices[id] === 'delete' && !(id === 'chats' && choices.profile === 'delete')
 
   return [
     { id: 'stop', label: 'Stopping the studio' },
@@ -189,6 +189,11 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
       } else if (step.id === 'profile') {
         await deleteStudioProfile(studio)
         gone.add('chats').add('history').add('settings')
+
+        // Its chats are gone: no game points at one (asked where hermretro is installed, which outlives the profile).
+        if (install) {
+          await backendPart(install, 'links')
+        }
 
         // Hermes moves the app off the profile it deleted, to its default one: the restart expects that.
         if (summary.ambient === STUDIO_PROFILE) {

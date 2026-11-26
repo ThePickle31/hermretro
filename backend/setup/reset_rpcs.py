@@ -44,7 +44,7 @@ def rpc_reset(ctx):
         if part != "stop" and part not in reset.PARTS:
             return {"ok": False, "code": "UNKNOWN_PART", "error": f"There is no part {part!r} to reset."}
         try:
-            if part == "settings":
+            if part in ("settings", "links"):
                 return reset.clear(part, host._data_dir(), _homes())
             # Idle workers close with the broker: a game left open in a chat does not hold the reset back. The player
             # saves no capture meanwhile (it runs in this process, apart from the broker).

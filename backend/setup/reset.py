@@ -19,7 +19,8 @@ from ..player import DEMO_ID
 from ..system import paths
 from . import provision, studio_profile
 
-PARTS = ("games", "history", "chats", "settings", "toolchain", "logs")
+# `links` is no choice of its own: after the studio profile (and its chats) is deleted, the games let go of them.
+PARTS = ("games", "history", "chats", "settings", "toolchain", "logs", "links")
 
 # What a game's folder keeps besides its source: everything an emulator or device capture wrote.
 CAPTURES = "captures"
@@ -138,6 +139,22 @@ def _chat_count() -> int:
         return db.execute(query).fetchone()[0]
 
 
+def _forget_chats(kept: set[str] | None = None) -> None:
+    """No game points at a chat that is gone (Open its chat, the Build page's conversation); `kept`: the sessions still
+    there. Only in the library's own file, never one a link stands in for."""
+    if _in_library("games.json") and not (paths.library_dir() / "games.json").is_symlink():
+        Registry(paths.library_dir()).forget_chats(kept)
+
+
+def _session_ids() -> set[str]:
+    """Every session still in the studio's database (a chat, its delegates and its forks)."""
+    database = studio_profile.studio_dir() / "state.db"
+    if database.is_symlink() or not database.is_file():
+        return set()
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as db:
+        return {row[0] for row in db.execute("SELECT id FROM sessions")}
+
+
 def _delete_chats() -> dict:
     """Delete every studio chat the way ``hermes sessions delete`` does (its transcripts and media with it). Only in
     the profile this plugin made: a profile of the user's own with the same name is never touched."""
@@ -170,6 +187,8 @@ def _delete_chats() -> dict:
                 except studio_profile.StudioProfileError as error:
                     last = str(error)
         left = _chat_count()
+        # The games let go of the chats that went, whether or not every one could.
+        _forget_chats(_session_ids())
     except sqlite3.Error as error:
         return {
             "ok": False,
@@ -183,9 +202,6 @@ def _delete_chats() -> dict:
             "error": f"{left} studio chats could not be deleted ({last}).",
             "partly": deleted > 0,
         }
-    # No game points at a chat that is gone (Open its chat, the Build page's conversation).
-    if _in_library("games.json") and not (paths.library_dir() / "games.json").is_symlink():
-        Registry(paths.library_dir()).forget_chats()
     return {"ok": True, "removed_bytes": 0}
 
 
@@ -278,6 +294,9 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
         }
     if part == "chats":
         return _delete_chats()
+    if part == "links":
+        _forget_chats()
+        return {"ok": True, "removed_bytes": 0}
     if part == "settings":
         linked, cleared = [], False
         for home in homes:
