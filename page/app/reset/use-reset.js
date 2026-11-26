@@ -1,6 +1,7 @@
 // The factory reset's state for its dialog: what each part holds (read when the dialog opens), the user's choices,
 // the run's progress and its summary, and restarting Hermes's gateway afterwards.
 import { host, useEffect, useState } from '#sdk'
+import { describeRequestError } from '#app/backend.js'
 import { STUDIO_PROFILE } from '#app/ids.js'
 import { routeProfile } from '#app/routing.js'
 import { RPC_RESET_PLAN, RPC_STATUS } from '#app/rpc.js'
@@ -52,7 +53,18 @@ async function statusOn(here, ambient, skip = []) {
 }
 
 async function readPlan(target) {
-  const plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
+  let plan
+
+  try {
+    plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
+  } catch (error) {
+    // The profile answers for Hermes but hermretro is off there (or older there): say which profile.
+    if (describeRequestError(error).notLoaded) {
+      throw new Error(`Turn hermretro on in the ${target.profile} profile (or update it there), then try again.`)
+    }
+
+    throw error
+  }
 
   if (!plan?.ok) {
     throw new Error(plan?.error || 'What hermretro keeps could not be read.')

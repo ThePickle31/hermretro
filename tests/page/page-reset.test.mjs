@@ -73,7 +73,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.deepEqual(['Games', 'Build history', 'Toolchain & engine'].map(chosen), ['Keep', 'Delete', 'Delete'])
     assert.deepEqual([...dialog().querySelectorAll('[role=group]')].map(node => node.getAttribute('aria-label')).slice(0, 2), ['Games', 'Build history'], 'each Keep/Delete pair is named for its part')
   })
-  await pick('Studio profile', 'Keep'); await pick('Games', 'Delete'); await pick('Logs & captures', 'Keep')
+  await pick('Studio profile', 'Keep'); await pick('Studio chats', 'Keep'); await pick('Games', 'Delete'); await pick('Logs & captures', 'Keep')
   check('deleting Games takes build history with it', () => {
     assert.match(said(), /Build history31\.0 MB · Deleted with Games/)
     assert.match(said(), /Logs & captures15\.0 MB · Game captures go with Games/)
@@ -91,7 +91,8 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.ok([...dialog().querySelectorAll('button')].find(node => node.textContent === 'Reset').disabled)
   })
   await click('Back', dialog())
-  await pick('Games', 'Keep'); await pick('Logs & captures', 'Delete')
+  await pick('Games', 'Keep'); await pick('Logs & captures', 'Delete'); await pick('Studio chats', 'Delete')
+  check('deleting the studio chats takes build history with it', () => { assert.match(said(), /Build history31\.0 MB · Deleted with Studio chats/) })
   await click('Continue', dialog())
   check('the confirm step says what goes and what stays, and waits for the word', () => {
     assert.match(said(), /Delete.*Build history.*Studio chats.*Toolchain & engine/)
