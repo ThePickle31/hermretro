@@ -24,7 +24,7 @@ PARTS = ("games", "history", "chats", "settings", "toolchain", "logs")
 # What a game's folder keeps besides its source: everything an emulator or device capture wrote.
 CAPTURES = "captures"
 # The broker's own logs in its run folder (its socket, token and lock stay).
-LOGS = ("broker.stderr.log", "trace.jsonl", "trace.jsonl.1")
+LOGS = ("broker.stderr.log", "broker.stderr.log.1", "trace.jsonl", "trace.jsonl.1")
 # What the library folder holds of the games (a folder the user configured may hold more). Its captures/ (the demo
 # cartridge's) belong to Logs & captures.
 LIBRARY = ("games.json", "games.lock", "thumbs")
@@ -236,16 +236,27 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
     if part == "chats":
         return _delete_chats()
     if part == "settings":
+        linked = []
         for home in homes:
             entry = ((hermes_api.read_profile_config(home).get("plugins") or {}).get("entries") or {}).get(
                 paths.PLUGIN_ID
             )
-            # Never through a link: Hermes would write its target, maybe another profile's config.
+            # Never through a link: Hermes would write its target, maybe another profile's config. Said, since the
+            # settings there stay as they are.
             if (home / "config.yaml").is_symlink():
+                if isinstance(entry, dict) and any(entry.get(key) for key in SETTINGS_KEYS):
+                    linked.append(home.name)
                 continue
             for key in SETTINGS_KEYS:
                 if isinstance(entry, dict) and entry.get(key):
                     hermes_api.write_profile_config_key(home, f"plugins.entries.{paths.PLUGIN_ID}.{key}", {})
+        if linked:
+            return {
+                "ok": False,
+                "code": "CONFIG_LINKED",
+                "error": f"The {', '.join(linked)} profile's config.yaml is a link, so its hermretro settings were left.",
+                "removed_bytes": 0,
+            }
         return {"ok": True, "removed_bytes": 0}
     try:
         stages = _stages(part, data)

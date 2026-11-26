@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 83d75d419381a1a87fa65bc25e58b14bffe00035d58f5bd86c250761f0d014a3
- * body: sha256 b79a75f0f0600e33000430d0d1eeaa76d2a2760d72dfc45312db576616b0e38a
+ * sources: sha256 1adf3c246f8c87e1c7db0399154f8197bad6ac82142896a7df2c6785c4705a8d
+ * body: sha256 507e6b61698dc75abea429c41f5935600d2d6b25059218a3b9419674d04aac12
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -3856,17 +3856,20 @@ restart,size:"sm",variant:"default",children:reset.restarting?"Restarting…":"R
 is reset"};function ResetDialog({reset}){const running=reset.phase==="running";const failedRun=reset.phase==="done"&&reset.summary?.failed;return jsx(Dialog,{open:reset.phase!=="closed",onOpenChange:open=>{
 if(!open&&!running){reset.close()}},children:jsxs(DialogContent,{className:"cs-rst-dlg",showCloseButton:!running,children:[jsx(DialogHeader,{children:jsx(DialogTitle,{children:failedRun?"The reset sto\
 pped":TITLES[reset.phase]??"Factory reset hermretro"})}),body(reset),jsx(DialogFooter,{className:"cs-rst-foot",children:footer(reset)})]})})}var NO_PROFILE="No studio profile";var NOT_OURS="Not made by hermretro";async function profileOn(profile,here){const routes=typeof host.profileRoutes==="function"?await host.profileRoutes()??[]:[];const route=routes.
-find(candidate=>routeProfile(candidate)===profile&&(candidate.connectionId||"local")===here);return route?{route,profile}:null}async function statusOn(here,ambient){for(const profile of new Set([STUDIO_PROFILE,
-ambient].filter(Boolean))){const target=await profileOn(profile,here);if(!target){continue}try{const status=await requestOn(target,RPC_STATUS,{},6e4);if(status?.ok){return{status,answered:target}}}catch{}}
-return null}async function readContext(){const here=connectionOf({route:null});const ambient=appProfile();const found=await statusOn(here,ambient);if(!found){throw new Error("hermretro did not answer \
-on this Hermes.")}const{status,answered}=found;const named=status.profile?.studio??{};const made=Boolean(status.profile?.is_studio||named.exists&&named.ours&&named.installed);const studio=made?answered.
-profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):null;const installedIn=status.plugin?.installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.profile??null;
-const install=installProfile?await profileOn(installProfile,here):null;if(made&&!studio){throw new Error("The hermretro profile cannot be reached right now.")}if(installProfile&&!install){throw new Error(
-`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}const target=studio??answered;const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(
-plan?.error||"What hermretro keeps could not be read.")}const ours=studio?plan.parts.profile?.ours?null:NOT_OURS:named.exists?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.
-profile===STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.
-parts.profile?.holds?"Holds your games":typeof host.deleteProfile!=="function"?"Update Hermes to delete it":null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){
-const[state,setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
+find(candidate=>routeProfile(candidate)===profile&&(candidate.connectionId||"local")===here);return route?{route,profile}:null}async function statusOn(here,ambient,skip=[]){const routes=typeof host.profileRoutes===
+"function"?await host.profileRoutes()??[]:[];const others=routes.filter(route=>(route.connectionId||"local")===here).map(routeProfile);const profiles=[...new Set([STUDIO_PROFILE,ambient,...others].filter(
+profile=>profile&&!skip.includes(profile)))];for(const profile of profiles){const target=await profileOn(profile,here);if(!target){continue}try{const status=await requestOn(target,RPC_STATUS,{},6e4);if(status?.
+ok){return{status,answered:target}}}catch{}}return null}async function readPlan(target){const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(plan?.error||"What hermr\
+etro keeps could not be read.")}return plan}async function readContext(){const here=connectionOf({route:null});const ambient=appProfile();const found=await statusOn(here,ambient);if(!found){throw new Error(
+"hermretro did not answer on this Hermes.")}const{status,answered}=found;const named=status.profile?.studio??{};const made=Boolean(status.profile?.is_studio||named.exists&&named.ours&&named.installed);
+let studio=made?answered.profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):null;const installedIn=status.plugin?.installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.
+profile??null;const install=installProfile?await profileOn(installProfile,here):null;if(made&&!studio){throw new Error("The hermretro profile cannot be reached right now.")}if(installProfile&&!install){
+throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}let target=studio??answered;let plan=await readPlan(target);let foreign=!made&&Boolean(named.
+exists);if(studio&&!plan.parts.profile?.ours){const other=await statusOn(here,ambient,[STUDIO_PROFILE]);if(!other){throw new Error("hermretro answers only in a profile named hermretro that it did not \
+make.")}studio=null;foreign=true;target=other.answered;plan=await readPlan(target)}const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.profile===
+STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.parts.profile?.
+holds?"Holds your games":typeof host.deleteProfile!=="function"?"Update Hermes to delete it":null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){const[state,
+setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
 false);const[typed,setTyped]=useState("");const context=state.context??null;const settled=settleChoices(choices,context?.locked);useEffect(()=>{if(state.phase!=="loading"){return}let live=true;readContext().
 then(found=>live&&setState({phase:"choose",context:found}),error=>live&&setState({phase:"failed",error:String(error?.message??error)}));return()=>{live=false}},[state.phase]);const updated=state.phase===
 "done"&&state.summary?.update?.kind==="updated";useEffect(()=>{if(!updated||state.version){return}callBackend(RPC_STATUS).then(({data})=>data?.plugin?.version&&setState(current=>({...current,version:data.

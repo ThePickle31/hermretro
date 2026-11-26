@@ -29,7 +29,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true })
   scenario.requestProfileHook = (route, method, params) => {
     // The profile hermretro is installed in answers as the app's own does.
-    if (route.profile === 'default') {
+    if (route.profile === 'default' || route.profile === 'work') {
       const answer = scenario.byMethod[method]
       if (!answer) throw Object.assign(new Error('unknown method'), { code: -32601 })
       return typeof answer === 'function' ? answer(params) : answer
@@ -277,6 +277,23 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   scenario.requestProfileHook = whole
   await click('Close', dialog())
+
+  // hermretro installed in a profile of its own, no studio yet, the app on its default profile where hermretro is off.
+  const WORK = { connectionId: 'local', profile: 'work', targetProfile: 'work' }
+  installedIn = { profile: 'work', linked: false }; named = { exists: false }
+  scenario.routes = [WORK, HOME]
+  const off = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => {
+    if (route.profile === 'default' && method === 'plugin.hermretro.status') throw Object.assign(new Error('unknown method'), { code: -32601 })
+    return off(route, method, params)
+  }
+  await open()
+  check('hermretro installed in a profile the app is not on is found there', () => {
+    assert.match(said(), /Studio profileModel, sign-in, SOUL · No studio profile/)
+    assert.ok(scenario.calls.some(call => call[0] === 'requestProfile' && call[1] === 'work' && call[2] === 'plugin.hermretro.reset_plan'))
+  })
+  await click('Cancel', dialog())
+  scenario.requestProfileHook = off; named = { exists: true, ours: true, installed: true }
 
   installedIn = { profile: 'default', linked: false }; scenario.routes = [{ ...STUDIO, connectionId: 'vps' }, HOME]
   scenario.byMethod['plugin.hermretro.reset_plan'] = plan

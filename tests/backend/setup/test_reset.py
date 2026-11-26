@@ -60,6 +60,7 @@ class Reset(unittest.TestCase):
         self.run_dir = self.places.runtime
         write(self.run_dir / "trace.jsonl", 9)
         write(self.run_dir / "broker.stderr.log", 9)
+        write(self.run_dir / "broker.stderr.log.1", 5)
         write(self.run_dir / "broker.token", 1)
 
     def test_the_plan_says_what_each_part_holds(self):
@@ -69,7 +70,7 @@ class Reset(unittest.TestCase):
         self.assertEqual(parts["history"]["bytes"], 30 + 6)  # build snapshots and kept image versions
         self.assertGreaterEqual(parts["toolchain"]["bytes"], 1000)
         self.assertFalse(parts["toolchain"]["custom"])
-        self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 8 + 7)  # a folder of the user's own keeps its captures
+        self.assertEqual(parts["logs"]["bytes"], 9 + 9 + 5 + 8 + 7)  # a folder of the user's own keeps its captures
 
     def test_games_empty_the_games_folder_and_library_and_leave_a_folder_of_the_users_own(
         self,
@@ -121,6 +122,7 @@ class Reset(unittest.TestCase):
         self.assertFalse((self.data / "asset-versions").exists())
         reset.clear("logs", self.data, [])
         self.assertFalse((self.run_dir / "trace.jsonl").exists())
+        self.assertFalse((self.run_dir / "broker.stderr.log.1").exists())
         self.assertFalse((self.data / "frames").exists())
         self.assertFalse((self.frog / "captures").exists())
         self.assertTrue((self.elsewhere / "captures" / "clip.webm").is_file())
@@ -258,8 +260,9 @@ class Reset(unittest.TestCase):
             mock.patch.object(reset.hermes_api, "read_profile_config", lambda _home: set_here),
             mock.patch.object(reset.hermes_api, "write_profile_config_key") as written,
         ):
-            reset.clear("settings", self.data, [home])
+            answer = reset.clear("settings", self.data, [home])
         written.assert_not_called()
+        self.assertEqual(answer["code"], "CONFIG_LINKED")
 
     def test_a_linked_captures_folder_in_the_library_is_never_followed(self):
         library = self.places.home / "library"

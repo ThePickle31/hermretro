@@ -23,9 +23,14 @@ async function profileOn(profile, here) {
 }
 
 /** hermretro's status on the connection `here`, through an explicit route: from the hermretro profile when it answers
- *  there, else from `ambient` (the profile the app is on). `{ status, answered }`, or null when neither answers. */
-async function statusOn(here, ambient) {
-  for (const profile of new Set([STUDIO_PROFILE, ambient].filter(Boolean))) {
+ *  there, else the profile the app is on (`ambient`), else any other profile there (hermretro may be installed in one
+ *  the app is not on). `skip`: profiles not to ask. `{ status, answered }`, or null when none answers. */
+async function statusOn(here, ambient, skip = []) {
+  const routes = typeof host.profileRoutes === 'function' ? ((await host.profileRoutes()) ?? []) : []
+  const others = routes.filter(route => (route.connectionId || 'local') === here).map(routeProfile)
+  const profiles = [...new Set([STUDIO_PROFILE, ambient, ...others].filter(profile => profile && !skip.includes(profile)))]
+
+  for (const profile of profiles) {
     const target = await profileOn(profile, here)
 
     if (!target) {
@@ -46,6 +51,16 @@ async function statusOn(here, ambient) {
   return null
 }
 
+async function readPlan(target) {
+  const plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
+
+  if (!plan?.ok) {
+    throw new Error(plan?.error || 'What hermretro keeps could not be read.')
+  }
+
+  return plan
+}
+
 /** Everything the dialog needs before anything is deleted: where each call goes (all on the Hermes connection the app
  *  is on as the dialog opens, never one a page reached earlier), and what each part holds. A profile the status says
  *  is there but that cannot be reached is an error, never read as "none". */
@@ -62,7 +77,7 @@ async function readContext() {
   const named = status.profile?.studio ?? {}
   // A profile named hermretro that hermretro made and set up; one of the user's own with that name is never used.
   const made = Boolean(status.profile?.is_studio || (named.exists && named.ours && named.installed))
-  const studio = made ? (answered.profile === STUDIO_PROFILE ? answered : await profileOn(STUDIO_PROFILE, here)) : null
+  let studio = made ? (answered.profile === STUDIO_PROFILE ? answered : await profileOn(STUDIO_PROFILE, here)) : null
   const installedIn = status.plugin?.installed_in ?? null
   const installProfile = installedIn?.linked ? null : (installedIn?.profile ?? null)
   const install = installProfile ? await profileOn(installProfile, here) : null
@@ -76,17 +91,29 @@ async function readContext() {
   }
 
   // The backend's parts read this profile's plugin data (build history): the hermretro profile's when there is one.
-  const target = studio ?? answered
+  let target = studio ?? answered
+  let plan = await readPlan(target)
 
-  const plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
+  // A profile of the user's own named hermretro with hermretro on in it answers as the studio: none of the reset goes
+  // there, but to another profile with hermretro on.
+  let foreign = !made && Boolean(named.exists)
 
-  if (!plan?.ok) {
-    throw new Error(plan?.error || 'What hermretro keeps could not be read.')
+  if (studio && !plan.parts.profile?.ours) {
+    const other = await statusOn(here, ambient, [STUDIO_PROFILE])
+
+    if (!other) {
+      throw new Error('hermretro answers only in a profile named hermretro that it did not make.')
+    }
+
+    studio = null
+    foreign = true
+    target = other.answered
+    plan = await readPlan(target)
   }
 
   // The studio's chats and the profile itself go only when hermretro made it, and the profile only when deleting it
   // would not take hermretro itself with it and this Hermes can delete a profile from a plugin.
-  const ours = studio ? (plan.parts.profile?.ours ? null : NOT_OURS) : named.exists ? NOT_OURS : NO_PROFILE
+  const ours = studio ? null : foreign ? NOT_OURS : NO_PROFILE
   const holdsPlugin = Boolean(installedIn?.linked) || installedIn?.profile === STUDIO_PROFILE
 
   return {
