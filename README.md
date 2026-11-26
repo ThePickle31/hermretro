@@ -103,8 +103,8 @@ Tested so far on Linux x64 (including the Desktop install above); macOS (Apple S
 
 ## How it is built
 
-- `engine/modretro-chromatic/` — the original engine, bundled with one small path change (see
-  `THIRD_PARTY_NOTICES.md`) and verified against a manifest.
+- `engine/modretro-chromatic/` — hermretro's engine, started from ModRetro's Chromatic engine 1.0.34 (MIT; its
+  changes are listed in `engine/CHANGES.md`) and verified against a manifest.
 - `backend/` — the Hermes side, one folder per feature. `broker/` is the single authority on the machine: it gives each conversation
   its own engine worker, coordinates writers on the same project, and gates hardware. Tool handlers and the
   desktop page are its clients.
@@ -155,7 +155,7 @@ Removing or updating the plugin leaves this folder alone, so your games stay. A 
 removes the whole Hermes home, this folder included: copy `games/` somewhere first. `HERMRETRO_HOME` moves
 the whole folder; `HERMRETRO_GAMES_DIR` moves just the games.
 
-ModRetro's engine keeps two small folders of its own in your home folder, outside the Hermes home, only once a
+The engine keeps two small folders of its own in your home folder, outside the Hermes home, only once a
 physical Chromatic is used: `~/.codex-gb-studio/chromatic/` (its record of device operations such as flashing)
 and `~/.modretro-chromatic-runtime/` (the unpacked device CLI, about 16 MB). "Remove downloaded tools" and
 uninstalling leave them; delete them by hand if you no longer use a Chromatic.

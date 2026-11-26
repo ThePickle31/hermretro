@@ -4,13 +4,11 @@ The MIT licence in `LICENSE` covers the hermretro backend, desktop page, skills 
 repository. It does not cover the bundled engine under `engine/modretro-chromatic/` or the components inside
 it, which keep their own licences, listed below.
 
-hermretro bundles one third-party package under `engine/modretro-chromatic/`, with the changes below.
-Every file in it is recorded with size, mode and SHA-256 in
-`engine/pins/1.0.34/manifest.json`, and the plugin refuses to start an engine that does not
-match that record.
+hermretro's engine under `engine/modretro-chromatic/` started from one third-party package, ModRetro's Chromatic
+engine 1.0.34, and is maintained by hermretro since. Every file in it is recorded with size, mode and SHA-256 in
+`engine/pins/1.0.34/manifest.json`, and the plugin refuses to start an engine that does not match that record.
 
-**Changes made by hermretro** (allowed by the engine's MIT licence): hermretro's engine started from ModRetro's
-1.0.34 and is changed only by hermretro now. Every change is listed in `engine/CHANGES.md`, and
+**Changes made by hermretro** (allowed by the engine's MIT licence): every one is listed in `engine/CHANGES.md`, and
 `git diff engine-upstream-1.0.34 HEAD -- engine/modretro-chromatic` shows them against ModRetro's 1.0.34 (the tag
 holds that release as it was published, without the files left out below).
 

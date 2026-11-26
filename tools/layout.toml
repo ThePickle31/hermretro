@@ -33,7 +33,7 @@
 warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]
-# Generated or vendored: never measured.
+# Generated, vendored, or the engine (its modules keep the size ModRetro's build gave them): never measured.
 exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-names.js", "player/web/", "tools/npm/", "tools/engine/npm/"]
 
 [exceptions]
