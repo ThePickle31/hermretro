@@ -235,6 +235,35 @@ class Licence(Base):
         self.assertEqual((self.root / "LICENSE").read_text(), "My own terms\n")
         self.assertEqual(publish_ready.licence_problems(self.root, game_card.load(self.root)), [], "the user's own")
 
+    def test_the_templates_gb_studio_licence_is_replaced_by_the_games_own(self):
+        template = (paths.ENGINE_ROOT / "examples" / "starter" / "LICENSE").read_text()
+        (self.root / "LICENSE").write_text(template)  # every new game starts with GB Studio's own licence
+        game_card.set_fields(self.root, {"license": "CC-BY-4.0", "author": "Ada"})
+        self.assertEqual(
+            codes(publish_ready.licence_problems(self.root, game_card.load(self.root))),
+            ["LICENSE_STALE"],
+            "GB Studio's licence is not the game's",
+        )
+        layout.ensure(self.root)
+        text = (self.root / "LICENSE").read_text()
+        self.assertIn("creativecommons.org/licenses/by/4.0/", text)
+        self.assertNotIn(template.splitlines()[2], text, "GB Studio's copyright line is gone")
+        self.assertEqual(publish_ready.licence_problems(self.root, game_card.load(self.root)), [])
+
+    def test_an_installed_games_template_licence_is_its_authors_and_counts_toward_its_fingerprint(self):
+        template = (paths.ENGINE_ROOT / "examples" / "starter" / "LICENSE").read_text()
+        (self.root / "LICENSE").write_text(template)
+        game_card.set_fields(self.root, {"license": "MIT", "author": "Ada"})
+        layout.ensure(self.root, installing=True)  # an install's ensure runs before its record is written
+        self.assertEqual((self.root / "LICENSE").read_text(), template, "an author's LICENSE is never replaced")
+        layout.write_state(self.root, layout.INSTALL_FILE, {"source": "x", "commit": "c" * 40, "mode": "game+source"})
+        layout.ensure(self.root)
+        self.assertEqual((self.root / "LICENSE").read_text(), template)
+        self.assertFalse(layout.licence_replaceable(self.root, self.root / "LICENSE"))
+        before = release.payload_digest(self.root, source=True)
+        (self.root / "LICENSE").write_text(template + "edited\n")
+        self.assertNotEqual(release.payload_digest(self.root, source=True), before, "its LICENSE is part of the game")
+
     def test_a_restored_licence_is_still_hermretros_and_readiness_sees_it_disagree(self):
         game_card.set_fields(self.root, {"license": "MIT"})
         layout.ensure(self.root)

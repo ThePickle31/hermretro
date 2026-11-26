@@ -128,7 +128,7 @@ def new_identity(root: Path, *, fresh_changelog: bool = True) -> str:
 
 
 @game_card.locked
-def ensure(root: Path) -> list[str]:
+def ensure(root: Path, *, installing: bool = False) -> list[str]:
     """Fill in what the game lacks: its id (kept in ``.hermretro/``, copied into ``game.json``), ``gameVersion``,
     ``rom`` and ``format`` in ``game.json`` (never lowering a newer format), a README made from the card,
     ``CHANGELOG.md``, ``.gitignore`` and the ``LICENSE`` of the card's licence. Rewrites only files it made itself (a
@@ -166,7 +166,7 @@ def ensure(root: Path) -> list[str]:
             written.append(game_card.CARD_FILE)
         if replaceable(root / "README.md") and write_text(root / "README.md", readme(root, card)):
             written.append("README.md")
-        if _write_licence(root, card):
+        if _write_licence(root, card, installing):
             written.append(licence.LICENSE_FILE)
     if not (root / "CHANGELOG.md").exists() and write_text(root / "CHANGELOG.md", CHANGELOG_HEAD):
         written.append("CHANGELOG.md")
@@ -190,11 +190,26 @@ def same(stored, wanted) -> bool:
 
 def licence_owned(root: Path, path: Path) -> bool:
     """Whether the ``LICENSE`` at ``path`` is one ensure wrote (its digest is on record in ``.hermretro/``; a history
-    restore can bring back an older one): only such a file is ever rewritten, never one of the user's own."""
+    restore can bring back an older one)."""
     try:
         if path.is_symlink() or not path.is_file():
             return False
         return file_sha256(path) in _licence_records(root)
+    except OSError:
+        return False
+
+
+def licence_replaceable(root: Path, path: Path, *, installing: bool = False) -> bool:
+    """Whether ensure may write the card's licence over the ``LICENSE`` at ``path``: one it wrote (``licence_owned``),
+    or, in a game made here, the engine template's that every new game starts with (GB Studio's own licence, not the
+    game's). An installed game's ``LICENSE`` is its author's, so the template rule is never applied to one
+    (``installing`` while its install record is not written yet); a ``LICENSE`` of the user's own is never replaced."""
+    if licence_owned(root, path):
+        return True
+    if installing or state(root, INSTALL_FILE):
+        return False
+    try:
+        return not path.is_symlink() and path.is_file() and _template_text(path) in _template_files("LICENSE")
     except OSError:
         return False
 
@@ -205,12 +220,16 @@ def _licence_records(root: Path) -> list[str]:
     return [item for item in values if isinstance(item, str)]
 
 
-def _write_licence(root: Path, card: dict) -> bool:
-    """Write the ``LICENSE`` of the card's licence when the game has none or has one ensure wrote (``licence_owned``).
-    A ``LICENSE`` of the user's own is never replaced. Returns whether it wrote."""
+def _write_licence(root: Path, card: dict, installing: bool) -> bool:
+    """Write the ``LICENSE`` of the card's licence when the game has none or one ensure may replace
+    (``licence_replaceable``). A ``LICENSE`` of the user's own is never replaced. Returns whether it wrote."""
     wanted = licence.text(root, card)
     path = root / licence.LICENSE_FILE
-    if wanted is None or path.is_symlink() or (path.exists() and not licence_owned(root, path)):
+    if (
+        wanted is None
+        or path.is_symlink()
+        or (path.exists() and not licence_replaceable(root, path, installing=installing))
+    ):
         return False
     if not write_text(path, wanted):
         return False
@@ -243,18 +262,29 @@ def replaceable(path: Path) -> bool:
         return True
     except (OSError, ValueError):
         return False
-    return text.split("\n", 1)[0] in MARKERS or (path.name == "README.md" and text in _template_readmes())
+    return text.split("\n", 1)[0] in MARKERS or (path.name == "README.md" and text in _template_files("README.md"))
 
 
-def _template_readmes() -> frozenset[str]:
-    """The READMEs of the engine's project templates, which every new game starts with."""
+def _template_files(name: str) -> frozenset[str]:
+    """The ``name`` files (``README.md``, ``LICENSE``) of the engine's project templates, which every new game starts
+    with."""
     texts = set()
-    for readme_file in (paths.ENGINE_ROOT / "examples").glob("*/README.md"):
+    for template_file in (paths.ENGINE_ROOT / "examples").glob(f"*/{name}"):
         try:
-            texts.add(readme_file.read_text(encoding="utf-8"))
+            texts.add(template_file.read_text(encoding="utf-8"))
         except OSError:
             continue
     return frozenset(texts)
+
+
+def _template_text(path: Path) -> str | None:
+    """``path``'s text when it is small enough to be a template file, else None."""
+    if path.stat().st_size > 64 * 1024:
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except ValueError:
+        return None
 
 
 def write_text(path: Path, text: str) -> bool:

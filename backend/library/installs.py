@@ -307,7 +307,7 @@ def _built(done: dict, workers) -> dict:
 def _finish(game: Path, source: Source, commit: str, report: dict, allow_build: bool = False) -> None:
     """The fetched game as an installed game, still in staging: its layout, its install record and, for a game with
     its source the user allowed to build, that consent (for this commit)."""
-    layout.ensure(game)
+    layout.ensure(game, installing=True)
     rom = {"path": report["rom"]["path"], "sha256": report["rom"]["sha256"]}
     release.record_install(game, source=source.record(), commit=commit, mode=report["mode"], rom=rom)
     if allow_build and report["mode"] == "game+source":

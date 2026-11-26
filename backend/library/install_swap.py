@@ -27,7 +27,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from ..system.events import emit
-from . import game_card, layout, play
+from . import game_card, layout, licence, play
 
 # The games folder's own record folder: the install locks, and old copies kept after a failed update.
 STATE = ".hermretro-installs"
@@ -185,8 +185,14 @@ def _keep(folder: Path, games: Path, error: Exception, sentence: str):
 
 
 def _records(root: Path) -> dict:
-    """The files ``new_identity`` rewrites, as they are now (None for one that is missing)."""
-    files = [root / game_card.CARD_FILE, root / "CHANGELOG.md", *(root / layout.STATE_DIR / name for name in RECORDS)]
+    """The files ``new_identity`` rewrites (its ``ensure`` can write ``LICENSE``), as they are now (None for one that is
+    missing)."""
+    files = [
+        root / game_card.CARD_FILE,
+        root / "CHANGELOG.md",
+        root / licence.LICENSE_FILE,
+        *(root / layout.STATE_DIR / name for name in RECORDS),
+    ]
     return {path: (path.read_bytes() if path.is_file() else None) for path in files}
 
 
