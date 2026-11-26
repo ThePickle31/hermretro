@@ -35,10 +35,12 @@ Unfinished work can reach `main` hidden behind a feature flag. `page/app/flags.j
 1. Add the flag: one line in `FLAGS`, `<snake_name>: { hides: '<what it hides>', setting: false },`.
 2. Hide a page or a tab: `flag: '<snake_name>'` in its descriptor. The registry refuses a name `flags.js` does not
    list, a first page that could be hidden (a hidden page falls back to it, so it needs no flag and its own `Page`
-   or a tab without one), and `listens`, `contributes` or `register` on a flagged page or tab or a tab of a flagged
-   page, which would run for users who cannot see it: add those when the flag ships.
-3. Turn it on for yourself: `HERMRETRO_FLAGS=<name>[,<name>]` in the gateway's environment (the sandbox passes it
-   through from yours). The status answer's `flags` lists what is on (`backend/system/flags.py`); until it answers,
+   or a tab without one), and `listens`, `contributes` or `register` on anything flags can hide (a flagged page or
+   tab, a tab of a flagged page, a page without a `Page` whose tabs are all flagged), which would run for users who
+   cannot see it: add those when the flag ships.
+3. Turn it on for yourself: `HERMRETRO_FLAGS=<name>[,<name>]` in the gateway's environment. The sandbox passes it
+   through from yours when its gateway starts: to change it there, `python tools/dev studio down`, then
+   `HERMRETRO_FLAGS=<name> python tools/dev studio up`. The status answer's `flags` lists what is on (`backend/system/flags.py`); until it answers,
    nothing is.
 4. Only for a flag users may try: `setting: true`, and its switch in `plugin.yaml`'s `config_schema`, which Hermes
    shows in the `hermretro` profile's plugin settings:
@@ -55,7 +57,7 @@ Unfinished work can reach `main` hidden behind a feature flag. `page/app/flags.j
 
 A hidden page is out of the nav: the remembered page opens the first one instead (and stays remembered for its
 flag), and `shell.go` to it does nothing. A hidden tab is out of its page's tab bar (a remembered one waits too), and
-a page left with neither tabs nor a `Page` is hidden too. Its code still ships, and the install scanner reads it.
+a page left with neither tabs nor a `Page` is hidden too; one with its own `Page` keeps it mounted as tabs come and go. Its code still ships, and the install scanner reads it.
 
 ## Reference content
 

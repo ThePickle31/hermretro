@@ -13,9 +13,10 @@
 //   slots               { 'page.name': 'where, the props' }: places others may fill (app/slots.js)
 //   contributes         { 'other.slot': [Component] }: what it puts into other pages' slots
 //   register(ctx)       work started with the plugin (gateway listeners), before any page is shown
-//   flag                a feature flag (app/flags.js): hidden until it is on; a tab takes one too. A flagged page or
-//                       tab (and every tab of a flagged page) has no listens, contributes or register, which would
-//                       run for users who cannot see it. The first page is never hidden: hidden pages fall back to it
+//   flag                a feature flag (app/flags.js): hidden until it is on; a tab takes one too. A page or tab flags
+//                       can hide (its own flag, its page's, or every tab of a page without a Page flagged) has no
+//                       listens, contributes or register, which would run for users who cannot see it. The first
+//                       page can never be hidden: hidden pages fall back to it
 // This module checks every descriptor, declares the events and slots, fills the slots and composes the
 // stylesheet, once, when the bundle loads; startPages(ctx) runs `register` and `listens` from index.js.
 import { PAGES } from '#pages/index.js'
@@ -50,21 +51,25 @@ export function pageProblems(pages, flags = FLAGS) {
       problems.push(`${where}: id must be a unique lowercase name, got ${JSON.stringify(page.id)}`)
     }
 
-    // A hidden page falls back to the first, so it is always shown, with something in it.
-    if (index === 0 && (page.flag != null || !(isFunction(page.Page) || (page.tabs ?? []).some(tab => tab?.flag == null)))) {
-      problems.push(`${where}: the first page cannot be flagged, and needs its own Page or a tab without a flag: a hidden page falls back to it`)
+    const tabs = Array.isArray(page.tabs) ? page.tabs : []
+    // Hidden by its own flag, or with nothing left to show once flags hide every tab (visiblePages).
+    const hideable = page.flag != null || (!isFunction(page.Page) && tabs.length > 0 && tabs.every(tab => tab?.flag != null))
+
+    // A hidden page falls back to the first, so it is always shown.
+    if (index === 0 && hideable) {
+      problems.push(`${where}: the first page cannot be hidden (no flag, and its own Page or a tab without a flag): a hidden page falls back to it`)
     }
 
     seen.add(page.id)
-    parts.push(...describe(page, where, PAGE_FIELDS, problems, flags, false).map(part => ({ ...part, owner: page.id })))
+    parts.push(...describe(page, where, PAGE_FIELDS, problems, flags, hideable).map(part => ({ ...part, owner: page.id })))
 
-    if (!isFunction(page.Page) && !(Array.isArray(page.tabs) && page.tabs.length)) {
+    if (!isFunction(page.Page) && !tabs.length) {
       problems.push(`${where}: give the page a Page component, or tabs`)
     }
 
     const tabIds = new Set()
 
-    for (const tab of Array.isArray(page.tabs) ? page.tabs : []) {
+    for (const tab of tabs) {
       const at = `${where} (tab ${tab?.id})`
 
       if (!ID.test(tab?.id ?? '') || tabIds.has(tab.id)) {
@@ -76,7 +81,7 @@ export function pageProblems(pages, flags = FLAGS) {
       }
 
       tabIds.add(tab?.id)
-      parts.push(...describe(tab ?? {}, at, TAB_FIELDS, problems, flags, page.flag != null).map(part => ({ ...part, owner: page.id })))
+      parts.push(...describe(tab ?? {}, at, TAB_FIELDS, problems, flags, hideable || tab?.flag != null).map(part => ({ ...part, owner: page.id })))
     }
   })
 
@@ -106,9 +111,9 @@ export function pageProblems(pages, flags = FLAGS) {
   return problems
 }
 
-/** The named parts of one page or tab, after checking its plain fields. `hiddenWith` is true for a tab of a flagged
- *  page, hidden with it. */
-function describe(item, where, fields, problems, flags, hiddenWith) {
+/** The named parts of one page or tab, after checking its plain fields. `hideable`: flags can hide it (its own, or
+ *  its page's), so it may not run anything for users who cannot see it. */
+function describe(item, where, fields, problems, flags, hideable) {
   for (const key of Object.keys(item)) {
     if (!fields.has(key)) {
       problems.push(`${where}: unknown field "${key}" (known: ${[...fields].join(', ')})`)
@@ -129,9 +134,9 @@ function describe(item, where, fields, problems, flags, hiddenWith) {
     problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(', ') || 'none'})`)
   }
 
-  if (item.flag != null || hiddenWith) {
+  if (hideable) {
     for (const key of ['listens', 'contributes', 'register'].filter(name => item[name] != null)) {
-      problems.push(`${where}: a flagged page or tab, or a tab of a flagged page, cannot have ${key}: it would run for users who cannot see it. FIX: add it when the flag ships`)
+      problems.push(`${where}: a page or tab flags can hide cannot have ${key}: it would run for users who cannot see it. FIX: add it when the flag ships`)
     }
   }
 

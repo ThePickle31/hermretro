@@ -6,14 +6,15 @@ function storedTab(ctx, page) {
   try {
     const id = ctx?.storage?.get?.(`tab:${page.id}`, null)
 
-    return typeof id === 'string' && id ? id : page.tabs[0].id
+    return typeof id === 'string' && id ? id : (page.tabs[0]?.id ?? null)
   } catch {
-    return page.tabs[0].id
+    return page.tabs[0]?.id ?? null
   }
 }
 
 function TabbedPage({ page, shell }) {
   const [chosen, setChosen] = useState(() => storedTab(shell.ctx, page))
+  // Undefined once flags hide every tab: the page's own Page stays mounted alone.
   const tab = page.tabs.find(item => item.id === chosen) ?? page.tabs[0]
 
   const pick = id => {
@@ -27,7 +28,7 @@ function TabbedPage({ page, shell }) {
   }
 
   return [
-    jsx(
+    tab ? jsx(
       'div',
       {
         'aria-label': `${page.label} tabs`,
@@ -38,13 +39,14 @@ function TabbedPage({ page, shell }) {
         )
       },
       'tabs'
-    ),
-    page.Page ? jsx(page.Page, { shell, tab: tab.id }, 'page') : null,
-    jsxs('div', { className: 'cs-tab-body', role: 'tabpanel', children: [jsx(tab.Page, { shell }, tab.id)] }, 'tab')
+    ) : null,
+    page.Page ? jsx(page.Page, { shell, tab: tab?.id ?? null }, 'page') : null,
+    tab ? jsxs('div', { className: 'cs-tab-body', role: 'tabpanel', children: [jsx(tab.Page, { shell }, tab.id)] }, 'tab') : null
   ]
 }
 
-/** What `page` shows, given the data every page shares. */
+/** What `page` shows, given the data every page shares. A page with tabs stays a TabbedPage while flags hide some or
+ *  all of them (visiblePages keeps `tabs`), so its own Page is not remounted when a tab comes or goes. */
 export function PageView({ page, shell }) {
-  return page.tabs?.length ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell })
+  return Array.isArray(page.tabs) ? jsx(TabbedPage, { page, shell }) : jsx(page.Page, { shell })
 }

@@ -76,7 +76,7 @@ export function StudioPage({ ctx }) {
   const queryClient = useQueryClient()
   const [memory, update] = useSetupMemory(ctx)
   // Build's selection and player survive a backend outage that unmounts the page.
-  const [{ page: asked, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
+  const [{ page: requestedPage, buildSelection, buildPending, buildPlayer, visit }, setNavigation] = useState(() => {
     let stored = 'build'
 
     try {
@@ -120,10 +120,10 @@ export function StudioPage({ ctx }) {
   // The pages and tabs the feature flags that are on show (app/flags.js). A page they hide is never on screen: the
   // remembered page opens the first one instead (and stays remembered for its flag), and go() to it does nothing.
   const pages = visiblePages(flagsOn(status.data))
-  const currentPage = pages.find(item => item.id === asked) ?? pages[0]
+  const currentPage = pages.find(item => item.id === requestedPage) ?? pages[0]
   const page = currentPage.id
-  if (running && page !== asked) {
-    setNavigation(current => (current.page === asked ? pageVisit(page, current.visit + 1) : current))
+  if (running && page !== requestedPage) {
+    setNavigation(current => (current.page === requestedPage ? pageVisit(page, current.visit + 1) : current))
   }
   const hardwareOn = Boolean(status.data?.hardware_enabled)
   const emulatorOnly = Boolean(memory.hardwareSkipped) && !hardwareOn

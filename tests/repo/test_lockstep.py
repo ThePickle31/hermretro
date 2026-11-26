@@ -166,12 +166,14 @@ class LockStep(unittest.TestCase):
             "a flag_<name> in plugin.yaml's config_schema without `setting: true` in page/app/flags.js, or the other way"
             "\nFIX: give the flag both, or neither (page/app/flags.js says how)",
         )
+        schema = flags.config_schema(manifest)
         for name in flags.switches(manifest):
-            block = re.search(rf"^  {flags.SETTING_PREFIX}{name}:\n((?:    .*\n)*)", manifest, re.M).group(1)
-            for line in ("type: bool", "default: false"):
-                self.assertIn(
-                    f"    {line}\n", block, f"plugin.yaml {flags.SETTING_PREFIX}{name}: a flag's switch is off"
-                )
+            entry = schema[f"{flags.SETTING_PREFIX}{name}"]
+            self.assertEqual(
+                (entry.get("type"), entry.get("default")),
+                ("bool", "false"),
+                f"plugin.yaml {flags.SETTING_PREFIX}{name}\nFIX: a flag's switch is `type: bool` and `default: false`",
+            )
 
     def test_a_flag_line_in_another_form_is_refused_not_skipped(self):
         frame = "export const FLAGS = Object.freeze({{\n{}\n}})\n"

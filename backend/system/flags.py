@@ -14,23 +14,40 @@ ENV = "HERMRETRO_FLAGS"
 SETTING_PREFIX = "flag_"
 
 
-def switches(manifest: str) -> frozenset[str]:
-    """The flags with a switch: each ``  flag_<name>:`` key of the manifest's config_schema. Read line by line rather
-    than with a YAML library, as paths reads the version (the broker runs on the standard library alone), so every
-    key must be written as ``  name:``: one in any other form (quoted, say) raises instead of being skipped."""
-    found = re.search(r"^config_schema:[ \t]*(?:#.*)?$", manifest, re.MULTILINE)
-    names = set()
-    for line in manifest[found.end() :].splitlines()[1:] if found else []:
-        if line.strip() and not line[0].isspace() and not line.startswith("#"):
+def config_schema(manifest: str) -> dict[str, dict[str, str]]:
+    """plugin.yaml's config_schema as {key: {property: value as written}}. Read line by line rather than with a YAML
+    library, as paths reads the version (the broker runs on the standard library alone), so it must be a block of
+    ``  name:`` keys, each with ``    property: value`` lines: any other form raises instead of being misread."""
+    found = re.search(r"^config_schema:(.*)$", manifest, re.MULTILINE)
+    if not found:
+        return {}
+    if re.sub(r"#.*", "", found[1]).strip():
+        raise ValueError("plugin.yaml config_schema must be a block of `  name:` keys, not written on one line")
+    entries: dict[str, dict[str, str]] = {}
+    entry = None
+    for line in manifest[found.end() :].splitlines()[1:]:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue  # blank, or a comment
+        if not line[0].isspace():
             break  # the next top-level key
-        if not line.startswith("  ") or line.startswith("   ") or line.lstrip().startswith("#"):
-            continue  # blank, a comment, or inside an entry
-        key = re.fullmatch(r"  (\w+):[ \t]*(?:#.*)?", line)
-        if not key:
-            raise ValueError(f"plugin.yaml config_schema: {line.strip()!r} is not a plain `  name:` key")
-        if key[1].startswith(SETTING_PREFIX):
-            names.add(key[1].removeprefix(SETTING_PREFIX))
-    return frozenset(names)
+        if re.match(r"  \S", line):
+            key = re.fullmatch(r"  (\w+):[ \t]*(?:#.*)?", line)
+            if not key:
+                raise ValueError(f"plugin.yaml config_schema: {line.strip()!r} is not a plain `  name:` key")
+            entry = entries.setdefault(key[1], {})
+        elif entry is None:
+            raise ValueError(f"plugin.yaml config_schema: {line.strip()!r} is not under a `  name:` key")
+        elif prop := re.fullmatch(r"    (\w+):[ \t]*(.*?)[ \t]*(?:#.*)?", line):
+            entry[prop[1]] = prop[2]
+        # anything else is the continuation of a value (a folded description)
+    return entries
+
+
+def switches(manifest: str) -> frozenset[str]:
+    """The flags with a switch: each ``flag_<name>`` key of the manifest's config_schema."""
+    return frozenset(
+        key.removeprefix(SETTING_PREFIX) for key in config_schema(manifest) if key.startswith(SETTING_PREFIX)
+    )
 
 
 SWITCHES = switches((paths.PLUGIN_ROOT / "plugin.yaml").read_text(encoding="utf-8"))

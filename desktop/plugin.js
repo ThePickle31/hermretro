@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 cbcba3b61e76778b9e85264bd0a5eaa304999b563ce5115f5ed120c73073b8b9
- * body: sha256 027bda3cb55738fc30f1371ce2a29ee2de7b3aad35037cbb15e185711d566fd2
+ * sources: sha256 4a9db4d1f9c1a11c111d05fa7b06331816df4e835a79b03591f88dca90f96b8c
+ * body: sha256 3b61c874d7385e07b331304c6466834c44257d3ab7bcb16e034bf9b2288576be
  */
 import{atom,Button,Codicon,CopyButton,host,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";
 import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";import{jsx,jsxs}from"react/jsx-runtime";var ID="hermretro";var ROUTE="/hermretro";var DEMO_ID="demo";var DEMO_GAME={id:DEMO_ID,title:"Hello Color",kind:"gbdk",note:"ModRetro example"};var STUDIO_PROFILE="hermretro";var ENABLE_COMMAND=`herme\
@@ -3703,25 +3703,25 @@ page only (beside the chat there is no shell: check go before using it)."}};var 
 ents","listens","slots","contributes","flag"]);var ID2=/^[a-z][a-z0-9-]*$/;var NAME=/^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/;var isFunction=value=>typeof value==="function";function pageProblems(pages,flags=FLAGS){
 const problems=[];const seen=new Set;const declared={events:new Set,slots:new Set};const parts2=[];pages.forEach((page,index)=>{const where=`page/pages/${page?.id??`<#${index}>`}/index.js`;if(!page||typeof page!==
 "object"){problems.push(`page/pages/index.js lists something that is not a page descriptor at position ${index+1}`);return}if(!ID2.test(page.id??"")||seen.has(page.id)){problems.push(`${where}: id mus\
-t be a unique lowercase name, got ${JSON.stringify(page.id)}`)}if(index===0&&(page.flag!=null||!(isFunction(page.Page)||(page.tabs??[]).some(tab=>tab?.flag==null)))){problems.push(`${where}: the first\
- page cannot be flagged, and needs its own Page or a tab without a flag: a hidden page falls back to it`)}seen.add(page.id);parts2.push(...describe(page,where,PAGE_FIELDS,problems,flags,false).map(part=>({
-...part,owner:page.id})));if(!isFunction(page.Page)&&!(Array.isArray(page.tabs)&&page.tabs.length)){problems.push(`${where}: give the page a Page component, or tabs`)}const tabIds=new Set;for(const tab of Array.
-isArray(page.tabs)?page.tabs:[]){const at=`${where} (tab ${tab?.id})`;if(!ID2.test(tab?.id??"")||tabIds.has(tab.id)){problems.push(`${at}: tab id must be a unique lowercase name within the page`)}if(!isFunction(
-tab?.Page)){problems.push(`${at}: a tab needs a Page component`)}tabIds.add(tab?.id);parts2.push(...describe(tab??{},at,TAB_FIELDS,problems,flags,page.flag!=null).map(part=>({...part,owner:page.id})))}});
-for(const{kind,name,where,owner}of parts2.filter(part=>part.kind==="events"||part.kind==="slots")){if(!NAME.test(name)||!name.startsWith(`${owner}.`)){problems.push(`${where}: ${kind} "${name}" must b\
-e named "${owner}.<name>" (the owning page's id, a dot, a camelCase name)`)}else if(declared[kind].has(name)){problems.push(`${where}: ${kind} "${name}" is declared twice; one page owns each name`)}declared[kind].
-add(name)}for(const{kind,name,where,value}of parts2){if(kind==="listens"&&!declared.events.has(name)){problems.push(`${where}: listens to "${name}", which no page declares in events`)}else if(kind==="\
-listens"&&!isFunction(value)){problems.push(`${where}: listens["${name}"] must be a function (payload, ctx) => ...`)}else if(kind==="contributes"&&!declared.slots.has(name)){problems.push(`${where}: c\
-ontributes to "${name}", which no page declares in slots`)}else if(kind==="contributes"&&!(Array.isArray(value)&&value.length&&value.every(isFunction))){problems.push(`${where}: contributes["${name}"]\
- must be a list of components`)}}return problems}function describe(item,where,fields,problems,flags,hiddenWith){for(const key of Object.keys(item)){if(!fields.has(key)){problems.push(`${where}: unknow\
-n field "${key}" (known: ${[...fields].join(", ")})`)}}if(typeof item.label!=="string"||!item.label){problems.push(`${where}: label must be the text its nav segment or tab shows`)}for(const key of["Ba\
-dge","BelowPlayer","register"]){if(item[key]!=null&&!isFunction(item[key])){problems.push(`${where}: ${key} must be a function`)}}if(item.flag!=null&&(typeof item.flag!=="string"||!Object.hasOwn(flags,
-item.flag))){problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(", ")||"none"})`)}if(item.flag!=null||hiddenWith){for(const key of["lis\
-tens","contributes","register"].filter(name=>item[name]!=null)){problems.push(`${where}: a flagged page or tab, or a tab of a flagged page, cannot have ${key}: it would run for users who cannot see it\
-. FIX: add it when the flag ships`)}}if(item.css!=null&&!(Array.isArray(item.css)&&item.css.every(chunk=>typeof chunk==="string"))){problems.push(`${where}: css must be a list of stylesheet strings`)}
-const parts2=[];for(const kind of["events","slots","listens","contributes"]){for(const[name,value]of Object.entries(item[kind]??{})){if((kind==="events"||kind==="slots")&&(typeof value!=="string"||!value)){
-problems.push(`${where}: ${kind}["${name}"] needs a one-line description (what it is, the payload or props)`)}parts2.push({kind,name,value,where})}}return parts2}function wirePages(pages,{events,slots}){
-const problems=pageProblems(pages);if(problems.length){throw new Error(`the page registry has problems:
+t be a unique lowercase name, got ${JSON.stringify(page.id)}`)}const tabs=Array.isArray(page.tabs)?page.tabs:[];const hideable=page.flag!=null||!isFunction(page.Page)&&tabs.length>0&&tabs.every(tab=>tab?.
+flag!=null);if(index===0&&hideable){problems.push(`${where}: the first page cannot be hidden (no flag, and its own Page or a tab without a flag): a hidden page falls back to it`)}seen.add(page.id);parts2.
+push(...describe(page,where,PAGE_FIELDS,problems,flags,hideable).map(part=>({...part,owner:page.id})));if(!isFunction(page.Page)&&!tabs.length){problems.push(`${where}: give the page a Page component,\
+ or tabs`)}const tabIds=new Set;for(const tab of tabs){const at=`${where} (tab ${tab?.id})`;if(!ID2.test(tab?.id??"")||tabIds.has(tab.id)){problems.push(`${at}: tab id must be a unique lowercase name \
+within the page`)}if(!isFunction(tab?.Page)){problems.push(`${at}: a tab needs a Page component`)}tabIds.add(tab?.id);parts2.push(...describe(tab??{},at,TAB_FIELDS,problems,flags,hideable||tab?.flag!=
+null).map(part=>({...part,owner:page.id})))}});for(const{kind,name,where,owner}of parts2.filter(part=>part.kind==="events"||part.kind==="slots")){if(!NAME.test(name)||!name.startsWith(`${owner}.`)){problems.
+push(`${where}: ${kind} "${name}" must be named "${owner}.<name>" (the owning page's id, a dot, a camelCase name)`)}else if(declared[kind].has(name)){problems.push(`${where}: ${kind} "${name}" is decl\
+ared twice; one page owns each name`)}declared[kind].add(name)}for(const{kind,name,where,value}of parts2){if(kind==="listens"&&!declared.events.has(name)){problems.push(`${where}: listens to "${name}"\
+, which no page declares in events`)}else if(kind==="listens"&&!isFunction(value)){problems.push(`${where}: listens["${name}"] must be a function (payload, ctx) => ...`)}else if(kind==="contributes"&&
+!declared.slots.has(name)){problems.push(`${where}: contributes to "${name}", which no page declares in slots`)}else if(kind==="contributes"&&!(Array.isArray(value)&&value.length&&value.every(isFunction))){
+problems.push(`${where}: contributes["${name}"] must be a list of components`)}}return problems}function describe(item,where,fields,problems,flags,hideable){for(const key of Object.keys(item)){if(!fields.
+has(key)){problems.push(`${where}: unknown field "${key}" (known: ${[...fields].join(", ")})`)}}if(typeof item.label!=="string"||!item.label){problems.push(`${where}: label must be the text its nav se\
+gment or tab shows`)}for(const key of["Badge","BelowPlayer","register"]){if(item[key]!=null&&!isFunction(item[key])){problems.push(`${where}: ${key} must be a function`)}}if(item.flag!=null&&(typeof item.
+flag!=="string"||!Object.hasOwn(flags,item.flag))){problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(", ")||"none"})`)}if(hideable){for(const key of[
+"listens","contributes","register"].filter(name=>item[name]!=null)){problems.push(`${where}: a page or tab flags can hide cannot have ${key}: it would run for users who cannot see it. FIX: add it when\
+ the flag ships`)}}if(item.css!=null&&!(Array.isArray(item.css)&&item.css.every(chunk=>typeof chunk==="string"))){problems.push(`${where}: css must be a list of stylesheet strings`)}const parts2=[];for(const kind of[
+"events","slots","listens","contributes"]){for(const[name,value]of Object.entries(item[kind]??{})){if((kind==="events"||kind==="slots")&&(typeof value!=="string"||!value)){problems.push(`${where}: ${kind}\
+["${name}"] needs a one-line description (what it is, the payload or props)`)}parts2.push({kind,name,value,where})}}return parts2}function wirePages(pages,{events,slots}){const problems=pageProblems(pages);
+if(problems.length){throw new Error(`the page registry has problems:
   ${problems.join("\n  ")}
 FIX: see .agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"`)}const items=pages.flatMap(page=>[{owner:page.id,item:page},...(page.tabs??[]).map(tab=>({owner:page.id,item:tab}))]);
 for(const{owner,item}of items){Object.entries(item.events??{}).forEach(([name,doc])=>events.declare(name,owner,doc));Object.entries(item.slots??{}).forEach(([name,doc])=>slots.declare(name,owner,doc))}
@@ -4287,11 +4287,11 @@ function BackgroundSlot({background,shown}){const ref=useRef(null);useLayoutEffe
 "div",{"aria-hidden":true,className:"cs-bg","data-bg":background.id,hidden:!shown,ref})}function BackgroundLayer(){const[wanted,setWanted]=useState(wantedBackground);const[started2,setStarted]=useState(
 []);useLayoutEffect(()=>{const update=()=>setWanted(wantedBackground());update();return onBackgroundChange(update)},[]);if(wanted&&!byId.has(wanted)){console.warn(`[hermretro] no background "${wanted}\
 " (page/backgrounds/index.js lists them)`)}const live=wanted&&byId.has(wanted)&&!started2.includes(wanted)?[...started2,wanted]:started2;useLayoutEffect(()=>{if(live!==started2)setStarted(live)});return live.
-map(id=>jsx(BackgroundSlot,{background:byId.get(id),shown:id===wanted},id))}function storedTab(ctx,page){try{const id=ctx?.storage?.get?.(`tab:${page.id}`,null);return typeof id==="string"&&id?id:page.tabs[0].id}catch{return page.tabs[0].id}}function TabbedPage({page,shell}){
-const[chosen,setChosen]=useState(()=>storedTab(shell.ctx,page));const tab=page.tabs.find(item=>item.id===chosen)??page.tabs[0];const pick=id=>{setChosen(id);try{shell.ctx?.storage?.set?.(`tab:${page.id}`,
-id)}catch{}};return[jsx("div",{"aria-label":`${page.label} tabs`,className:"cs-tabs",role:"tablist",children:page.tabs.map(item=>jsx("button",{"aria-selected":item.id===tab.id,className:item.id===tab.
-id?"on":"",onClick:()=>pick(item.id),role:"tab",type:"button",children:item.label},item.id))},"tabs"),page.Page?jsx(page.Page,{shell,tab:tab.id},"page"):null,jsxs("div",{className:"cs-tab-body",role:"\
-tabpanel",children:[jsx(tab.Page,{shell},tab.id)]},"tab")]}function PageView({page,shell}){return page.tabs?.length?jsx(TabbedPage,{page,shell}):jsx(page.Page,{shell})}var GROUPS=[["new","New"],["fixed","Fixed"]];function Release({release,dated}){const groups=GROUPS.map(([kind,label])=>[kind,label,release.notes.filter(note=>note.kind===kind)]).filter(([,,notes])=>notes.
+map(id=>jsx(BackgroundSlot,{background:byId.get(id),shown:id===wanted},id))}function storedTab(ctx,page){try{const id=ctx?.storage?.get?.(`tab:${page.id}`,null);return typeof id==="string"&&id?id:page.tabs[0]?.id??null}catch{return page.tabs[0]?.id??null}}function TabbedPage({
+page,shell}){const[chosen,setChosen]=useState(()=>storedTab(shell.ctx,page));const tab=page.tabs.find(item=>item.id===chosen)??page.tabs[0];const pick=id=>{setChosen(id);try{shell.ctx?.storage?.set?.(
+`tab:${page.id}`,id)}catch{}};return[tab?jsx("div",{"aria-label":`${page.label} tabs`,className:"cs-tabs",role:"tablist",children:page.tabs.map(item=>jsx("button",{"aria-selected":item.id===tab.id,className:item.
+id===tab.id?"on":"",onClick:()=>pick(item.id),role:"tab",type:"button",children:item.label},item.id))},"tabs"):null,page.Page?jsx(page.Page,{shell,tab:tab?.id??null},"page"):null,tab?jsxs("div",{className:"\
+cs-tab-body",role:"tabpanel",children:[jsx(tab.Page,{shell},tab.id)]},"tab"):null]}function PageView({page,shell}){return Array.isArray(page.tabs)?jsx(TabbedPage,{page,shell}):jsx(page.Page,{shell})}var GROUPS=[["new","New"],["fixed","Fixed"]];function Release({release,dated}){const groups=GROUPS.map(([kind,label])=>[kind,label,release.notes.filter(note=>note.kind===kind)]).filter(([,,notes])=>notes.
 length);const date=release.date?new Date(release.date).toLocaleDateString(void 0,{day:"numeric",month:"short"}):"";return jsxs("section",{className:"cs-upd-rel",children:[dated?jsxs("div",{className:"\
 cs-upd-relh",children:[jsx("b",{children:`v${release.version}`}),date?jsx("span",{children:date}):null]}):null,...groups.map(([kind,label,notes])=>jsxs("div",{className:"cs-upd-grp",children:[jsx("spa\
 n",{className:"cs-upd-tag","data-kind":kind,children:label}),jsx("ul",{children:notes.map((note,i)=>jsx("li",{children:note.text},i))})]},kind))]})}function ReleaseNotes({releases}){const shown=(releases??
@@ -4414,15 +4414,15 @@ review??null,version,latest,notes,installedNotes:state.from?releasesBetween(publ
 RESTART_ADVICE.hermes,open,setOpen:value=>{setOpen(value);if(!value){finished()}},start:()=>void start(),finish:()=>void(state.reloadOnly?reload():start()),agree:()=>void start(state.review?.retry??{}),
 cancel:()=>{setState({phase:"idle",step:0});setOpen(false)},later:later2,whatsNew:()=>void ctx.os?.openExternal?.(LINKS.releases),openPlugins:()=>host.navigate(PLUGINS_HREF)}}var EMULATOR_GAME="emulatorGame";function pickedGame(ctx){try{const id=ctx.storage.get(EMULATOR_GAME,null);return typeof id==="string"&&id?id:null}catch{return null}}function pageVisit(page,visit,selection=null){
 const build=page==="build";return{page,visit,buildSelection:build?selection:null,buildPending:[],buildPlayer:build?createBuildPlayerVisit():null}}function StudioPage({ctx}){const queryClient=useQueryClient();
-const[memory,update]=useSetupMemory(ctx);const[{page:asked2,buildSelection,buildPending,buildPlayer,visit},setNavigation]=useState(()=>{let stored2="build";try{stored2=ctx.storage.get("page","build")}catch{}
-return pageVisit(pageById(stored2)?stored2:"build",0)});const changeBuildVisit=useCallback(change=>{setNavigation(current2=>current2.page==="build"&&current2.visit===visit?change(current2):current2)},
-[visit]);const selectBuild=useCallback(selection=>{changeBuildVisit(current2=>current2.buildSelection===selection?current2:{...current2,buildSelection:selection})},[changeBuildVisit]);const changeBuildPending=change=>{
+const[memory,update]=useSetupMemory(ctx);const[{page:requestedPage,buildSelection,buildPending,buildPlayer,visit},setNavigation]=useState(()=>{let stored2="build";try{stored2=ctx.storage.get("page","b\
+uild")}catch{}return pageVisit(pageById(stored2)?stored2:"build",0)});const changeBuildVisit=useCallback(change=>{setNavigation(current2=>current2.page==="build"&&current2.visit===visit?change(current2):
+current2)},[visit]);const selectBuild=useCallback(selection=>{changeBuildVisit(current2=>current2.buildSelection===selection?current2:{...current2,buildSelection:selection})},[changeBuildVisit]);const changeBuildPending=change=>{
 changeBuildVisit(current2=>({...current2,buildPending:change(current2.buildPending)}))};const[pinned,setPinned]=useState(null);const[polling,setPolling]=useState({fast:true,pollDoctor:false});const{backend,
 doctor,gateway,status}=useBackend(polling);const refreshing=status.isFetching||doctor.isFetching;const running=backend==="ok";const steps=computeSteps({backend,doctor,memory,status});const auto=running?
 steps.find(step=>!step.complete)??null:null;const choosing=Boolean(auto?.hardware)&&!memory.hardwareWanted&&!memory.hardwareSkipped;const autoId=!running?"not-running":!auto?"ready":choosing?"choice":
 auto.id;const pinnedStep=running?steps.find(step=>step.id===pinned)??null:null;const shown=pinnedStep??(choosing?null:auto);const viaProfile=running?status.data.via_profile??null:null;if(running){routing.
-ambientStudio=!viaProfile&&Boolean(status.data.profile?.is_studio)}const pages=visiblePages(flagsOn(status.data));const currentPage=pages.find(item=>item.id===asked2)??pages[0];const page=currentPage.
-id;if(running&&page!==asked2){setNavigation(current2=>current2.page===asked2?pageVisit(page,current2.visit+1):current2)}const hardwareOn=Boolean(status.data?.hardware_enabled);const emulatorOnly=Boolean(
+ambientStudio=!viaProfile&&Boolean(status.data.profile?.is_studio)}const pages=visiblePages(flagsOn(status.data));const currentPage=pages.find(item=>item.id===requestedPage)??pages[0];const page=currentPage.
+id;if(running&&page!==requestedPage){setNavigation(current2=>current2.page===requestedPage?pageVisit(page,current2.visit+1):current2)}const hardwareOn=Boolean(status.data?.hardware_enabled);const emulatorOnly=Boolean(
 memory.hardwareSkipped)&&!hardwareOn;const gameReady=running&&steps.filter(step=>!step.hardware).every(step=>step.complete);const settled=running&&(Boolean(doctor.data)||doctor.isError);const lastAuto=useRef(
 autoId);const wasSettled=useRef(false);const stepsRef=useRef(steps);stepsRef.current=steps;useEffect(()=>{const before=lastAuto.current;lastAuto.current=autoId;if(before===autoId){return}setPinned(null);
 const finished=stepsRef.current.find(step=>step.id===before);if(wasSettled.current&&finished?.state==="done"){host.notify({kind:"success",message:`${finished.title}: done`})}},[autoId]);useEffect(()=>{
@@ -4433,10 +4433,10 @@ wasSettled.current=settled},[settled]);const priorSetup=Boolean(memory.hardwareS
 {ctx,enabled:running,polling:wantInstall});const installState=install.data?.install?.state??null;const installElsewhere=Boolean(install.data?.install?.elsewhere);const pluginUpdate=usePluginUpdate({ctx,
 installing:install.starting||install.busy,installError:install.updateBlock,confirmInstallIdle:install.confirmIdle,running,status});const lastElsewhere=useRef(installElsewhere);const finishedAt=install.
 data?.install?.finished_at??null;const doneRun=installState==="done"?`${install.data?.install?.run_id??""}@${finishedAt??""}`:null;const verifiedRun=useRef(null);const doctorAsked=useRef({fetching:false,
-at:0,answerAt:0});useEffect(()=>{const asked3=doctorAsked.current;if(doctor.isFetching&&!asked3.fetching){asked3.at=Date.now()}else if(!doctor.isFetching&&asked3.fetching){asked3.answerAt=asked3.at}asked3.
+at:0,answerAt:0});useEffect(()=>{const asked2=doctorAsked.current;if(doctor.isFetching&&!asked2.fetching){asked2.at=Date.now()}else if(!doctor.isFetching&&asked2.fetching){asked2.answerAt=asked2.at}asked2.
 fetching=Boolean(doctor.isFetching)},[doctor.isFetching]);useEffect(()=>{const wasElsewhere=lastElsewhere.current;lastElsewhere.current=installElsewhere;if(wasElsewhere&&!installElsewhere){void doctor.
-refetch?.()}},[installElsewhere]);useEffect(()=>{if(!doneRun||verifiedRun.current===doneRun){return}const finishedMs=Number(finishedAt)*1e3||0;const asked3=doctorAsked.current;const answeredAt=asked3.
-answerAt||Math.max(doctor.dataUpdatedAt??0,doctor.errorUpdatedAt??0);const current2=doctor.isFetching?asked3.at>=finishedMs:Boolean(doctor.data||doctor.isError)&&answeredAt>=finishedMs;verifiedRun.current=
+refetch?.()}},[installElsewhere]);useEffect(()=>{if(!doneRun||verifiedRun.current===doneRun){return}const finishedMs=Number(finishedAt)*1e3||0;const asked2=doctorAsked.current;const answeredAt=asked2.
+answerAt||Math.max(doctor.dataUpdatedAt??0,doctor.errorUpdatedAt??0);const current2=doctor.isFetching?asked2.at>=finishedMs:Boolean(doctor.data||doctor.isError)&&answeredAt>=finishedMs;verifiedRun.current=
 doneRun;if(!finishedMs||!current2){void doctor.refetch?.()}},[doneRun,doctor.isFetching]);const finishOnboarding=()=>{update({onboarded:true});go("build")};useEffect(()=>{const toolchainOpen=toolchainStep&&
 toolchainStep.state!=="done"&&toolchainStep.state!=="checking";const next={fast:autoId!=="ready",pollDoctor:Boolean(toolchainOpen)&&installElsewhere};setPolling(current2=>current2.fast===next.fast&&current2.
 pollDoctor===next.pollDoctor?current2:next)},[autoId,toolchainStep?.state,installElsewhere]);const go=(id,selection=null)=>{if(!pages.some(item=>item.id===id)){return}setNavigation(current2=>id===current2.

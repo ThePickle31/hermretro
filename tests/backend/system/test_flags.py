@@ -50,11 +50,22 @@ class Flags(unittest.TestCase):
         self.assertEqual(flags.switches(MANIFEST), {"level_editor", "tabs"})
         self.assertEqual(flags.switches("name: hermretro\n"), frozenset())
 
-    def test_a_key_in_another_form_is_refused_not_skipped(self):
-        for key in ('"flag_quoted":', "flag-dashed:", "'flag_single':"):
-            with self.subTest(key=key), self.assertRaises(ValueError) as caught:
-                flags.switches(f"config_schema:\n  {key}\n    type: bool\n")
-            self.assertIn(key, str(caught.exception))
+    def test_each_setting_reads_with_its_properties(self):
+        schema = flags.config_schema(MANIFEST)
+        self.assertEqual(schema["flag_level_editor"], {"type": "bool", "default": "false", "label": "Level editor"})
+        self.assertEqual(flags.config_schema("name: hermretro\n"), {})
+        folded = "config_schema:\n  a:\n    description: >-\n      one\n      two\n    type: bool\n"
+        self.assertEqual(flags.config_schema(folded), {"a": {"description": ">-", "type": "bool"}})
+
+    def test_a_schema_in_another_form_is_refused_not_misread(self):
+        for schema in (
+            'config_schema:\n  "flag_quoted":\n    type: bool\n',
+            "config_schema:\n  flag-dashed:\n    type: bool\n",
+            "config_schema:\n    flag_deeper:\n      type: bool\n",
+            "config_schema: {flag_flow: {type: bool}}\n",
+        ):
+            with self.subTest(schema=schema), self.assertRaises(ValueError):
+                flags.config_schema(schema)
 
     def test_a_flag_is_on_from_the_environment_or_its_switch(self):
         self.environment("from_env")
