@@ -271,7 +271,7 @@ What the factory reset (Settings → Plugins → hermretro) would delete, part b
 { ok: true, parts: {
     games: { bytes, count },        // what deleting the games removes; count: the library's games
     history: { bytes },             // kept versions: build snapshots and image versions (this profile's)
-    chats: { count },               // the studio profile's chats; null when they cannot be read
+    chats: { count },               // the studio profile's chats, forks included; null when they cannot be read
     profile: { ours, holds },       // ours: the hermretro profile is the one hermretro made; holds: hermretro's
                                     // own folders, its toolchain or a library game are inside it
     settings: {},                   // hermretro's settings in Hermes
@@ -299,7 +299,7 @@ folder the user configured has no readable library to say which games are hermre
 logs, saved frames, the demo cartridge's captures (`<library>/captures/demo`) and the captures of the games in the
 games folder. A capture asked for while a part is deleted (counted from when its upload began) is refused, not written
 afterwards. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
-studio profile's `state.db`, never one that is a link, in rounds, since a deleted chat's forks become chats of their own), only in the profile
+studio profile's `state.db`, never one that is a link, in rounds until one changes nothing, since a deleted chat's forks become chats of their own), only in the profile
 hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
 reads) in this profile and the one hermretro was installed into, never through a `config.yaml` that is a link
 (`CONFIG_LINKED` says which profile's were left), so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`

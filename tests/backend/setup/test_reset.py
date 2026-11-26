@@ -79,7 +79,10 @@ class Reset(unittest.TestCase):
         self.assertTrue(answer["ok"])
         self.assertEqual(list(self.games.iterdir()), [])
         self.assertEqual(list((self.places.home / "library").iterdir()), [])
-        self.assertTrue((self.data / "asset-versions").exists(), "kept image versions belong to Build history")
+        self.assertTrue(
+            (self.data / "asset-versions").exists(),
+            "kept image versions belong to Build history",
+        )
         self.assertTrue((self.elsewhere / "owl.gbsproj").is_file())
         self.assertTrue((self.data / "snapshots").is_dir())
         self.assertTrue((self.cache / "toolchain").is_dir())
@@ -132,14 +135,24 @@ class Reset(unittest.TestCase):
     def _chats(self, rows):
         self.studio.mkdir()
         with sqlite3.connect(self.studio / "state.db") as db:
-            db.execute("CREATE TABLE sessions (id TEXT, parent_session_id TEXT)")
-            db.executemany("INSERT INTO sessions VALUES (?, ?)", rows)
+            db.execute("CREATE TABLE sessions (id TEXT, parent_session_id TEXT, model_config TEXT)")
+            db.executemany(
+                "INSERT INTO sessions VALUES (?, ?, ?)",
+                [(*row, "{}")[:3] if len(row) == 2 else row for row in rows],
+            )
 
     def test_chats_are_deleted_with_hermes_own_command_forks_too_and_any_left_are_said(
         self,
     ):
         # "a" has a delegate (deleted with it) and a fork, which becomes a chat of its own once "a" is gone.
-        self._chats([("a", None), ("b", None), ("a-sub", "a"), ("a-fork", "a")])
+        self._chats(
+            [
+                ("a", None),
+                ("b", None),
+                ("a-sub", "a"),
+                ("a-fork", "a", '{"_branched_from": "a"}'),
+            ]
+        )
         ran = []
 
         def hermes(home, *arguments):
@@ -160,7 +173,11 @@ class Reset(unittest.TestCase):
             mock.patch.object(studio_profile, "studio_is_ours", lambda: True),
             mock.patch.object(studio_profile, "run_hermes", hermes),
         ):
-            self.assertEqual(reset.plan(self.data)["parts"]["chats"]["count"], 2)
+            self.assertEqual(
+                reset.plan(self.data)["parts"]["chats"]["count"],
+                3,
+                "a fork is a chat of its own",
+            )
             answer = reset.clear("chats", self.data, [])
         self.assertEqual(ran[:2], ["a", "b"])
         self.assertIn("a-fork", ran[2:])  # the next round
@@ -185,10 +202,31 @@ class Reset(unittest.TestCase):
         self.assertEqual(answer["code"], "CHATS_UNREADABLE")
         ran.assert_not_called()
 
+    def test_a_long_chain_of_forks_goes_in_one_reset(self):
+        chain = [("c0", None, "{}")] + [(f"c{i}", f"c{i - 1}", '{"_branched_from": "x"}') for i in range(1, 8)]
+        self._chats(chain)
+
+        def hermes(home, *arguments):
+            with sqlite3.connect(home / "state.db") as db:
+                db.execute("DELETE FROM sessions WHERE id = ?", (arguments[2],))
+                db.execute(
+                    "UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?",
+                    (arguments[2],),
+                )
+
+        with (
+            mock.patch.object(studio_profile, "studio_is_ours", lambda: True),
+            mock.patch.object(studio_profile, "run_hermes", hermes),
+        ):
+            self.assertTrue(reset.clear("chats", self.data, [])["ok"])
+
     def test_a_hermretro_profile_hermretro_did_not_make_keeps_its_chats(self):
         self._chats([("a", None)])
         with mock.patch.object(studio_profile, "run_hermes") as ran:
-            self.assertEqual(reset.plan(self.data)["parts"]["profile"], {"ours": False, "holds": False})
+            self.assertEqual(
+                reset.plan(self.data)["parts"]["profile"],
+                {"ours": False, "holds": False},
+            )
             answer = reset.clear("chats", self.data, [])
         self.assertEqual(answer["code"], "NOT_OURS")
         ran.assert_not_called()
@@ -247,7 +285,10 @@ class Reset(unittest.TestCase):
 
     def test_a_library_game_inside_the_studio_profile_says_it_holds_games(self):
         games = json.loads((self.places.home / "library" / "games.json").read_text())
-        games["games"]["cccccccccccc"] = {"id": "cccccccccccc", "projectRoot": str(self.studio / "workspace" / "Cat")}
+        games["games"]["cccccccccccc"] = {
+            "id": "cccccccccccc",
+            "projectRoot": str(self.studio / "workspace" / "Cat"),
+        }
         (self.places.home / "library" / "games.json").write_text(json.dumps(games))
         self.assertTrue(reset.plan(self.data)["parts"]["profile"]["holds"])
 
@@ -277,7 +318,12 @@ class Reset(unittest.TestCase):
         self.assertTrue((elsewhere / "demo" / "shot.png").is_file())
 
     def test_the_toolchain_says_when_it_went_in_part(self):
-        partial = {"ok": False, "code": "PARTLY_REMOVED", "removed_bytes": 10, "left_bytes": 5}
+        partial = {
+            "ok": False,
+            "code": "PARTLY_REMOVED",
+            "removed_bytes": 10,
+            "left_bytes": 5,
+        }
         with mock.patch.object(reset.provision, "remove_downloads", lambda: partial):
             self.assertTrue(reset.clear("toolchain", self.data, [])["partly"])
 

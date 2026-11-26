@@ -28,8 +28,6 @@ LOGS = ("broker.stderr.log", "broker.stderr.log.1", "trace.jsonl", "trace.jsonl.
 # What the library folder holds of the games (a folder the user configured may hold more). Its captures/ (the demo
 # cartridge's) belong to Logs & captures.
 LIBRARY = ("games.json", "games.lock", "thumbs")
-# Forks of a deleted chat become chats of their own: deleted in the next round.
-CHAT_ROUNDS = 5
 # Where Hermes keeps the plugin's settings: `settings`, and `config` (the older place it still reads a setting from).
 SETTINGS_KEYS = ("settings", "config")
 
@@ -127,27 +125,57 @@ def _chat_ids() -> list[str]:
         return [row[0] for row in db.execute("SELECT id FROM sessions WHERE parent_session_id IS NULL")]
 
 
+def _chat_count() -> int:
+    """The studio chats as Hermes lists them: each conversation and each fork of one (marked `_branched_from`), never
+    a delegate or a compacted conversation's next part. Raises sqlite3.Error as _chat_ids does."""
+    database = studio_profile.studio_dir() / "state.db"
+    if database.is_symlink():
+        raise sqlite3.DatabaseError("its session database is a link to another")
+    if not database.is_file():
+        return 0
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as db:
+        query = "SELECT COUNT(*) FROM sessions WHERE parent_session_id IS NULL OR model_config LIKE '%_branched_from%'"
+        return db.execute(query).fetchone()[0]
+
+
 def _delete_chats() -> dict:
     """Delete every studio chat the way ``hermes sessions delete`` does (its transcripts and media with it). Only in
     the profile this plugin made: a profile of the user's own with the same name is never touched."""
     if not studio_profile.studio_is_ours():
-        return {"ok": False, "code": "NOT_OURS", "error": "The hermretro profile is not one hermretro made."}
+        return {
+            "ok": False,
+            "code": "NOT_OURS",
+            "error": "The hermretro profile is not one hermretro made.",
+        }
     try:
         last = None
-        deleted = 0
-        for _round in range(CHAT_ROUNDS):
+        deleted, previous = 0, None
+        # In rounds: a deleted chat's forks become chats of their own, deleted in the next one, until a round changes
+        # nothing.
+        while True:
             ids = _chat_ids()
-            if not ids:
+            if not ids or ids == previous:
                 break
+            previous = ids
             for session in ids:
                 try:
-                    studio_profile.run_hermes(studio_profile.studio_dir(), "sessions", "delete", session, "--yes")
+                    studio_profile.run_hermes(
+                        studio_profile.studio_dir(),
+                        "sessions",
+                        "delete",
+                        session,
+                        "--yes",
+                    )
                     deleted += 1
                 except studio_profile.StudioProfileError as error:
                     last = str(error)
         left = _chat_ids()
     except sqlite3.Error as error:
-        return {"ok": False, "code": "CHATS_UNREADABLE", "error": f"The studio chats could not be read ({error})."}
+        return {
+            "ok": False,
+            "code": "CHATS_UNREADABLE",
+            "error": f"The studio chats could not be read ({error}).",
+        }
     if left:
         return {
             "ok": False,
@@ -178,21 +206,30 @@ def plan(data: Path) -> dict:
     chats cannot be read); ``custom`` when the toolchain is in a folder the user configured, which the reset leaves
     alone."""
     try:
-        chats = len(_chat_ids()) if studio_profile.studio_is_ours() else 0
+        chats = _chat_count() if studio_profile.studio_is_ours() else 0
     except sqlite3.Error:
         chats = None
     custom = bool(os.environ.get("HERMRETRO_DEPS_ROOT") or os.environ.get("GB_STUDIO_SETUP_ROOT"))
     return {
         "ok": True,
         "parts": {
-            "games": {"bytes": _bytes(*_places("games", data)), "count": len(_game_roots())},
+            "games": {
+                "bytes": _bytes(*_places("games", data)),
+                "count": len(_game_roots()),
+            },
             "history": {"bytes": _bytes(*_places("history", data))},
             "chats": {"count": chats},
             # Whether the hermretro profile is the one this plugin made: only then may its chats or itself go. `holds`:
             # hermretro's own folders are inside it (configured there), so deleting it would take them too.
-            "profile": {"ours": studio_profile.studio_is_ours(), "holds": _profile_holds_data()},
+            "profile": {
+                "ours": studio_profile.studio_is_ours(),
+                "holds": _profile_holds_data(),
+            },
             "settings": {},
-            "toolchain": {"bytes": 0 if custom else _bytes(paths.DEPS_ROOT), "custom": custom},
+            "toolchain": {
+                "bytes": 0 if custom else _bytes(paths.DEPS_ROOT),
+                "custom": custom,
+            },
             "logs": {"bytes": _bytes(*_places("logs", data))},
         },
     }
@@ -232,7 +269,10 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
     """Delete one part. Answers ``{ok: true, removed_bytes}``; the toolchain answers as Setup's removal does."""
     if part == "toolchain":
         removed = provision.remove_downloads()
-        return {**removed, "partly": not removed.get("ok") and removed.get("removed_bytes", 0) > 0}
+        return {
+            **removed,
+            "partly": not removed.get("ok") and removed.get("removed_bytes", 0) > 0,
+        }
     if part == "chats":
         return _delete_chats()
     if part == "settings":
@@ -265,7 +305,11 @@ def clear(part: str, data: Path, homes: list[Path]) -> dict:
     except Refused as refused:
         return {"ok": False, "code": refused.code, "error": str(refused)}
     if stages is None:
-        return {"ok": False, "code": "UNKNOWN_PART", "error": f"There is no part {part!r} to reset."}
+        return {
+            "ok": False,
+            "code": "UNKNOWN_PART",
+            "error": f"There is no part {part!r} to reset.",
+        }
     removed = 0
     for stage in stages:
         before = _bytes(*stage)
