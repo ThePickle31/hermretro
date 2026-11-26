@@ -288,7 +288,7 @@ not move it. A profile named hermretro that hermretro did not make and set up is
 ### `reset` — params `{ part }`
 
 One step of the factory reset; the page calls it once per part it deletes, in this order: `stop`, `history`, `logs`,
-`games`, `chats` (not when the studio profile is deleted), `settings`, `toolchain`, and `links` after the profile; before each one it checks that no studio chat is building. Every part but `settings` first asks the broker to stop with its idle workers
+`games`, `chats` (not when the studio profile is deleted), `settings`, `toolchain`, and `links` after the profile; before each one it checks that no studio chat is building. Every part but `settings` and `links` first asks the broker to stop with its idle workers
 (`{"op": "shutdown", "replace": true}`) and holds its election lock while it deletes (`backend/setup/broker_stop.py`);
 `stop` does only that. While a part is deleted, the player saves no capture (`player.captures_paused`). `games` empties the games folder (only the library's games in it when `HERMRETRO_GAMES_DIR`
 is set), deletes the library's own files (`games.json`, its lock, `thumbs/`); a

@@ -188,7 +188,9 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
         summary.deleted += await backendPart(target, step.id)
       } else if (step.id === 'profile') {
         await deleteStudioProfile(studio)
-        gone.add('chats').add('history').add('settings')
+        // Gone from here on, whatever happens next: the summary says so even if what follows fails.
+        gone.add('profile').add('chats').add('history').add('settings')
+        summary.kept = kept()
 
         // Its chats are gone: no game points at one (asked where hermretro is installed, which outlives the profile).
         if (install) {

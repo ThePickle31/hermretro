@@ -235,6 +235,31 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await click('Cancel', dialog())
 
+  // hermretro's agent half off in the profile it is installed in: the studio profile cannot be deleted from here.
+  installedIn = { profile: 'default', linked: false }
+  const before15 = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => {
+    if (route.profile === 'default' && method === 'plugin.hermretro.status') throw Object.assign(new Error('unknown method'), { code: -32601 })
+    return before15(route, method, params)
+  }
+  await open()
+  check('the studio profile stays while hermretro is off where it is installed', () => {
+    assert.match(said(), /Studio profileModel, sign-in, SOUL · Turn hermretro on in default/)
+    assert.equal(chosen('Studio profile'), 'Keep')
+  })
+  await click('Cancel', dialog())
+  scenario.requestProfileHook = (route, method, params) => {
+    if (route.profile === 'default' && method === 'plugin.hermretro.reset' && params.part === 'links') throw new Error('unknown method')
+    return before15(route, method, params)
+  }
+  await open(); await confirm()
+  check('a profile deleted before its clean-up failed is said to be gone', () => {
+    assert.match(said(), /Stopped atStudio profile: unknown method/)
+    assert.doesNotMatch(said(), /Kept[^V]*Studio profile/)
+  })
+  await click('Close', dialog())
+  scenario.requestProfileHook = before15
+
   // hermretro off (or older) in the studio profile: the error names it.
   const before11 = scenario.requestProfileHook
   scenario.requestProfileHook = (route, method, params) => {

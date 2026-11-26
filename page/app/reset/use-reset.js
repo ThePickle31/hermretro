@@ -126,6 +126,10 @@ async function readContext() {
     throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)
   }
 
+  // After deleting the studio profile, the games let go of its chats through the profile hermretro is installed in:
+  // hermretro must answer there (its agent half can be off while the page still shows).
+  const installAnswers = install ? await requestOn(install, RPC_STATUS, { sync: false }, 60_000).then(data => Boolean(data?.ok), () => false) : false
+
   // The studio's chats and the profile itself go only when hermretro made it, and the profile only when deleting it
   // would not take hermretro itself with it and this Hermes can delete a profile from a plugin.
   const ours = studio ? null : foreign ? NOT_OURS : NO_PROFILE
@@ -142,7 +146,17 @@ async function readContext() {
     parts: plan.parts,
     locked: {
       chats: ours,
-      profile: ours ?? (holdsPlugin ? 'hermretro is installed here' : plan.parts.profile?.holds ? 'Holds your games' : typeof host.deleteProfile !== 'function' ? 'Update Hermes to delete it' : null),
+      profile:
+        ours ??
+        (holdsPlugin
+          ? 'hermretro is installed here'
+          : plan.parts.profile?.holds
+            ? 'Holds your games'
+            : typeof host.deleteProfile !== 'function'
+              ? 'Update Hermes to delete it'
+              : !installAnswers
+                ? `Turn hermretro on in ${installProfile ?? 'its profile'}`
+                : null),
       toolchain: plan.parts.toolchain?.custom ? 'A folder you chose' : null
     }
   }
