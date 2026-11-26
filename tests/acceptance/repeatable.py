@@ -49,12 +49,15 @@ def build(client, root: Path) -> dict:
     return {"sha256": sha256(rom), "signature": signature_bytes(rom), **built}
 
 
-def compiled(built: dict) -> int | None:
-    """How many source files a build's compiler compiled, from its log (GB Studio's verbose "Compiling: " lines)."""
+def compiled(built: dict) -> dict | None:
+    """How many of GB Studio's engine files and of the game's generated ones (``src/data``) a build compiled, from
+    its log (GB Studio's verbose "Compiling: " lines)."""
     log = built.get("logPath")
     if not log or not Path(log).is_file():
         return None
-    return sum(line.startswith("Compiling: ") for line in Path(log).read_text(errors="replace").splitlines())
+    lines = [line for line in Path(log).read_text(errors="replace").splitlines() if line.startswith("Compiling: ")]
+    game = sum(line.startswith("Compiling: src/data/") for line in lines)
+    return {"engine": len(lines) - game, "game": game}
 
 
 def web_rom(client, root: Path) -> str | None:
@@ -132,17 +135,19 @@ def check_repeatable(suite, client, rom_b: str):
         web=web,
         native=original,
     )
-    # The copy's first build compiled every engine file; this one takes them all from GB Studio's cache.
+    # The copy's first build compiled every engine file; this one takes them all from GB Studio's cache, and compiles
+    # the game's own generated files again.
     rebuilt = build(client, copy)
     again_compiled = compiled(rebuilt)
     suite.check(
         "R9",
-        "Building the copy again compiles nothing, from GB Studio's cache of its first build, and gives that same ROM",
+        "Building the copy again takes every engine file from GB Studio's cache of its first build, compiles the game's "
+        "own files again and gives that same ROM",
         bool(original)
         and rebuilt.get("success") is True
         and rebuilt["sha256"] == original
-        and bool(first_compiled)
-        and again_compiled == 0,
+        and bool(first_compiled and first_compiled["engine"])
+        and again_compiled == {"engine": 0, "game": first_compiled["game"]},
         original=original,
         rebuilt=rebuilt["sha256"] or rebuilt.get("error"),
         compiled=[first_compiled, again_compiled],

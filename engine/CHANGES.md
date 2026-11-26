@@ -312,8 +312,9 @@ files, what changed and why.
   - GB Studio's keys follow only `include "..."` lines, so a game with its own engine code (`assets/engine`, a
     plugin's `engine` or `engineAlt` folder) or a link among its plugins builds in a fresh folder, and the cache is
     dropped when the compiler changes (the CLI, its build worker, GB Studio's engine and GBDK, by content).
-  - Those keys also leave out the names in `data/game_globals.i` (two constants' names swapped can match a stale
-    script): the cache holds objects made with one `game_globals.i`, and a build that makes another is compiled
-    again without the cache.
+  - Those keys are enough for GB Studio's engine files (their other includes are GBDK's) but not for the game's
+    generated ones in `src/data` (they take only the values of `data/game_globals.i`, not the names, and a raw
+    `.include` is not followed): after each build the cached copies of those objects are removed, so they compile
+    on every build and only the engine's come from the cache.
   - What a stopped or failed compiler changed in the cache is removed, and the whole cache after a build whose
     engine or compiler stopped before it finished. Windows keeps a fresh folder per build.
