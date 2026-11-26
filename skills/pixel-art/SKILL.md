@@ -45,9 +45,7 @@ and draw the art yourself:
 
 1. Write a script file that draws the PNG at native size in the exact source colours of
    [hardware and imports](references/hardware-and-imports.md#native-source-images), into a source folder inside
-   the selected project (for example `art/hero.png`, not under `assets/`), and run it. A script or data file
-   kept in the game refers to other files by paths relative to the game folder, never absolute ones: the game
-   is shared and installed elsewhere.
+   the selected project (for example `art/hero.png`, not under `assets/`), and run it.
 2. Check that PNG with `chromatic_graphics_analyze` (its `kind` and the project's `colorMode`). Fix the script and
    check again until it reports no violations (colours, tile budget, size).
 3. Import it once with `chromatic_asset_import` (`sourcePath` the checked PNG, `assetPath` its place under
@@ -61,6 +59,9 @@ Source-art exploration can stay in the workspace. Before changing a game,
 select the intended `.gbsproj` and inspect the actual asset, style, and
 compatibility mode. Follow the [project operating guide](../authoring/references/project-selection.md)
 for selection and revision safeguards; keep original and editable artwork.
+A script or data file kept in the game refers to other files by paths relative
+to the game folder, never absolute ones, since the game is shared and installed
+elsewhere: run such a script with the terminal's `workdir` set to the game folder.
 
 - For source colors, dimensions, import profiles, and budgets, read
   [hardware and imports](references/hardware-and-imports.md).
