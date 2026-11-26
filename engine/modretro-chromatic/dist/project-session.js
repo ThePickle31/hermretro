@@ -379,7 +379,7 @@ export class ProjectSession {
             const descriptor = {
                 ...templateProject.descriptor,
                 name: input.name.trim(),
-                ...(input.author === undefined ? {} : { author: input.author.trim() }),
+                ...(input.author !== undefined ? { author: input.author.trim() } : input.template === "starter" ? { author: "" } : {}),
             };
             try {
                 // Claim the exact new directory exclusively. rename() could replace a

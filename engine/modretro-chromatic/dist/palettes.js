@@ -6,6 +6,7 @@ import { projectPathExists, readProjectJson, resourceSlug, stableResourceId, wri
 import { decodeSemanticCursor, encodeSemanticCursor, isSemanticCursorCurrent, PROJECT_REVISION_ALGORITHM, } from "./project-access.js";
 import { projectRevision } from "./project-snapshot.js";
 import { decodeResourceBytes, encodeResourceBytes } from "./resource-codec.js";
+import { validColors } from "./scene-graphics.js";
 export const HARDWARE_PALETTE_SLOTS = 8;
 export const DEFAULT_UI_PALETTE_SLOT = 7;
 export const FALLBACK_PALETTE_COLORS = ["E0F8CF", "86C06C", "306850", "071821"];
@@ -16,7 +17,7 @@ async function paletteCursorQuery(projectPath) {
     const canonicalDescriptor = await realpath(projectPath);
     return `${PALETTE_INSPECTION_CURSOR_QUERY}:${createHash("sha256").update(canonicalDescriptor).digest("hex")}`;
 }
-async function paletteProject(projectPath, access) {
+export async function paletteProject(projectPath, access) {
     if (access === undefined)
         return inventoryProject(projectPath);
     await access.ensureFresh();
@@ -33,18 +34,44 @@ async function paletteProject(projectPath, access) {
         counts: inspection.counts,
     };
 }
-function normalizeColors(colors) {
-    if (colors.length !== 4) {
-        throw new GameStudioProjectError("INVALID_PALETTE_COLORS", "A Game Boy Color palette must contain exactly four RGB colors.");
+function normalizeColors(colors, entryTwo) {
+    if (colors.length !== 3 && colors.length !== 4) {
+        throw new GameStudioProjectError("INVALID_PALETTE_COLORS", "A Game Boy Color palette takes four RGB colors, or three for a sprite palette (lightest, middle, darkest).");
     }
-    return colors.map((color, index) => {
+    const normalized = colors.map((color, index) => {
         if (typeof color !== "string" || !/^#?[\da-f]{6}$/i.test(color)) {
             throw new GameStudioProjectError("INVALID_PALETTE_COLOR", `Palette color ${index} must be a six-digit RGB hexadecimal value.`);
         }
         return color.replace(/^#/, "").toUpperCase();
     });
+    if (normalized.length === 4)
+        return normalized;
+    const [lightest, middle, darkest] = normalized;
+    return [lightest, middle, entryTwo ?? blendColors(middle, darkest), darkest];
 }
-function requirePalette(inventory, id, access) {
+function blendColors(first, second) {
+    return [0, 2, 4]
+        .map((offset) => Math.round((Number.parseInt(first.slice(offset, offset + 2), 16) + Number.parseInt(second.slice(offset, offset + 2), 16)) / 2)
+        .toString(16)
+        .padStart(2, "0"))
+        .join("")
+        .toUpperCase();
+}
+export function chromaticDisplayColor(red, green, blue) {
+    const r = red >> 3, g = green >> 3, b = blue >> 3;
+    return [(r * 13 + g * 2 + b) >> 1, (g * 3 + b) << 1, (r * 3 + g * 2 + b * 11) >> 1];
+}
+function spritePaletteView(palette) {
+    const colors = validColors(palette.colors);
+    if (colors === undefined)
+        return {};
+    const unused = colors[2] !== colors[1] && colors[2] !== colors[3] && colors[2] !== blendColors(colors[1], colors[3]);
+    return {
+        spriteColors: [colors[0], colors[1], colors[3]],
+        warnings: unused ? [`Sprites draw palette entries 0, 1 and 3 (lightest, middle, darkest source shades); entry 2 (#${colors[2]}) never shows on a sprite. Give sprite palettes three colors.`] : [],
+    };
+}
+export function requirePalette(inventory, id, access) {
     const palette = access === undefined
         ? inventory.palettes.find((candidate) => candidate.id === id)
         : access.palette(id);
@@ -260,7 +287,7 @@ export async function updatePalette(projectPath, input, access) {
     if (input.updateDefaultColors === true && input.colors === undefined) {
         throw new GameStudioProjectError("INVALID_PALETTE_COLORS", "Updating default colors requires replacement palette colors.");
     }
-    const colors = input.colors === undefined ? undefined : normalizeColors(input.colors);
+    const colors = input.colors === undefined ? undefined : normalizeColors(input.colors, validColors(existing.colors)?.[2]);
     const update = (palette) => ({
         ...palette,
         ...(input.name === undefined ? {} : { name: input.name.trim() }),
@@ -298,7 +325,7 @@ export async function updatePalette(projectPath, input, access) {
 export async function assignScenePalette(projectPath, input, access) {
     const inventory = await paletteProject(projectPath, access);
     const scene = requireScene(inventory, input.sceneId, access);
-    requirePalette(inventory, input.paletteId, access);
+    const palette = requirePalette(inventory, input.paletteId, access);
     validateSlot(input.slot);
     const uiPalette = resolveUiPalette(inventory, access);
     if (input.target === "background" && input.slot === uiPalette.slot && input.allowUiSlot !== true) {
@@ -340,6 +367,7 @@ export async function assignScenePalette(projectPath, input, access) {
         target: input.target,
         slot: input.slot,
         paletteId: input.paletteId,
+        ...(input.target === "sprite" ? spritePaletteView(palette) : {}),
     };
 }
 export function decodeBackgroundPaletteTiles(metadata, totalTiles) {

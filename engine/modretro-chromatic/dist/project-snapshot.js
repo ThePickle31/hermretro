@@ -643,6 +643,8 @@ export async function inventoryProjectNormalized(projectPath, options = {}, sele
         if (selectionGeneration !== 0 && selectionGeneration !== access.selectionGeneration) {
             throw new GameStudioProjectError("STALE_PROJECT", "Indexed project access belongs to a different project selection");
         }
+        if (options.resourceTypes?.includes("diagnostic"))
+            await access.strongRefresh();
         await access.ensureFresh();
         if (options.layout !== "legacy")
             return access.normalizedInventory(options);

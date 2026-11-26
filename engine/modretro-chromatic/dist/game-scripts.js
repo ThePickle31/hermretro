@@ -1,7 +1,7 @@
 import path from "node:path";
 import { GameStudioProjectError, inventoryProject, } from "./project.js";
-import { readProjectJsonWithRevision, resourceRevision, stableResourceId, withProjectResourceWriteLock, writeProjectJsonAtomic, } from "./project-files.js";
-import { findInvalidNativeScriptEvent } from "./native-script-events.js";
+import { readProjectJsonWithRevision, resourceRevision, withProjectResourceWriteLock, writeProjectJsonAtomic, } from "./project-files.js";
+import { assignNativeScriptEventIds, explicitlyPatchedNativeScriptValues, findInvalidNativeScriptEvent, } from "./native-script-events.js";
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 const VALID_DIRECTIONS = new Set(["up", "down", "left", "right"]);
 const MAXIMUM_EVENT_DEPTH = 64;
@@ -139,6 +139,15 @@ function insertionIndex(events, input) {
     }
     return events.length;
 }
+export function liftTargetEventId(input) {
+    const { eventId, ...target } = isObject(input.target) ? input.target : {};
+    if (eventId === undefined)
+        return input;
+    if (input.eventId !== undefined && input.eventId !== eventId) {
+        throw new GameStudioProjectError("INVALID_INPUT", "Give the event once, as eventId or target.eventId, not two different ones");
+    }
+    return { ...input, target, eventId };
+}
 export function applyScriptEdit(resource, input, options = {}) {
     if (!input.target || !["insert", "update", "delete", "move"].includes(input.action)) {
         throw new GameStudioProjectError("INVALID_INPUT", "Script edits require a target and a supported action");
@@ -157,11 +166,7 @@ export function applyScriptEdit(resource, input, options = {}) {
             throw new GameStudioProjectError("INVALID_INPUT", "Inserting a script event requires an event object");
         }
         index = insertionIndex(events, input);
-        const supplied = structuredClone(input.event);
-        event = {
-            ...supplied,
-            id: supplied.id ?? stableResourceId(String(resource.id ?? "resource"), scriptKey, JSON.stringify(input.target.branchPath ?? []), String(index), String(supplied.command ?? "event")),
-        };
+        event = structuredClone(input.event);
         events.splice(index, 0, event);
     }
     else {
@@ -193,18 +198,23 @@ export function applyScriptEdit(resource, input, options = {}) {
             events.splice(index, 0, event);
         }
     }
+    assignNativeScriptEventIds(cloned);
     validateEventTree(cloned, options);
-    const explicitlyPatchedCoordinates = new Map();
-    if (input.action === "update" && input.eventId && isObject(input.patch?.args)) {
-        const coordinates = new Set();
-        for (const coordinate of ["x", "y"]) {
-            if (Object.prototype.hasOwnProperty.call(input.patch.args, coordinate))
-                coordinates.add(coordinate);
+    // What the edit writes is checked again even when unchanged: the updated event with the args its patch gives and the
+    // events its patch's branches hold (a branch the compiler skipped may have held one that cannot build), or the moved
+    // event.
+    const explicitlyPatchedValues = new Map();
+    if (input.action === "update") {
+        for (const branch of isObject(input.patch.children) ? Object.values(input.patch.children) : []) {
+            for (const [eventId, keys] of explicitlyPatchedNativeScriptValues({ script: branch }))
+                explicitlyPatchedValues.set(eventId, keys);
         }
-        if (coordinates.size > 0)
-            explicitlyPatchedCoordinates.set(input.eventId, coordinates);
+        explicitlyPatchedValues.set(input.eventId, new Set(isObject(input.patch.args) ? Object.keys(input.patch.args) : []));
     }
-    const invalid = findInvalidNativeScriptEvent(cloned, resource, { explicitlyPatchedCoordinates });
+    else if (input.action === "move") {
+        explicitlyPatchedValues.set(input.eventId, new Set());
+    }
+    const invalid = findInvalidNativeScriptEvent(cloned, resource, { explicitlyPatchedValues, projectRoot: options.projectRoot, legacyDescriptor: options.legacyDescriptor });
     if (invalid)
         throw new GameStudioProjectError("INVALID_EVENT", invalid.message);
     return { resource: cloned, event, action: input.action, index, scriptKey };
@@ -309,6 +319,8 @@ async function editSelectedScript(projectPath, input, access, inventory) {
         await assertRevision(location.projectRoot, location.filename, input.expectedRevision, beforeRevision);
         const selection = await readSelectedResource(location, input.target, loaded.json);
         const applied = applyScriptEdit(selection.resource, input, {
+            projectRoot: location.projectRoot,
+            legacyDescriptor: selection.descriptor,
             ...(access
                 ? { sceneExists: (sceneId) => access.scene(sceneId) !== undefined }
                 : { knownSceneIds: new Set(selection.inventory.scenes.map((scene) => scene.id)) }),

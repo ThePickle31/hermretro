@@ -212,6 +212,32 @@ export function verifyBuildDebugAbi(headers) {
     ABI_GLOBAL_HEAPS.set(abi, globalHeapWords);
     return abi;
 }
+export const LIVE_STATE_LAYOUT = "gbstudio-4.3.0-e1-live-v2";
+export const LIVE_STATE_ENGINE_SHA256 = Object.freeze({
+    "include/actor.h": "aaed624fc6755e3200326bb5a1f636cd46432d0ab92c7181586b9451255f4db6",
+    "include/bankdata.h": "42fb6f3540b9744639e74bbeaabd1d5a6a7e0c63a566bca8c72fd6fd08264654",
+    "include/data_manager.h": "299b3c71962dd9914b8b152ea23081584883ff2c003d7f45743e8f74b18572e2",
+    "include/gbs_types.h": "a55bf0eb19d96790459d854108f24c6d27dc5af1603ed3fee3d1fa610ca9bb2e",
+    "include/input.h": "2f13adaeb9e4f31c2def5816633271a209ef19d377bed43aa3400078cf65d693",
+    "include/math.h": "7f1d00b9e9eed911872fa42209c23073c8fcf02f3e39c9aee8a8f2aa27cb2169",
+    "include/ui.h": "2c4c0a0f001bda0e512dc4fafd5b41380302a7347b347c8517a177b6dad0a199",
+    "include/vm.h": "735d2c3ae88ebcf2b4f5cac48f727cc1b2ed5d2db67b1054a6e9050fbeccb607",
+    "include/vm.i": "d07af6798364e4bcbc2b128738d9470d9529f3f4e4516538273b997213ec58f3",
+    "src/core/actor.c": "b7360f4e84c720090e127aa047daa21f7d70517a4a2d9512d2a96f568e9ee5f5",
+    "src/core/core.c": "7978d2147d09294f25886d604fc4093cb1ba2084e809cab46b32d86861bbe353",
+    "src/core/data_manager.c": "2ff20d8a9d3efe6b752d391d988aa9c74e669d87a13dcaf37f64700b5987d190",
+    "src/core/input.c": "7b4db1936abb55f826abfa0cfc1c3cc2b5379b24c6476bf9750fbce370331210",
+    "src/core/ui.c": "2bdb8547aaea5c43b48d90c84a0a06c62a84cdfcd77f58780aa4245c255b9c55",
+    "src/core/vm.c": "7dc77593c03a2354bbfa72a87bdf539c47c62a97a63e744fff58360f8666197c",
+    "src/core/vm_gameboy.c": "a4f89644092f814ac6392331770a7f79713654188b4d21c7e8be076ff3b8ba91",
+    "src/core/vm_ui.c": "435963c667f68afea93c83f1fa39321b2778cad8dd453a98b56c63cca169fdbb",
+    "src/states/adventure.c": "1f48b90a0feaa743ae54311aecadd10f4beb816d0b130b581a533fcfbb07a89b",
+    "src/states/logo.c": "4a0e5f6e8b410a2d21c63de4a5b57ca0d8f2c1c0bd4284261929a752434126ca",
+    "src/states/platform.c": "a3be840ff9fed3cbb6cd879c156f3dcd3784d6050559f16ac546d1f727b3e382",
+    "src/states/pointnclick.c": "e11cbc940de4badd56f4ef5ae9bda701b1432c14198c98b8b8361b5af5a6ec26",
+    "src/states/shmup.c": "1cfb193d1f9f67a1db63613293e01f97e7271fd742def8b233f83e6206274159",
+    "src/states/topdown.c": "58eb9d200fdce227b643ab21623fe70cbc9a086d49aa454f0ecb7ff2c559e668"
+});
 /** @internal Called only after successful same-build capture and source revalidation. */
 export function rememberAuthenticatedSourceBuild(build, compilerPath, source, abi) {
     if (!build.success || build.builder !== "gb-studio-cli" || !build.debugArtifacts)

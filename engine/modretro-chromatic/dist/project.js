@@ -4,8 +4,8 @@ import path from "node:path";
 import { PROJECT_REVISION_ALGORITHM, } from "./project-access.js";
 import { inspectProjectSnapshot, loadProjectSnapshot } from "./project-snapshot.js";
 import { decodeResourceBytes, ResourceCodecError } from "./resource-codec.js";
-import { explicitlyPatchedNativeScriptCoordinates, findInvalidNativeScriptEvent, } from "./native-script-events.js";
-import { validateActorResource } from "./actors.js";
+import { assignNativeScriptEventIds, explicitlyPatchedNativeScriptValues, findInvalidNativeScriptEvent, withNativeScriptEventIds, } from "./native-script-events.js";
+import { assertNoActorPalette, assertSafeResourceProperties, duplicateSymbolDiagnostics, takenResourceSymbols, uniqueResourceSymbol, validateActorResource, } from "./actors.js";
 import { readProjectJsonWithRevision, resourceRevision, withProjectResourceWriteLock, writeProjectBytesAtomic, } from "./project-files.js";
 import { legacyPhysicalAssetMetadataLookup, legacyPluginAssetCandidates } from "./legacy-project-assets.js";
 /** Stable native IDs must resolve to exactly one physical project asset across resource kinds. */
@@ -282,6 +282,9 @@ function materializeResource(resource, resourcePath) {
         resourcePath,
     };
 }
+export function scriptSymbolRecord(script, resourcePath) {
+    return { id: asString(script.id), name: asString(script.name), symbol: asString(script.symbol), resourcePath };
+}
 async function pngDimensions(filename) {
     const handle = await open(filename, "r");
     try {
@@ -420,10 +423,15 @@ export async function inventoryProject(projectPath, indexedAccess) {
     const { projectRoot, descriptor, format } = discovery;
     const diagnostics = [];
     const scenes = [];
+    const scripts = [];
     const palettes = [];
     let settings = {};
     if (format === "legacy") {
         settings = isObject(descriptor.settings) ? descriptor.settings : {};
+        for (const value of Array.isArray(descriptor.customEvents) ? descriptor.customEvents : []) {
+            if (isObject(value))
+                scripts.push(scriptSymbolRecord(value, toRelative(projectRoot, discovery.projectPath)));
+        }
         for (const value of Array.isArray(descriptor.scenes) ? descriptor.scenes : []) {
             if (!isObject(value))
                 continue;
@@ -473,6 +481,11 @@ export async function inventoryProject(projectPath, indexedAccess) {
                 actors,
                 triggers,
             });
+        }
+        for (const scriptFile of resourceFiles.filter((file) => toRelative(projectRoot, file).startsWith("project/scripts/") && file.endsWith(".gbsres"))) {
+            const script = await readJson(projectRoot, scriptFile);
+            if (isObject(script))
+                scripts.push(scriptSymbolRecord(script, toRelative(projectRoot, scriptFile)));
         }
         for (const file of resourceFiles.filter((candidate) => {
             const relative = toRelative(projectRoot, candidate);
@@ -600,6 +613,7 @@ export async function inventoryProject(projectPath, indexedAccess) {
     else if (format === "distributed" && Number(discovery.version.split(".")[0]) < 4) {
         diagnostics.push({ severity: "warning", code: "UNEXPECTED_PROJECT_VERSION", message: `Distributed resources usually require project format version 4 or newer; project declares ${discovery.version}` });
     }
+    diagnostics.push(...duplicateSymbolDiagnostics({ scenes, scripts }));
     const actors = scenes.flatMap((scene) => scene.actors);
     const triggers = scenes.flatMap((scene) => scene.triggers);
     return {
@@ -610,6 +624,7 @@ export async function inventoryProject(projectPath, indexedAccess) {
         scenes,
         actors,
         triggers,
+        scripts,
         palettes,
         assets,
         diagnostics,
@@ -619,6 +634,7 @@ export async function inventoryProject(projectPath, indexedAccess) {
 export async function inspectProject(projectPath, options = {}, indexedAccess) {
     if (indexedAccess) {
         assertIndexedProjectAccess(projectPath, indexedAccess);
+        await indexedAccess.strongRefresh();
         await indexedAccess.ensureFresh();
         if (options.diagnosticLimit === undefined)
             return indexedAccess.projectInspection();
@@ -723,7 +739,7 @@ function validateDimensions(input) {
     }
 }
 /** Shared by direct and transactional scene edits; inspect the merged native resource. */
-export function validateNativeSceneUpdate(previous, updated, changes, backgroundExists) {
+export function validateNativeSceneUpdate(previous, updated, changes, backgroundExists, project) {
     if (updated.name !== undefined)
         validateName(updated.name, "Scene name");
     for (const key of ["width", "height"]) {
@@ -748,10 +764,21 @@ export function validateNativeSceneUpdate(previous, updated, changes, background
         }
     }
     const invalid = findInvalidNativeScriptEvent(updated, previous, {
-        explicitlyPatchedCoordinates: explicitlyPatchedNativeScriptCoordinates(changes),
+        explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(changes),
+        ...project,
     });
     if (invalid)
         throw new GameStudioProjectError("INVALID_EVENT", invalid.message);
+    // Actors and triggers given in the scene's own properties (a legacy scene holds them) are written as given.
+    for (const kind of ["actors", "triggers"]) {
+        for (const resource of Array.isArray(changes[kind]) ? changes[kind].filter(isObject) : []) {
+            if (kind === "actors")
+                assertNoActorPalette(resource, undefined, resource);
+            const invalid = findInvalidNativeScriptEvent(resource, undefined, project);
+            if (invalid)
+                throw new GameStudioProjectError("INVALID_EVENT", invalid.message);
+        }
+    }
 }
 function nextIndex(resources) {
     return resources.reduce((highest, resource) => Math.max(highest, asNumber(resource._index) ?? -1), -1) + 1;
@@ -794,8 +821,8 @@ export async function createScene(projectPath, input, indexedAccess) {
             if (scenes.some((scene) => scene.id === id)) {
                 throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A scene with id ${id} already exists`);
             }
-            const scene = mergeObjects(sceneDefaults({ settings }, input, id, nextIndex(scenes), slug), input.properties ?? {});
-            const invalid = findInvalidNativeScriptEvent(scene);
+            const scene = withNativeScriptEventIds(mergeObjects(sceneDefaults({ settings }, input, id, nextIndex(scenes), slug), input.properties ?? {}));
+            const invalid = findInvalidNativeScriptEvent(scene, undefined, { projectRoot: inventory.projectRoot, legacyDescriptor: loaded.json });
             if (invalid)
                 throw new GameStudioProjectError("INVALID_EVENT", invalid.message);
             if (await resourceRevision(inventory.projectRoot, target) !== loaded.revision) {
@@ -815,8 +842,8 @@ export async function createScene(projectPath, input, indexedAccess) {
     if (indexedAccess ? indexedAccess.scene(id) !== undefined : inventory.scenes.some((scene) => scene.id === id)) {
         throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A scene with id ${id} already exists`);
     }
-    const scene = mergeObjects(sceneDefaults(inventory, input, id, nextIndex(inventory.scenes), slug), input.properties ?? {});
-    const invalid = findInvalidNativeScriptEvent(scene);
+    const scene = withNativeScriptEventIds(mergeObjects(sceneDefaults(inventory, input, id, nextIndex(inventory.scenes), slug), input.properties ?? {}));
+    const invalid = findInvalidNativeScriptEvent(scene, undefined, { projectRoot: inventory.projectRoot });
     if (invalid)
         throw new GameStudioProjectError("INVALID_EVENT", invalid.message);
     await writeJsonAtomic(inventory.projectRoot, target, scene);
@@ -843,8 +870,8 @@ export async function updateScene(projectPath, input, indexedAccess) {
         let scene;
         let owner;
         if (inventory.format === "distributed") {
-            scene = mergeObjects(loaded.json, updates);
-            validateNativeSceneUpdate(loaded.json, scene, updates, backgroundExists);
+            scene = withNativeScriptEventIds(mergeObjects(loaded.json, updates));
+            validateNativeSceneUpdate(loaded.json, scene, updates, backgroundExists, { projectRoot: inventory.projectRoot });
             owner = scene;
         }
         else {
@@ -852,8 +879,8 @@ export async function updateScene(projectPath, input, indexedAccess) {
             const original = originalScenes.find((value) => isObject(value) && value.id === input.sceneId);
             if (!isObject(original))
                 throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${input.sceneId} disappeared during update`);
-            const updated = mergeObjects(original, updates);
-            validateNativeSceneUpdate(original, updated, updates, backgroundExists);
+            const updated = withNativeScriptEventIds(mergeObjects(original, updates));
+            validateNativeSceneUpdate(original, updated, updates, backgroundExists, { projectRoot: inventory.projectRoot, legacyDescriptor: loaded.json });
             scene = resourceWithoutInventoryFields(updated);
             owner = { ...loaded.json, scenes: originalScenes.map((value) => value === original ? updated : value) };
         }
@@ -865,7 +892,7 @@ export async function updateScene(projectPath, input, indexedAccess) {
         return { projectPath: inventory.projectPath, projectRoot: inventory.projectRoot, resourcePath: existing.resourcePath, scene };
     });
 }
-function actorDefaults(input, id, index, slug) {
+function actorDefaults(input, id, index, symbol) {
     const script = [];
     if (input.dialogue !== undefined) {
         script.push({
@@ -879,7 +906,7 @@ function actorDefaults(input, id, index, slug) {
         _resourceType: "actor",
         id,
         _index: index,
-        symbol: `actor_${slug}`,
+        symbol,
         prefabId: "",
         name: input.name.trim(),
         coordinateType: "tiles",
@@ -911,7 +938,7 @@ export async function createActor(projectPath, input, indexedAccess) {
         throw new GameStudioProjectError("INVALID_INPUT", "Actor direction must be up, down, left, or right");
     }
     if (input.properties)
-        assertSafeObject(input.properties, "Actor properties", true);
+        assertSafeResourceProperties(input.properties, "Actor properties");
     const inventory = await authoringContext(projectPath, indexedAccess, { includeLegacyDescriptor: false });
     const scene = findScene(inventory, input.sceneId, indexedAccess);
     const base = safeSlug(input.name, "actor");
@@ -959,8 +986,9 @@ export async function createActor(projectPath, input, indexedAccess) {
         const id = input.id ?? stableId(scene.id, "actor", slug);
         if (existingId(id))
             throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `An actor with id ${id} already exists`);
-        const actor = mergeObjects(actorDefaults(input, id, nextIndex(existingActors), slug), input.properties ?? {});
-        validateActorResource(indexedAccess ?? inventory, ownerScene, actor);
+        const symbol = uniqueResourceSymbol("actor", input.name, takenResourceSymbols(await inventoryProject(projectPath, indexedAccess)));
+        const actor = withNativeScriptEventIds(mergeObjects(actorDefaults(input, id, nextIndex(existingActors), symbol), input.properties ?? {}));
+        validateActorResource(indexedAccess ?? inventory, ownerScene, actor, undefined, { legacyDescriptor: inventory.format === "legacy" ? loaded.json : undefined });
         if (await resourceRevision(inventory.projectRoot, owner) !== loaded.revision) {
             throw new GameStudioProjectError("STALE_RESOURCE", "The target scene changed before the requested actor creation", owner);
         }
@@ -1009,13 +1037,9 @@ function applyDialogue(target, input) {
     }
     const created = !event;
     if (!event) {
-        event = {
-            id: stableId(asString(target.id), scriptKey, String(script.length), "EVENT_TEXT"),
-            command: "EVENT_TEXT",
-            args: { text: input.text, avatarId: "" },
-            __type: "event",
-        };
+        event = { command: "EVENT_TEXT", args: { text: input.text, avatarId: "" }, __type: "event" };
         script.push(event);
+        assignNativeScriptEventIds(target);
     }
     else {
         event.args = { ...(isObject(event.args) ? event.args : {}), text: input.text };

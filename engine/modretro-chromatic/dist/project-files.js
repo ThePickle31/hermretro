@@ -6,7 +6,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { assertSafePlatformPath, isPathWithinRoot, platformPath } from "./platform.js";
 import { GameStudioProjectError } from "./project.js";
-function isSystemError(error, code) {
+export function isSystemError(error, code) {
     return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 function validateProjectPath(candidate, platform) {

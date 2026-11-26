@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
-import { watch } from "node:fs";
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { duplicateSymbolDiagnostics } from "./actors.js";
 import { PROJECT_REVISION_ALGORITHM, } from "./project-access.js";
 import { isPathWithinRoot } from "./platform.js";
 import { assertWithinProject, projectRelativePath } from "./project-files.js";
 import { ProjectRevisionTree, isPublicProjectRevisionPath } from "./project-revision.js";
 import { inspectProjectSnapshot, inventoryProjectSnapshot, } from "./project-snapshot.js";
-import { discoverProject, GameStudioProjectError, } from "./project.js";
+import { discoverProject, GameStudioProjectError, scriptSymbolRecord, } from "./project.js";
+import { watchProjectTree } from "./project-tree-watcher.js";
 import { decodeResourceBytes, ResourceCodecError } from "./resource-codec.js";
 import { buildWorldScriptGraph } from "./world-script-graph.js";
 import { observeReviewedCompiler } from "./reviewed-compiler.js";
@@ -16,6 +17,8 @@ import { legacyPhysicalAssetMetadataLookup, legacyPluginAssetCandidates } from "
 const ASSET_EXTENSIONS = new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const MAXIMUM_DIRTY_PATHS = 2_048;
+const WATCH_RETRY_MS = 1_000;
+const MAXIMUM_WATCH_RETRY_MS = 60_000;
 const EMPTY_COVERAGE = { complete: true, limitations: [] };
 class FrozenResourceMap {
     #entries;
@@ -89,9 +92,6 @@ function assetType(folder, metadata) {
     };
     return names[folder] ?? folder;
 }
-function isLegacyImagePath(relative) {
-    return /^(?:assets\/(?:backgrounds|sprites)|plugins\/[^/]+\/(?:backgrounds|sprites))\/.+\.png$/iu.test(relative);
-}
 function isPhysicalPng(file) {
     return file.pngHeader !== undefined && file.pngHeader.width > 0 && file.pngHeader.height > 0;
 }
@@ -149,11 +149,13 @@ export class ProjectWorldIndex {
     #kind = new Map();
     #state = "initializing";
     #watcher;
+    #watchFailures = 0;
+    #watchRetryAt = 0;
+    #rootIdentity;
     #bootstrap;
     #refresh;
     #degraded = false;
     #watchUnavailable = false;
-    #watchUnsupported = false;
     #inAuthoritativeRebuild = false;
     #discovery;
     #inventory;
@@ -168,7 +170,7 @@ export class ProjectWorldIndex {
     };
     constructor(projectPath, selectionGeneration = 0, options = {}) {
         this.#requestedPath = path.resolve(projectPath);
-        this.#watcherFactory = options.watcherFactory ?? watch;
+        this.#watcherFactory = options.watcherFactory ?? watchProjectTree;
         this.#platform = options.platform ?? process.platform;
         this.#reviewedCustomEvents = options.reviewedCustomEvents ?? REVIEWED_CUSTOM_EVENTS;
         this.#toolchainRoot = options.toolchainRoot;
@@ -189,6 +191,8 @@ export class ProjectWorldIndex {
             });
         }
         await this.#bootstrap;
+        if (await this.#rootReplaced())
+            this.invalidate("The project folder was moved or replaced");
         if (this.#degraded || this.#state === "invalidated") {
             await this.strongRefresh();
         }
@@ -459,14 +463,16 @@ export class ProjectWorldIndex {
         }
         this.#discovery = discovery;
         this.projectPath = discovery.projectPath;
-        this.#startWatcher();
         await this.#rebuild(false);
         if (this.#dirty.size > 0)
             await this.#applyDirty([...this.#dirty]);
     }
+    /** Start the project watch, or after a failed one wait (doubling from 1 s to 1 min) before trying again. */
     #startWatcher() {
+        if (Date.now() < this.#watchRetryAt)
+            return;
         try {
-            this.#watcher = this.#watcherFactory(this.projectRoot, { recursive: true, persistent: false }, (_event, filename) => {
+            const watcher = this.#watcherFactory(this.projectRoot, { recursive: true, persistent: false }, (_event, filename) => {
                 if (this.#state === "disposed")
                     return;
                 if (!filename) {
@@ -486,19 +492,33 @@ export class ProjectWorldIndex {
                 else if (this.#state === "ready")
                     this.#state = "dirty";
             });
-            this.#watcher.on("error", () => {
+            this.#watcher = watcher;
+            watcher.on("error", () => {
+                watcher.close();
+                if (this.#watcher === watcher)
+                    this.#watcher = undefined;
                 if (this.#state !== "disposed") {
-                    this.#watchUnavailable = true;
-                    this.#degraded = true;
+                    this.#watchFailed();
                     this.#state = "invalidated";
                 }
             });
         }
         catch {
-            this.#watchUnavailable = true;
-            this.#watchUnsupported = true;
-            this.#degraded = true;
+            this.#watchFailed();
         }
+    }
+    #watchFailed() {
+        this.#watchUnavailable = true;
+        this.#degraded = true;
+        this.#watchFailures += 1;
+        this.#watchRetryAt = Date.now() + Math.min(WATCH_RETRY_MS * 2 ** (this.#watchFailures - 1), MAXIMUM_WATCH_RETRY_MS);
+    }
+    /** Whether the project folder is no longer the folder the last full read found (moved, removed or replaced). */
+    async #rootReplaced() {
+        if (!this.#rootIdentity || this.#state === "disposed")
+            return false;
+        const current = await lstat(this.projectRoot, { bigint: true }).catch(() => undefined);
+        return current?.dev !== this.#rootIdentity.dev || current?.ino !== this.#rootIdentity.ino;
     }
     #isObserved(relative) {
         if (!relative || relative.includes("\u0000") || relative === ".")
@@ -646,6 +666,14 @@ export class ProjectWorldIndex {
         if (!this.#pathsMatch(descriptor, this.projectPath)) {
             throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor changed", descriptor);
         }
+        const rootIdentity = await lstat(root, { bigint: true });
+        if (this.#rootIdentity && (rootIdentity.dev !== this.#rootIdentity.dev || rootIdentity.ino !== this.#rootIdentity.ino)) {
+            this.#watcher?.close();
+            this.#watcher = undefined;
+        }
+        this.#rootIdentity = { dev: rootIdentity.dev, ino: rootIdentity.ino };
+        if (!this.#watcher && this.#state !== "disposed")
+            this.#startWatcher();
         const discovered = new Map();
         const descriptorFile = await this.#readFile(descriptor);
         discovered.set(descriptorFile.relativePath, descriptorFile);
@@ -687,7 +715,9 @@ export class ProjectWorldIndex {
         // during that same scan. Retain its unavailability separately: callers can
         // explicitly request another strong verification without duplicating the
         // cold census or turning every cache hit into a project-wide scan.
-        this.#degraded = this.#watchUnsupported;
+        this.#degraded = !this.#watcher;
+        if (this.#watcher)
+            this.#watchFailures = 0;
         this.#state = this.#degraded ? "invalidated" : "ready";
     }
     async #refreshDirty() {
@@ -726,17 +756,8 @@ export class ProjectWorldIndex {
             catch (error) {
                 if (!systemError(error, "ENOENT") && !systemError(error, "ENOTDIR"))
                     throw error;
-                for (const existing of [...this.#files.keys()]) {
-                    if (existing !== relative && !existing.startsWith(`${relative}/`))
-                        continue;
-                    this.#deleteIndexedFile(existing);
-                    if (isPublicProjectRevisionPath(existing, descriptorRelative))
-                        this.#tree.remove(existing);
-                    if (existing.startsWith("plugins/"))
-                        semanticChange = true;
-                    this.#counters.changedPaths += 1;
-                    changedPaths.add(existing);
-                }
+                if (this.#dropIndexed(relative, () => false, changedPaths))
+                    semanticChange = true;
                 if (relative === descriptorRelative)
                     throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor was removed", absolute);
                 continue;
@@ -760,19 +781,8 @@ export class ProjectWorldIndex {
             if (entry.isDirectory()) {
                 const descendants = new Map();
                 await this.#walk(absolute, descendants);
-                if (this.#discovery?.format === "legacy") {
-                    for (const existing of this.#files.keys()) {
-                        if (!existing.startsWith(`${relative}/`) || !isLegacyImagePath(existing) || descendants.has(existing))
-                            continue;
-                        this.#deleteIndexedFile(existing);
-                        if (isPublicProjectRevisionPath(existing, descriptorRelative))
-                            this.#tree.remove(existing);
-                        if (existing.startsWith("plugins/"))
-                            semanticChange = true;
-                        this.#counters.changedPaths += 1;
-                        changedPaths.add(existing);
-                    }
-                }
+                if (this.#dropIndexed(relative, (existing) => descendants.has(existing), changedPaths))
+                    semanticChange = true;
                 for (const indexed of descendants.values()) {
                     const previous = this.#files.get(indexed.relativePath);
                     if (previous?.sha256 === indexed.sha256)
@@ -787,6 +797,8 @@ export class ProjectWorldIndex {
                 }
                 continue;
             }
+            if (this.#dropIndexed(relative, (existing) => existing === relative && entry.isFile(), changedPaths))
+                semanticChange = true;
             if (!entry.isFile())
                 continue;
             const previous = this.#files.get(relative);
@@ -818,6 +830,26 @@ export class ProjectWorldIndex {
         if (changedPaths.size > 0)
             await this.#publish([...changedPaths]);
         this.#state = "ready";
+    }
+    /**
+     * Drop the indexed files at `relative` and below it that `keep` does not name: a changed path that is now gone, a
+     * file or another folder leaves nothing of what was there before. Returns whether a plugin file went.
+     */
+    #dropIndexed(relative, keep, changedPaths) {
+        const descriptorRelative = path.basename(this.projectPath);
+        let pluginChanged = false;
+        for (const existing of [...this.#files.keys()]) {
+            if ((existing !== relative && !existing.startsWith(`${relative}/`)) || keep(existing))
+                continue;
+            this.#deleteIndexedFile(existing);
+            if (isPublicProjectRevisionPath(existing, descriptorRelative))
+                this.#tree.remove(existing);
+            if (existing.startsWith("plugins/"))
+                pluginChanged = true;
+            this.#counters.changedPaths += 1;
+            changedPaths.add(existing);
+        }
+        return pluginChanged;
     }
     async #publish(changedPaths = []) {
         const discovery = this.#discovery;
@@ -901,7 +933,8 @@ export class ProjectWorldIndex {
         if (replacements.length === 0)
             return false;
         const replacementByPath = new Map(replacements.map((item) => [item.previous.resourcePath, item]));
-        const diagnostics = inventory.diagnostics.filter((item) => !item.resourcePath || !replacementByPath.has(item.resourcePath));
+        const diagnostics = inventory.diagnostics.filter((item) => item.code !== "DUPLICATE_SYMBOL"
+            && (!item.resourcePath || !replacementByPath.has(item.resourcePath)));
         const spriteIds = new Set(inventory.assets.filter((asset) => asset.type === "sprite").map((asset) => asset.id));
         const actorsById = previousSnapshot.actorsById;
         const triggersById = previousSnapshot.triggersById;
@@ -945,6 +978,7 @@ export class ProjectWorldIndex {
                 }
             }
         }
+        diagnostics.push(...duplicateSymbolDiagnostics(inventory));
         inventory.diagnostics = diagnostics;
         this.revision = this.#tree.revision();
         this.#snapshot = { ...previousSnapshot, revision: this.revision, diagnostics,
@@ -1101,12 +1135,17 @@ export class ProjectWorldIndex {
         const { descriptor, format } = discovery;
         const diagnostics = [];
         const scenes = [];
+        const scripts = [];
         const palettes = [];
         let settings = {};
         const projectFiles = [...this.#files.values()].filter((item) => item.relativePath.startsWith("project/"))
             .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
         if (format === "legacy") {
             settings = isObject(descriptor.settings) ? descriptor.settings : {};
+            for (const candidate of Array.isArray(descriptor.customEvents) ? descriptor.customEvents : []) {
+                if (isObject(candidate))
+                    scripts.push(scriptSymbolRecord(candidate, path.basename(this.projectPath)));
+            }
             for (const candidate of Array.isArray(descriptor.scenes) ? descriptor.scenes : []) {
                 if (!isObject(candidate))
                     continue;
@@ -1159,6 +1198,8 @@ export class ProjectWorldIndex {
                     .map((item) => materialize(item.json, item.relativePath));
                 scenes.push({ ...materialize(sceneFile.json, sceneFile.relativePath), actors, triggers });
             }
+            for (const file of projectFiles.filter((item) => item.category === "script" && isObject(item.json)))
+                scripts.push(scriptSymbolRecord(file.json, file.relativePath));
             for (const file of projectFiles.filter((item) => item.category === "palette")) {
                 if (!file.json)
                     continue;
@@ -1301,11 +1342,12 @@ export class ProjectWorldIndex {
         else if (format === "distributed" && Number(discovery.version.split(".")[0]) < 4)
             diagnostics.push({ severity: "warning", code: "UNEXPECTED_PROJECT_VERSION",
                 message: `Distributed resources usually require project format version 4 or newer; project declares ${discovery.version}` });
+        diagnostics.push(...duplicateSymbolDiagnostics({ scenes, scripts }));
         const actors = scenes.flatMap((scene) => scene.actors);
         const triggers = scenes.flatMap((scene) => scene.triggers);
         return { ...discovery,
             name: asString(descriptor.name, path.basename(discovery.projectPath, ".gbsproj")), author: asString(descriptor.author),
-            settings, scenes, actors, triggers, palettes, assets, diagnostics,
+            settings, scenes, actors, triggers, scripts, palettes, assets, diagnostics,
             counts: { scenes: scenes.length, actors: actors.length, triggers: triggers.length, palettes: palettes.length, assets: assets.length },
         };
     }

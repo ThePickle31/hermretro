@@ -5,7 +5,6 @@ import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
-import { CHROMATIC_PACKED_V2, readPackedDeviceArtwork } from "../scripts/chromatic-runtime.mjs";
 import { pipeline } from "node:stream/promises";
 import { assertSafePlatformPath, isPathWithinRoot } from "./platform.js";
 import { PreviewStateStore } from "./web-preview-states.js";
@@ -33,6 +32,7 @@ const MAX_CAPTURE_METADATA_BYTES = 2 * 1024 * 1024;
 const MAX_CAPTURE_UPLOAD_BYTES = 128 * 1024 * 1024 + MAX_CAPTURE_METADATA_BYTES + 16 * 1024;
 const ANNOTATION_FILES = ["bridge.js", "native.js", "targets.js", "player.js", "view.js", "save-state.js", "input.js", "remote.js", "audio.js", "flash.js", "flash-diagnostics.js", "recording.js", "recording-protocol.js", "recording-controller.js", "error-dialog.js", "input-protocol.js", "input-owner.js"];
 const DEVICE_IMAGES = ["codex", "cloud", "midnight", "wave", "leaf", "inferno", "volt", "bubblegum", "transparent-green", "transparent-red", "transparent-smoke", "transparent-purple", "supply-co"].map(color => `chromatic-${color}.${color === "supply-co" ? "png" : "webp"}`);
+export const deviceArtworkFile = (filename) => filename.replace(/^chromatic-([a-z0-9-]+)\.(webp|png)$/, "$1/skin.$2");
 const MAX_DEVICE_IMAGE_BYTES = 3 * 1024 * 1024;
 const MIME_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -304,11 +304,8 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
     }
     if (options.deviceAssetsRoot !== undefined) {
         const deviceRoot = path.resolve(options.deviceAssetsRoot);
-        const packed = options.deviceAssetsFormat === CHROMATIC_PACKED_V2.format
-            ? readPackedDeviceArtwork(deviceRoot) : undefined;
         for (const filename of DEVICE_IMAGES) {
-            const bytes = packed ? packed.get(filename)
-                : await readAnnotationFile(deviceRoot, filename, platform, MAX_DEVICE_IMAGE_BYTES);
+            const bytes = await readAnnotationFile(deviceRoot, deviceArtworkFile(filename), platform, MAX_DEVICE_IMAGE_BYTES);
             if (!bytes || bytes.length > MAX_DEVICE_IMAGE_BYTES)
                 throw new Error(`Missing or oversized device artwork: ${filename}`);
             if (filename.endsWith(".png") ? bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" : (bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WEBP")) {

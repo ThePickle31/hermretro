@@ -1,17 +1,18 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { publishNativeImportFile, readNativeImportSnapshot, rollbackNativeImportFile, replaceNativeImportFile, rollbackNativeReplacement, finalizeNativeReplacement, NativeRecoveryConflict, NativeImportFileError } from "./native-import-files.js";
-import { createActorResource, mergeActorChanges, validateActorResource, } from "./actors.js";
+import { createActorResource, IMMUTABLE_KEYS as RESOURCE_IMMUTABLE_KEYS, mergeActorChanges, renamedResourceSymbol, reservedPropertyMessage, takenResourceSymbols, uniqueResourceSymbol, validateActorResource, } from "./actors.js";
 import { applyCollisionEdits } from "./collisions.js";
-import { applyScriptEdit, buildSceneTransitionEvent, } from "./game-scripts.js";
+import { applyScriptEdit, buildSceneTransitionEvent, liftTargetEventId, } from "./game-scripts.js";
 import { applyVariableUpdate } from "./game-variables.js";
 import { nextResourceIndex, projectPathExists, projectRelativePath, readProjectJson, readProjectJsonWithRevision, resolveProjectPath, resourceSlug, stableResourceId, withProjectResourceWriteLock, withProjectWriteLock, writeProjectBytesAtomic, } from "./project-files.js";
 import { PROJECT_REVISION_ALGORITHM, } from "./project-access.js";
 import { loadProjectSnapshot, projectRevision, projectRevisionBeforeAdditions, } from "./project-snapshot.js";
 import { GameStudioProjectError, discoverProject, resolveNativeAssetIdentity, validateNativeSceneUpdate, } from "./project.js";
 import { createTriggerResource, mergeTriggerChanges, validateTriggerResource, } from "./triggers.js";
-import { explicitlyPatchedNativeScriptCoordinates, findInvalidNativeScriptEvent, } from "./native-script-events.js";
+import { explicitlyPatchedNativeScriptValues, findInvalidNativeScriptEvent, withNativeScriptEventIds, } from "./native-script-events.js";
 const MAX_BATCH_OPERATIONS = 100;
 const MAX_INSPECTION_RESOURCES = 100;
 const MAX_INSPECTION_EVENTS = 250;
@@ -58,6 +59,12 @@ function requiredString(value, label) {
         projectError("INVALID_INPUT", `${label} must be a non-empty string`);
     }
     return value.trim();
+}
+function selectedResourceId(fields, key, label) {
+    if (fields[key] !== undefined && fields.id !== undefined && fields[key] !== fields.id) {
+        projectError("INVALID_INPUT", `${label} is given twice: ${key} ${JSON.stringify(fields[key])} and id ${JSON.stringify(fields.id)}; give one of them`);
+    }
+    return requiredString(fields[key] ?? fields.id, label);
 }
 function boundedLimit(value, fallback, maximum, label) {
     if (value === undefined)
@@ -378,15 +385,31 @@ async function createOverlay(snapshot, sceneId) {
         deletedActorIds: new Set(),
         deletedTriggerIds: new Set(),
         deletedVariableIds: new Set(),
+        deletedPaths: new Map(),
         staged: new Map(),
     };
 }
-function operationFields(operation) {
-    if (operation.input !== undefined && !isObject(operation.input)) {
-        projectError("INVALID_INPUT", "Operation input must be a JSON object");
+const OPERATION_SELECTORS = ["sceneId", "actorId", "triggerId", "scriptKey", "eventId", "branchPath"];
+function assertOneSelection(forms) {
+    for (const key of OPERATION_SELECTORS) {
+        const [first, ...others] = forms.filter((form) => form[key] !== undefined);
+        if (others.some((form) => !isDeepStrictEqual(form[key], first[key])))
+            projectError("INVALID_INPUT", `The operation names its ${key} more than once with different values (in input, target or beside them); give it once`);
     }
-    const { type: _type, clientId: _clientId, input, ...rest } = operation;
-    return { ...rest, ...(isObject(input) ? input : {}) };
+}
+function operationFields(operation) {
+    const { type: _type, clientId: _clientId, input = {}, ...rest } = operation;
+    if (!isObject(input))
+        projectError("INVALID_INPUT", "Operation input must be a JSON object");
+    for (const target of [rest.target, input.target]) {
+        if (target !== undefined && !isObject(target))
+            projectError("INVALID_INPUT", "Operation target must be a JSON object");
+    }
+    assertOneSelection([rest, input, rest.target ?? {}, input.target ?? {}]);
+    const target = rest.target === undefined && input.target === undefined
+        ? {}
+        : { target: { ...rest.target, ...input.target } };
+    return { ...rest, ...input, ...target };
 }
 function normalizeOperationType(type) {
     const raw = requiredString(type, "Operation type");
@@ -455,47 +478,69 @@ function replaceLegacyResource(overlay, kind, resourceId, replacement) {
     else
         collection.splice(index, 1);
 }
-function assertUniqueResourceId(overlay, id) {
-    if (overlay.snapshot.actorsById.has(id) || overlay.snapshot.triggersById.has(id) || overlay.snapshot.scenesById.has(id)
-        || overlay.actors.has(id) || overlay.triggers.has(id)) {
+function assertUniqueResourceId(overlay, id, replacing) {
+    const existing = !replacing
+        && (overlay.snapshot.actorsById.has(id) || overlay.snapshot.triggersById.has(id) || overlay.snapshot.scenesById.has(id));
+    if (existing || overlay.actors.has(id) || overlay.triggers.has(id)) {
         projectError("DUPLICATE_RESOURCE_ID", `A resource with id ${id} already exists`);
     }
+}
+function overlaySymbols(overlay, exceptId) {
+    const otherScenes = [...overlay.snapshot.scenesById.values()].filter((scene) => scene.id !== overlay.scene.id);
+    return takenResourceSymbols({ scenes: [...otherScenes, sceneResource(overlay)], scripts: overlay.inventory.scripts, assets: overlay.inventory.assets }, exceptId);
+}
+async function chooseCreatedResource(overlay, kind, name, fields) {
+    const singular = kind === "actors" ? "actor" : "trigger";
+    const requestedId = fields.id === undefined ? undefined : requiredString(fields.id, `${singular[0].toUpperCase()}${singular.slice(1)} id`);
+    const deleted = kind === "actors" ? overlay.deletedActorIds : overlay.deletedTriggerIds;
+    const replacing = requestedId !== undefined && deleted.has(requestedId);
+    const chosen = replacing
+        ? { relativePath: overlay.deletedPaths.get(requestedId) }
+        : overlay.format === "distributed"
+            ? await chooseResourcePath(overlay, kind, name)
+            : { relativePath: overlay.scene.relativePath, slug: resourceSlug(name, singular) };
+    const id = requestedId ?? stableResourceId(overlay.scene.id, singular, chosen.slug);
+    assertUniqueResourceId(overlay, id, replacing);
+    deleted.delete(id);
+    return { id, relativePath: chosen.relativePath };
 }
 async function applyActorOperation(overlay, type, fields) {
     assertKnownScene(fields, overlay.scene.id);
     if (type === "actor.create") {
         const name = requiredString(fields.name, "Actor name");
-        const chosen = overlay.format === "distributed"
-            ? await chooseResourcePath(overlay, "actors", name)
-            : { relativePath: overlay.scene.relativePath, slug: resourceSlug(name, "actor") };
-        const id = fields.id === undefined ? stableResourceId(overlay.scene.id, "actor", chosen.slug) : requiredString(fields.id, "Actor id");
-        assertUniqueResourceId(overlay, id);
+        const chosen = await chooseCreatedResource(overlay, "actors", name, fields);
+        const id = chosen.id;
         const input = { ...fields, sceneId: overlay.scene.id, name };
-        const created = createActorResource(input, id, nextOverlayIndex(overlay.actors), chosen.slug);
+        const created = createActorResource(input, id, nextOverlayIndex(overlay.actors), uniqueResourceSymbol("actor", name, overlaySymbols(overlay)));
         const value = fields.properties === undefined
             ? created
             : mergeActorChanges(created, { sceneId: overlay.scene.id, actorId: id, properties: fields.properties });
-        validateActorResource(overlay.inventory, sceneResource(overlay), value);
+        validateActorResource(overlay.inventory, sceneResource(overlay), value, undefined, overlayScriptProject(overlay));
         const resource = { id, relativePath: chosen.relativePath, value };
         overlay.actors.set(id, resource);
         pushLegacyResource(overlay, "actors", value);
         await markResource(overlay, resource);
         return { resourceId: id, resourcePath: chosen.relativePath };
     }
-    const actorId = requiredString(fields.actorId ?? fields.id, "Actor id");
+    const actorId = selectedResourceId(fields, "actorId", "Actor id");
     const resource = overlay.actors.get(actorId);
     if (!resource)
         projectError("ACTOR_NOT_FOUND", `No actor with id ${actorId} exists in scene ${overlay.scene.id}`);
     if (type === "actor.delete") {
         overlay.actors.delete(actorId);
         overlay.deletedActorIds.add(actorId);
+        overlay.deletedPaths.set(actorId, resource.relativePath);
         replaceLegacyResource(overlay, "actors", actorId);
         await markResource(overlay, resource, true);
         return { resourceId: actorId, resourcePath: resource.relativePath };
     }
-    const merged = mergeActorChanges(resource.value, { ...fields, sceneId: overlay.scene.id, actorId });
+    let merged = mergeActorChanges(resource.value, { ...fields, sceneId: overlay.scene.id, actorId });
+    if (merged.name !== resource.value.name)
+        merged = { ...merged, symbol: renamedResourceSymbol("actor", resource.value, merged, overlaySymbols(overlay, actorId)) };
     validateActorResource(overlay.inventory, sceneResource(overlay), merged, resource.value, {
-        explicitlyPatchedCoordinates: explicitlyPatchedNativeScriptCoordinates(isObject(fields.properties) ? fields.properties : undefined),
+        ...overlayScriptProject(overlay),
+        explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject(fields.properties) ? fields.properties : undefined),
+        properties: isObject(fields.properties) ? fields.properties : undefined,
     });
     resource.value = merged;
     replaceLegacyResource(overlay, "actors", actorId, merged);
@@ -506,37 +551,38 @@ async function applyTriggerOperation(overlay, type, fields) {
     assertKnownScene(fields, overlay.scene.id);
     if (type === "trigger.create") {
         const name = requiredString(fields.name, "Trigger name");
-        const chosen = overlay.format === "distributed"
-            ? await chooseResourcePath(overlay, "triggers", name)
-            : { relativePath: overlay.scene.relativePath, slug: resourceSlug(name, "trigger") };
-        const id = fields.id === undefined ? stableResourceId(overlay.scene.id, "trigger", chosen.slug) : requiredString(fields.id, "Trigger id");
-        assertUniqueResourceId(overlay, id);
+        const chosen = await chooseCreatedResource(overlay, "triggers", name, fields);
+        const id = chosen.id;
         const input = { ...fields, sceneId: overlay.scene.id, name };
-        const created = createTriggerResource(input, id, nextOverlayIndex(overlay.triggers), chosen.slug);
+        const created = createTriggerResource(input, id, nextOverlayIndex(overlay.triggers), uniqueResourceSymbol("trigger", name, overlaySymbols(overlay)));
         const value = fields.properties === undefined
             ? created
             : mergeTriggerChanges(created, { sceneId: overlay.scene.id, triggerId: id, properties: fields.properties });
-        validateTriggerResource(sceneResource(overlay), value);
+        validateTriggerResource(sceneResource(overlay), value, undefined, overlayScriptProject(overlay));
         const resource = { id, relativePath: chosen.relativePath, value };
         overlay.triggers.set(id, resource);
         pushLegacyResource(overlay, "triggers", value);
         await markResource(overlay, resource);
         return { resourceId: id, resourcePath: chosen.relativePath };
     }
-    const triggerId = requiredString(fields.triggerId ?? fields.id, "Trigger id");
+    const triggerId = selectedResourceId(fields, "triggerId", "Trigger id");
     const resource = overlay.triggers.get(triggerId);
     if (!resource)
         projectError("TRIGGER_NOT_FOUND", `No trigger with id ${triggerId} exists in scene ${overlay.scene.id}`);
     if (type === "trigger.delete") {
         overlay.triggers.delete(triggerId);
         overlay.deletedTriggerIds.add(triggerId);
+        overlay.deletedPaths.set(triggerId, resource.relativePath);
         replaceLegacyResource(overlay, "triggers", triggerId);
         await markResource(overlay, resource, true);
         return { resourceId: triggerId, resourcePath: resource.relativePath };
     }
-    const merged = mergeTriggerChanges(resource.value, { ...fields, sceneId: overlay.scene.id, triggerId });
+    let merged = mergeTriggerChanges(resource.value, { ...fields, sceneId: overlay.scene.id, triggerId });
+    if (merged.name !== resource.value.name)
+        merged = { ...merged, symbol: renamedResourceSymbol("trigger", resource.value, merged, overlaySymbols(overlay, triggerId)) };
     validateTriggerResource(sceneResource(overlay), merged, resource.value, {
-        explicitlyPatchedCoordinates: explicitlyPatchedNativeScriptCoordinates(isObject(fields.properties) ? fields.properties : undefined),
+        ...overlayScriptProject(overlay),
+        explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(isObject(fields.properties) ? fields.properties : undefined),
     });
     resource.value = merged;
     replaceLegacyResource(overlay, "triggers", triggerId, merged);
@@ -564,10 +610,15 @@ function resolveScriptOwner(overlay, fields) {
     }
     return { owner: overlay.scene, target };
 }
-async function applyEventOperation(overlay, fields) {
+// What the script checks need to know about the project a batch edits.
+function overlayScriptProject(overlay) {
+    return { projectRoot: overlay.inventory.projectRoot, legacyDescriptor: overlay.format === "legacy" ? overlay.descriptor : undefined };
+}
+async function applyEventOperation(overlay, operation) {
+    const fields = liftTargetEventId(operation);
     const { owner, target } = resolveScriptOwner(overlay, fields);
     const input = { ...fields, ...target, target: { ...target, sceneId: overlay.scene.id } };
-    const edited = applyScriptEdit(owner.value, input);
+    const edited = applyScriptEdit(owner.value, input, overlayScriptProject(overlay));
     owner.value = edited.resource;
     if (owner.id === overlay.scene.id) {
         if (overlay.format === "legacy" && overlay.descriptor) {
@@ -659,8 +710,8 @@ async function applySceneUpdateOperation(overlay, fields) {
     assertSafeValue(properties, "Scene properties", true);
     assertSafeValue(typed, "Scene updates", true);
     const updates = { ...(isObject(properties) ? properties : {}), ...typed };
-    const updated = { ...overlay.scene.value, ...updates };
-    validateNativeSceneUpdate(overlay.scene.value, updated, updates, (id) => resolveNativeAssetIdentity(overlay.inventory, id)?.type === "background");
+    const updated = withNativeScriptEventIds({ ...overlay.scene.value, ...updates });
+    validateNativeSceneUpdate(overlay.scene.value, updated, updates, (id) => resolveNativeAssetIdentity(overlay.inventory, id)?.type === "background", overlayScriptProject(overlay));
     if (overlay.format === "legacy" && overlay.descriptor) {
         const scenes = Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : [];
         const index = scenes.findIndex((scene) => isObject(scene) && scene.id === overlay.scene.id);
@@ -678,6 +729,10 @@ async function applyOperation(overlay, operation, index) {
     const type = normalizeOperationType(operation.type);
     const fields = operationFields(operation);
     assertSafeValue(fields, `Operation ${index}`);
+    for (const key of RESOURCE_IMMUTABLE_KEYS) {
+        if (key !== "id" && fields[key] !== undefined && !(key === "symbol" && type.startsWith("variable.")))
+            projectError("INVALID_PROPERTY", reservedPropertyMessage(`Operation ${index}`, key));
+    }
     let result;
     switch (type) {
         case "actor.create":
@@ -715,16 +770,17 @@ async function applyOperation(overlay, operation, index) {
 function validateFinalGraph(overlay, indexedAccess) {
     const selected = sceneResource(overlay);
     const originalScene = overlay.snapshot.scenesById.get(overlay.scene.id);
-    const invalidScene = findInvalidNativeScriptEvent(overlay.scene.value, originalScene);
+    const project = overlayScriptProject(overlay);
+    const invalidScene = findInvalidNativeScriptEvent(overlay.scene.value, originalScene, project);
     if (invalidScene)
         projectError("INVALID_EVENT", invalidScene.message);
     for (const actor of overlay.actors.values()) {
         const original = originalScene?.actors.find((candidate) => candidate.id === actor.id);
-        validateActorResource(overlay.inventory, selected, actor.value, original);
+        validateActorResource(overlay.inventory, selected, actor.value, original, project);
     }
     for (const trigger of overlay.triggers.values()) {
         const original = originalScene?.triggers.find((candidate) => candidate.id === trigger.id);
-        validateTriggerResource(selected, trigger.value, original);
+        validateTriggerResource(selected, trigger.value, original, project);
     }
     const deletedResources = overlay.deletedActorIds.size > 0
         || overlay.deletedTriggerIds.size > 0
@@ -1239,6 +1295,9 @@ export async function applyPreparedProjectTransaction(projectPath, input, prepar
         };
     });
 }
+function stagedChange(entry) {
+    return entry.after === null ? entry.before !== null : !entry.before?.equals(stagedBytes(entry.after));
+}
 function transactionResult(snapshot, sceneId, staged, operationResults, dryRun, revision) {
     return {
         projectPath: snapshot.projectPath,
@@ -1248,7 +1307,10 @@ function transactionResult(snapshot, sceneId, staged, operationResults, dryRun, 
         revisionAlgorithm: PROJECT_REVISION_ALGORITHM,
         previousRevision: snapshot.revision,
         dryRun,
-        changedPaths: [...staged.keys()].sort((left, right) => left.localeCompare(right)),
+        changedPaths: [...staged.values()]
+            .filter(stagedChange)
+            .map((entry) => entry.relativePath)
+            .sort((left, right) => left.localeCompare(right)),
         operationResults,
         transactionGuarantee: snapshot.inventory.format === "legacy" ? "legacy-single-file-atomic" : "distributed-best-effort-rollback",
     };

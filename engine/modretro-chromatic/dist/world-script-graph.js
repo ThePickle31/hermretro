@@ -118,7 +118,7 @@ async function resourceFiles(root, directory) {
     }
     return result;
 }
-async function supplementalResources(root, options) {
+export async function supplementalResources(root, options) {
     const result = [];
     const candidates = [];
     if (options.filesByPath) {

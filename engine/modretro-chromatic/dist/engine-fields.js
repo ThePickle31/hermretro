@@ -5,7 +5,7 @@ import { discoverProject, GameStudioProjectError, } from "./project.js";
 export const MAX_ENGINE_FIELD_INSPECTION = 250;
 export const MAX_ENGINE_FIELD_UPDATES = 100;
 export const MAX_ENGINE_FIELD_STRING_LENGTH = 1_024;
-const ENGINE_FIELD_RESOURCE_PATH = "project/engine_field_values.gbsres";
+export const ENGINE_FIELD_RESOURCE_PATH = "project/engine_field_values.gbsres";
 function isObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -14,7 +14,7 @@ function assertFieldIdentifier(id) {
         throw new GameStudioProjectError("INVALID_INPUT", "Engine field IDs must contain between 1 and 256 non-padding characters");
     }
 }
-function fieldEntries(resource, legacy, filename) {
+export function fieldEntries(resource, legacy, filename) {
     if (!legacy && resource._resourceType !== "engineFieldValues") {
         throw new GameStudioProjectError("INVALID_RESOURCE", "Distributed engine field overrides must use the engineFieldValues resource type", filename);
     }
@@ -50,7 +50,7 @@ function assertIndexedProject(projectPath, access) {
         throw new GameStudioProjectError("STALE_PROJECT", "Indexed project access uses an obsolete project revision algorithm");
     }
 }
-async function selectEngineFields(projectPath, access, authoritative = false) {
+export async function selectEngineFields(projectPath, access, authoritative = false) {
     if (access) {
         assertIndexedProject(projectPath, access);
         await access.ensureFresh();

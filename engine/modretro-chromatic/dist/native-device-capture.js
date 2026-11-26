@@ -4,10 +4,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { z } from "zod";
-import { CHROMATIC_PACKED_V2, readPackedDeviceArtwork } from "../scripts/chromatic-runtime.mjs";
 import { PreviewCaptureStore, validatePng } from "./web-preview-captures.js";
 import { listenLoopback } from "./loopback-listener.js";
 import { DEVICE_CAPTURE_IMAGES } from "./device-capture/page.js";
+import { deviceArtworkFile } from "./web-preview.js";
 import { NATIVE_CAPTURE_PAGE } from "./device-capture/native-page.js";
 import { NativeHelperProcess, NativeHelperError } from "./device-capture/native-helper.js";
 import { LinuxNativeHelper } from "./device-capture/linux-helper.js";
@@ -139,9 +139,8 @@ export class NativeDeviceCaptureService {
             for (const name of ASSETS)
                 assets.set(name, await readFile(path.join(this.options.assetsRoot, name)));
             const artRoot = this.options.deviceAssetsRoot ?? path.resolve(this.options.assetsRoot, "../assets/devices");
-            const packed = this.options.deviceAssetsFormat === CHROMATIC_PACKED_V2.format ? readPackedDeviceArtwork(artRoot) : undefined;
             for (const name of DEVICE_CAPTURE_IMAGES) {
-                const data = packed ? packed.get(path.basename(name)) : await readBoundedCaptureAsset(path.join(artRoot, path.basename(name)), 3 * 1024 * 1024);
+                const data = await readBoundedCaptureAsset(path.join(artRoot, deviceArtworkFile(path.basename(name))), 3 * 1024 * 1024);
                 if (!data || data.length > 3 * 1024 * 1024 || (data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" && (data.toString("ascii", 0, 4) !== "RIFF" || data.toString("ascii", 8, 12) !== "WEBP")))
                     throw new Error("Device artwork is invalid.");
                 assets.set(name, data);

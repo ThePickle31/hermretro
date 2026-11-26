@@ -115,7 +115,7 @@ function parse(bytes) {
     }
 }
 /** Exact normalized 8×16 source patterns, independent of placement, palette and flip flags. Not compiled allocation. */
-function pattern(image, x, y) {
+export function pattern(image, x, y) {
     let result = "";
     for (let py = y; py < y + 16; py++)
         for (let px = x; px < x + 8; px++) {
