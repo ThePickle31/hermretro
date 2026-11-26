@@ -219,7 +219,7 @@ to code collection.
   change, cartridge detection, live demo or write.
 - With hardware on, every `chromatic_flash`, `chromatic_play` and `chromatic_setup` call goes through
   Hermes's approval prompt, which shows the ROM path, size and SHA-256 or the setup command; an approval
-  covers that one request only. You cannot approve for the user, and a denied or unanswered prompt leaves
+  covers that one request only. `chromatic_device_capture` asks too for `connect` and `start_recording`. You cannot approve for the user, and a denied or unanswered prompt leaves
   the tool unrun. If the user turned Approvals off in Hermes, these calls run without asking, so the
   consent rules above still apply in full.
 - One hardware or setup operation runs at a time on this computer (`OPERATION_IN_PROGRESS`): read the
