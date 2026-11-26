@@ -14,8 +14,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.library import install_swap, layout  # noqa: E402 - the repository root goes on sys.path first
+from backend.library import game_card, install_swap, layout  # noqa: E402 - the repository root goes on sys.path first
 from backend.library.install_swap import SwapError  # noqa: E402
+from backend.system import paths  # noqa: E402
 from tests.support import isolated_home, make_game_folder  # noqa: E402
 
 
@@ -142,6 +143,10 @@ class Swap(unittest.TestCase):
         self.assertEqual(json.loads((self.root / "project" / "scene.gbsres").read_text()), {"v": 2})
 
     def test_keep_both_puts_the_remix_identity_back_when_a_step_fails(self):
+        template = (paths.ENGINE_ROOT / "examples" / "starter" / "LICENSE").read_bytes()
+        (self.root / "LICENSE").write_bytes(template)  # the remix's ensure would write the card's licence over it
+        game_card.set_fields(self.root, {"license": "MIT"})
+        layout.write_state(self.root, layout.INSTALL_FILE, {"source": "x", "commit": "c" * 40, "mode": "game+source"})
         card = (self.root / "game.json").read_text()
         remix = self.games / "Space Game (edited)"
         real_rename = os.rename
@@ -154,6 +159,7 @@ class Swap(unittest.TestCase):
         with mock.patch.object(install_swap.os, "rename", side_effect=rename), self.assertRaises(SwapError):
             install_swap.keep_both(self.root, self.new, lambda: remix, self.lock, FakeRegistry())
         self.assertEqual((self.root / "game.json").read_text(), card)
+        self.assertEqual((self.root / "LICENSE").read_bytes(), template, "the author's LICENSE is put back too")
         self.assertEqual(layout.game_identity(self.root), "ab" * 16)
         self.assertFalse(remix.exists())
 

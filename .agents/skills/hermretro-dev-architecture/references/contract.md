@@ -599,12 +599,12 @@ built game as changed. Unknown keys are kept (later fields need no migration).
 - **Written by hermretro** (`layout.ensure` and, after each successful build of the game's ROM, `build_record.record_build`
   with the build's own `outputPath` and ROM SHA-256): `id`, `gameVersion`, `rom`, `format`, `romSha256`, `builtWith`,
   and `LICENSE` from `license` (when missing, or one it wrote: their digests are `.hermretro/licence.json`, so one a
-  history restore brings back is still its own, and so is the engine template's, GB Studio's own; a `LICENSE` of the
-  user's own is kept, and an update never carries the
+  history restore brings back is still its own, and in a game made here the engine template's, GB Studio's own, is
+  replaced; an installed game's `LICENSE` is its author's and a `LICENSE` of the user's own is kept, and an update never carries the
   record). `format`, `romSha256`, `builtWith` and that `LICENSE` never count as an edit of an installed game.
 - **Publishing** (`publish_ready.readiness(root, source=, last_build=)` → `{ ok, problems, warnings }`, `last_build`
   the library's `lastBuild`): the layout's problems (incl. `FORMAT_NEWER`), `CARD`, `NO_LICENSE`, `NO_LICENSE_TEXT`,
-  `LICENSE_STALE` (the `LICENSE` hermretro wrote, or the template's, is another licence), `NO_ROM`, `ROM_OLD` (`pipeline.rom_state`: not
+  `LICENSE_STALE` (the `LICENSE` hermretro wrote, or a made-here game's template one, is another licence), `NO_ROM`, `ROM_OLD` (`pipeline.rom_state`: not
   the last build of the sources by their digest), `ROM_UNFIT` (not a ROM a Chromatic cartridge holds, `cartridge.py`),
   `ROM_SHA_STALE` (`romSha256` is not this ROM: build again), `NO_SOURCE`, the scan's blocking findings, and
   `INSTALL_<code>`: what an install of exactly the published files would refuse (`install_git.tree_problems`,

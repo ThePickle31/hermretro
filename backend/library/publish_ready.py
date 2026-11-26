@@ -64,7 +64,7 @@ def licence_problems(root: Path, card: dict) -> list[dict]:
     path = Path(root) / licence.LICENSE_FILE
     if not (path.is_file() and not path.is_symlink()):
         return [_finding("NO_LICENSE_TEXT", licence.LICENSE_FILE, "The game has no LICENSE file for its licence.")]
-    if layout.licence_owned(root, path) and path.read_text(encoding="utf-8", errors="replace") != licence.text(
+    if layout.licence_replaceable(root, path) and path.read_text(encoding="utf-8", errors="replace") != licence.text(
         root, card
     ):
         return [

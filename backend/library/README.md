@@ -142,7 +142,8 @@ compares the game's files with its `fingerprint` (`installed_digest`, below).
 
 `licence.py` holds the licences a card may name (`LICENSES`) and the `LICENSE` text of each; `layout.ensure` writes
 it (never over a `LICENSE` of the user's own; the digests of those it wrote are `.hermretro/licence.json`, which an
-update never carries; the engine template's `LICENSE`, GB Studio's own that every new game starts with, is replaced). After each successful build of a game's ROM, `build_record.record_build` records that file's
+update never carries; in a game made here the engine template's `LICENSE`, GB Studio's own that every new game starts with, is replaced;
+an installed game's `LICENSE` is always its author's). After each successful build of a game's ROM, `build_record.record_build` records that file's
 `romSha256` and `builtWith` (the engine, and GB Studio's version and commit when the CLI the build ran is the one the
 toolchain's setup installed) in `game.json`; `layout.ensure` gives an older game its `format`. Two library folders that hold
 one game (one id) carry `duplicateId` in the games RPC.
