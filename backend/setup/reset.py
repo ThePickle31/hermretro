@@ -110,7 +110,7 @@ def _log_files() -> list[Path]:
 
 def _capture_folders(data: Path) -> list[Path]:
     # The library's captures/ holds the demo cartridge's (player.demo_captures_root), and only that folder is ours.
-    demo = [folder / DEMO_ID for folder in _in_library(CAPTURES)]
+    demo = [folder / DEMO_ID for folder in _in_library(CAPTURES) if _real_folder(folder)]
     return [data / "frames", *demo, *(root / CAPTURES for root in _own_games())]
 
 
@@ -134,7 +134,7 @@ def _delete_chats() -> dict:
         return {"ok": False, "code": "NOT_OURS", "error": "The hermretro profile is not one hermretro made."}
     try:
         last = None
-        found = len(_chat_ids())
+        deleted = 0
         for _round in range(CHAT_ROUNDS):
             ids = _chat_ids()
             if not ids:
@@ -142,6 +142,7 @@ def _delete_chats() -> dict:
             for session in ids:
                 try:
                     studio_profile.run_hermes(studio_profile.studio_dir(), "sessions", "delete", session, "--yes")
+                    deleted += 1
                 except studio_profile.StudioProfileError as error:
                     last = str(error)
         left = _chat_ids()
@@ -152,9 +153,15 @@ def _delete_chats() -> dict:
             "ok": False,
             "code": "CHATS_LEFT",
             "error": f"{len(left)} studio chats could not be deleted ({last}).",
-            "partly": len(left) < found,
+            "partly": deleted > 0,
         }
     return {"ok": True, "removed_bytes": 0}
+
+
+def _profile_holds_data() -> bool:
+    studio = studio_profile.studio_dir().resolve()
+    folders = (paths.hermretro_home(), paths.games_dir(), paths.library_dir(), paths.DEPS_ROOT)
+    return any(folder.resolve().is_relative_to(studio) for folder in folders)
 
 
 def plan(data: Path) -> dict:
@@ -172,8 +179,9 @@ def plan(data: Path) -> dict:
             "games": {"bytes": _bytes(*_places("games", data)), "count": len(_game_roots())},
             "history": {"bytes": _bytes(*_places("history", data))},
             "chats": {"count": chats},
-            # Whether the hermretro profile is the one this plugin made: only then may its chats or itself go.
-            "profile": {"ours": studio_profile.studio_is_ours()},
+            # Whether the hermretro profile is the one this plugin made: only then may its chats or itself go. `holds`:
+            # hermretro's own folders are inside it (configured there), so deleting it would take them too.
+            "profile": {"ours": studio_profile.studio_is_ours(), "holds": _profile_holds_data()},
             "settings": {},
             "toolchain": {"bytes": 0 if custom else _bytes(paths.DEPS_ROOT), "custom": custom},
             "logs": {"bytes": _bytes(*_places("logs", data))},
@@ -212,7 +220,8 @@ def _places(part: str, data: Path) -> list[Path]:
 def clear(part: str, data: Path, homes: list[Path]) -> dict:
     """Delete one part. Answers ``{ok: true, removed_bytes}``; the toolchain answers as Setup's removal does."""
     if part == "toolchain":
-        return provision.remove_downloads()
+        removed = provision.remove_downloads()
+        return {**removed, "partly": not removed.get("ok") and removed.get("removed_bytes", 0) > 0}
     if part == "chats":
         return _delete_chats()
     if part == "settings":

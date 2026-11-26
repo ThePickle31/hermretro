@@ -34,12 +34,6 @@ export function appProfile() {
   }
 }
 
-/** Whether `target` still reaches the Hermes it was chosen on (`here`, and for a target without a route the profile the
- *  app was on then, `ambient`): the app switching connection or profile must not move a confirmed reset. */
-function stillOn(target, here, ambient) {
-  return !target || (target.route ? connectionOf(target) === here : connectionOf(target) === here && appProfile() === ambient)
-}
-
 // What the page remembers across the reload an update ends with, so the settings page that loads says how it went.
 export const RESET_MARKER = 'resetDone'
 
@@ -71,6 +65,7 @@ export function settleChoices(choices, locked = {}) {
   }
 
   takes('profile', 'chats', 'Deleted with the studio profile')
+  takes('profile', 'settings', 'Deleted with the studio profile')
   takes('profile', 'history', 'Deleted with the studio profile')
   takes('games', 'history', 'Deleted with Games')
 
@@ -129,6 +124,14 @@ export function forgetReset(ctx) {
   remember(ctx, RESET_MARKER, null)
 }
 
+function stored(ctx, key) {
+  try {
+    return ctx.storage.get(key, null)
+  } catch {
+    return null
+  }
+}
+
 function remember(ctx, key, value) {
   try {
     ctx.storage.set(key, value)
@@ -147,19 +150,14 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
   const gone = new Set()
   // What is still there: the parts no finished step deleted (the profile takes its chats and build history).
   const kept = () => RESET_PARTS.filter(part => !gone.has(part.id)).map(part => part.label)
-  // `here`: the restart after a reload checks it too.
-  const summary = { deleted: 0, kept: kept(), failed: null, update: null, from: version, here }
+  // `here` and `ambient`: the restart after a reload checks them too.
+  const summary = { deleted: 0, kept: kept(), failed: null, update: null, from: version, here, ambient }
   const profileGone = choices.profile === 'delete'
 
   for (const [index, step] of steps.entries()) {
     onStep(index)
 
     try {
-      // Every step goes to the Hermes the choices were made on: never to another the app switched to meanwhile.
-      if (![target, gone.has('profile') ? null : studio, step.id === 'update' ? install : null].every(each => stillOn(each, here, ambient))) {
-        throw new Error('Hermes is on another connection or profile now.')
-      }
-
       // A turn under way must not lose its game or its chat: before each step, nothing may be running in the studio
       // (a chat started from elsewhere after the first check is caught at the next step).
       if (step.id !== 'update' && !gone.has('profile')) {
@@ -182,6 +180,8 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
         remember(ctx, RESET_MARKER, summary)
         summary.update = await runUpdate({
           install,
+          // An earlier update that installed but did not finish loading is finished, never read as up to date.
+          resume: Boolean(stored(ctx, UPDATE_PENDING)),
           studio: profileGone ? null : studio,
           busy: () => busyChats(profileGone ? null : studio),
           // The stop step was refused while the toolchain installed, and the update lock (held from the start of the

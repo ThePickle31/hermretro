@@ -18,13 +18,21 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
       toolchain: { bytes: 2.4e9, custom: false }, logs: { bytes: 15e6 }
     }
   }
-  scenario.routes = [STUDIO]
+  // Every profile on this connection has a route (Hermes lists the app's own too); the reset uses only routes.
+  const HOME = { connectionId: 'local', profile: 'default', targetProfile: 'default' }
+  scenario.routes = [STUDIO, HOME]
   let version = '1.2.3'
   let updated = false
   scenario.byMethod['plugin.hermretro.status'] = () => ({ ok: true, plugin: { version, installed_in: installedIn }, profile: { studio: { exists: true } } })
   scenario.byMethod['plugins.manage'] = params => { log.push(`update:${params.action}`); return updated ? { ok: true } : { ok: true, unchanged: true } }
   scenario.byMethod['plugin.hermretro.studio_profile'] = () => ({ ok: true })
   scenario.requestProfileHook = (route, method, params) => {
+    // The profile hermretro is installed in answers as the app's own does.
+    if (route.profile === 'default') {
+      const answer = scenario.byMethod[method]
+      if (!answer) throw Object.assign(new Error('unknown method'), { code: -32601 })
+      return typeof answer === 'function' ? answer(params) : answer
+    }
     if (method === 'plugin.hermretro.reset_plan') return plan
     if (method === 'plugin.hermretro.reset') { log.push(params.part); return { ok: true, removed_bytes: 1e6 } }
     if (method === 'session.active_list') return { sessions: active }
@@ -54,6 +62,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   check('the dialog lists every part with what it holds; only Games is kept at first', () => {
     assert.match(said(), /Games14 games · 130 MB/)
     assert.match(said(), /Studio chats2 chats · Deleted with the studio profile/)
+    assert.match(said(), /Plugin settingsDeleted with the studio profile/)
     assert.match(said(), /Toolchain & engine2\.4 GB/)
     assert.deepEqual(['Games', 'Build history', 'Toolchain & engine'].map(chosen), ['Keep', 'Delete', 'Delete'])
   })
@@ -124,7 +133,26 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   check('closing it forgets the summary', () => { assert.equal(scenario.storage.resetDone ?? null, null) })
   updated = false; version = '1.2.3'
 
+  log.length = 0; scenario.storage.updatePending = { at: 1, error: 'the hermretro profile did not reload' }
+  await open(); await pick('Studio profile', 'Keep'); await confirm()
+  check('an update that installed but did not finish loading is finished, not read as up to date', () => {
+    assert.equal(scenario.storage.resetDone.update.kind, 'updated')
+    assert.equal(scenario.storage.updatePending, null)
+    assert.ok(log.includes('studio:toggle'))
+  })
+  await click('Close', dialog())
+
+  plan.parts.profile = { ours: true, holds: true }
+  await open()
+  check('a studio profile that holds the games stays', () => {
+    assert.match(said(), /Studio profileModel, sign-in, SOUL · Holds your games/)
+    assert.equal(chosen('Studio profile'), 'Keep')
+  })
+  await click('Cancel', dialog())
+  plan.parts.profile = { ours: true }
+
   log.length = 0
+  const restarts = scenario.calls.filter(call => call[0] === 'restartGateway').length
   await open(); await pick('Studio profile', 'Keep')
   const step = scenario.requestProfileHook
   scenario.requestProfileHook = (route, method, params) => {
@@ -132,11 +160,18 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     return step(route, method, params)
   }
   await confirm()
-  check('the app switching profile partway never sends the update to the other profile', () => {
-    assert.deepEqual(log, ['stop', 'history', 'logs', 'chats', 'settings', 'toolchain'])
-    assert.match(said(), /Stopped atUpdating hermretro: Hermes is on another connection or profile now/)
+  check('the app switching profile partway moves nothing: every call keeps its own route, the update too', () => {
+    assert.deepEqual(log, ['stop', 'history', 'logs', 'chats', 'settings', 'toolchain', 'update:update'])
+    assert.ok(scenario.calls.some(call => call[0] === 'requestProfile' && call[1] === 'default' && call[2] === 'plugins.manage'))
+    assert.ok(!scenario.calls.some(call => call[0] === 'request' && call[1] === 'plugins.manage'), 'never through the app\'s own connection')
+    assert.match(said(), /hermretro is reset/)
   })
-  scenario.requestProfileHook = step; scenario.appProfile = undefined
+  scenario.requestProfileHook = step
+  await click('Reload & restart gateway', dialog()); await settle()
+  check('the restart is refused once the app is on another profile than the reset ran on', () => {
+    assert.equal(scenario.calls.filter(call => call[0] === 'restartGateway').length, restarts)
+  })
+  scenario.appProfile = undefined
   await click('Close', dialog())
 
   log.length = 0; active = [{ status: 'working', title: 'Frog Post' }]

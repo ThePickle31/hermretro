@@ -11,13 +11,10 @@ import { appProfile, connectionOf, DEFAULT_CHOICES, forgetReset, pendingReset, r
 
 const NO_PROFILE = 'No studio profile'
 
-/** `profile` on the Hermes connection `here`: the app itself when it is on that profile there, else that profile's
- *  route there; null when there is none. A profile of the same name on another connection is never picked. */
+/** `profile` on the Hermes connection `here`, always through its own route (so a call reaches that profile there
+ *  whatever the app switches to meanwhile); null when there is none. A profile of the same name on another connection
+ *  is never picked. */
 async function profileOn(profile, here) {
-  if (appProfile() === profile && connectionOf({ route: null }) === here) {
-    return { route: null, profile }
-  }
-
   const routes = typeof host.profileRoutes === 'function' ? ((await host.profileRoutes()) ?? []) : []
   const route = routes.find(candidate => routeProfile(candidate) === profile && (candidate.connectionId || 'local') === here)
 
@@ -28,6 +25,7 @@ async function profileOn(profile, here) {
  *  answered), and what each part holds. A profile the status says is there but that cannot be reached is an error,
  *  never read as "none". */
 async function readContext() {
+  const before = connectionOf({ route: routing.route })
   const { data: status } = await callBackend(RPC_STATUS)
 
   if (!status?.ok) {
@@ -35,6 +33,11 @@ async function readContext() {
   }
 
   const here = connectionOf({ route: routing.route })
+
+  if (here !== before) {
+    throw new Error('Hermes switched to another connection. Try again.')
+  }
+
   const installedIn = status.plugin?.installed_in ?? null
   const studio = status.profile?.is_studio || status.profile?.studio?.exists ? await profileOn(STUDIO_PROFILE, here) : null
   const installProfile = installedIn?.linked ? null : (installedIn?.profile ?? null)
@@ -48,8 +51,15 @@ async function readContext() {
     throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)
   }
 
-  // The backend's parts read this profile's plugin data (build history): the hermretro profile's when there is one.
-  const target = studio ?? { route: routing.route, profile: routing.profile }
+  // The backend's parts read this profile's plugin data (build history): the hermretro profile's when there is one,
+  // else the one that answered.
+  const answered = routing.profile ?? appProfile()
+  const target = studio ?? (await profileOn(answered, here))
+
+  if (!target) {
+    throw new Error(`The ${answered} profile cannot be reached right now.`)
+  }
+
   const plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
 
   if (!plan?.ok) {
@@ -63,7 +73,7 @@ async function readContext() {
 
   return {
     here,
-    // The profile the app is on: a call without a route goes there, so the reset stops if the app moves.
+    // The profile the app is on: the restart (which goes to the app's own gateway) checks it is still there.
     ambient: appProfile(),
     target,
     studio,
@@ -72,7 +82,7 @@ async function readContext() {
     parts: plan.parts,
     locked: {
       chats: ours,
-      profile: ours ?? (holdsPlugin ? 'hermretro is installed here' : typeof host.deleteProfile !== 'function' ? 'Update Hermes to delete it' : null),
+      profile: ours ?? (holdsPlugin ? 'hermretro is installed here' : plan.parts.profile?.holds ? 'Holds your games' : typeof host.deleteProfile !== 'function' ? 'Update Hermes to delete it' : null),
       toolchain: plan.parts.toolchain?.custom ? 'A folder you chose' : null
     }
   }
@@ -162,8 +172,9 @@ export function useReset(ctx) {
     try {
       // The gateway restarted is the app's current one: not when Hermes has switched to another since the reset.
       const here = state.context?.here ?? state.summary?.here
+      const ambient = state.context?.ambient ?? state.summary?.ambient
 
-      if (here && connectionOf({ route: null }) !== here) {
+      if ((here && connectionOf({ route: null }) !== here) || (ambient && appProfile() !== ambient)) {
         throw new Error('Hermes is on another connection now.')
       }
 

@@ -23,6 +23,11 @@ _WRITING = threading.Lock()
 _pauses = 0
 
 
+def pauses() -> int:
+    """How many deletes have paused the captures so far: a capture noted before one must not be written after it."""
+    return _pauses
+
+
 @contextmanager
 def captures_paused():
     """No capture is written while this is held (one in progress finishes first), and none asked for meanwhile is
@@ -73,7 +78,14 @@ def _free_name(directory: Path, stem: str, extension: str) -> Path:
 
 
 def save_capture(
-    root: Path, identifier: str, kind: str, media: bytes, media_type: str, metadata, extra: dict | None = None
+    root: Path,
+    identifier: str,
+    kind: str,
+    media: bytes,
+    media_type: str,
+    metadata,
+    extra: dict | None = None,
+    asked: int | None = None,
 ) -> dict:
     """Write ``<project>/captures/<iso>-<kind>.<ext>`` and its ``.json`` sidecar; return the receipt the
     player checks (``id``, ``kind``, ``bytes``, ``path``, ``metadataPath``, ``sha256``, ``createdAt``, urls)."""
@@ -89,7 +101,8 @@ def save_capture(
         extension = "mp4"
     else:
         extension = "webm"
-    asked = _pauses
+    # `asked`: the pause count when the request began (before an upload's body was read), else now.
+    asked = _pauses if asked is None else asked
     with _WRITING:
         # Deleted meanwhile (the factory reset): no captures folder comes back.
         if _pauses != asked:

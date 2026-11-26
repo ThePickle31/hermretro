@@ -185,7 +185,7 @@ class Reset(unittest.TestCase):
     def test_a_hermretro_profile_hermretro_did_not_make_keeps_its_chats(self):
         self._chats([("a", None)])
         with mock.patch.object(studio_profile, "run_hermes") as ran:
-            self.assertEqual(reset.plan(self.data)["parts"]["profile"], {"ours": False})
+            self.assertEqual(reset.plan(self.data)["parts"]["profile"], {"ours": False, "holds": False})
             answer = reset.clear("chats", self.data, [])
         self.assertEqual(answer["code"], "NOT_OURS")
         ran.assert_not_called()
@@ -237,6 +237,23 @@ class Reset(unittest.TestCase):
             (self.places.home / "library" / "games.json").is_file(),
             "so a retry still finds the game",
         )
+
+    def test_a_studio_profile_holding_the_games_says_so(self):
+        with mock.patch.dict(os.environ, {"HERMRETRO_GAMES_DIR": str(self.studio / "games")}):
+            self.assertTrue(reset.plan(self.data)["parts"]["profile"]["holds"])
+
+    def test_a_linked_captures_folder_in_the_library_is_never_followed(self):
+        library = self.places.home / "library"
+        elsewhere = self.places.base / "elsewhere-captures"
+        write(elsewhere / "demo" / "shot.png", 4)
+        (library / "captures").symlink_to(elsewhere)
+        reset.clear("logs", self.data, [])
+        self.assertTrue((elsewhere / "demo" / "shot.png").is_file())
+
+    def test_the_toolchain_says_when_it_went_in_part(self):
+        partial = {"ok": False, "code": "PARTLY_REMOVED", "removed_bytes": 10, "left_bytes": 5}
+        with mock.patch.object(reset.provision, "remove_downloads", lambda: partial):
+            self.assertTrue(reset.clear("toolchain", self.data, [])["partly"])
 
     def test_games_leave_the_demo_captures_to_logs(self):
         write(self.places.home / "library" / CAPTURES_DEMO, 4)

@@ -56,6 +56,16 @@ class CaptureRootTest(unittest.TestCase):
             player.save_capture(root, "aaa111aaa111", "screenshot", PNG_MAGIC + b"x", "image/png", None)
         self.assertFalse(root.exists(), "a game that is gone gets no folder again")
 
+    def test_an_upload_begun_before_a_pause_ended_is_not_saved_after_it(self):
+        root = self.places.base / "Owl"
+        root.mkdir()
+        asked = player.captures.pauses()  # the request arrives, its body still uploading
+        with player.captures_paused():
+            pass  # the reset deletes meanwhile
+        with self.assertRaises(player.PlayerError):
+            player.save_capture(root, "aaa111aaa111", "screenshot", PNG_MAGIC + b"x", "image/png", None, asked=asked)
+        self.assertFalse((root / "captures").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
