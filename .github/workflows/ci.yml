@@ -91,6 +91,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: tools/engine/npm/package-lock.json
+      # The engine's build tools: tests/repo/test_engine_bundle.py builds a small engine with them on each system.
+      - name: Install the engine's build tools
+        run: npm ci --prefix tools/engine/npm --ignore-scripts --no-audit --no-fund
       - name: Unit tests
         run: python tools/check.py unit --strict
 

@@ -62,7 +62,8 @@ Every folder in the repository.
 | `tools/` | Developer tools; check.py runs every check |
 | `tools/bundle/` | Builds page/ into the generated files and lints it (ESLint config and the boundary rules) |
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
-| `tools/engine/` | Engine helpers: manifest, schema reconciliation, the update to a new release and its report |
+| `tools/engine/` | Engine helpers: manifest, schema reconciliation, the update to a new release and its report, the bundle built from the engine's modules (`bundle.mjs`) and the module-by-module comparison of two bundles (`compare_bundles.mjs`) |
+| `tools/engine/npm/` | Pinned npm tools for building the engine's bundle: its esbuild and the packages it includes |
 | `tools/debug/` | Debugging helpers for a running gateway |
 | `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview, and the sandbox (a private Hermes with a scripted model and a headless browser) (python tools/dev) |
 | `tools/npm/` | Pinned npm tools for development only |

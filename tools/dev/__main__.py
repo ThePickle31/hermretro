@@ -1,6 +1,7 @@
 """python tools/dev <command>: the development loop against the Hermes on this machine.
 
-  setup             make this checkout ready: the pinned npm tools and ruff (does only what is missing)
+  setup             make this checkout ready: the pinned npm tools (page and engine) and ruff (does only what
+                    is missing)
   status            which checkout each profile loads, and whether a gateway is running
   live [PATH|main]  make this checkout (or PATH, or the main checkout) the one Hermes loads, and reload it
   reload            reload the plugin in the running gateway after a backend change (no restart)
@@ -69,12 +70,14 @@ def desktop_source(given: str | None) -> Path:
 
 
 def cmd_setup(args) -> int:
-    lock = TOP / "tools" / "npm" / "package-lock.json"
-    installed = TOP / "tools" / "npm" / "node_modules" / ".package-lock.json"
-    if not installed.is_file() or installed.stat().st_mtime < lock.stat().st_mtime:
-        subprocess.run(
-            ["npm", "ci", "--prefix", "tools/npm", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=TOP, check=True
-        )
+    # The page's tools, and the engine's (its esbuild and the packages its bundle includes, tools/engine/bundle.mjs).
+    for folder in ("tools/npm", "tools/engine/npm"):
+        lock = TOP / folder / "package-lock.json"
+        installed = TOP / folder / "node_modules" / ".package-lock.json"
+        if not installed.is_file() or installed.stat().st_mtime < lock.stat().st_mtime:
+            subprocess.run(
+                ["npm", "ci", "--prefix", folder, "--ignore-scripts", "--no-audit", "--no-fund"], cwd=TOP, check=True
+            )
     subprocess.run([sys.executable, "tools/py/setup.py"], cwd=TOP, check=True)
     print(f"ready: {TOP}")
     return 0

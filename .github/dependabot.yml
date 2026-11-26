@@ -5,11 +5,20 @@
 #
 # The vendored engine (engine/modretro-chromatic) is hash-pinned (engine/pins/<version>/manifest.json) and changes
 # only by the maintainer's hand: Dependabot opens no pull requests for it, security ones included (ignore "*"
-# applies to both). Its alerts stay visible; accepted ones are explained in .github/SECURITY.md.
+# applies to both). Its alerts stay visible; accepted ones are explained in .github/SECURITY.md. tools/engine/npm, the
+# tools that build the engine's bundle, holds the same packages at the same versions (tests/repo/test_engine_bundle.py)
+# and moves with the engine, so it gets no pull requests either.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /engine/modretro-chromatic
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
+  - package-ecosystem: npm
+    directory: /tools/engine/npm
     schedule:
       interval: monthly
     open-pull-requests-limit: 0

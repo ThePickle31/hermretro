@@ -1,0 +1,12 @@
+{
+  "name": "hermretro-engine-build",
+  "private": true,
+  "description": "Tools for building the engine bundle (engine/modretro-chromatic/dist/server.js): esbuild at the version the engine was bundled with, and the packages the bundle includes at the engine's locked versions (engine/modretro-chromatic/scripts/runtime-package-lock.json). Never needed to use the plugin. Install with: npm ci --prefix tools/engine/npm --ignore-scripts",
+  "license": "MIT",
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "esbuild": "0.28.1",
+    "pngjs": "7.0.0",
+    "zod": "3.25.76"
+  }
+}
