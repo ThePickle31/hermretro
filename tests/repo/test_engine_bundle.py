@@ -192,6 +192,23 @@ class EngineBundleTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1, done.stdout)
         self.assertIn("is not what its modules build", done.stderr)
 
+    def test_an_entry_given_as_a_link_and_a_tsconfig_above_the_build_change_nothing(self):
+        self.assertEqual(self.build().returncode, 0)
+        expected = self.bundle.read_bytes()
+        linked = self.engine / "entry-link.js"
+        linked.symlink_to(self.entry)
+        done = self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine), "--entry", str(linked))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.bundle.read_bytes(), expected)
+        # A tsconfig.json above the build's temporary folder that would point pngjs somewhere else.
+        with tempfile.TemporaryDirectory() as workspace:
+            (Path(workspace) / "tsconfig.json").write_text('{"compilerOptions": {"paths": {"pngjs": ["./fake.js"]}}}')
+            (Path(workspace) / "fake.js").write_text("export const PNG = 1;\n")
+            (Path(workspace) / "tmp").mkdir()
+            done = self.build(env={**os.environ, "TMPDIR": str(Path(workspace) / "tmp")})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(self.bundle.read_bytes(), expected)
+
     def test_check_sees_a_changed_byte(self):
         self.assertEqual(self.build().returncode, 0)
         self.assertEqual(self.build("--check").returncode, 0)

@@ -76,7 +76,8 @@ function forget(where) {
   if (!leftovers.size) process.off("SIGINT", stopped).off("SIGTERM", stopped);
 }
 
-// ModRetro's options, unchanged except that the build never writes (the caller does).
+// ModRetro's options, unchanged except that the build never writes (the caller does) and reads no tsconfig.json:
+// the engine has none, and the build's temporary folder may stand below a folder that has one.
 function options(stage) {
   return {
     absWorkingDir: stage,
@@ -95,6 +96,7 @@ function options(stage) {
     banner: { js: 'import { createRequire as __mcpCreateRequire } from "node:module"; const require = __mcpCreateRequire(import.meta.url);' },
     legalComments: "inline",
     logLevel: "silent",
+    tsconfigRaw: {},
   };
 }
 
@@ -192,7 +194,8 @@ export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbui
       filter: (source) => !NOT_COPIED.has(path.relative(packages, source).split(path.sep)[0]),
     });
     writable(stage);
-    cpSync(entry, path.join(stage, "dist", "server.js"));
+    // Its contents, not the file: an entry given as a link is still the module it points at.
+    writeFileSync(path.join(stage, "dist", "server.js"), readFileSync(entry));
     const result = await esbuild.build(options(stage));
     const { problems, packages: included } = refusals(stage, result, engine);
     if (problems.length) throw new Error(problems.join("\n"));
