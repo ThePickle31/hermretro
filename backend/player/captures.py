@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,6 +17,15 @@ from .frame import DEMO_ID, PlayerError, is_demo
 
 CAPTURE_NAMESPACE = uuid.UUID("5d0c7f39-3b8e-4f4f-9a43-2f6c3c7d1a11")
 MEDIA_EXTENSIONS = {".png": "image/png", ".webm": "video/webm", ".mp4": "video/mp4"}
+# Held while a capture is written, and by the factory reset while it deletes captures and game folders.
+_WRITING = threading.Lock()
+
+
+@contextmanager
+def captures_paused():
+    """No capture is written while this is held (one in progress finishes first)."""
+    with _WRITING:
+        yield
 
 
 def demo_captures_root() -> Path:
@@ -71,6 +82,14 @@ def save_capture(
         extension = "mp4"
     else:
         extension = "webm"
+    with _WRITING:
+        # A game deleted meanwhile (the factory reset) gets no captures folder of its own again.
+        if not is_demo(identifier) and not Path(root).is_dir():
+            raise PlayerError("The game is no longer there.")
+        return _write_capture(root, identifier, kind, extension, media, metadata, extra)
+
+
+def _write_capture(root: Path, identifier: str, kind: str, extension: str, media: bytes, metadata, extra) -> dict:
     directory = captures_dir(root, identifier)
     directory.mkdir(parents=True, exist_ok=True)
     created = datetime.now(UTC)

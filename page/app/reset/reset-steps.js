@@ -20,6 +20,11 @@ export const RESET_PARTS = [
 
 export const DEFAULT_CHOICES = Object.fromEntries(RESET_PARTS.map(part => [part.id, part.id === 'games' ? 'keep' : 'delete']))
 
+/** The Hermes connection a target ({ route, profile }) reaches: its route's, else the one the app is on now. */
+export function connectionOf(target) {
+  return target?.route?.connectionId || host.activeConnectionId?.() || 'local'
+}
+
 // What the page remembers across the reload an update ends with, so the settings page that loads says how it went.
 export const RESET_MARKER = 'resetDone'
 
@@ -54,6 +59,11 @@ export function settleChoices(choices, locked = {}) {
   takes('profile', 'history', 'Deleted with the studio profile')
   takes('games', 'history', 'Deleted with Games')
 
+  // A deleted game takes the captures in its folder, whatever Logs & captures says.
+  if (settled.games === 'delete' && settled.logs !== 'delete' && !forced.logs) {
+    forced.logs = 'Game captures go with Games'
+  }
+
   return { choices: settled, forced }
 }
 
@@ -78,11 +88,12 @@ async function deleteStudioProfile(studio) {
   forgetRoute()
 }
 
+/** One backend part: its bytes deleted. A refusal throws, carrying what it deleted before stopping (`removed`). */
 async function backendPart(target, part) {
   const answer = await requestOn(target, RPC_RESET, { part }, PART_TIMEOUT_MS)
 
   if (!answer?.ok) {
-    throw new Error(answer?.error || `${label(part)} could not be deleted.`)
+    throw Object.assign(new Error(answer?.error || `${label(part)} could not be deleted.`), { removed: Number(answer?.removed_bytes) || 0, partly: answer?.code === 'PARTLY_REMOVED' })
   }
 
   return Number(answer.removed_bytes) || 0
@@ -116,7 +127,7 @@ function remember(ctx, key, value) {
  *  checkout), `version` the installed version. `onStep(i)` follows `resetSteps(choices)`. Resolves to the summary the
  *  done screen shows, never throws: `{ deleted, kept, failed: { step, error } | null, update, from }`, `update` being
  *  runUpdate's outcome (null when the update did not run). */
-export async function runReset({ ctx, choices, target, studio, install, version, onStep = () => {} }) {
+export async function runReset({ ctx, choices, here, target, studio, install, version, onStep = () => {} }) {
   const steps = resetSteps(choices)
   const gone = new Set()
   // What is still there: the parts no finished step deleted (the profile takes its chats and build history).
@@ -128,6 +139,11 @@ export async function runReset({ ctx, choices, target, studio, install, version,
     onStep(index)
 
     try {
+      // Every step goes to the Hermes the choices were made on: never to another the app switched to meanwhile.
+      if (connectionOf(target) !== here) {
+        throw new Error('Hermes is on another connection now.')
+      }
+
       // A turn under way must not lose its game or its chat: before each step, nothing may be running in the studio
       // (a chat started from elsewhere after the first check is caught at the next step).
       if (step.id !== 'update' && !gone.has('profile')) {
@@ -170,6 +186,14 @@ export async function runReset({ ctx, choices, target, studio, install, version,
       }
     } catch (error) {
       summary.failed = { step: step.label, error: String(error?.message ?? error) }
+      summary.deleted += error?.removed ?? 0
+
+      // Partly deleted is not kept: the Stopped at line names it.
+      if (error?.partly) {
+        gone.add(step.id)
+        summary.kept = kept()
+      }
+
       break
     }
 

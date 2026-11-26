@@ -237,6 +237,13 @@ def _ours(target: Path) -> bool:
     return DESCRIPTION in text
 
 
+def studio_is_ours() -> bool:
+    """Whether the profile named ``hermretro`` is the one this plugin made (never a profile of the user's own that
+    happens to have the name)."""
+    target = studio_dir()
+    return _exists(target) and not hermes_api.profile_is_deleted(target) and _ours(target)
+
+
 def _has_plugin(target: Path) -> bool:
     return (target / "plugins" / paths.PLUGIN_ID / "plugin.yaml").is_file()
 

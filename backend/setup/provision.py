@@ -542,7 +542,10 @@ def remove_tree(path: Path) -> None:
 
     def retry(function, failed, _info):
         try:
-            os.chmod(os.path.dirname(failed), 0o700)
+            parent = os.path.dirname(failed)
+            # Only inside the tree being deleted: the folder that holds it is never made writable.
+            if Path(parent).is_relative_to(path):
+                os.chmod(parent, 0o700)
             if os.path.isdir(failed) and not os.path.islink(failed):
                 os.chmod(failed, 0o700)
             function(failed)

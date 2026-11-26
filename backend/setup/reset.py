@@ -24,8 +24,11 @@ PARTS = ("games", "history", "chats", "settings", "toolchain", "logs")
 CAPTURES = "captures"
 # The broker's own logs in its run folder (its socket, token and lock stay).
 LOGS = ("broker.stderr.log", "trace.jsonl", "trace.jsonl.1")
-# What the library folder holds of hermretro's (a folder the user configured may hold more).
-LIBRARY = ("games.json", "games.lock", "thumbs", CAPTURES)
+# What the library folder holds of the games (a folder the user configured may hold more). Its captures/ (the demo
+# cartridge's) belong to Logs & captures.
+LIBRARY = ("games.json", "games.lock", "thumbs")
+# Forks of a deleted chat become chats of their own: deleted in the next round.
+CHAT_ROUNDS = 5
 SETTINGS_KEY = f"plugins.entries.{paths.PLUGIN_ID}.settings"
 
 
@@ -34,15 +37,29 @@ def _bytes(*places: Path) -> int:
 
 
 def _remove(place: Path) -> None:
-    """Delete a file, a link (never followed) or a folder tree; nothing when it is not there."""
-    if place.is_symlink() or place.is_file():
-        place.unlink(missing_ok=True)
-    elif place.is_dir():
-        provision.remove_tree(place)
+    """Delete a file, a link (never followed) or a folder tree; nothing when it is not there. What cannot be deleted
+    stays, and the caller says so."""
+    try:
+        if place.is_symlink() or place.is_file():
+            place.unlink(missing_ok=True)
+        elif place.is_dir():
+            provision.remove_tree(place)
+    except OSError:
+        pass
+
+
+def _real_folder(folder: Path) -> Path | None:
+    """``folder`` when it is a folder of its own; None when a link stands in for it (never followed)."""
+    return None if folder.is_symlink() else folder
 
 
 def _children(folder: Path) -> list[Path]:
     return list(folder.iterdir()) if folder.is_dir() and not folder.is_symlink() else []
+
+
+def _in_library(*names: str) -> list[Path]:
+    library = _real_folder(paths.library_dir())
+    return [library / name for name in names] if library else []
 
 
 def _game_roots() -> list[Path]:
@@ -62,6 +79,8 @@ def _own_games() -> list[Path]:
     """The library's games in hermretro's games folder: the ones a reset deletes, with their captures (a game opened
     from a folder of the user's own leaves the library, never the disk). Only a folder recorded at its real path: one
     a link now stands in for is left alone."""
+    if _real_folder(paths.games_dir()) is None:
+        return []
     games = paths.games_dir().resolve()
     return [root for root in _game_roots() if root.resolve() == root and root.is_relative_to(games) and root != games]
 
@@ -72,7 +91,7 @@ def _log_files() -> list[Path]:
 
 
 def _capture_folders(data: Path) -> list[Path]:
-    return [data / "frames", paths.library_dir() / CAPTURES, *(root / CAPTURES for root in _own_games())]
+    return [data / "frames", *_in_library(CAPTURES), *(root / CAPTURES for root in _own_games())]
 
 
 def _chat_ids() -> list[str]:
@@ -86,15 +105,21 @@ def _chat_ids() -> list[str]:
 
 
 def _delete_chats() -> dict:
-    """Delete every studio chat the way ``hermes sessions delete`` does (its transcripts and media with it)."""
+    """Delete every studio chat the way ``hermes sessions delete`` does (its transcripts and media with it). Only in
+    the profile this plugin made: a profile of the user's own with the same name is never touched."""
+    if not studio_profile.studio_is_ours():
+        return {"ok": False, "code": "NOT_OURS", "error": "The hermretro profile is not one hermretro made."}
     try:
-        ids = _chat_ids()
         last = None
-        for session in ids:
-            try:
-                studio_profile.run_hermes(studio_profile.studio_dir(), "sessions", "delete", session, "--yes")
-            except studio_profile.StudioProfileError as error:
-                last = str(error)
+        for _round in range(CHAT_ROUNDS):
+            ids = _chat_ids()
+            if not ids:
+                break
+            for session in ids:
+                try:
+                    studio_profile.run_hermes(studio_profile.studio_dir(), "sessions", "delete", session, "--yes")
+                except studio_profile.StudioProfileError as error:
+                    last = str(error)
         left = _chat_ids()
     except sqlite3.Error as error:
         return {"ok": False, "code": "CHATS_UNREADABLE", "error": f"The studio chats could not be read ({error})."}
@@ -108,7 +133,7 @@ def plan(data: Path) -> dict:
     chats cannot be read); ``custom`` when the toolchain is in a folder the user configured, which the reset leaves
     alone."""
     try:
-        chats = len(_chat_ids())
+        chats = len(_chat_ids()) if studio_profile.studio_is_ours() else 0
     except sqlite3.Error:
         chats = None
     custom = bool(os.environ.get("HERMRETRO_DEPS_ROOT") or os.environ.get("GB_STUDIO_SETUP_ROOT"))
@@ -118,6 +143,8 @@ def plan(data: Path) -> dict:
             "games": {"bytes": _bytes(*_places("games", data)), "count": len(_game_roots())},
             "history": {"bytes": _bytes(*_places("history", data))},
             "chats": {"count": chats},
+            # Whether the hermretro profile is the one this plugin made: only then may its chats or itself go.
+            "profile": {"ours": studio_profile.studio_is_ours()},
             "settings": {},
             "toolchain": {"bytes": 0 if custom else _bytes(paths.DEPS_ROOT), "custom": custom},
             "logs": {"bytes": _bytes(*_places("logs", data))},
@@ -132,15 +159,15 @@ def _places(part: str, data: Path) -> list[Path] | None:
     if part == "logs":
         return [*_log_files(), *_capture_folders(data)]
     if part == "games":
-        games = paths.games_dir()
+        games = _real_folder(paths.games_dir())
         # A games folder the user configured holds more than hermretro's games: only those leave it.
-        own = (
-            _children(games)
-            if os.environ.get("HERMRETRO_GAMES_DIR") is None
-            else [*_own_games(), games / ".hermretro-installs"]
-        )
-        library = [paths.library_dir() / name for name in LIBRARY]
-        return [*own, *library, data / "asset-versions", data / "asset-version-locks"]
+        if games is None:
+            own = []
+        elif os.environ.get("HERMRETRO_GAMES_DIR") is None:
+            own = _children(games)
+        else:
+            own = [*_own_games(), games / ".hermretro-installs"]
+        return [*own, *_in_library(*LIBRARY), data / "asset-versions", data / "asset-version-locks"]
     return None
 
 

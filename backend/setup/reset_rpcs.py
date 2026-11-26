@@ -8,6 +8,7 @@ from pathlib import Path
 from ..broker import BrokerUnavailable
 from ..hermes import api as hermes_api
 from ..hermes import host
+from ..player import captures_paused
 from ..system.events import emit
 from . import provision, reset, studio_profile
 from .broker_stop import broker_stopped
@@ -45,8 +46,9 @@ def rpc_reset(ctx):
         try:
             if part == "settings":
                 return reset.clear(part, host._data_dir(), _homes())
-            # Idle workers close with the broker: a game left open in a chat does not hold the reset back.
-            with broker_stopped(replace=True) as refused:
+            # Idle workers close with the broker: a game left open in a chat does not hold the reset back. The player
+            # saves no capture meanwhile (it runs in this process, apart from the broker).
+            with broker_stopped(replace=True) as refused, captures_paused():
                 if refused:
                     return refused
                 if part == "stop":

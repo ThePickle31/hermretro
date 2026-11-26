@@ -3,20 +3,30 @@
 import { host, useEffect, useState } from '#sdk'
 import { callBackend } from '#app/backend.js'
 import { STUDIO_PROFILE } from '#app/ids.js'
-import { routing } from '#app/routing.js'
+import { routeProfile, routing } from '#app/routing.js'
 import { RPC_RESET_PLAN, RPC_STATUS } from '#app/rpc.js'
-import { installTarget, refreshDesktopHalf, requestOn, studioReloadTarget } from '#app/update/flow.js'
+import { refreshDesktopHalf, requestOn } from '#app/update/flow.js'
 import { setUpdating } from '#app/update/lock.js'
-import { DEFAULT_CHOICES, forgetReset, pendingReset, resetSteps, runReset, settleChoices } from './reset-steps.js'
+import { connectionOf, DEFAULT_CHOICES, forgetReset, pendingReset, resetSteps, runReset, settleChoices } from './reset-steps.js'
 
 const NO_PROFILE = 'No studio profile'
 
-/** The Hermes connection a target reaches: its route's, else the one the app itself is on. */
-function connectionOf(target) {
-  return target?.route?.connectionId || host.activeConnectionId?.() || 'local'
+/** `profile` on the Hermes connection `here`: the app itself when it is on that profile there, else that profile's
+ *  route there; null when there is none. A profile of the same name on another connection is never picked. */
+async function profileOn(profile, here) {
+  if (host.state.profile?.get?.() === profile && connectionOf({ route: null }) === here) {
+    return { route: null, profile }
+  }
+
+  const routes = typeof host.profileRoutes === 'function' ? ((await host.profileRoutes()) ?? []) : []
+  const route = routes.find(candidate => routeProfile(candidate) === profile && (candidate.connectionId || 'local') === here)
+
+  return route ? { route, profile } : null
 }
 
-/** Everything the dialog needs before anything is deleted: where each call goes, and what each part holds. */
+/** Everything the dialog needs before anything is deleted: where each call goes (all on the Hermes connection that
+ *  answered), and what each part holds. A profile the status says is there but that cannot be reached is an error,
+ *  never read as "none". */
 async function readContext() {
   const { data: status } = await callBackend(RPC_STATUS)
 
@@ -24,11 +34,20 @@ async function readContext() {
     throw new Error(status?.error || 'hermretro did not answer.')
   }
 
-  const installedIn = status.plugin?.installed_in ?? null
-  // Everything goes to the Hermes that answered: a profile of the same name on another connection is someone else's.
   const here = connectionOf({ route: routing.route })
-  const same = target => (target && connectionOf(target) === here ? target : null)
-  const studio = same(await studioReloadTarget(Boolean(status.profile?.is_studio || status.profile?.studio?.exists)))
+  const installedIn = status.plugin?.installed_in ?? null
+  const studio = status.profile?.is_studio || status.profile?.studio?.exists ? await profileOn(STUDIO_PROFILE, here) : null
+  const installProfile = installedIn?.linked ? null : (installedIn?.profile ?? null)
+  const install = installProfile ? await profileOn(installProfile, here) : null
+
+  if ((status.profile?.is_studio || status.profile?.studio?.exists) && !studio) {
+    throw new Error('The hermretro profile cannot be reached right now.')
+  }
+
+  if (installProfile && !install) {
+    throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)
+  }
+
   // The backend's parts read this profile's plugin data (build history): the hermretro profile's when there is one.
   const target = studio ?? { route: routing.route, profile: routing.profile }
   const plan = await requestOn(target, RPC_RESET_PLAN, {}, 120_000)
@@ -37,18 +56,21 @@ async function readContext() {
     throw new Error(plan?.error || 'What hermretro keeps could not be read.')
   }
 
-  // Deleting the studio profile would take hermretro itself with it when that is where it is installed.
+  // The studio's chats and the profile itself go only when hermretro made it, and the profile only when deleting it
+  // would not take hermretro itself with it and this Hermes can delete a profile from a plugin.
+  const ours = studio ? (plan.parts.profile?.ours ? null : 'Not made by hermretro') : NO_PROFILE
   const holdsPlugin = Boolean(installedIn?.linked) || installedIn?.profile === STUDIO_PROFILE
 
   return {
+    here,
     target,
     studio,
-    install: same(await installTarget(installedIn)),
+    install,
     version: status.plugin?.version ?? null,
     parts: plan.parts,
     locked: {
-      chats: studio ? null : NO_PROFILE,
-      profile: studio ? (holdsPlugin ? 'hermretro is installed here' : null) : NO_PROFILE,
+      chats: ours,
+      profile: ours ?? (holdsPlugin ? 'hermretro is installed here' : typeof host.deleteProfile !== 'function' ? 'Update Hermes to delete it' : null),
       toolchain: plan.parts.toolchain?.custom ? 'A folder you chose' : null
     }
   }
@@ -136,6 +158,11 @@ export function useReset(ctx) {
     setRestarting(true)
 
     try {
+      // The gateway restarted is the app's current one: not when Hermes has switched to another since the reset.
+      if (state.context && connectionOf({ route: null }) !== state.context.here) {
+        throw new Error('Hermes is on another connection now.')
+      }
+
       // False when the user said no to Hermes's question, or the restart failed: the done screen stays to try again.
       if ((await host.restartGateway()) !== false) {
         forgetReset(ctx)

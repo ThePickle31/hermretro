@@ -14,7 +14,7 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   const plan = {
     ok: true,
     parts: {
-      games: { bytes: 130e6, count: 14 }, history: { bytes: 31e6 }, chats: { count: 2 }, settings: {},
+      games: { bytes: 130e6, count: 14 }, history: { bytes: 31e6 }, chats: { count: 2 }, profile: { ours: true }, settings: {},
       toolchain: { bytes: 2.4e9, custom: false }, logs: { bytes: 15e6 }
     }
   }
@@ -53,12 +53,13 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /Toolchain & engine2\.4 GB/)
     assert.deepEqual(['Games', 'Build history', 'Toolchain & engine'].map(chosen), ['Keep', 'Delete', 'Delete'])
   })
-  await pick('Studio profile', 'Keep'); await pick('Games', 'Delete')
+  await pick('Studio profile', 'Keep'); await pick('Games', 'Delete'); await pick('Logs & captures', 'Keep')
   check('deleting Games takes build history with it', () => {
     assert.match(said(), /Build history31\.0 MB · Deleted with Games/)
+    assert.match(said(), /Logs & captures15\.0 MB · Game captures go with Games/)
     assert.ok(choice('Build history').querySelector('button').disabled)
   })
-  await pick('Games', 'Keep')
+  await pick('Games', 'Keep'); await pick('Logs & captures', 'Delete')
   await click('Continue', dialog())
   check('the confirm step says what goes and what stays, and waits for the word', () => {
     assert.match(said(), /Delete.*Build history.*Studio chats.*Toolchain & engine/)
@@ -135,12 +136,39 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   })
   await click('Cancel', dialog())
 
+  installedIn = { profile: 'default', linked: false }; plan.parts.profile = { ours: false }
+  await open()
+  check('a hermretro profile hermretro did not make keeps its chats and itself', () => {
+    assert.match(said(), /Studio chats2 chats · Not made by hermretro/)
+    assert.equal(chosen('Studio chats'), 'Keep'); assert.equal(chosen('Studio profile'), 'Keep')
+  })
+  await click('Cancel', dialog())
+  plan.parts.profile = { ours: true }
+
+  log.length = 0
+  const whole = scenario.requestProfileHook
+  scenario.requestProfileHook = (route, method, params) => {
+    if (method === 'plugin.hermretro.reset' && params.part === 'logs') {
+      log.push('logs'); return { ok: false, code: 'PARTLY_REMOVED', error: '1 of its files or folders could not be deleted', removed_bytes: 2e6 }
+    }
+    return whole(route, method, params)
+  }
+  await open(); await pick('Studio profile', 'Keep'); await confirm()
+  check('a part deleted only in part counts what went and is not listed as kept', () => {
+    assert.deepEqual(log, ['stop', 'history', 'logs'])
+    assert.match(said(), /Stopped atLogs & captures: 1 of its files/)
+    assert.match(said(), /Deleted3\.0 MB/)
+    assert.match(said(), /KeptGames, Studio chats, Studio profile, Plugin settings, Toolchain & engine/)
+  })
+  scenario.requestProfileHook = whole
+  await click('Close', dialog())
+
   installedIn = { profile: 'default', linked: false }; scenario.routes = [{ ...STUDIO, connectionId: 'vps' }]
   scenario.byMethod['plugin.hermretro.reset_plan'] = plan
   await open()
-  check('a hermretro profile on another Hermes connection is never touched', () => {
-    assert.match(said(), /Studio profileModel, sign-in, SOUL · No studio profile/)
-    assert.equal(chosen('Studio profile'), 'Keep')
+  check('a hermretro profile only on another Hermes connection stops the reset before anything is chosen', () => {
+    assert.match(said(), /The hermretro profile cannot be reached right now/)
+    assert.ok(!dialog().querySelector('[data-segmented]'))
   })
   await page.close()
 })

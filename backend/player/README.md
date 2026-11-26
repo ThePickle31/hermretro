@@ -9,7 +9,7 @@ The loopback HTTP routes live in `server.py`. `frame.py` assembles the game or d
 
 ## Front door
 
-`backend.player`: `get_server`, `game_build`, `demo_build`, `DEMO`, `DEMO_ID`, `is_demo`, `demo_captures_root`, `capture_root`, `list_captures`, `save_capture`, `PlayerError`, `page_skins`, `default_skin`. Standard library only.
+`backend.player`: `get_server`, `game_build`, `demo_build`, `DEMO`, `DEMO_ID`, `is_demo`, `demo_captures_root`, `capture_root`, `captures_paused` (no capture is written while it is held: the factory reset), `list_captures`, `save_capture`, `PlayerError`, `page_skins`, `default_skin`. Standard library only.
 
 ## Tests
 

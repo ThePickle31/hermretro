@@ -23,6 +23,9 @@ def write(path: Path, size: int = 10) -> Path:
     return path
 
 
+CAPTURES_DEMO = Path("captures") / "demo" / "shot.png"
+
+
 class Reset(unittest.TestCase):
     def setUp(self):
         self.places = isolated_home(self)
@@ -118,26 +121,58 @@ class Reset(unittest.TestCase):
         self.assertTrue((self.run_dir / "broker.token").is_file())
         self.assertTrue((self.frog / "frog.gbsproj").is_file())
 
-    def test_chats_are_deleted_with_hermes_own_command_and_any_left_are_said(self):
+    def _chats(self, rows):
         self.studio.mkdir()
         with sqlite3.connect(self.studio / "state.db") as db:
             db.execute("CREATE TABLE sessions (id TEXT, parent_session_id TEXT)")
-            db.executemany("INSERT INTO sessions VALUES (?, ?)", [("a", None), ("b", None), ("a-sub", "a")])
+            db.executemany("INSERT INTO sessions VALUES (?, ?)", rows)
+
+    def test_chats_are_deleted_with_hermes_own_command_forks_too_and_any_left_are_said(self):
+        # "a" has a delegate (deleted with it) and a fork, which becomes a chat of its own once "a" is gone.
+        self._chats([("a", None), ("b", None), ("a-sub", "a"), ("a-fork", "a")])
         ran = []
 
         def hermes(home, *arguments):
-            ran.append(arguments)
-            if arguments[2] != "b":
-                with sqlite3.connect(home / "state.db") as db:
-                    db.execute(
-                        "DELETE FROM sessions WHERE id = ? OR parent_session_id = ?", (arguments[2], arguments[2])
-                    )
+            ran.append(arguments[2])
+            if arguments[2] == "b":
+                return  # refused
+            with sqlite3.connect(home / "state.db") as db:
+                db.execute("DELETE FROM sessions WHERE id = ? OR id = ?", (arguments[2], f"{arguments[2]}-sub"))
+                db.execute("UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?", (arguments[2],))
 
-        with mock.patch.object(studio_profile, "run_hermes", hermes):
+        with (
+            mock.patch.object(studio_profile, "studio_is_ours", lambda: True),
+            mock.patch.object(studio_profile, "run_hermes", hermes),
+        ):
             self.assertEqual(reset.plan(self.data)["parts"]["chats"]["count"], 2)
             answer = reset.clear("chats", self.data, [])
-        self.assertEqual(ran, [("sessions", "delete", "a", "--yes"), ("sessions", "delete", "b", "--yes")])
+        self.assertEqual(ran[:2], ["a", "b"])
+        self.assertIn("a-fork", ran[2:])  # the next round
         self.assertEqual((answer["ok"], answer["code"]), (False, "CHATS_LEFT"))
+
+    def test_a_hermretro_profile_hermretro_did_not_make_keeps_its_chats(self):
+        self._chats([("a", None)])
+        with mock.patch.object(studio_profile, "run_hermes") as ran:
+            self.assertEqual(reset.plan(self.data)["parts"]["profile"], {"ours": False})
+            answer = reset.clear("chats", self.data, [])
+        self.assertEqual(answer["code"], "NOT_OURS")
+        ran.assert_not_called()
+
+    def test_a_linked_library_folder_is_never_followed(self):
+        library = self.places.home / "library"
+        target = self.places.base / "elsewhere-library"
+        os.replace(library, target)
+        library.symlink_to(target)
+        write(target / CAPTURES_DEMO, 4)
+        reset.clear("games", self.data, [])
+        reset.clear("logs", self.data, [])
+        self.assertTrue((target / "games.json").is_file())
+        self.assertTrue((target / CAPTURES_DEMO).is_file())
+
+    def test_games_leave_the_demo_captures_to_logs(self):
+        write(self.places.home / "library" / CAPTURES_DEMO, 4)
+        reset.clear("games", self.data, [])
+        self.assertTrue((self.places.home / "library" / CAPTURES_DEMO).is_file())
 
     def test_settings_go_back_to_their_defaults_only_where_they_were_set(self):
         set_here = {"plugins": {"entries": {"hermretro": {"settings": {"hardware_enabled": True}}}}}
