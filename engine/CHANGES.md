@@ -313,8 +313,10 @@ files, what changed and why.
     plugin's `engine` or `engineAlt` folder) or a link among its plugins builds in a fresh folder, and the cache is
     dropped when the compiler changes (the CLI, its build worker, GB Studio's engine and GBDK, by content).
   - Those keys are enough for GB Studio's engine files (their other includes are GBDK's) but not for the game's
-    generated ones in `src/data` (they take only the values of `data/game_globals.i`, not the names, and a raw
-    `.include` is not followed): after each build the cached copies of those objects are removed, so they compile
-    on every build and only the engine's come from the cache.
+    generated ones (they take only the values of `data/game_globals.i`, not the names, and a raw `.include` is not
+    followed): after each build only the cached objects of files GB Studio ships in `appData/engine/gbvm/src`
+    (outside `src/data`) are kept, so the game's own compile on every build. `COLOR`, `SGB`, `BATTERYLESS` and
+    `DEBUG`, which GB Studio sets only for a setting that asks for them, are left out of the compiler's environment
+    so an inherited one cannot make two settings share a key.
   - What a stopped or failed compiler changed in the cache is removed, and the whole cache after a build whose
     engine or compiler stopped before it finished. Windows keeps a fresh folder per build.

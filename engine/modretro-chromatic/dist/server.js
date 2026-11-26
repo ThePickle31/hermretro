@@ -31715,7 +31715,8 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
     await clearSharedBuildDirectory(directory);
     await writeFile(path16.join(directory, SHARED_BUILD_TOOLCHAIN), toolchain, { mode: 384 });
     await writeFile(path16.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
-    return { directory, claim, cacheBefore: await sharedCacheState(cache) };
+    const engineSources = path16.join(path16.dirname(gbStudioCli), "..", "..", "appData", "engine", "gbvm", "src");
+    return { directory, claim, engineSources, cacheBefore: await sharedCacheState(cache) };
   } catch (error2) {
     await rm3(claim, { force: true }).catch(() => {
     });
@@ -31730,34 +31731,47 @@ function claimSharedBuildForCompiler(shared, pid) {
 }
 // GB Studio's keys see a file's quoted includes and only the values it uses from data/game_globals.i, without their
 // names: enough for its engine's own files, whose other includes are GBDK's, but not for the game's generated ones
-// (scripts with swapped constant names or a raw `.include`). So only engine objects are kept: after each build, the
-// cached copies of the objects compiled from `src/data` are removed, and those compile on every build.
-async function forgetGameObjects(directory) {
-  const build = path16.join(directory, "_gbsbuild");
-  const sources = path16.join(build, "src", "data");
-  const cache = path16.join(directory, SHARED_BUILD_CACHE);
-  if (!await exists3(sources)) {
-    await rm3(cache, { recursive: true, force: true });
-    return;
-  }
-  const gameObjects = /* @__PURE__ */ new Set();
-  const collect = async (folder) => {
-    for (const entry of await readdir4(folder, { withFileTypes: true })) {
-      const candidate = path16.join(folder, entry.name);
+// (scripts with swapped constant names, a raw `.include`, a plugin's output). So only the objects of GB Studio's own
+// engine files (in its `appData/engine/gbvm/src`, outside `src/data`) are kept after each build; the rest compile
+// on every build.
+async function keepOnlyEngineObjects(shared) {
+  const build = path16.join(shared.directory, "_gbsbuild");
+  const engineObjects = /* @__PURE__ */ new Set();
+  const collect = async (relative) => {
+    let entries;
+    try {
+      entries = await readdir4(path16.join(build, "src", relative), { withFileTypes: true });
+    } catch (error2) {
+      if (isSystemError(error2, "ENOENT"))
+        return;
+      throw error2;
+    }
+    for (const entry of entries) {
+      const name = path16.join(relative, entry.name);
       if (entry.isDirectory()) {
-        await collect(candidate);
-      } else if (/\.[cs]$/.test(entry.name)) {
+        if (name !== "data")
+          await collect(name);
+      } else if (/\.[cs]$/.test(entry.name) && await exists3(path16.join(shared.engineSources, name))) {
         const object = await readFile5(path16.join(build, "obj", `${entry.name.slice(0, -2)}.o`)).catch(() => void 0);
         if (object)
-          gameObjects.add(object.toString("base64"));
+          engineObjects.add(object.toString("base64"));
       }
     }
   };
-  await collect(sources);
-  for (const file of (await sharedCacheState(cache)).keys()) {
-    if (gameObjects.has((await readFile5(file)).toString("base64")))
+  await collect("");
+  for (const file of (await sharedCacheState(path16.join(shared.directory, SHARED_BUILD_CACHE))).keys()) {
+    if (!engineObjects.has((await readFile5(file)).toString("base64")))
       await rm3(file, { force: true });
   }
+}
+// GB Studio sets these only when a project setting asks for one, and its keys include the whole environment: an
+// inherited one would make builds with and without that setting look alike.
+const GB_STUDIO_BUILD_MODES = ["COLOR", "SGB", "BATTERYLESS", "DEBUG"];
+function sharedBuildEnvironment(environment) {
+  const output = { ...environment };
+  for (const name of GB_STUDIO_BUILD_MODES)
+    delete output[name];
+  return output;
 }
 async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
   try {
@@ -31767,7 +31781,7 @@ async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
     // GB Studio writes its cache only after compiling, without replacing files atomically: what a compiler that
     // was stopped or failed changed there is forgotten.
     if (compilerSucceeded) {
-      await forgetGameObjects(shared.directory);
+      await keepOnlyEngineObjects(shared);
     } else {
       const cacheAfter = await sharedCacheState(path16.join(shared.directory, SHARED_BUILD_CACHE));
       for (const [file, state] of cacheAfter) {
@@ -32027,8 +32041,10 @@ async function buildRom(options) {
         cwd: root,
         timeoutMs,
         signal: options.signal,
-        environment: isolatedCompilerEnvironment(temporaryDirectory),
-        ...sharedBuild ? { started: (pid) => claimSharedBuildForCompiler(sharedBuild, pid) } : {}
+        ...sharedBuild ? {
+          environment: sharedBuildEnvironment(isolatedCompilerEnvironment(temporaryDirectory)),
+          started: (pid) => claimSharedBuildForCompiler(sharedBuild, pid)
+        } : { environment: isolatedCompilerEnvironment(temporaryDirectory) }
       });
       compilerSucceeded = true;
       stdout = result2.stdout;
