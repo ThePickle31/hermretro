@@ -1,7 +1,6 @@
 // The factory reset's state for its dialog: what each part holds (read when the dialog opens), the user's choices,
 // the run's progress and its summary, and restarting Hermes's gateway afterwards.
 import { host, useEffect, useState } from '#sdk'
-import { callBackend } from '#app/backend.js'
 import { STUDIO_PROFILE } from '#app/ids.js'
 import { routeProfile } from '#app/routing.js'
 import { RPC_RESET_PLAN, RPC_STATUS } from '#app/rpc.js'
@@ -175,8 +174,15 @@ export function useReset(ctx) {
       return
     }
 
-    callBackend(RPC_STATUS).then(
-      ({ data }) => data?.plugin?.version && setState(current => ({ ...current, version: data.plugin.version })),
+    // From the install that was updated, through its own route (the summary keeps it across the page's reload).
+    const install = state.summary?.install
+
+    if (!install) {
+      return
+    }
+
+    requestOn(install, RPC_STATUS, {}, 60_000).then(
+      data => data?.plugin?.version && setState(current => ({ ...current, version: data.plugin.version })),
       () => {}
     )
   }, [updated])
@@ -243,6 +249,7 @@ export function useReset(ctx) {
     ...state,
     choices: settled.choices,
     forced: settled.forced,
+    notes: settled.notes,
     typed,
     type: setTyped,
     choose: (id, value) => setChoices(current => ({ ...current, [id]: value })),

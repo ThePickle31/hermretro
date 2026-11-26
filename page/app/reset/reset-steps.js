@@ -45,7 +45,8 @@ const label = id => RESET_PARTS.find(part => part.id === id)?.label ?? id
 
 /** The choices as they apply: a part that cannot be deleted stays (`locked`: id → why), and a deleted part takes what
  *  lives inside it (Games and the studio profile take build history; the profile takes its chats). Answers
- *  `{ choices, forced }`, `forced` naming why each overridden part is deleted or kept. */
+ *  `{ choices, forced, notes }`: `forced` names why each overridden part is deleted or kept (its choice is locked),
+ *  `notes` what a part still free to choose loses anyway. */
 export function settleChoices(choices, locked = {}) {
   const settled = { ...choices }
   const forced = {}
@@ -69,12 +70,10 @@ export function settleChoices(choices, locked = {}) {
   takes('profile', 'history', 'Deleted with the studio profile')
   takes('games', 'history', 'Deleted with Games')
 
-  // A deleted game takes the captures in its folder, whatever Logs & captures says.
-  if (settled.games === 'delete' && settled.logs !== 'delete' && !forced.logs) {
-    forced.logs = 'Game captures go with Games'
-  }
+  // A deleted game takes the captures in its folder, whatever Logs & captures says: said, never locked.
+  const notes = settled.games === 'delete' && settled.logs !== 'delete' && !forced.logs ? { logs: 'Game captures go with Games' } : {}
 
-  return { choices: settled, forced }
+  return { choices: settled, forced, notes }
 }
 
 /** The run's steps, in order: stop, the backend's parts, the profile, the update. A deleted profile takes its chats. */
@@ -156,7 +155,7 @@ export async function runReset({ ctx, choices, here, ambient, target, studio, in
   // What is still there: the parts no finished step deleted (the profile takes its chats and build history).
   const kept = () => RESET_PARTS.filter(part => !gone.has(part.id)).map(part => part.label)
   // `here` and `ambient`: the restart after a reload checks them too.
-  const summary = { deleted: 0, kept: kept(), failed: null, update: null, from: version, here, ambient }
+  const summary = { deleted: 0, kept: kept(), failed: null, update: null, from: version, here, ambient, install }
   const profileGone = choices.profile === 'delete'
 
   for (const [index, step] of steps.entries()) {

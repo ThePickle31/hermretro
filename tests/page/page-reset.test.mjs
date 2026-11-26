@@ -79,6 +79,11 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /Logs & captures15\.0 MB · Game captures go with Games/)
     assert.ok(choice('Build history').querySelector('button').disabled)
   })
+  await pick('Logs & captures', 'Delete')
+  check('Logs & captures stays free to choose while Games is deleted', () => { assert.equal(chosen('Logs & captures'), 'Delete') })
+  await pick('Logs & captures', 'Keep'); await click('Continue', dialog())
+  check('the confirm step carries the note where the kept size would be', () => { assert.match(said(), /Keep.*Logs & capturesGame captures go with Games/) })
+  await click('Back', dialog())
   await pick('Games', 'Keep'); await pick('Logs & captures', 'Delete')
   await click('Continue', dialog())
   check('the confirm step says what goes and what stays, and waits for the word', () => {

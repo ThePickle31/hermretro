@@ -39,7 +39,7 @@ function Choose({ reset }) {
           children: [
             jsxs('div', {
               className: 'cs-rst-name',
-              children: [jsx('b', { children: label }), jsx('span', { children: [detail(id, parts), reset.forced[id]].filter(Boolean).join(' · ') })]
+              children: [jsx('b', { children: label }), jsx('span', { children: [detail(id, parts), reset.forced[id] ?? reset.notes[id]].filter(Boolean).join(' · ') })]
             }),
             // Hermes's control drops an aria-label: the group names which part its Keep and Delete are for.
             jsx('div', {
@@ -62,7 +62,7 @@ function Choose({ reset }) {
   })
 }
 
-function Column({ title, kind, ids, parts }) {
+function Column({ title, kind, ids, parts, notes = {} }) {
   return jsxs('div', {
     className: 'cs-rst-col',
     'data-kind': kind,
@@ -70,7 +70,7 @@ function Column({ title, kind, ids, parts }) {
       jsx('h4', { children: title }),
       jsx('ul', {
         children: ids.map(id =>
-          jsxs('li', { children: [jsx('span', { children: RESET_PARTS.find(part => part.id === id).label }), jsx('span', { children: parts[id]?.bytes > 0 ? formatBytes(parts[id].bytes) : '' })] }, id)
+          jsxs('li', { children: [jsx('span', { children: RESET_PARTS.find(part => part.id === id).label }), jsx('span', { children: notes[id] ?? (parts[id]?.bytes > 0 ? formatBytes(parts[id].bytes) : '') })] }, id)
         )
       })
     ]
@@ -88,7 +88,7 @@ function Confirm({ reset }) {
         className: 'cs-rst-cols',
         children: [
           jsx(Column, { title: 'Delete', kind: 'delete', ids: ids.filter(id => reset.choices[id] === 'delete'), parts }),
-          jsx(Column, { title: 'Keep', kind: 'keep', ids: ids.filter(id => reset.choices[id] !== 'delete'), parts })
+          jsx(Column, { title: 'Keep', kind: 'keep', ids: ids.filter(id => reset.choices[id] !== 'delete'), parts, notes: reset.notes })
         ]
       }),
       jsxs('label', {
