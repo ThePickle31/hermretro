@@ -226,7 +226,7 @@ class EngineBundleTests(unittest.TestCase):
         self.bundle.write_text(self.bundle.read_text() + " ")
         done = self.build("--check")
         self.assertEqual(done.returncode, 1)
-        self.assertIn("FIX: node tools/engine/bundle.mjs", done.stderr)
+        self.assertIn("FIX: run the same command without --check", done.stderr)
 
     def test_a_flag_where_a_path_belongs_is_refused(self):
         done = self.build("--out", "--check")

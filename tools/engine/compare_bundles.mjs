@@ -71,7 +71,8 @@ function form(node, named) {
     case "Identifier":
       return named(node);
     case "Literal":
-      if (node.regex) return ["Literal", "regex", node.regex.pattern, node.regex.flags];
+      // A regular expression's flags in any order are the same flags (`gm` is `mg`).
+      if (node.regex) return ["Literal", "regex", node.regex.pattern, [...node.regex.flags].sort().join("")];
       if (node.bigint !== undefined) return ["Literal", "bigint", node.bigint];
       return ["Literal", node.value === null ? "null" : typeof node.value, node.value];
     case "ParenthesizedExpression":
@@ -121,12 +122,17 @@ function program(ast, markers, named) {
   return { requests, imports: imports.sort(), statements };
 }
 
-// The nodes a node holds, in order.
+// The nodes a node holds, in order, as form() compares them: a property's key written as a name is part of the
+// property itself, and parentheses stand for what they hold.
 function children(node) {
   const found = [];
+  const named = PROPERTIES.has(node.type) && !node.computed;
   for (const [field, value] of Object.entries(node)) {
-    if (UNCOMPARED.has(field)) continue;
-    for (const child of Array.isArray(value) ? value : [value]) if (child && typeof child.type === "string") found.push(child);
+    if (UNCOMPARED.has(field) || (named && field === "key")) continue;
+    for (let child of Array.isArray(value) ? value : [value]) {
+      while (child?.type === "ParenthesizedExpression" && !(field === "left" && TARGETS.has(node.type))) child = child.expression;
+      if (child && typeof child.type === "string") found.push(child);
+    }
   }
   return found;
 }
@@ -167,10 +173,13 @@ function places({ ast }, { scope }) {
   const placed = new Map();
   const aliases = new Map();
   manager.scopes.forEach((found, scopeIndex) => {
-    found.variables.forEach((variable, index) => {
+    // Bindings are numbered in their scope without the imports, so moving an import renumbers nothing.
+    let index = 0;
+    found.variables.forEach((variable) => {
       const [definition] = variable.defs;
-      let place = ["binding", scopeIndex, index];
-      if (definition?.type === "ImportBinding") {
+      let place;
+      if (definition?.type !== "ImportBinding") place = ["binding", scopeIndex, index++];
+      else {
         // Each name an import is given is a binding of its own: the first, second, ... for what it imports.
         const what = JSON.stringify(importedBy(definition.node, definition.parent));
         aliases.set(what, (aliases.get(what) ?? -1) + 1);

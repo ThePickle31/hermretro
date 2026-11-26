@@ -149,6 +149,7 @@ class EngineCompareTests(unittest.TestCase):
                 'import "./h.mjs";\nimport { x } from "./h.mjs";\nconsole.log(x);\n',
                 'import { x } from "./h.mjs";\nconsole.log(x);\n',
             ),
+            "regular expression flags in another order": ("console.log(/a/gm);\n", "console.log(/a/mg);\n"),
             "parentheses around an operand": (
                 "const major = 1n;\nconsole.log((major & 0xfffn) << 8n);\n",
                 "const major = 1n;\nconsole.log(((major) & 0xfffn) << 8n);\n",
@@ -161,6 +162,17 @@ class EngineCompareTests(unittest.TestCase):
     def test_renamed_bindings_are_named_and_still_differ(self):
         done = self.compare(BUNDLE, BUNDLE.replace("basename2", "basename7"))
         self.assertEqual(done.returncode, 1)
+        self.assertIn("differ only in the names of 1 bindings:\n  basename2 -> basename7", done.stdout)
+        # Moving an import as well renumbers nothing else.
+        moved = bundle_with(
+            **{
+                'import { basename as basename2, dirname } from "node:path";\nvar first = 1;\n': (
+                    'var first = 1;\nimport { basename as basename7, dirname } from "node:path";\n'
+                ),
+                "basename2(": "basename7(",
+            }
+        )
+        done = self.compare(BUNDLE, moved)
         self.assertIn("differ only in the names of 1 bindings:\n  basename2 -> basename7", done.stdout)
         # Removing one of two names for the same import is not a rename.
         both = 'import { basename as aa, basename as bb } from "node:path";\nconsole.log(aa);\n'
@@ -220,6 +232,11 @@ class EngineCompareTests(unittest.TestCase):
         before = "function f() {\n  const a = 1;\n  return a;\n}\n"
         done = self.compare(before, before.replace("return a;", "return a + 1;"))
         self.assertIn("- 3: return a;\n  + 3: return a + 1;", done.stdout)
+        # A key spelled another way is the same key: the report goes on to what differs.
+        before = 'const flags = {\n  "enabled": () => {\n    return false;\n  },\n};\n'
+        after = before.replace('"enabled"', "enabled").replace("return false", "return true")
+        done = self.compare(before, after)
+        self.assertIn("- 3: return false;\n  + 3: return true;", done.stdout)
         # Run through a link to it, the comparison still runs.
         linked = self.folder / "engine-tools"
         linked.symlink_to(TOOLS)

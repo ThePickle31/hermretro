@@ -256,7 +256,7 @@ async function main(argv) {
       return 0;
     }
     console.error(`${shown} is not what its modules build (${summary})`);
-    console.error("FIX: node tools/engine/bundle.mjs with the same arguments, then commit the bundle with its modules (never edit it by hand)");
+    console.error("FIX: run the same command without --check, then commit the bundle with its modules (never edit it by hand)");
     return 1;
   }
   if (!current?.equals(contents)) replace(args.out, contents);
