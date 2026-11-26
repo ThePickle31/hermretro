@@ -62,7 +62,7 @@ and `.dev/` are not linted.
 ## CI tiers
 
 - **Every pull request** (`.github/workflows/ci.yml`): plugin and repository unit tests on Linux (Python 3.11 and
-  3.14), Apple Silicon and Intel macOS. CI also runs bundle and page, the install scan,
+  3.14), Apple Silicon and Intel macOS. CI also runs bundle, engine (with the engine's build tools) and page, the install scan,
   `plugins validate`, the clean install and the update from the newest release with the oldest supported Hermes.
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
@@ -72,8 +72,9 @@ and `.dev/` are not linted.
   registration, broker or update paths or a `.gitignore` (`UPGRADE`). The update from the newest release (job `update`) runs
   on every run, beside the validate job. A missing decision fails the job.
 - **Nightly** (`nightly.yml`, from `main`): the newest Hermes (validate, scan, clean install, update) on Linux and macOS,
-  integration on Linux, Apple Silicon and Intel macOS, and the unit, bundle, lint and page checks on Linux. The
-  schedule tests `dev`; the Sunday run checks all three toolchains without the cache, while
+  integration on Linux, Apple Silicon and Intel macOS, and the unit, bundle, engine, lint and page checks on Linux.
+  The schedule tests `dev` (with `main`'s copy of this workflow, so a check added on `dev` runs there only after the
+  next release); the Sunday run checks all three toolchains without the cache, while
   other nights can reuse it. To test a published release separately, dispatch `nightly.yml` on its version tag
   once that tag contains this workflow. It tests the dispatched SHA and upgrades it from the preceding published
   stable release, not from itself or from a moving `dev`. Read back the run ID and verify `headSha` against the tag.

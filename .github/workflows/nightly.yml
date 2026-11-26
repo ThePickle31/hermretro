@@ -89,7 +89,7 @@ jobs:
       restore: ${{ github.event_name != 'schedule' || github.event.schedule != '17 10 * * 0' }}
 
   checks:
-    name: Unit, bundle, lint and page
+    name: Unit, bundle, engine, lint and page
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
