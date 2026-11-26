@@ -31319,14 +31319,20 @@ async function runBuildCommand(command, args, options) {
   }
   if (options.evidence)
     options.evidence.startedAt = (/* @__PURE__ */ new Date()).toISOString();
-  const child = spawn(command, args, {
+  // With `started`, the compiler waits on its standard input until `started` has seen its process id and returned.
+  const gated = options.started !== void 0 && process.platform !== "win32";
+  const child = gated ? spawn("/bin/sh", ["-c", 'read -r go && [ "$go" = go ] && exec "$0" "$@"', command, ...args], {
+    cwd: options.cwd,
+    env: options.environment,
+    detached: true,
+    stdio: ["pipe", "pipe", "pipe"]
+  }) : spawn(command, args, {
     cwd: options.cwd,
     env: options.environment,
     windowsHide: true,
     detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"]
   });
-  options.started?.(child.pid);
   const evidence = options.evidence;
   if (evidence) {
     if (child.pid !== void 0)
@@ -31426,6 +31432,20 @@ async function runBuildCommand(command, args, options) {
   child.stderr.on("data", onStderr);
   child.on("error", onError);
   child.once("close", onClose);
+  if (gated) {
+    child.stdin.on("error", () => {
+    });
+    let go = false;
+    try {
+      if (child.pid !== void 0) {
+        options.started(child.pid);
+        go = true;
+      }
+    } catch (error2) {
+      processError ??= error2 instanceof Error ? error2 : new Error(String(error2));
+    }
+    child.stdin.end(go ? "go\n" : "");
+  }
   const cancel = () => stop("cancelled");
   const timer = setTimeout(() => stop("timeout"), options.timeoutMs);
   timer.unref();
@@ -31540,14 +31560,16 @@ async function removeIsolatedBuildDirectory(directory, projectRoot) {
 }
 // A game's GB Studio builds share one compiler folder, so GB Studio's object cache (`_gbscache`, whose keys include the
 // folder's path) lasts from one build to the next. Everything else in it is removed before and after each build.
-// A build holds the folder through claim files: one for the engine and, once it starts, one for the compiler's own
-// process group, which can outlive the engine. Another build of the same game meanwhile gets a fresh folder.
+// A build holds the folder through claim files: one for the engine and one for the compiler's process group, which
+// can outlive the engine and starts only once its claim is written. Another build meanwhile gets a fresh folder.
 const SHARED_BUILD_CACHE = "_gbscache";
-const SHARED_BUILD_INPUTS = ".engine-inputs";
+const SHARED_BUILD_TOOLCHAIN = ".toolchain";
 const SHARED_BUILD_UNFINISHED = ".unfinished";
 const SHARED_BUILD_CLAIM = /^\.claim-(\d+)-[0-9a-f-]{36}$/;
+// Longer than any build may run: an older claim is a reused process id, not a build.
+const SHARED_BUILD_CLAIM_EXPIRY_MS = 2 * MAX_TIMEOUT_MS;
 function sharedBuildKeeps(entry) {
-  return entry === SHARED_BUILD_CACHE || entry === SHARED_BUILD_INPUTS || SHARED_BUILD_CLAIM.test(entry);
+  return entry === SHARED_BUILD_CACHE || entry === SHARED_BUILD_TOOLCHAIN || SHARED_BUILD_CLAIM.test(entry);
 }
 function signalReaches(target) {
   try {
@@ -31558,8 +31580,16 @@ function signalReaches(target) {
   }
 }
 // A claim's process, or the process group it leads: the compiler's group outlives its first process.
-function claimIsAlive(pid) {
-  return pid > 0 && (signalReaches(pid) || signalReaches(-pid));
+async function claimIsAlive(claim, pid) {
+  if (!(pid > 0) || !signalReaches(pid) && !signalReaches(-pid))
+    return false;
+  try {
+    return Date.now() - (await lstat9(claim)).mtimeMs < SHARED_BUILD_CLAIM_EXPIRY_MS;
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return false;
+    throw error2;
+  }
 }
 async function clearSharedBuildDirectory(directory) {
   for (const entry of await readdir4(directory)) {
@@ -31567,39 +31597,64 @@ async function clearSharedBuildDirectory(directory) {
       await rm3(path16.join(directory, entry), { recursive: true, force: true });
   }
 }
-// GB Studio's cache keys follow only `include "..."` lines into the build's include folder, so a change to a game's
-// own engine code (`assets/engine`, a plugin's `engine` folder) or to the CLI can leave a stale object. Any such
-// change drops the cache. Undefined when a link makes those files uncertain.
-async function sharedBuildInputs(projectRoot, gbStudioCli) {
-  const hash = createHash9("sha256");
-  const cli = await stat3(gbStudioCli);
-  hash.update(`${gbStudioCli}\0${cli.size}\0${cli.mtimeMs}\0`);
-  const add = async (directory, relative, engine) => {
+// GB Studio's cache keys follow only `include "..."` lines into the build's include folder, so a game's own engine
+// code (`assets/engine`, a plugin's `engine` or `engineAlt` folder, engine settings written into its headers) could
+// leave a stale object: such a game, or one with a link among its plugins, builds in a fresh folder.
+async function gameHasEngineCode(projectDirectory) {
+  try {
+    await lstat9(path16.join(projectDirectory, "assets", "engine"));
+    return true;
+  } catch (error2) {
+    if (!isSystemError(error2, "ENOENT"))
+      throw error2;
+  }
+  const search = async (directory) => {
     let entries;
     try {
       entries = await readdir4(directory, { withFileTypes: true });
     } catch (error2) {
-      if (isSystemError(error2, "ENOENT") || isSystemError(error2, "ENOTDIR"))
-        return true;
+      if (isSystemError(error2, "ENOENT"))
+        return false;
       throw error2;
     }
-    entries.sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0);
     for (const entry of entries) {
-      const candidate = path16.join(directory, entry.name);
-      const name = `${relative}/${entry.name}`;
-      if (entry.isSymbolicLink())
-        return false;
-      if (entry.isDirectory()) {
-        if (!await add(candidate, name, engine || entry.name === "engine"))
-          return false;
-      } else if (engine) {
-        hash.update(`${name}\0`).update(await readFile5(candidate)).update("\0");
-      }
+      if (entry.isSymbolicLink() || entry.isDirectory() && /^engine/i.test(entry.name))
+        return true;
+      if (entry.isDirectory() && await search(path16.join(directory, entry.name)))
+        return true;
     }
-    return true;
+    return false;
   };
-  const known = await add(path16.join(projectRoot, "assets", "engine"), "assets/engine", true) && await add(path16.join(projectRoot, "plugins"), "plugins", false);
-  return known ? hash.digest("hex") : void 0;
+  return search(path16.join(projectDirectory, "plugins"));
+}
+// The compiler, by content: the CLI, its build worker, GB Studio's engine and this computer's GBDK. A different one
+// drops the cache. Undefined when GB Studio is not laid out as expected.
+async function sharedBuildToolchain(gbStudioCli) {
+  const studio = path16.resolve(path16.dirname(gbStudioCli), "..", "..");
+  const parts = [gbStudioCli, path16.join(path16.dirname(gbStudioCli), "buildWorker.js"), path16.join(studio, "appData", "engine"), path16.join(studio, "buildTools", `${process.platform}-${process.arch}`)];
+  const hash = createHash9("sha256");
+  const add = async (candidate) => {
+    const metadata2 = await lstat9(candidate);
+    hash.update(`${candidate}\0`);
+    if (metadata2.isSymbolicLink()) {
+      hash.update(`link\0${await fs.readlink(candidate)}\0`);
+    } else if (metadata2.isDirectory()) {
+      const entries = (await readdir4(candidate)).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+      for (const entry of entries)
+        await add(path16.join(candidate, entry));
+    } else if (metadata2.isFile()) {
+      hash.update(await readFile5(candidate)).update("\0");
+    }
+  };
+  try {
+    for (const part of parts)
+      await add(part);
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return void 0;
+    throw error2;
+  }
+  return hash.digest("hex");
 }
 async function sharedCacheState(directory, state = /* @__PURE__ */ new Map()) {
   let entries;
@@ -31621,12 +31676,15 @@ async function sharedCacheState(directory, state = /* @__PURE__ */ new Map()) {
   }
   return state;
 }
-async function claimSharedBuildDirectory(projectRoot, gbStudioCli) {
-  if (process.platform === "win32" || typeof process.getuid !== "function")
+async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) {
+  if (process.platform === "win32" || typeof process.getuid !== "function" || await gameHasEngineCode(path16.dirname(projectFile)))
+    return void 0;
+  const toolchain = await sharedBuildToolchain(gbStudioCli);
+  if (toolchain === void 0)
     return void 0;
   const uid = process.getuid();
   const temporaryParent = await selectTrustedTemporaryParent(projectRoot);
-  const name = createHash9("sha256").update(`${uid}\0${projectRoot}`).digest("hex").slice(0, 6);
+  const name = createHash9("sha256").update(`${uid}\0${projectFile}`).digest("hex").slice(0, 6);
   const directory = path16.join(temporaryParent, `gbs_${name}`);
   try {
     await mkdir4(directory, { mode: 448 });
@@ -31641,29 +31699,30 @@ async function claimSharedBuildDirectory(projectRoot, gbStudioCli) {
   const claim = path16.join(directory, `.claim-${process.pid}-${randomUUID18()}`);
   await writeFile(claim, "", { flag: "wx", mode: 384 });
   try {
-    for (const entry of await readdir4(directory)) {
-      const owner = SHARED_BUILD_CLAIM.exec(entry);
-      if (!owner || path16.join(directory, entry) === claim)
-        continue;
-      if (claimIsAlive(Number(owner[1]))) {
-        await rm3(claim, { force: true });
-        return void 0;
+    // Until a listing shows no other claim: one written after a listing belongs to a process alive at that listing.
+    for (let others = true; others; ) {
+      others = false;
+      for (const entry of await readdir4(directory)) {
+        const owner = SHARED_BUILD_CLAIM.exec(entry);
+        const other = path16.join(directory, entry);
+        if (!owner || other === claim)
+          continue;
+        others = true;
+        if (await claimIsAlive(other, Number(owner[1]))) {
+          await rm3(claim, { force: true });
+          return void 0;
+        }
+        await rm3(other, { force: true });
       }
-      await rm3(path16.join(directory, entry), { force: true });
-    }
-    const inputs = await sharedBuildInputs(projectRoot, gbStudioCli);
-    if (inputs === void 0) {
-      await rm3(claim, { force: true });
-      return void 0;
     }
     const cache = path16.join(directory, SHARED_BUILD_CACHE);
     // A build that never finished (its engine or compiler stopped first) may have left a cached object half written.
     const unfinished = await exists3(path16.join(directory, SHARED_BUILD_UNFINISHED));
-    const recorded = await readFile5(path16.join(directory, SHARED_BUILD_INPUTS), "utf8").catch(() => "");
-    if (unfinished || recorded !== inputs)
+    const recorded = await readFile5(path16.join(directory, SHARED_BUILD_TOOLCHAIN), "utf8").catch(() => "");
+    if (unfinished || recorded !== toolchain)
       await rm3(cache, { recursive: true, force: true });
     await clearSharedBuildDirectory(directory);
-    await writeFile(path16.join(directory, SHARED_BUILD_INPUTS), inputs, { mode: 384 });
+    await writeFile(path16.join(directory, SHARED_BUILD_TOOLCHAIN), toolchain, { mode: 384 });
     await writeFile(path16.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
     return { directory, claim, cacheBefore: await sharedCacheState(cache) };
   } catch (error2) {
@@ -31672,22 +31731,16 @@ async function claimSharedBuildDirectory(projectRoot, gbStudioCli) {
     throw error2;
   }
 }
-// Called as the compiler starts, before anything else runs, so its process group holds the folder too.
+// The compiler's own claim, written before it is let start; a failure here stops it from starting.
 function claimSharedBuildForCompiler(shared, pid) {
-  if (pid === void 0)
-    return;
   const claim = path16.join(shared.directory, `.claim-${pid}-${randomUUID18()}`);
-  try {
-    writeFileSync2(claim, "", { flag: "wx", mode: 384 });
-    shared.compilerClaim = { claim, pid };
-  } catch {
-    shared.compilerUnclaimed = true;
-  }
+  writeFileSync2(claim, "", { flag: "wx", mode: 384 });
+  shared.compilerClaim = { claim, pid };
 }
 async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
   try {
     // A compiler group that is still running keeps the folder, and its unfinished mark drops the cache once it is gone.
-    if (shared.compilerUnclaimed || shared.compilerClaim && claimIsAlive(shared.compilerClaim.pid))
+    if (shared.compilerClaim && await claimIsAlive(shared.compilerClaim.claim, shared.compilerClaim.pid))
       return;
     // GB Studio writes its cache only after compiling, without replacing files atomically: what a compiler that
     // was stopped or failed changed there is forgotten.
@@ -31918,7 +31971,7 @@ async function buildRom(options) {
       throw error2;
     }
   }
-  const sharedBuild = builder === "gb-studio-cli" ? await claimSharedBuildDirectory(root, gbStudioCli).catch(() => void 0) : void 0;
+  const sharedBuild = builder === "gb-studio-cli" ? await claimSharedBuildDirectory(root, source, gbStudioCli).catch(() => void 0) : void 0;
   const temporaryDirectory = builder === "gb-studio-cli" ? sharedBuild?.directory ?? await createIsolatedBuildDirectory(root) : void 0;
   let compilerSucceeded = false;
   const startedAt = performance.now();

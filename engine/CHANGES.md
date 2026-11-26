@@ -301,13 +301,16 @@ files, what changed and why.
   CLI and its build worker, by content), so after the compiler changes neither is reused. Every rebuild changed the ROM
   and invalidated the game's saves, and a copy built from the same source could never match its author's ROM.
 - `dist/server.js` (`dist/build.js` module, `rom_build`): a game's GB Studio builds reuse one compiler folder,
-  `gbs_<6 hex digits of the user and project folder>` in the trusted temporary folder, instead of a fresh
-  `gbs-XXXXXX` each time, so GB Studio's object cache (`_gbscache`, keyed by content and by the folder's path)
-  lasts between builds: a rebuild compiles only what changed (about 0.4 s instead of 6.5 s for the starter), with
-  the same ROM. The folder is the user's own (mode 700, checked), and everything but the cache is removed before and
-  after each build. A build holds it through `.claim-<pid>-<uuid>` files, one for the engine and one for the
-  compiler's process group (which can outlive the engine); a claim whose process and group are gone is removed.
-  Another build meanwhile, and Windows, get a fresh folder as before. GB Studio's keys follow only `include "..."`
-  lines, so the cache is dropped when the game's own engine code (`assets/engine`, a plugin's `engine` folder) or the
-  CLI changes, and a link among those files means a fresh folder. What a stopped or failed compiler changed in the
-  cache is removed, and the whole cache after a build whose engine or compiler stopped before it finished.
+  `gbs_<6 hex digits of the user and the .gbsproj>` in the trusted temporary folder, instead of a fresh `gbs-XXXXXX`
+  each time, so GB Studio's object cache (`_gbscache`, keyed by content and by the folder's path) lasts between
+  builds: a rebuild compiles only what changed (about 0.4 s instead of 6.5 s for the starter), with the same ROM.
+  - The folder is the user's own (mode 700, checked); everything but the cache is removed before and after each build.
+  - A build holds it through `.claim-<pid>-<uuid>` files, one for the engine and one for the compiler's process
+    group, which can outlive the engine: the compiler starts through `/bin/sh` and waits on its standard input until
+    its claim is written. A claim is alive while its process or group is, for at most twice the longest build.
+    Another build meanwhile gets a fresh folder.
+  - GB Studio's keys follow only `include "..."` lines, so a game with its own engine code (`assets/engine`, a
+    plugin's `engine` or `engineAlt` folder) or a link among its plugins builds in a fresh folder, and the cache is
+    dropped when the compiler changes (the CLI, its build worker, GB Studio's engine and GBDK, by content).
+  - What a stopped or failed compiler changed in the cache is removed, and the whole cache after a build whose
+    engine or compiler stopped before it finished. Windows keeps a fresh folder per build.
