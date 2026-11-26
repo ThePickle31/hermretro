@@ -91,7 +91,9 @@ class EngineBundleTests(unittest.TestCase):
         self.assertEqual(self.build().returncode, 0)
         # ModRetro's build (the engine's scripts/bundle-mcp.mjs) of the same modules, in a folder laid out as it wants:
         # the entry as dist/server.js, the packages in node_modules and the device client it also bundles.
-        theirs = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        # Resolved: ModRetro's build matches scripts/ against the path it is given, and on macOS the temporary folder
+        # is reached through a link (/var is /private/var), so an unresolved path would not match what esbuild sees.
+        theirs = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
         shutil.copytree(self.engine, theirs, dirs_exist_ok=True)
         shutil.copy(self.entry, theirs / "dist" / "server.js")
         (theirs / "scripts" / "device-client-deps.mjs").write_text("export const client = 1;\n")
