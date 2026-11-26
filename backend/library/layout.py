@@ -190,11 +190,12 @@ def same(stored, wanted) -> bool:
 
 def licence_owned(root: Path, path: Path) -> bool:
     """Whether the ``LICENSE`` at ``path`` is one ensure wrote (its digest is on record in ``.hermretro/``; a history
-    restore can bring back an older one): only such a file is ever rewritten, never one of the user's own."""
+    restore can bring back an older one) or the engine's template one every new game starts with (GB Studio's own
+    licence, not the game's): only such a file is ever rewritten, never one of the user's own."""
     try:
         if path.is_symlink() or not path.is_file():
             return False
-        return file_sha256(path) in _licence_records(root)
+        return file_sha256(path) in _licence_records(root) or _template_text(path) in _template_files("LICENSE")
     except OSError:
         return False
 
@@ -243,18 +244,29 @@ def replaceable(path: Path) -> bool:
         return True
     except (OSError, ValueError):
         return False
-    return text.split("\n", 1)[0] in MARKERS or (path.name == "README.md" and text in _template_readmes())
+    return text.split("\n", 1)[0] in MARKERS or (path.name == "README.md" and text in _template_files("README.md"))
 
 
-def _template_readmes() -> frozenset[str]:
-    """The READMEs of the engine's project templates, which every new game starts with."""
+def _template_files(name: str) -> frozenset[str]:
+    """The ``name`` files (``README.md``, ``LICENSE``) of the engine's project templates, which every new game starts
+    with."""
     texts = set()
-    for readme_file in (paths.ENGINE_ROOT / "examples").glob("*/README.md"):
+    for template_file in (paths.ENGINE_ROOT / "examples").glob(f"*/{name}"):
         try:
-            texts.add(readme_file.read_text(encoding="utf-8"))
+            texts.add(template_file.read_text(encoding="utf-8"))
         except OSError:
             continue
     return frozenset(texts)
+
+
+def _template_text(path: Path) -> str | None:
+    """``path``'s text when it is small enough to be a template file, else None."""
+    if path.stat().st_size > 64 * 1024:
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except ValueError:
+        return None
 
 
 def write_text(path: Path, text: str) -> bool:
