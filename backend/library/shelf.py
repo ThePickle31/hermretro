@@ -117,14 +117,21 @@ def installed_from(root: Path) -> dict | None:
 
 def mark_duplicates(games: list[dict]) -> None:
     """Give each described game ``duplicateId``: the other library folders holding a game with its id (a game folder
-    copied by hand), or None. One id is one game: an install of it, an update and its history all go by it."""
-    folders: dict[str, list[str]] = {}
+    copied by hand), or None. One id is one game: an install of it, an update and its history all go by it. Two
+    entries that are the same folder (a link, or another spelling of its name) are not two copies."""
+    folders: dict[str, dict[tuple, str]] = {}
+    keys = {}
     for game in games:
-        identity = layout.game_identity(Path(game["projectRoot"]))
-        game["_identity"] = identity
+        root = Path(game["projectRoot"])
+        identity = layout.game_identity(root)
+        try:
+            info = root.stat()
+        except OSError:
+            continue
+        keys[id(game)] = (identity, (info.st_dev, info.st_ino))
         if identity is not None:
-            folders.setdefault(identity, []).append(game["projectRoot"])
+            folders.setdefault(identity, {}).setdefault((info.st_dev, info.st_ino), game["projectRoot"])
     for game in games:
-        same = folders.get(game.pop("_identity") or "", [])
-        others = [root for root in same if root != game["projectRoot"]]
+        identity, folder = keys.get(id(game), (None, None))
+        others = [root for key, root in folders.get(identity or "", {}).items() if key != folder]
         game["duplicateId"] = others or None

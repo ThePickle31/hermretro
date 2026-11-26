@@ -128,10 +128,12 @@ as `layout`. A problem (`NO_PROJECT`, `NO_ROM` for a game without its source, `N
 `ID_CHANGED`) makes `chromatic_present_game` refuse with `LAYOUT`; a warning (`UNKNOWN_ENTRY`, `OWN_README`) shows the
 Games card's Layout tag.
 
-`release.py` is what a publish holds and records (nothing reaches the network): `readiness(root, source=...)`
-(layout, a complete card naming a licence, a current ROM that fits a Chromatic cartridge and is the one `game.json`'s
-`romSha256` names, the project for a source publish, and nothing `scan` blocks), `scan(root, source=...)`
-(`publish_scan.py`: secrets, home-folder paths, files an install would refuse, and the code under `plugins/`), `prepare_release(root, version, notes)`
+`publish_ready.py` is whether a game may be published: `readiness(root, source=..., last_build=...)` (layout, a
+complete card naming a licence whose `LICENSE` it has, a ROM that is the last build of its sources, fits a Chromatic
+cartridge and is the one `game.json`'s `romSha256` names, the project for a source publish, nothing `scan` blocks, and
+an install of exactly the published files passing the installer's own checks), and `scan(root, source=...)`
+(`publish_scan.py`: secrets, home-folder paths, files an install would refuse, and the code under `plugins/`).
+`release.py` is what a publish holds and records (nothing reaches the network): `prepare_release(root, version, notes)`
 before the commit (`gameVersion`, one changelog entry, the README), `files(root, source=...)` (exactly what to commit:
 no hidden files, links or linked folders), and after the push `record_publish` (`.hermretro/publish.json`: `{repo,
 commit, version, source, payload, t}`, `payload` being `payload_digest`); `published`, `unpublished_changes` and
@@ -139,9 +141,10 @@ commit, version, source, payload, t}`, `payload` being `payload_digest`); `publi
 compares the game's files with its `fingerprint` (`installed_digest`, below).
 
 `licence.py` holds the licences a card may name (`LICENSES`) and the `LICENSE` text of each; `layout.ensure` writes
-it (never over a `LICENSE` of the user's own; the digest of the one it wrote is `.hermretro/licence.json`). After each
-successful build of a game, `layout.record_build` records the ROM's `romSha256` and `builtWith` (the engine and GB
-Studio that built it) in `game.json`; `layout.ensure` gives an older game its `format`. Two library folders that hold
+it (never over a `LICENSE` of the user's own; the digests of those it wrote are `.hermretro/licence.json`, which an
+update never carries). After each successful build of a game's ROM, `build_record.record_build` records that file's
+`romSha256` and `builtWith` (the engine, and GB Studio's version and commit when the CLI the build ran is the one the
+toolchain's setup installed) in `game.json`; `layout.ensure` gives an older game its `format`. Two library folders that hold
 one game (one id) carry `duplicateId` in the games RPC.
 
 ## Installing a game from a link
@@ -209,10 +212,13 @@ later, passing `workers=game_workers.BrokerWorkers()`.
   everything back; when even that fails, the old copy is kept in `<games>/.hermretro-installs/recovered/` and the error
   (`RECOVERY_NEEDED`) names it.
 - **The record**, `.hermretro/install.json`: `{source: {canonical, url, ref, subdir}, commit, mode, rom: {path,
-  sha256}, fingerprint, installedAt}` (`url` carries no credentials; `rom` is the ROM the install checked).
-  `installed_digest` (the `fingerprint`) covers the game files but the README and `.gitignore` hermretro writes, every
-  file of the project and the source folders (hidden ones too), and for a game alone its ROM; a game with its source
-  rebuilds its ROM, so its ROM and build output never count as an edit, and a game alone that gains a project counts.
+  sha256}, fingerprint, fingerprintVersion, installedAt}` (`url` carries no credentials; `rom` is the ROM the install
+  checked). `installed_digest` (the `fingerprint`, version 3) covers the game files but the README, `.gitignore` and
+  `LICENSE` hermretro writes and `game.json`'s fields it writes itself (`layout.MANAGED_FIELDS`: `format`, `romSha256`,
+  `builtWith`), every file of the project and the source folders (hidden ones too), and for a game alone its ROM; a
+  game with its source rebuilds its ROM, so its ROM and build output never count as an edit, and a game alone that
+  gains a project counts. A record with no `fingerprintVersion` (version 2, the whole `game.json`) is compared as it
+  was made, with or without the fields this hermretro now adds, and an untouched one is upgraded in place.
   `release.installed_rom(root)` (front door) is a game alone's checked ROM, `{romPath, sha256, source, commit}`, while
   it is still those bytes; the shelf shows that ROM.
 - **Ids.** The game id in `game.json` (32 hex digits, `layout.game_identity`) is the same on every machine and through

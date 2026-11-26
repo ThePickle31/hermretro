@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from . import bindings, game_card, layout, ownership, project, shelf
+from . import bindings, build_record, game_card, layout, ownership, project, shelf
 from .bindings import BindingError as BindingError
 from .bindings import session_aliases as session_aliases
 from .freshness import (  # noqa: F401 - existing library imports
@@ -398,9 +398,9 @@ class Registry:
                 # What the ROM was built from (pipeline.rom_state). Left out when a file changed while it ran: the
                 # gate never pairs this ROM with sources the compiler may not have read.
                 build["sources"] = sources_before
-            if not failed:
-                try:
-                    layout.record_build(Path(root))  # game.json's romSha256 and builtWith
+            if not failed and isinstance(rom, str) and sha:
+                try:  # game.json's romSha256 and builtWith, for the file this build made
+                    build_record.record_build(Path(root), rom, sha, project.build_cli(structured))
                 except OSError:
                     pass
             return self.upsert(root, chat=chat, build=build)

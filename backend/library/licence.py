@@ -87,7 +87,7 @@ LICENSES = {
 
 def problem(value) -> str | None:
     """Why ``value`` is not a licence a game may name, or None."""
-    if value in LICENSES:
+    if isinstance(value, str) and value in LICENSES:
         return None
     return "license must be one of: " + ", ".join(LICENSES) + "."
 
@@ -95,7 +95,7 @@ def problem(value) -> str | None:
 def chosen(card: dict) -> str | None:
     """The licence the card names, or None when it names none (or one that is not allowed)."""
     value = card.get("license")
-    return value if value in LICENSES else None
+    return value if isinstance(value, str) and value in LICENSES else None
 
 
 def text(root: Path, card: dict) -> str | None:
@@ -110,6 +110,14 @@ def text(root: Path, card: dict) -> str | None:
     )
     author = card.get("author")
     holder = author.strip() if isinstance(author, str) and author.strip() else f"the authors of {title}"
-    created = card.get("createdAt")
-    year = time.gmtime(created if isinstance(created, (int, float)) and not isinstance(created, bool) else None).tm_year
-    return template.format(title=title, holder=holder, year=year, **fields)
+    return template.format(title=title, holder=holder, year=_year(card.get("createdAt")), **fields)
+
+
+def _year(created) -> int:
+    """The year of the card's ``createdAt`` (seconds), or this year when it is not one."""
+    if isinstance(created, (int, float)) and not isinstance(created, bool):
+        try:
+            return time.gmtime(created).tm_year
+        except (OverflowError, OSError, ValueError):
+            pass
+    return time.gmtime().tm_year

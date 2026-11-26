@@ -132,9 +132,14 @@ def load(root: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def card_text(data: dict) -> str:
+    """``game.json``'s text for ``data``, as every write of the card makes it."""
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
 def _write(root: Path, data: dict) -> None:
     path = card_path(root)
-    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    text = card_text(data)
     handle, temporary = tempfile.mkstemp(prefix=".game-", suffix=".json", dir=str(path.parent))
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
