@@ -42,7 +42,9 @@ pinned in `engine/modretro-chromatic/third-party/chromatic-cli/PROVENANCE.json`,
 in hermretro's folder in the Hermes home on that machine (`~/.hermes/hermretro/.cache/`).
 
 `engine/modretro-chromatic/third-party/chromatic-cli/` holds only the engine's notice, provenance record and
-SBOM for that package (`NOTICE.md`, `PROVENANCE.json`, `SBOM.json`). The redistribution permission described in
+SBOM for that package (`NOTICE.md`, `PROVENANCE.json`, `SBOM.json`); the packed copies of the executables and their
+notices that ModRetro's release carries there (`executables-v2.br`, `notices.br`) are left out, as they are from the
+tag `engine-upstream-1.0.34`. The redistribution permission described in
 `NOTICE.md` was granted to the official ModRetro Chromatic Plugin for Codex, not to hermretro, which is why
 hermretro downloads the binaries instead of shipping them.
 
