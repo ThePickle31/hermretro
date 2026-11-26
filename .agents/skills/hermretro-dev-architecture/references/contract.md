@@ -300,7 +300,9 @@ logs, saved frames, the demo cartridge's captures (`<library>/captures/demo`) an
 games folder. A capture asked for while a part is deleted (counted from when its upload began) is refused, not written
 afterwards. `chats` deletes each studio chat with Hermes's `hermes sessions delete` (its ids read-only from the
 studio profile's `state.db`, never one that is a link, in rounds until one changes nothing, since a deleted chat's forks become chats of their own), only in the profile
-hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
+hermretro made (`NOT_OURS` otherwise), `CHATS_LEFT` when some remain, `CHATS_UNREADABLE` when its database cannot be read; once they are all
+gone every game lets go of its conversation (`Registry.forget_chats`: its Build session, its chat link and the pending
+New Game conversations). It runs before the studio profile is deleted too. `settings` clears `plugins.entries.hermretro.settings` (and the older `config`, which Hermes still
 reads) in this profile and the one hermretro was installed into, never through a `config.yaml` that is a link
 (`CONFIG_LINKED` says which profile's were left), so each setting reads its default. `toolchain` is `remove_tools`. Returns `{ ok: true, removed_bytes }`
 (the toolchain answers as `remove_tools` does) or `{ ok: false, code, error }` with `code` `UNKNOWN_PART`, `PARTLY_REMOVED` (something could not be deleted; `removed_bytes` says what was), `CHATS_LEFT`

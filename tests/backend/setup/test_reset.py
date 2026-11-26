@@ -218,7 +218,18 @@ class Reset(unittest.TestCase):
             mock.patch.object(studio_profile, "studio_is_ours", lambda: True),
             mock.patch.object(studio_profile, "run_hermes", hermes),
         ):
+            library = self.places.home / "library" / "games.json"
+            games = json.loads(library.read_text())
+            games["games"]["aaaaaaaaaaaa"].update(chat={"sessionId": "c0"}, session={"storedId": "c0", "plan": True})
+            games["pending"] = {"c7": {"storedId": "c7"}}
+            library.write_text(json.dumps(games))
             self.assertTrue(reset.clear("chats", self.data, [])["ok"])
+        after = json.loads(library.read_text())
+        frog = after["games"]["aaaaaaaaaaaa"]
+        self.assertNotIn("chat", frog, "no game points at a deleted chat")
+        self.assertNotIn("session", frog)
+        self.assertTrue(frog["initialPlan"], "a first plan still owed stays owed")
+        self.assertEqual(after["pending"], {})
 
     def test_a_hermretro_profile_hermretro_did_not_make_keeps_its_chats(self):
         self._chats([("a", None)])

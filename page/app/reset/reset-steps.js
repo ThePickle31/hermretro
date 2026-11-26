@@ -85,9 +85,10 @@ export function settleChoices(choices, locked = {}) {
   return { choices: settled, forced, notes }
 }
 
-/** The run's steps, in order: stop, the backend's parts, the profile, the update. A deleted profile takes its chats. */
+/** The run's steps, in order: stop, the backend's parts, the profile, the update. The chats go one by one even when
+ *  the profile follows: that also lets every game go of its conversation. */
 export function resetSteps(choices) {
-  const deleted = id => choices[id] === 'delete' && !(id === 'chats' && choices.profile === 'delete')
+  const deleted = id => choices[id] === 'delete'
 
   return [
     { id: 'stop', label: 'Stopping the studio' },

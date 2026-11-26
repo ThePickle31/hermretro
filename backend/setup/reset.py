@@ -169,7 +169,7 @@ def _delete_chats() -> dict:
                     deleted += 1
                 except studio_profile.StudioProfileError as error:
                     last = str(error)
-        left = _chat_ids()
+        left = _chat_count()
     except sqlite3.Error as error:
         return {
             "ok": False,
@@ -180,9 +180,12 @@ def _delete_chats() -> dict:
         return {
             "ok": False,
             "code": "CHATS_LEFT",
-            "error": f"{len(left)} studio chats could not be deleted ({last}).",
+            "error": f"{left} studio chats could not be deleted ({last}).",
             "partly": deleted > 0,
         }
+    # No game points at a chat that is gone (Open its chat, the Build page's conversation).
+    if _in_library("games.json") and not (paths.library_dir() / "games.json").is_symlink():
+        Registry(paths.library_dir()).forget_chats()
     return {"ok": True, "removed_bytes": 0}
 
 

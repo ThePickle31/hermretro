@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 cbcc8c84587710e86ae18f26dafa9ca2dc6c45f88593fd58f98ef8e05807d4d6
- * body: sha256 50a1776bf483ca7723b7292dd67081fb8d19ca33d4ae1a73f4bfbb6d80ed5f79
+ * sources: sha256 67e8c56525654566d5fa02dfe8dafbb2914daca023c3dd983e609e19e033c1de
+ * body: sha256 455e00f98fe157ea6f29353485b5e1624bd48ff875d676104ab4cbf3f26cd679
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -3814,23 +3814,23 @@ return target?.route?.connectionId||host.activeConnectionId?.()||"local"}functio
 "delete";forced[part]=why}};takes("profile","chats","Deleted with the studio profile");takes("profile","settings","Deleted with the studio profile");takes("profile","history","Deleted with the studio \
 profile");takes("games","history","Deleted with Games");const notes={};if(settled.games==="delete"&&settled.logs!=="delete"&&!forced.logs){notes.logs="Game captures go with Games"}if(settled.chats==="\
 delete"&&settled.history!=="delete"&&!forced.history){notes.history="Numbered builds go with the chats"}return{choices:settled,forced,notes}}function resetSteps(choices){const deleted=id=>choices[id]===
-"delete"&&!(id==="chats"&&choices.profile==="delete");return[{id:"stop",label:"Stopping the studio"},...BACKEND_PARTS.filter(deleted).map(id=>({id,label:label(id)})),...deleted("profile")?[{id:"profil\
-e",label:label("profile")}]:[],{id:"update",label:"Updating hermretro"}]}async function deleteStudioProfile(studio){if(typeof host.deleteProfile!=="function"){throw new Error("This Hermes cannot delet\
-e a profile from a plugin. Update Hermes, then try again.")}await host.deleteProfile(studio.route??STUDIO_PROFILE);forgetRoute()}async function backendPart(target,part){const answer=await requestOn(target,
-RPC_RESET,{part},PART_TIMEOUT_MS);if(!answer?.ok){throw Object.assign(new Error(answer?.error||`${label(part)} could not be deleted.`),{removed:Number(answer?.removed_bytes)||0,partly:Boolean(answer?.
-partly)})}return Number(answer.removed_bytes)||0}function pendingReset(ctx){try{const summary=ctx.storage.get(RESET_MARKER,null);return summary&&typeof summary==="object"?summary:null}catch{return null}}
-function forgetReset(ctx){remember2(ctx,RESET_MARKER,null)}function sameInstall(pending,install){return!pending.profile||pending.profile===install.profile&&pending.connectionId===connectionOf(install)}
-function stored(ctx,key){try{return ctx.storage.get(key,null)}catch{return null}}function remember2(ctx,key,value){try{ctx.storage.set(key,value)}catch{}}async function runReset({ctx,choices,here,ambient,
-target,studio,install,version,onStep=()=>{}}){const steps=resetSteps(choices);const gone=new Set;const kept=()=>RESET_PARTS.filter(part=>!gone.has(part.id)).map(part=>part.label);const summary={deleted:0,
-kept:kept(),failed:null,update:null,from:version,here,ambient,install};const profileGone=choices.profile==="delete";for(const[index,step]of steps.entries()){onStep(index);try{if(step.id!=="update"&&!gone.
-has("profile")){const building=await busyChats(studio);if(building.length){throw new Error(busySentence(building,"reset hermretro"))}}if(step.id==="stop"){await backendPart(target,"stop")}else if(BACKEND_PARTS.
-includes(step.id)){summary.deleted+=await backendPart(target,step.id)}else if(step.id==="profile"){await deleteStudioProfile(studio);gone.add("chats").add("history").add("settings");if(summary.ambient===
-STUDIO_PROFILE){summary.ambient="default"}}else if(install){const pending=stored(ctx,UPDATE_PENDING);if(pending&&!sameInstall(pending,install)){throw new Error("Another hermretro update is unfinished.\
- Finish it on the hermretro page first.")}const mark=error=>remember2(ctx,UPDATE_PENDING,{at:Date.now(),error,connectionId:connectionOf(install),profile:install.profile});remember2(ctx,RESET_MARKER,summary);
-summary.update=await runUpdate({install,resume:Boolean(pending),studio:profileGone?null:studio,busy:()=>busyChats(profileGone?null:studio),confirmInstallIdle:async()=>null,installed:()=>mark(null),refused:()=>remember2(
-ctx,UPDATE_PENDING,null),remember:marker=>{remember2(ctx,UPDATE_PENDING,null);remember2(ctx,UPDATE_MARKER,{...marker,from:version});remember2(ctx,RESET_MARKER,{...summary,update:{kind:"updated",restart:marker.
-restart}})}});if(summary.update.kind==="partial"){mark(summary.update.error??null)}}}catch(error){summary.failed={step:step.label,error:String(error?.message??error)};summary.deleted+=error?.removed??
-0;if(error?.partly){gone.add(step.id);summary.kept=kept()}break}if(step.id!=="stop"&&step.id!=="update"){gone.add(step.id);summary.kept=kept()}}if(summary.update){remember2(ctx,RESET_MARKER,summary)}return summary}var CHOICES=[{id:"keep",label:"Keep"},{id:"delete",label:"Delete"}];var CONFIRM_WORD="reset";function detail(id,parts2){const part=parts2[id]??{};const size=part.bytes>0?formatBytes(part.bytes):null;if(id===
+"delete";return[{id:"stop",label:"Stopping the studio"},...BACKEND_PARTS.filter(deleted).map(id=>({id,label:label(id)})),...deleted("profile")?[{id:"profile",label:label("profile")}]:[],{id:"update",label:"\
+Updating hermretro"}]}async function deleteStudioProfile(studio){if(typeof host.deleteProfile!=="function"){throw new Error("This Hermes cannot delete a profile from a plugin. Update Hermes, then try \
+again.")}await host.deleteProfile(studio.route??STUDIO_PROFILE);forgetRoute()}async function backendPart(target,part){const answer=await requestOn(target,RPC_RESET,{part},PART_TIMEOUT_MS);if(!answer?.
+ok){throw Object.assign(new Error(answer?.error||`${label(part)} could not be deleted.`),{removed:Number(answer?.removed_bytes)||0,partly:Boolean(answer?.partly)})}return Number(answer.removed_bytes)||
+0}function pendingReset(ctx){try{const summary=ctx.storage.get(RESET_MARKER,null);return summary&&typeof summary==="object"?summary:null}catch{return null}}function forgetReset(ctx){remember2(ctx,RESET_MARKER,
+null)}function sameInstall(pending,install){return!pending.profile||pending.profile===install.profile&&pending.connectionId===connectionOf(install)}function stored(ctx,key){try{return ctx.storage.get(
+key,null)}catch{return null}}function remember2(ctx,key,value){try{ctx.storage.set(key,value)}catch{}}async function runReset({ctx,choices,here,ambient,target,studio,install,version,onStep=()=>{}}){const steps=resetSteps(
+choices);const gone=new Set;const kept=()=>RESET_PARTS.filter(part=>!gone.has(part.id)).map(part=>part.label);const summary={deleted:0,kept:kept(),failed:null,update:null,from:version,here,ambient,install};
+const profileGone=choices.profile==="delete";for(const[index,step]of steps.entries()){onStep(index);try{if(step.id!=="update"&&!gone.has("profile")){const building=await busyChats(studio);if(building.
+length){throw new Error(busySentence(building,"reset hermretro"))}}if(step.id==="stop"){await backendPart(target,"stop")}else if(BACKEND_PARTS.includes(step.id)){summary.deleted+=await backendPart(target,
+step.id)}else if(step.id==="profile"){await deleteStudioProfile(studio);gone.add("chats").add("history").add("settings");if(summary.ambient===STUDIO_PROFILE){summary.ambient="default"}}else if(install){
+const pending=stored(ctx,UPDATE_PENDING);if(pending&&!sameInstall(pending,install)){throw new Error("Another hermretro update is unfinished. Finish it on the hermretro page first.")}const mark=error=>remember2(
+ctx,UPDATE_PENDING,{at:Date.now(),error,connectionId:connectionOf(install),profile:install.profile});remember2(ctx,RESET_MARKER,summary);summary.update=await runUpdate({install,resume:Boolean(pending),
+studio:profileGone?null:studio,busy:()=>busyChats(profileGone?null:studio),confirmInstallIdle:async()=>null,installed:()=>mark(null),refused:()=>remember2(ctx,UPDATE_PENDING,null),remember:marker=>{remember2(
+ctx,UPDATE_PENDING,null);remember2(ctx,UPDATE_MARKER,{...marker,from:version});remember2(ctx,RESET_MARKER,{...summary,update:{kind:"updated",restart:marker.restart}})}});if(summary.update.kind==="part\
+ial"){mark(summary.update.error??null)}}}catch(error){summary.failed={step:step.label,error:String(error?.message??error)};summary.deleted+=error?.removed??0;if(error?.partly){gone.add(step.id);summary.
+kept=kept()}break}if(step.id!=="stop"&&step.id!=="update"){gone.add(step.id);summary.kept=kept()}}if(summary.update){remember2(ctx,RESET_MARKER,summary)}return summary}var CHOICES=[{id:"keep",label:"Keep"},{id:"delete",label:"Delete"}];var CONFIRM_WORD="reset";function detail(id,parts2){const part=parts2[id]??{};const size=part.bytes>0?formatBytes(part.bytes):null;if(id===
 "games"){return[`${part.count??0} ${part.count===1?"game":"games"}`,size].filter(Boolean).join(" · ")}if(id==="chats"){return part.count==null?null:`${part.count} ${part.count===1?"chat":"chats"}`}return id===
 "profile"?"Model, sign-in, SOUL":size}function Choose({reset}){const{parts:parts2}=reset.context;return jsx("ul",{className:"cs-rst-parts",children:RESET_PARTS.map(({id,label:label2})=>jsxs("li",{className:"\
 cs-rst-part",children:[jsxs("div",{className:"cs-rst-name",children:[jsx("b",{children:label2}),jsx("span",{children:[detail(id,parts2),reset.forced[id]??reset.notes[id]].filter(Boolean).join(" · ")})]}),

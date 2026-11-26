@@ -135,8 +135,8 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
     assert.match(said(), /Build history31\.0 MB · Deleted with the studio profile/)
   })
   await confirm()
-  check('the profile is deleted through Hermes after the backend parts, taking its chats with it', () => {
-    assert.deepEqual(log, ['stop', 'history', 'logs', 'settings', 'toolchain', 'update:update'])
+  check('the profile is deleted through Hermes after the backend parts, its chats first so no game points at one', () => {
+    assert.deepEqual(log, ['stop', 'history', 'logs', 'chats', 'settings', 'toolchain', 'update:update'])
     assert.deepEqual(scenario.calls.filter(call => call[0] === 'deleteProfile'), [['deleteProfile', 'hermretro', 'local']])
   })
   await click('Close', dialog())
