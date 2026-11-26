@@ -155,10 +155,9 @@ Removing or updating the plugin leaves this folder alone, so your games stay. A 
 removes the whole Hermes home, this folder included: copy `games/` somewhere first. `HERMRETRO_HOME` moves
 the whole folder; `HERMRETRO_GAMES_DIR` moves just the games.
 
-The engine keeps two small folders of its own in your home folder, outside the Hermes home, only once a
-physical Chromatic is used: `~/.codex-gb-studio/chromatic/` (its record of device operations such as flashing)
-and `~/.modretro-chromatic-runtime/` (the unpacked device CLI, about 16 MB). "Remove downloaded tools" and
-uninstalling leave them; delete them by hand if you no longer use a Chromatic.
+The engine keeps one small folder of its own in your home folder, outside the Hermes home, only once a physical
+Chromatic is used: `~/.codex-gb-studio/chromatic/` (its record of device operations such as flashing). "Remove
+downloaded tools" and uninstalling leave it; delete it by hand if you no longer use a Chromatic.
 
 Upgrading from 0.0.4 or older: those kept downloads in `deps/` and games in `games/` inside the plugin folder,
 and the shelf in `~/.local/state/chromatic-studio/`. Copy any games you want out of `games/`, then delete

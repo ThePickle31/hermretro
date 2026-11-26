@@ -48,8 +48,9 @@ Read CI with `gh pr checks <n>` and `gh run view <run> --log-failed`.
    or `engine/modretro-chromatic/dist/server.js` by hand. Change `page/` or the backend and run `node tools/bundle/bundle.mjs`, or
    the engine's modules and run `node tools/engine/bundle.mjs`, and commit the generated files with the sources.
 2. **Engine changes are recorded.** `engine/modretro-chromatic/` is hermretro's engine, started from ModRetro's
-   Chromatic engine 1.0.34 (MIT; its licence and notices stay). Changes are made in its `dist/` modules, one line
-   each in `engine/CHANGES.md`. Every engine change comes with its `engine/CHANGES.md` line, the rebuilt bundle and
+   Chromatic engine 1.0.34 (MIT; its licence and notices stay). Changes to the server are made in its `dist/`
+   modules (the bundle is built from them); its other files (`scripts/`, `skills/`, `docs/`) are edited in place.
+   One line each in `engine/CHANGES.md`. Every engine change comes with its `engine/CHANGES.md` line, the rebuilt bundle and
    a fresh manifest (`python tools/engine/manifest.py write`): the plugin starts only an engine that matches it.
 3. **Install scanner.** `python tools/check.py scan` must say `safe`: one line rated high makes every install ask,
    one rated critical blocks installs. What trips it: `.agents/skills/hermretro-dev-testing/references/install-scanner.md` (instruction verbs aimed at

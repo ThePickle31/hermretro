@@ -41,8 +41,9 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
-- The engine (`engine/modretro-chromatic/`) is changed in its `dist/` modules, never in `dist/server.js`: rebuild it
-  with `node tools/engine/bundle.mjs`, add the change's line to `engine/CHANGES.md` and write a fresh manifest
+- The engine (`engine/modretro-chromatic/`): the server is changed in its `dist/` modules, never in
+  `dist/server.js` (rebuild it with `node tools/engine/bundle.mjs`); its other files (`scripts/`, `skills/`, `docs/`)
+  are edited in place. Add the change's line to `engine/CHANGES.md` and write a fresh manifest
   (`python tools/engine/manifest.py write`).
 - `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).
 - Everything works the same on Linux and macOS; differences go in `backend/system/host.py`. Windows is not supported.
