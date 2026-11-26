@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 44366808ccc06f40532b5934d6072bbd7e2538fe489f395abd59e262e76edfac
- * body: sha256 664117cecf98783164ed0c6a59078514533ddf8ddbb415f1cf9d7c9d80c9bb72
+ * sources: sha256 cbcba3b61e76778b9e85264bd0a5eaa304999b563ce5115f5ed120c73073b8b9
+ * body: sha256 027bda3cb55738fc30f1371ce2a29ee2de7b3aad35037cbb15e185711d566fd2
  */
 import{atom,Button,Codicon,CopyButton,host,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";
 import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";import{jsx,jsxs}from"react/jsx-runtime";var ID="hermretro";var ROUTE="/hermretro";var DEMO_ID="demo";var DEMO_GAME={id:DEMO_ID,title:"Hello Color",kind:"gbdk",note:"ModRetro example"};var STUDIO_PROFILE="hermretro";var ENABLE_COMMAND=`herme\
@@ -3703,24 +3703,25 @@ page only (beside the chat there is no shell: check go before using it)."}};var 
 ents","listens","slots","contributes","flag"]);var ID2=/^[a-z][a-z0-9-]*$/;var NAME=/^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/;var isFunction=value=>typeof value==="function";function pageProblems(pages,flags=FLAGS){
 const problems=[];const seen=new Set;const declared={events:new Set,slots:new Set};const parts2=[];pages.forEach((page,index)=>{const where=`page/pages/${page?.id??`<#${index}>`}/index.js`;if(!page||typeof page!==
 "object"){problems.push(`page/pages/index.js lists something that is not a page descriptor at position ${index+1}`);return}if(!ID2.test(page.id??"")||seen.has(page.id)){problems.push(`${where}: id mus\
-t be a unique lowercase name, got ${JSON.stringify(page.id)}`)}if(index===0&&page.flag!=null){problems.push(`${where}: the first page cannot be flagged: a hidden page falls back to it`)}seen.add(page.
-id);parts2.push(...describe(page,where,PAGE_FIELDS,problems,flags).map(part=>({...part,owner:page.id})));if(!isFunction(page.Page)&&!(Array.isArray(page.tabs)&&page.tabs.length)){problems.push(`${where}\
-: give the page a Page component, or tabs`)}const tabIds=new Set;for(const tab of Array.isArray(page.tabs)?page.tabs:[]){const at=`${where} (tab ${tab?.id})`;if(!ID2.test(tab?.id??"")||tabIds.has(tab.
-id)){problems.push(`${at}: tab id must be a unique lowercase name within the page`)}if(!isFunction(tab?.Page)){problems.push(`${at}: a tab needs a Page component`)}tabIds.add(tab?.id);parts2.push(...describe(
-tab??{},at,TAB_FIELDS,problems,flags).map(part=>({...part,owner:page.id})))}});for(const{kind,name,where,owner}of parts2.filter(part=>part.kind==="events"||part.kind==="slots")){if(!NAME.test(name)||!name.
-startsWith(`${owner}.`)){problems.push(`${where}: ${kind} "${name}" must be named "${owner}.<name>" (the owning page's id, a dot, a camelCase name)`)}else if(declared[kind].has(name)){problems.push(`${where}\
-: ${kind} "${name}" is declared twice; one page owns each name`)}declared[kind].add(name)}for(const{kind,name,where,value}of parts2){if(kind==="listens"&&!declared.events.has(name)){problems.push(`${where}\
-: listens to "${name}", which no page declares in events`)}else if(kind==="listens"&&!isFunction(value)){problems.push(`${where}: listens["${name}"] must be a function (payload, ctx) => ...`)}else if(kind===
-"contributes"&&!declared.slots.has(name)){problems.push(`${where}: contributes to "${name}", which no page declares in slots`)}else if(kind==="contributes"&&!(Array.isArray(value)&&value.length&&value.
-every(isFunction))){problems.push(`${where}: contributes["${name}"] must be a list of components`)}}return problems}function describe(item,where,fields,problems,flags){for(const key of Object.keys(item)){
-if(!fields.has(key)){problems.push(`${where}: unknown field "${key}" (known: ${[...fields].join(", ")})`)}}if(typeof item.label!=="string"||!item.label){problems.push(`${where}: label must be the text\
- its nav segment or tab shows`)}for(const key of["Badge","BelowPlayer","register"]){if(item[key]!=null&&!isFunction(item[key])){problems.push(`${where}: ${key} must be a function`)}}if(item.flag!=null){
-if(typeof item.flag!=="string"||!Object.hasOwn(flags,item.flag)){problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(", ")||"none"})`)}for(const key of[
-"listens","contributes","register"].filter(name=>item[name]!=null)){problems.push(`${where}: a flagged page or tab cannot have ${key}: it would run for users who cannot see it. FIX: add it when the fl\
-ag ships`)}}if(item.css!=null&&!(Array.isArray(item.css)&&item.css.every(chunk=>typeof chunk==="string"))){problems.push(`${where}: css must be a list of stylesheet strings`)}const parts2=[];for(const kind of[
-"events","slots","listens","contributes"]){for(const[name,value]of Object.entries(item[kind]??{})){if((kind==="events"||kind==="slots")&&(typeof value!=="string"||!value)){problems.push(`${where}: ${kind}\
-["${name}"] needs a one-line description (what it is, the payload or props)`)}parts2.push({kind,name,value,where})}}return parts2}function wirePages(pages,{events,slots}){const problems=pageProblems(pages);
-if(problems.length){throw new Error(`the page registry has problems:
+t be a unique lowercase name, got ${JSON.stringify(page.id)}`)}if(index===0&&(page.flag!=null||!(isFunction(page.Page)||(page.tabs??[]).some(tab=>tab?.flag==null)))){problems.push(`${where}: the first\
+ page cannot be flagged, and needs its own Page or a tab without a flag: a hidden page falls back to it`)}seen.add(page.id);parts2.push(...describe(page,where,PAGE_FIELDS,problems,flags,false).map(part=>({
+...part,owner:page.id})));if(!isFunction(page.Page)&&!(Array.isArray(page.tabs)&&page.tabs.length)){problems.push(`${where}: give the page a Page component, or tabs`)}const tabIds=new Set;for(const tab of Array.
+isArray(page.tabs)?page.tabs:[]){const at=`${where} (tab ${tab?.id})`;if(!ID2.test(tab?.id??"")||tabIds.has(tab.id)){problems.push(`${at}: tab id must be a unique lowercase name within the page`)}if(!isFunction(
+tab?.Page)){problems.push(`${at}: a tab needs a Page component`)}tabIds.add(tab?.id);parts2.push(...describe(tab??{},at,TAB_FIELDS,problems,flags,page.flag!=null).map(part=>({...part,owner:page.id})))}});
+for(const{kind,name,where,owner}of parts2.filter(part=>part.kind==="events"||part.kind==="slots")){if(!NAME.test(name)||!name.startsWith(`${owner}.`)){problems.push(`${where}: ${kind} "${name}" must b\
+e named "${owner}.<name>" (the owning page's id, a dot, a camelCase name)`)}else if(declared[kind].has(name)){problems.push(`${where}: ${kind} "${name}" is declared twice; one page owns each name`)}declared[kind].
+add(name)}for(const{kind,name,where,value}of parts2){if(kind==="listens"&&!declared.events.has(name)){problems.push(`${where}: listens to "${name}", which no page declares in events`)}else if(kind==="\
+listens"&&!isFunction(value)){problems.push(`${where}: listens["${name}"] must be a function (payload, ctx) => ...`)}else if(kind==="contributes"&&!declared.slots.has(name)){problems.push(`${where}: c\
+ontributes to "${name}", which no page declares in slots`)}else if(kind==="contributes"&&!(Array.isArray(value)&&value.length&&value.every(isFunction))){problems.push(`${where}: contributes["${name}"]\
+ must be a list of components`)}}return problems}function describe(item,where,fields,problems,flags,hiddenWith){for(const key of Object.keys(item)){if(!fields.has(key)){problems.push(`${where}: unknow\
+n field "${key}" (known: ${[...fields].join(", ")})`)}}if(typeof item.label!=="string"||!item.label){problems.push(`${where}: label must be the text its nav segment or tab shows`)}for(const key of["Ba\
+dge","BelowPlayer","register"]){if(item[key]!=null&&!isFunction(item[key])){problems.push(`${where}: ${key} must be a function`)}}if(item.flag!=null&&(typeof item.flag!=="string"||!Object.hasOwn(flags,
+item.flag))){problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(", ")||"none"})`)}if(item.flag!=null||hiddenWith){for(const key of["lis\
+tens","contributes","register"].filter(name=>item[name]!=null)){problems.push(`${where}: a flagged page or tab, or a tab of a flagged page, cannot have ${key}: it would run for users who cannot see it\
+. FIX: add it when the flag ships`)}}if(item.css!=null&&!(Array.isArray(item.css)&&item.css.every(chunk=>typeof chunk==="string"))){problems.push(`${where}: css must be a list of stylesheet strings`)}
+const parts2=[];for(const kind of["events","slots","listens","contributes"]){for(const[name,value]of Object.entries(item[kind]??{})){if((kind==="events"||kind==="slots")&&(typeof value!=="string"||!value)){
+problems.push(`${where}: ${kind}["${name}"] needs a one-line description (what it is, the payload or props)`)}parts2.push({kind,name,value,where})}}return parts2}function wirePages(pages,{events,slots}){
+const problems=pageProblems(pages);if(problems.length){throw new Error(`the page registry has problems:
   ${problems.join("\n  ")}
 FIX: see .agents/skills/hermretro-dev-page/references/adding.md, "Adding to the page"`)}const items=pages.flatMap(page=>[{owner:page.id,item:page},...(page.tabs??[]).map(tab=>({owner:page.id,item:tab}))]);
 for(const{owner,item}of items){Object.entries(item.events??{}).forEach(([name,doc])=>events.declare(name,owner,doc));Object.entries(item.slots??{}).forEach(([name,doc])=>slots.declare(name,owner,doc))}
@@ -4286,10 +4287,10 @@ function BackgroundSlot({background,shown}){const ref=useRef(null);useLayoutEffe
 "div",{"aria-hidden":true,className:"cs-bg","data-bg":background.id,hidden:!shown,ref})}function BackgroundLayer(){const[wanted,setWanted]=useState(wantedBackground);const[started2,setStarted]=useState(
 []);useLayoutEffect(()=>{const update=()=>setWanted(wantedBackground());update();return onBackgroundChange(update)},[]);if(wanted&&!byId.has(wanted)){console.warn(`[hermretro] no background "${wanted}\
 " (page/backgrounds/index.js lists them)`)}const live=wanted&&byId.has(wanted)&&!started2.includes(wanted)?[...started2,wanted]:started2;useLayoutEffect(()=>{if(live!==started2)setStarted(live)});return live.
-map(id=>jsx(BackgroundSlot,{background:byId.get(id),shown:id===wanted},id))}function storedTab(ctx,page){try{const id=ctx?.storage?.get?.(`tab:${page.id}`,null);return page.tabs.some(tab=>tab.id===id)?id:page.tabs[0].id}catch{return page.tabs[0].id}}function TabbedPage({page,
-shell}){const[chosen,setChosen]=useState(()=>storedTab(shell.ctx,page));const tab=page.tabs.find(item=>item.id===chosen)??page.tabs[0];const pick=id=>{setChosen(id);try{shell.ctx?.storage?.set?.(`tab:${page.
-id}`,id)}catch{}};return[jsx("div",{"aria-label":`${page.label} tabs`,className:"cs-tabs",role:"tablist",children:page.tabs.map(item=>jsx("button",{"aria-selected":item.id===tab.id,className:item.id===
-tab.id?"on":"",onClick:()=>pick(item.id),role:"tab",type:"button",children:item.label},item.id))},"tabs"),page.Page?jsx(page.Page,{shell,tab:tab.id},"page"):null,jsxs("div",{className:"cs-tab-body",role:"\
+map(id=>jsx(BackgroundSlot,{background:byId.get(id),shown:id===wanted},id))}function storedTab(ctx,page){try{const id=ctx?.storage?.get?.(`tab:${page.id}`,null);return typeof id==="string"&&id?id:page.tabs[0].id}catch{return page.tabs[0].id}}function TabbedPage({page,shell}){
+const[chosen,setChosen]=useState(()=>storedTab(shell.ctx,page));const tab=page.tabs.find(item=>item.id===chosen)??page.tabs[0];const pick=id=>{setChosen(id);try{shell.ctx?.storage?.set?.(`tab:${page.id}`,
+id)}catch{}};return[jsx("div",{"aria-label":`${page.label} tabs`,className:"cs-tabs",role:"tablist",children:page.tabs.map(item=>jsx("button",{"aria-selected":item.id===tab.id,className:item.id===tab.
+id?"on":"",onClick:()=>pick(item.id),role:"tab",type:"button",children:item.label},item.id))},"tabs"),page.Page?jsx(page.Page,{shell,tab:tab.id},"page"):null,jsxs("div",{className:"cs-tab-body",role:"\
 tabpanel",children:[jsx(tab.Page,{shell},tab.id)]},"tab")]}function PageView({page,shell}){return page.tabs?.length?jsx(TabbedPage,{page,shell}):jsx(page.Page,{shell})}var GROUPS=[["new","New"],["fixed","Fixed"]];function Release({release,dated}){const groups=GROUPS.map(([kind,label])=>[kind,label,release.notes.filter(note=>note.kind===kind)]).filter(([,,notes])=>notes.
 length);const date=release.date?new Date(release.date).toLocaleDateString(void 0,{day:"numeric",month:"short"}):"";return jsxs("section",{className:"cs-upd-rel",children:[dated?jsxs("div",{className:"\
 cs-upd-relh",children:[jsx("b",{children:`v${release.version}`}),date?jsx("span",{children:date}):null]}):null,...groups.map(([kind,label,notes])=>jsxs("div",{className:"cs-upd-grp",children:[jsx("spa\
@@ -4438,23 +4439,23 @@ refetch?.()}},[installElsewhere]);useEffect(()=>{if(!doneRun||verifiedRun.curren
 answerAt||Math.max(doctor.dataUpdatedAt??0,doctor.errorUpdatedAt??0);const current2=doctor.isFetching?asked3.at>=finishedMs:Boolean(doctor.data||doctor.isError)&&answeredAt>=finishedMs;verifiedRun.current=
 doneRun;if(!finishedMs||!current2){void doctor.refetch?.()}},[doneRun,doctor.isFetching]);const finishOnboarding=()=>{update({onboarded:true});go("build")};useEffect(()=>{const toolchainOpen=toolchainStep&&
 toolchainStep.state!=="done"&&toolchainStep.state!=="checking";const next={fast:autoId!=="ready",pollDoctor:Boolean(toolchainOpen)&&installElsewhere};setPolling(current2=>current2.fast===next.fast&&current2.
-pollDoctor===next.pollDoctor?current2:next)},[autoId,toolchainStep?.state,installElsewhere]);const go=(id,selection=null)=>{setNavigation(current2=>id===current2.page&&selection===null?current2:pageVisit(
-id,current2.visit+1,selection));try{ctx.storage.set("page",id)}catch{}};const refresh=()=>{routing.scannedAt=0;forgetRoute();void queryClient.invalidateQueries({queryKey:[ID]})};const pick=id=>setPinned(
-id===autoId?null:id);const setUpDevice=()=>{update({hardwareSkipped:false,hardwareWanted:true,onboarded:true});setPinned(null);go("setup")};const onEmulator=page==="emulator";const liveOwner=useValue(
-LIVE_PLAYER);const pageLive=liveOwner==="page";const games=useQuery({queryKey:[ID,"games",viaProfile],queryFn:readGamesShelf,enabled:running,refetchInterval:3e4,staleTime:2e3,retry:false});const gameList=Array.
-isArray(games.data?.games)?games.data.games:[];const libraryError=games.isError?studioError(games.error,"list your games"):null;const[emu,setEmu]=useState(()=>({id:pickedGame(ctx),reload:0}));const[emuOpened,
-setEmuOpened]=useState(false);const[dismissed,setDismissed]=useState(null);const[capturesOpen,setCapturesOpen]=useState(false);const checkPicked=running&&Boolean(emu.id&&emu.id!==DEMO_ID);const buildStatus=useQuery(
-{queryKey:[ID,"gameBuildStatus",viaProfile,emu.id],queryFn:()=>readGameBuildStatus(callStudio,emu.id),enabled:checkPicked,refetchInterval:checkPicked&&onEmulator&&pageLive?5e3:false,retry:false});const demo={
-...DEMO_GAME,...games.data?.demo&&typeof games.data.demo==="object"?games.data.demo:{},id:DEMO_ID};const libraryKnown=Boolean(games.data)||games.isError;const picked=gameList.find(item=>item.id===emu.
-id);const unavailable=Array.isArray(games.data?.unavailable)&&games.data.unavailable.includes(emu.id);const shelfSettled=games.data?.ok===true&&!games.isFetching&&!games.isError;const removed=checkPicked&&
-shelfSettled&&!picked&&!unavailable&&buildStatus.data?.code==="NO_GAME"&&!buildStatus.isFetching&&!buildStatus.isError;const current=buildStatus.data?.game;const game=removed||emu.id===DEMO_ID||!emu.id&&
-libraryKnown?demo:current?{...picked,...current}:picked??null;const gameError=game?null:buildStatus.isError?studioError(buildStatus.error,"read the game build"):libraryError;useEffect(()=>{if(removed){
-setEmu(current2=>({id:null,reload:current2.reload}));try{ctx.storage.set(EMULATOR_GAME,null)}catch{}}},[removed,emu.id]);useEffect(()=>{if(onEmulator&&game){setEmuOpened(true)}},[onEmulator,game?.id]);
-useEffect(()=>{if(onEmulator&&running&&liveOwner===null){claimLive("page")}},[onEmulator,running,liveOwner]);useEffect(()=>()=>releaseLive("page"),[]);const player=useQuery({queryKey:[ID,"player",game?.
-id??null,emu.reload],queryFn:()=>callStudio(RPC_PLAYER,{id:game.id},3e4),enabled:running&&emuOpened&&Boolean(game)&&pageLive,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false,retry:false});
-const frameRef=useRef(null);const stageRef=useRef(null);const loadedSha=player.data?.url?player.data.romSha256??null:null;const shelfBuild=buildStatusUnsupported(buildStatus.error)&&!games.isError&&games.
-data?.ok===true?picked:null;const currentSha=playableSha(buildStatus.isError?shelfBuild:current);const rebuilt=Boolean(pageLive&&loadedSha&&currentSha&&loadedSha!==currentSha&&dismissed!==currentSha);
-const bridge=usePlayerBridge({ctx,frameRef,onAnnotate:data=>annotateGame(ctx,game,data),visible:onEmulator&&running&&pageLive});const ask=()=>askAboutGame(ctx,game,bridge.snap);const thumbnailGame=shelfSettled&&
+pollDoctor===next.pollDoctor?current2:next)},[autoId,toolchainStep?.state,installElsewhere]);const go=(id,selection=null)=>{if(!pages.some(item=>item.id===id)){return}setNavigation(current2=>id===current2.
+page&&selection===null?current2:pageVisit(id,current2.visit+1,selection));try{ctx.storage.set("page",id)}catch{}};const refresh=()=>{routing.scannedAt=0;forgetRoute();void queryClient.invalidateQueries(
+{queryKey:[ID]})};const pick=id=>setPinned(id===autoId?null:id);const setUpDevice=()=>{update({hardwareSkipped:false,hardwareWanted:true,onboarded:true});setPinned(null);go("setup")};const onEmulator=page===
+"emulator";const liveOwner=useValue(LIVE_PLAYER);const pageLive=liveOwner==="page";const games=useQuery({queryKey:[ID,"games",viaProfile],queryFn:readGamesShelf,enabled:running,refetchInterval:3e4,staleTime:2e3,
+retry:false});const gameList=Array.isArray(games.data?.games)?games.data.games:[];const libraryError=games.isError?studioError(games.error,"list your games"):null;const[emu,setEmu]=useState(()=>({id:pickedGame(
+ctx),reload:0}));const[emuOpened,setEmuOpened]=useState(false);const[dismissed,setDismissed]=useState(null);const[capturesOpen,setCapturesOpen]=useState(false);const checkPicked=running&&Boolean(emu.id&&
+emu.id!==DEMO_ID);const buildStatus=useQuery({queryKey:[ID,"gameBuildStatus",viaProfile,emu.id],queryFn:()=>readGameBuildStatus(callStudio,emu.id),enabled:checkPicked,refetchInterval:checkPicked&&onEmulator&&
+pageLive?5e3:false,retry:false});const demo={...DEMO_GAME,...games.data?.demo&&typeof games.data.demo==="object"?games.data.demo:{},id:DEMO_ID};const libraryKnown=Boolean(games.data)||games.isError;const picked=gameList.
+find(item=>item.id===emu.id);const unavailable=Array.isArray(games.data?.unavailable)&&games.data.unavailable.includes(emu.id);const shelfSettled=games.data?.ok===true&&!games.isFetching&&!games.isError;
+const removed=checkPicked&&shelfSettled&&!picked&&!unavailable&&buildStatus.data?.code==="NO_GAME"&&!buildStatus.isFetching&&!buildStatus.isError;const current=buildStatus.data?.game;const game=removed||
+emu.id===DEMO_ID||!emu.id&&libraryKnown?demo:current?{...picked,...current}:picked??null;const gameError=game?null:buildStatus.isError?studioError(buildStatus.error,"read the game build"):libraryError;
+useEffect(()=>{if(removed){setEmu(current2=>({id:null,reload:current2.reload}));try{ctx.storage.set(EMULATOR_GAME,null)}catch{}}},[removed,emu.id]);useEffect(()=>{if(onEmulator&&game){setEmuOpened(true)}},
+[onEmulator,game?.id]);useEffect(()=>{if(onEmulator&&running&&liveOwner===null){claimLive("page")}},[onEmulator,running,liveOwner]);useEffect(()=>()=>releaseLive("page"),[]);const player=useQuery({queryKey:[
+ID,"player",game?.id??null,emu.reload],queryFn:()=>callStudio(RPC_PLAYER,{id:game.id},3e4),enabled:running&&emuOpened&&Boolean(game)&&pageLive,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false,
+retry:false});const frameRef=useRef(null);const stageRef=useRef(null);const loadedSha=player.data?.url?player.data.romSha256??null:null;const shelfBuild=buildStatusUnsupported(buildStatus.error)&&!games.
+isError&&games.data?.ok===true?picked:null;const currentSha=playableSha(buildStatus.isError?shelfBuild:current);const rebuilt=Boolean(pageLive&&loadedSha&&currentSha&&loadedSha!==currentSha&&dismissed!==
+currentSha);const bridge=usePlayerBridge({ctx,frameRef,onAnnotate:data=>annotateGame(ctx,game,data),visible:onEmulator&&running&&pageLive});const ask=()=>askAboutGame(ctx,game,bridge.snap);const thumbnailGame=shelfSettled&&
 pageLive&&!unavailable&&picked&&!picked.thumb&&picked.id===game?.id?picked.id:null;const onFrameLoad=useTitleScreen(ctx,frameRef,thumbnailGame,bridge.snap);const play=id=>{setEmu(current2=>({id,reload:current2.
 reload}));try{ctx.storage.set(EMULATOR_GAME,id)}catch{}go("emulator")};const shell={ctx,page,go,refresh,refreshing,backend,doctor,gateway,status,viaProfile,steps,memory,update,auto,autoId,choosing,shown,
 pick,unpin:()=>setPinned(null),install,pluginUpdate,hardwareOn,emulatorOnly,setUpDevice,buildSelection,buildPending,buildPlayer,changeBuildPending,selectBuild,games,gameList,libraryError,gamesChanged:()=>void queryClient.

@@ -14,7 +14,8 @@
 //   contributes         { 'other.slot': [Component] }: what it puts into other pages' slots
 //   register(ctx)       work started with the plugin (gateway listeners), before any page is shown
 //   flag                a feature flag (app/flags.js): hidden until it is on; a tab takes one too. A flagged page or
-//                       tab has no listens, contributes or register, which would run for users who cannot see it
+//                       tab (and every tab of a flagged page) has no listens, contributes or register, which would
+//                       run for users who cannot see it. The first page is never hidden: hidden pages fall back to it
 // This module checks every descriptor, declares the events and slots, fills the slots and composes the
 // stylesheet, once, when the bundle loads; startPages(ctx) runs `register` and `listens` from index.js.
 import { PAGES } from '#pages/index.js'
@@ -49,12 +50,13 @@ export function pageProblems(pages, flags = FLAGS) {
       problems.push(`${where}: id must be a unique lowercase name, got ${JSON.stringify(page.id)}`)
     }
 
-    if (index === 0 && page.flag != null) {
-      problems.push(`${where}: the first page cannot be flagged: a hidden page falls back to it`)
+    // A hidden page falls back to the first, so it is always shown, with something in it.
+    if (index === 0 && (page.flag != null || !(isFunction(page.Page) || (page.tabs ?? []).some(tab => tab?.flag == null)))) {
+      problems.push(`${where}: the first page cannot be flagged, and needs its own Page or a tab without a flag: a hidden page falls back to it`)
     }
 
     seen.add(page.id)
-    parts.push(...describe(page, where, PAGE_FIELDS, problems, flags).map(part => ({ ...part, owner: page.id })))
+    parts.push(...describe(page, where, PAGE_FIELDS, problems, flags, false).map(part => ({ ...part, owner: page.id })))
 
     if (!isFunction(page.Page) && !(Array.isArray(page.tabs) && page.tabs.length)) {
       problems.push(`${where}: give the page a Page component, or tabs`)
@@ -74,7 +76,7 @@ export function pageProblems(pages, flags = FLAGS) {
       }
 
       tabIds.add(tab?.id)
-      parts.push(...describe(tab ?? {}, at, TAB_FIELDS, problems, flags).map(part => ({ ...part, owner: page.id })))
+      parts.push(...describe(tab ?? {}, at, TAB_FIELDS, problems, flags, page.flag != null).map(part => ({ ...part, owner: page.id })))
     }
   })
 
@@ -104,8 +106,9 @@ export function pageProblems(pages, flags = FLAGS) {
   return problems
 }
 
-/** The named parts of one page or tab, after checking its plain fields. */
-function describe(item, where, fields, problems, flags) {
+/** The named parts of one page or tab, after checking its plain fields. `hiddenWith` is true for a tab of a flagged
+ *  page, hidden with it. */
+function describe(item, where, fields, problems, flags, hiddenWith) {
   for (const key of Object.keys(item)) {
     if (!fields.has(key)) {
       problems.push(`${where}: unknown field "${key}" (known: ${[...fields].join(', ')})`)
@@ -122,13 +125,13 @@ function describe(item, where, fields, problems, flags) {
     }
   }
 
-  if (item.flag != null) {
-    if (typeof item.flag !== 'string' || !Object.hasOwn(flags, item.flag)) {
-      problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(', ') || 'none'})`)
-    }
+  if (item.flag != null && (typeof item.flag !== 'string' || !Object.hasOwn(flags, item.flag))) {
+    problems.push(`${where}: flag ${JSON.stringify(item.flag)} is not in app/flags.js (known: ${Object.keys(flags).join(', ') || 'none'})`)
+  }
 
+  if (item.flag != null || hiddenWith) {
     for (const key of ['listens', 'contributes', 'register'].filter(name => item[name] != null)) {
-      problems.push(`${where}: a flagged page or tab cannot have ${key}: it would run for users who cannot see it. FIX: add it when the flag ships`)
+      problems.push(`${where}: a flagged page or tab, or a tab of a flagged page, cannot have ${key}: it would run for users who cannot see it. FIX: add it when the flag ships`)
     }
   }
 

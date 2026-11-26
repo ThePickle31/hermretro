@@ -15,11 +15,22 @@ SETTING_PREFIX = "flag_"
 
 
 def switches(manifest: str) -> frozenset[str]:
-    """The flags with a switch: each ``  flag_<name>:`` key of the manifest's config_schema. Read with a pattern
-    rather than a YAML library, as paths reads the version: the broker runs on the standard library alone."""
-    block = re.search(r"^config_schema:\n((?:[ \t]+.*\n|\n)*)", manifest, re.MULTILINE)
-    keys = re.findall(rf"^  {SETTING_PREFIX}(\w+):", block.group(1) if block else "", re.MULTILINE)
-    return frozenset(keys)
+    """The flags with a switch: each ``  flag_<name>:`` key of the manifest's config_schema. Read line by line rather
+    than with a YAML library, as paths reads the version (the broker runs on the standard library alone), so every
+    key must be written as ``  name:``: one in any other form (quoted, say) raises instead of being skipped."""
+    found = re.search(r"^config_schema:[ \t]*(?:#.*)?$", manifest, re.MULTILINE)
+    names = set()
+    for line in manifest[found.end() :].splitlines()[1:] if found else []:
+        if line.strip() and not line[0].isspace() and not line.startswith("#"):
+            break  # the next top-level key
+        if not line.startswith("  ") or line.startswith("   ") or line.lstrip().startswith("#"):
+            continue  # blank, a comment, or inside an entry
+        key = re.fullmatch(r"  (\w+):[ \t]*(?:#.*)?", line)
+        if not key:
+            raise ValueError(f"plugin.yaml config_schema: {line.strip()!r} is not a plain `  name:` key")
+        if key[1].startswith(SETTING_PREFIX):
+            names.add(key[1].removeprefix(SETTING_PREFIX))
+    return frozenset(names)
 
 
 SWITCHES = switches((paths.PLUGIN_ROOT / "plugin.yaml").read_text(encoding="utf-8"))

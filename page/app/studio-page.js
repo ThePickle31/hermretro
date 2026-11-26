@@ -117,8 +117,8 @@ export function StudioPage({ ctx }) {
   if (running) {
     routing.ambientStudio = !viaProfile && Boolean(status.data.profile?.is_studio)
   }
-  // The pages and tabs the feature flags that are on show (app/flags.js). A page they hide is never on screen: asking
-  // for it (the remembered page, go) opens the first page instead, and the remembered one waits for its flag.
+  // The pages and tabs the feature flags that are on show (app/flags.js). A page they hide is never on screen: the
+  // remembered page opens the first one instead (and stays remembered for its flag), and go() to it does nothing.
   const pages = visiblePages(flagsOn(status.data))
   const currentPage = pages.find(item => item.id === asked) ?? pages[0]
   const page = currentPage.id
@@ -266,6 +266,10 @@ export function StudioPage({ ctx }) {
   }, [autoId, toolchainStep?.state, installElsewhere])
 
   const go = (id, selection = null) => {
+    if (!pages.some(item => item.id === id)) {
+      return // hidden by its flag: stay where we are
+    }
+
     setNavigation(current => (id === current.page && selection === null
       ? current
       : pageVisit(id, current.visit + 1, selection)))

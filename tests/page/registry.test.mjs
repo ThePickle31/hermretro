@@ -23,7 +23,7 @@ const { createRoot } = await import('react-dom/client')
 const { jsx, jsxs } = await import('react/jsx-runtime')
 const { PAGES } = await import('../../page/pages/index.js')
 const { NAV_PAGES, pageProblems, startPages, visiblePages, wirePages } = await import('../../page/app/registry.js')
-const { flagsOn } = await import('../../page/app/flags.js')
+const { FLAGS, flagsOn } = await import('../../page/app/flags.js')
 const { createEvents, emit, on, PAGE_EVENTS } = await import('../../page/app/events.js')
 const { createSlots, PAGE_SLOTS, Slot } = await import('../../page/app/slots.js')
 const { PageView } = await import('../../page/app/page-view.js')
@@ -233,18 +233,22 @@ test('a flag must be listed, never on the first page, and its page or tab runs n
 
   assert.equal(problemsOf([fakePage('home'), fakePage('editor', { flag: 'editor' }), tabbed('tools', [['one'], ['two', { flag: 'deep' }]])]), '')
   assert.match(problemsOf([fakePage('home'), fakePage('x', { flag: 'typo' })]), /flag "typo" is not in app\/flags.js \(known: editor, deep\)/)
-  assert.match(pageProblems([fakePage('home'), fakePage('x', { flag: 'editor' })]).join('\n'), /\(known: none\)/)
+  assert.match(pageProblems([fakePage('home'), fakePage('x', { flag: 'editor' })], {}).join('\n'), /\(known: none\)/)
   assert.match(problemsOf([fakePage('home', { flag: 'editor' })]), /the first page cannot be flagged/)
+  assert.match(problemsOf([tabbed('home', [['one', { flag: 'deep' }]])]), /the first page cannot be flagged, and needs its own Page or a tab without a flag/)
+  assert.equal(problemsOf([tabbed('home', [['one'], ['two', { flag: 'deep' }]])]), '')
 
   const busy = problemsOf([
     fakePage('home', { slots: { 'home.panel': 'a panel' }, events: { 'home.done': 'doc' } }),
     fakePage('editor', { flag: 'editor', register: () => {}, listens: { 'home.done': () => {} } }),
     tabbed('tools', [['one'], ['two', { flag: 'deep', contributes: { 'home.panel': [Text('x')] } }]])
   ])
+  const underFlag = problemsOf([fakePage('home', { events: { 'home.done': 'doc' } }), tabbed('editor', [['one', { listens: { 'home.done': () => {} } }]], { flag: 'editor' })])
 
   for (const key of ['register', 'listens', 'contributes']) {
     assert.match(busy, new RegExp(`cannot have ${key}: it would run for users who cannot see it`), key)
   }
+  assert.match(underFlag, /\(tab one\): a flagged page or tab, or a tab of a flagged page, cannot have listens/)
 })
 
 test('visible pages: what the flags that are on show, each page unchanged unless a tab of it is hidden', () => {
@@ -259,7 +263,7 @@ test('visible pages: what the flags that are on show, each page unchanged unless
   assert.deepEqual(ids(visiblePages(new Set(['editor', 'deep']), pages)), ['home', 'editor', 'tools[one,two]', 'hidden[only]'])
   assert.equal(visiblePages(new Set(['deep']), pages)[1], tools, 'a page none of whose tabs is hidden keeps its descriptor')
   assert.deepEqual(ids(visiblePages(new Set(), [home, { ...hidden, Page: Text('own') }])), ['home', 'hidden[]'], 'a page with its own Page stays without tabs')
-  assert.deepEqual(visiblePages(new Set()), NAV_PAGES, 'no real page is hidden while no flag is on')
+  assert.deepEqual(visiblePages(new Set(Object.keys(FLAGS))), NAV_PAGES, 'every real page and tab shows with every flag on')
 
   assert.deepEqual([...flagsOn(undefined)], [], 'nothing is on until status answers')
   assert.deepEqual([...flagsOn({ flags: ['editor'] })], ['editor'])
@@ -290,6 +294,15 @@ test('a page with tabs gets a tab bar; the chosen tab is shown and remembered', 
   const plain = await render(jsx(PageView, { page: { id: 'plain', label: 'Plain', Page: Text('no tabs') }, shell: { ctx } }))
   assert.equal(selectedPageTab(plain.node), null)
   await act(async () => { root.unmount(); beside.root.unmount(); plain.root.unmount() })
+
+  // A remembered tab its flag hides for now: the first tab shows, and the remembered one is back with its flag.
+  const flagged = { ...page, tabs: [page.tabs[0], { ...page.tabs[1], flag: 'deep' }] }
+  const hidden = await render(jsx(PageView, { page: visiblePages(new Set(), [flagged])[0], shell: { ctx } }))
+  assert.equal(selectedPageTab(hidden.node), 'One')
+  await act(async () => hidden.root.render(jsx(PageView, { page: visiblePages(new Set(['deep']), [flagged])[0], shell: { ctx } })))
+  assert.equal(selectedPageTab(hidden.node), 'Two')
+  assert.equal(storage['tab:tools'], 'two')
+  await act(async () => hidden.root.unmount())
 })
 
 // The shell every Page gets, from the real StudioPage, with a probe in Games' place.

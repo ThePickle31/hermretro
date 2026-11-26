@@ -1,11 +1,12 @@
 // One page's body: its Page, or, for a page with tabs, a tab bar and the chosen tab (remembered per page).
 import { jsx, jsxs, useState } from '#sdk'
 
+// The remembered tab, even one its flag hides for now: the tab shown falls back to the first until it is back.
 function storedTab(ctx, page) {
   try {
     const id = ctx?.storage?.get?.(`tab:${page.id}`, null)
 
-    return page.tabs.some(tab => tab.id === id) ? id : page.tabs[0].id
+    return typeof id === 'string' && id ? id : page.tabs[0].id
   } catch {
     return page.tabs[0].id
   }

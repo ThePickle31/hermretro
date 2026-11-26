@@ -16,10 +16,14 @@ config_schema:
     type: bool
     default: false
 
-  flag_level_editor:
+# a comment between settings
+  flag_level_editor:  # a note
     type: bool
     default: false
     label: Level editor
+  # another
+  flag_tabs:
+    type: bool
 provides_hooks:
   - flag_not_a_setting:
 """
@@ -43,8 +47,14 @@ class Flags(unittest.TestCase):
                 self.assertEqual(flags.from_environment(), expected)
 
     def test_only_config_schema_keys_named_flag_are_switches(self):
-        self.assertEqual(flags.switches(MANIFEST), {"level_editor"})
+        self.assertEqual(flags.switches(MANIFEST), {"level_editor", "tabs"})
         self.assertEqual(flags.switches("name: hermretro\n"), frozenset())
+
+    def test_a_key_in_another_form_is_refused_not_skipped(self):
+        for key in ('"flag_quoted":', "flag-dashed:", "'flag_single':"):
+            with self.subTest(key=key), self.assertRaises(ValueError) as caught:
+                flags.switches(f"config_schema:\n  {key}\n    type: bool\n")
+            self.assertIn(key, str(caught.exception))
 
     def test_a_flag_is_on_from_the_environment_or_its_switch(self):
         self.environment("from_env")
