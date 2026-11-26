@@ -32,6 +32,17 @@ const BUILTINS = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]
 // The build's own tools, which the bundle never includes.
 const NOT_COPIED = new Set([".bin", "esbuild", "@esbuild"]);
 
+// Whether the module at url is the script node was started with, through a link to it or not (Node resolves links
+// in import.meta.url but not in process.argv).
+export function runsAsScript(url) {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(url));
+  } catch {
+    return false;
+  }
+}
+
 export function loadEsbuild() {
   if (!existsSync(path.join(TOOLS, "node_modules", "esbuild", "package.json"))) throw new Error(MISSING);
   return createRequire(path.join(TOOLS, "package.json"))("esbuild");
@@ -248,7 +259,7 @@ async function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (runsAsScript(import.meta.url)) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {

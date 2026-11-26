@@ -134,7 +134,7 @@ class EngineBundleTests(unittest.TestCase):
                 self.assertEqual(self.run_bundle(), "!")
 
     def test_imports_of_scripts_are_kept_as_they_are_written(self):
-        # A query makes another module instance, and Node resolves an import without an extension itself.
+        # A query makes another module instance, and Node resolves a require() without an extension itself.
         (self.engine / "scripts" / "plain.js").write_text("export const plain = 1;\n")
         (self.engine / "scripts" / "device helper.mjs").write_text("export const device = 1;\n")
         requests = ("../scripts/helper.mjs?one", "../scripts/helper.mjs?two", "../scripts/device%20helper.mjs")
@@ -179,6 +179,18 @@ class EngineBundleTests(unittest.TestCase):
             done = self.build(env={**os.environ, "TMPDIR": str(starred)})
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(self.bundle.read_bytes(), expected)
+
+    def test_the_tools_run_through_a_link_to_them(self):
+        # Node resolves the link in import.meta.url but not in the script path it was given.
+        linked = Path(self.enterContext(tempfile.TemporaryDirectory())) / "engine-tools"
+        linked.symlink_to(TOOLS)
+        self.assertEqual(self.build().returncode, 0)
+        self.bundle.write_text("stale\n")
+        done = self.node(
+            str(linked / "bundle.mjs"), "--engine", str(self.engine), "--entry", str(self.entry), "--check"
+        )
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn("is not what its modules build", done.stderr)
 
     def test_check_sees_a_changed_byte(self):
         self.assertEqual(self.build().returncode, 0)

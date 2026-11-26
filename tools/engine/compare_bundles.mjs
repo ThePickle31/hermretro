@@ -22,10 +22,12 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { MISSING, TOOLS } from "./bundle.mjs";
+import { MISSING, runsAsScript, TOOLS } from "./bundle.mjs";
 
-const MARK = /^ ((?:\.\.\/)*(?:dist|node_modules|scripts|src)\/\S+)$/;
+// A marker names a file, which may have spaces in its name.
+const MARK = /^ ((?:\.\.\/)*(?:dist|node_modules|scripts|src)\/.+)$/;
+// What JavaScript counts as the end of a line (acorn numbers lines by these).
+const LINE_END = /\r\n|[\n\r\u2028\u2029]/;
 const HEADER = "(bundle header)";
 // Node fields that say where or how something is written, not what it is.
 const UNCOMPARED = new Set(["type", "start", "end", "range", "loc"]);
@@ -234,13 +236,13 @@ function main([before, after]) {
   if (result.modules.length) console.log(`${result.modules.length} modules differ:\n${result.modules.map((name) => `  ${name}`).join("\n")}`);
   else if (result.parted) console.log("every module has the same statements, in another order");
   if (result.parted) {
-    const line = (text, number) => (number === null ? "(end)" : `${number}: ${text.split("\n")[number - 1].trim().slice(0, 200)}`);
+    const line = (text, number) => (number === null ? "(end)" : `${number}: ${text.split(LINE_END)[number - 1].trim().slice(0, 200)}`);
     console.log(`first difference, in ${result.parted.module}:\n  - ${line(texts[0], result.parted.before)}\n  + ${line(texts[1], result.parted.after)}`);
   }
   return 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (runsAsScript(import.meta.url)) {
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (error) {

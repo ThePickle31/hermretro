@@ -188,6 +188,22 @@ class EngineCompareTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1)
         self.assertIn("requested in another order", done.stdout)
 
+    def test_the_report_names_the_module_and_line_that_differ(self):
+        # A module whose file name has a space, and lines ended by a carriage return alone.
+        before = "// dist/device helper.js\nvar a = 1;\rvar b = 2;\n"
+        done = self.compare(before, before.replace("b = 2", "b = 3"))
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertEqual(done.stderr, "")
+        self.assertIn("1 modules differ:\n  dist/device helper.js", done.stdout)
+        self.assertIn("- 3: var b = 2;", done.stdout)
+        # Run through a link to it, the comparison still runs.
+        linked = self.folder / "engine-tools"
+        linked.symlink_to(TOOLS)
+        ran = self.node(
+            str(linked / "compare_bundles.mjs"), str(self.folder / "before.js"), str(self.folder / "after.js")
+        )
+        self.assertEqual(ran.returncode, 1, ran.stdout)
+
     def test_programs_that_run_differently_differ(self):
         for name, text in HELPERS.items():
             (self.folder / name).write_text(text)
