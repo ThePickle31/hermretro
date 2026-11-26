@@ -31588,10 +31588,10 @@ async function clearSharedBuildDirectory(directory) {
       await rm3(path16.join(directory, entry), { recursive: true, force: true });
   }
 }
-// GB Studio's cache keys follow only `include "..."` lines into the build's include folder, so a game's own engine
-// code (`assets/engine`, a plugin's `engine` or `engineAlt` folder, engine settings written into its headers) could
-// leave a stale object: such a game, or one with a link among its plugins, builds in a fresh folder.
-async function gameHasEngineCode(projectDirectory) {
+// GB Studio's cache keys follow only `include "..."` lines into the build's include folder, so a game that brings
+// compiler input of its own could leave a stale engine object: its own engine code (`assets/engine`) or any plugin
+// (an engine overlay, or an event that writes a header an engine file reads). Such a game builds in a fresh folder.
+async function gameBringsCompilerInput(projectDirectory) {
   try {
     await lstat9(path16.join(projectDirectory, "assets", "engine"));
     return true;
@@ -31599,27 +31599,16 @@ async function gameHasEngineCode(projectDirectory) {
     if (!isSystemError(error2, "ENOENT"))
       throw error2;
   }
-  const search = async (directory) => {
-    let entries;
-    try {
-      entries = await readdir4(directory, { withFileTypes: true });
-    } catch (error2) {
-      if (isSystemError(error2, "ENOENT"))
-        return false;
-      throw error2;
-    }
-    for (const entry of entries) {
-      if (entry.isSymbolicLink() || entry.isDirectory() && /^engine/i.test(entry.name))
-        return true;
-      if (entry.isDirectory() && await search(path16.join(directory, entry.name)))
-        return true;
-    }
-    return false;
-  };
-  return search(path16.join(projectDirectory, "plugins"));
+  try {
+    return (await readdir4(path16.join(projectDirectory, "plugins"))).length > 0;
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return false;
+    throw error2;
+  }
 }
 // The compiler, by content: the CLI, its build worker, GB Studio's engine and this computer's GBDK. A different one
-// drops the cache. Undefined when GB Studio is not laid out as expected.
+// drops the cache. Undefined when GB Studio is not laid out as expected or holds a link (its target could change).
 async function sharedBuildToolchain(gbStudioCli) {
   const studio = path16.resolve(path16.dirname(gbStudioCli), "..", "..");
   const parts = [gbStudioCli, path16.join(path16.dirname(gbStudioCli), "buildWorker.js"), path16.join(studio, "appData", "engine"), path16.join(studio, "buildTools", `${process.platform}-${process.arch}`)];
@@ -31627,19 +31616,24 @@ async function sharedBuildToolchain(gbStudioCli) {
   const add = async (candidate) => {
     const metadata2 = await lstat9(candidate);
     hash.update(`${candidate}\0`);
-    if (metadata2.isSymbolicLink()) {
-      hash.update(`link\0${await fs.readlink(candidate)}\0`);
-    } else if (metadata2.isDirectory()) {
+    if (metadata2.isSymbolicLink())
+      return false;
+    if (metadata2.isDirectory()) {
       const entries = (await readdir4(candidate)).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
-      for (const entry of entries)
-        await add(path16.join(candidate, entry));
+      for (const entry of entries) {
+        if (!await add(path16.join(candidate, entry)))
+          return false;
+      }
     } else if (metadata2.isFile()) {
       hash.update(await readFile5(candidate)).update("\0");
     }
+    return true;
   };
   try {
-    for (const part of parts)
-      await add(part);
+    for (const part of parts) {
+      if (!await add(part))
+        return void 0;
+    }
   } catch (error2) {
     if (isSystemError(error2, "ENOENT"))
       return void 0;
@@ -31668,7 +31662,7 @@ async function sharedCacheState(directory, state = /* @__PURE__ */ new Map()) {
   return state;
 }
 async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) {
-  if (process.platform === "win32" || typeof process.getuid !== "function" || await gameHasEngineCode(path16.dirname(projectFile)))
+  if (process.platform === "win32" || typeof process.getuid !== "function" || await gameBringsCompilerInput(path16.dirname(projectFile)))
     return void 0;
   const toolchain = await sharedBuildToolchain(gbStudioCli);
   if (toolchain === void 0)

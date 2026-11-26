@@ -309,9 +309,10 @@ files, what changed and why.
     group, which can outlive the engine: the compiler starts through `/bin/sh` and waits on its standard input until
     its claim is written. A claim is alive while its process or group is. Another build meanwhile gets a fresh
     folder.
-  - GB Studio's keys follow only `include "..."` lines, so a game with its own engine code (`assets/engine`, a
-    plugin's `engine` or `engineAlt` folder) or a link among its plugins builds in a fresh folder, and the cache is
-    dropped when the compiler changes (the CLI, its build worker, GB Studio's engine and GBDK, by content).
+  - GB Studio's keys follow only `include "..."` lines, so a game that brings compiler input of its own (its own
+    engine code in `assets/engine`, or any plugin: an engine overlay, or an event that writes a header an engine
+    file reads) builds in a fresh folder, and the cache is dropped when the compiler changes (the CLI, its build
+    worker, GB Studio's engine and GBDK, by content; a link among them means a fresh folder).
   - Those keys are enough for GB Studio's engine files (their other includes are GBDK's) but not for the game's
     generated ones (they take only the values of `data/game_globals.i`, not the names, and a raw `.include` is not
     followed): after each build only the cached objects of files GB Studio ships in `appData/engine/gbvm/src`
