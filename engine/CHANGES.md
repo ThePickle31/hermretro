@@ -330,5 +330,7 @@ that module.
   modules. Each change made in the bundle so far is now in its module, written as the module's source
   (`dist/entry.js` is the server's own module, rebuilt from the bundle, as ModRetro's release ships none); the new
   `dist/audio.js`, `dist/event-catalog.js` and `dist/project-tree-watcher.js` are modules of their own; a helper one
-  module's change used from another is exported and imported. `dist/server.js` is what `node tools/engine/bundle.mjs`
-  builds from them (`python tools/check.py bundle` checks it), holding the same modules as before.
+  module's change used from another is exported and imported; `GameStudioProjectError` moves from `dist/project.js`
+  (which re-exports it) to the new `dist/project-error.js`, so `dist/project-files.js`, which the backend's writer
+  lock loads directly, loads without the project model behind it. `dist/server.js` is what `node tools/engine/bundle.mjs`
+  builds from them (`python tools/check.py engine` checks it), holding the same modules as before.

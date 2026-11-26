@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 import { access, lstat, mkdir, open, readdir, readFile, realpath, rename, rm, stat, } from "node:fs/promises";
 import path from "node:path";
 import { PROJECT_REVISION_ALGORITHM, } from "./project-access.js";
+import { GameStudioProjectError } from "./project-error.js";
 import { inspectProjectSnapshot, loadProjectSnapshot } from "./project-snapshot.js";
 import { decodeResourceBytes, ResourceCodecError } from "./resource-codec.js";
 import { assignNativeScriptEventIds, explicitlyPatchedNativeScriptValues, findInvalidNativeScriptEvent, withNativeScriptEventIds, } from "./native-script-events.js";
 import { assertNoActorPalette, assertSafeResourceProperties, duplicateSymbolDiagnostics, takenResourceSymbols, uniqueResourceSymbol, validateActorResource, } from "./actors.js";
 import { readProjectJsonWithRevision, resourceRevision, withProjectResourceWriteLock, writeProjectBytesAtomic, } from "./project-files.js";
 import { legacyPhysicalAssetMetadataLookup, legacyPluginAssetCandidates } from "./legacy-project-assets.js";
+export { GameStudioProjectError };
 /** Stable native IDs must resolve to exactly one physical project asset across resource kinds. */
 export function resolveNativeAssetIdentity(source, id) {
     const indexed = "asset" in source ? source.asset({ assetId: id }) : undefined;
@@ -16,16 +18,6 @@ export function resolveNativeAssetIdentity(source, id) {
         throw new GameStudioProjectError("AMBIGUOUS_ASSET", `No unique project asset exists with id ${id}`);
     }
     return matches[0];
-}
-export class GameStudioProjectError extends Error {
-    code;
-    resourcePath;
-    constructor(code, message, resourcePath) {
-        super(message);
-        this.code = code;
-        this.resourcePath = resourcePath;
-        this.name = "GameStudioProjectError";
-    }
 }
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 const IMMUTABLE_RESOURCE_KEYS = new Set(["id", "_resourceType", "_index"]);

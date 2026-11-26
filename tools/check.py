@@ -106,8 +106,12 @@ def check_engine(args) -> str:
     node = need("node")
     result = run([node, "tools/engine/bundle.mjs", "--check"])
     output = (result.stdout + result.stderr).strip()
-    if "not found" in output and result.returncode:
-        raise Skip(output.splitlines()[-1] + "\nFIX: python tools/dev setup")
+    missing = next(
+        (line for line in output.splitlines() if line.startswith("esbuild and the engine's packages were not found")),
+        None,
+    )
+    if missing and result.returncode:
+        raise Skip(f"{missing}\nFIX: python tools/dev setup")
     if result.returncode:
         raise AssertionError(
             tail(output) + "\nFIX: node tools/engine/bundle.mjs, then commit engine/modretro-chromatic/dist/server.js "

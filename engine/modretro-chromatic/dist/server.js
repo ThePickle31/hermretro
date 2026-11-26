@@ -23602,6 +23602,18 @@ import { createHash as createHash5 } from "node:crypto";
 import { access as access2, lstat as lstat6, mkdir as mkdir2, open as open3, readdir as readdir2, readFile as readFile3, realpath as realpath6, rename as rename2, rm as rm2, stat as stat2 } from "node:fs/promises";
 import path10 from "node:path";
 
+// dist/project-error.js
+var GameStudioProjectError = class extends Error {
+  code;
+  resourcePath;
+  constructor(code, message2, resourcePath) {
+    super(message2);
+    this.code = code;
+    this.resourcePath = resourcePath;
+    this.name = "GameStudioProjectError";
+  }
+};
+
 // dist/resource-codec.js
 var ResourceCodecError = class extends Error {
   code;
@@ -39245,16 +39257,6 @@ function resolveNativeAssetIdentity(source, id3) {
   }
   return matches2[0];
 }
-var GameStudioProjectError = class extends Error {
-  code;
-  resourcePath;
-  constructor(code, message2, resourcePath) {
-    super(message2);
-    this.code = code;
-    this.resourcePath = resourcePath;
-    this.name = "GameStudioProjectError";
-  }
-};
 var FORBIDDEN_KEYS = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 var IMMUTABLE_RESOURCE_KEYS = /* @__PURE__ */ new Set(["id", "_resourceType", "_index"]);
 var ASSET_EXTENSIONS = /* @__PURE__ */ new Set([

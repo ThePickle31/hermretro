@@ -92,8 +92,8 @@ class EngineBundleTests(unittest.TestCase):
         done = self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine))
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.run_bundle(), "b:function!")
-        # Built in as dist/server.js, as an entry given by path is, and not copied in a second time.
-        self.assertNotIn("dist/entry.js", self.bundle.read_text())
+        # Built in as dist/server.js, as an entry given by path is.
+        self.assertIn("// dist/server.js", self.bundle.read_text())
         self.assertEqual(self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine), "--check").returncode, 0)
 
     def test_the_bundle_is_byte_for_byte_what_modretros_build_makes(self):

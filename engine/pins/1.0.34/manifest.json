@@ -3,11 +3,11 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 521,
+ "file_count": 522,
  "symlink_count": 0,
- "total_bytes": 36582122,
+ "total_bytes": 36582476,
  "suffix_counts": {
-  ".js": 146,
+  ".js": 147,
   ".map": 140,
   ".md": 94,
   ".gbsres": 42,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "6a1cccc3e5262b49eef4bac844de7b2fc4a40b88643e3b9e451e10bf7128dfcb",
+ "aggregate_sha256": "79e4bafeff9ce5e868671806d0458eb91f94e1384149d65c4c229d130882af0b",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -871,11 +871,18 @@
    "sha256": "d62cad7cce29b4bf291810b339d1ea49f383bd1a5613d4e9734fa73ff3538f84"
   },
   {
+   "path": "dist/project-error.js",
+   "type": "file",
+   "size": 499,
+   "mode": "0o644",
+   "sha256": "9b8b04f9fa7ec7401087daefbcf331fbe7dfd97aa72d7e1e1b56bec44c4991be"
+  },
+  {
    "path": "dist/project-files.js",
    "type": "file",
-   "size": 31859,
+   "size": 31865,
    "mode": "0o644",
-   "sha256": "274540ddef08d963141105dee6206b9cdfc41eafc40b0f693d98ea462e402c98"
+   "sha256": "1144b00188fe2606377afdce078f71f3d5401978641f0d789e8f80dcfb1515db"
   },
   {
    "path": "dist/project-files.js.map",
@@ -950,9 +957,9 @@
   {
    "path": "dist/project.js",
    "type": "file",
-   "size": 58323,
+   "size": 58146,
    "mode": "0o644",
-   "sha256": "8486345ebaad0e3d2b8c8629a1cbec3723bff21a045e1825f55e249b557b620b"
+   "sha256": "8e70b18a2598f3319742cb59c37d849224f8a6a3d7cc0efc9913d31a0f11c217"
   },
   {
    "path": "dist/project.js.map",
@@ -1076,9 +1083,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3071009,
+   "size": 3071035,
    "mode": "0o644",
-   "sha256": "c9ac25a2084f8f2fa43eada870a66f1f17aaae864bfa4990f762c2e3ec603b8f"
+   "sha256": "5dbcf186698c78cf7511bcca24e170148aa013471c7990efcfb276fdca3a14ec"
   },
   {
    "path": "dist/server.js.map",
