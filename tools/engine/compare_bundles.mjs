@@ -1,20 +1,20 @@
 // Whether two engine bundles hold the same program: what shows that a rebuild or a reorganisation of the engine
 // changed nothing it does.
 //
-//   node tools/engine/compare_bundles.mjs <before> <after>    exit 1 when they differ
+//   node tools/engine/compare_bundles.mjs <before> <after>    exit 0 only when they hold the same program
 //
-// Both bundles are parsed and compared as syntax trees, so layout and parentheses never count. What a bundler
-// renames does not count either: each name that refers to a binding stands for that binding, an import's binding
-// for what it imports (its kind, source, name and attributes) and any other for its module, its scope within the
-// module and its place there. Everything else is compared exactly: values of literals, template text, property
-// names, labels, names with no binding (globals), and the names a running program can see, which are a function's
-// or class's own name and, when the bundle calls eval, every name. Where import statements stand does not count;
-// the order in which modules are first requested does, and so does the set of things imported. Not compared:
-// comments, and a function's source text (Function.prototype.toString).
+// Both bundles are parsed and compared as syntax trees, every name included. Only what cannot change what runs is
+// left out: layout, comments, how a literal is spelled (`0x10` and `16`), parentheses that group nothing (a
+// parenthesised assignment target is kept: `f = () => {}` names the function and `(f) = () => {}` does not), the
+// shorthand of `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import statements stand: what is imported
+// is compared as a set, and the order in which modules are first requested (source and attributes) as a list. The
+// one thing a program could see that is not compared is a function's source text (Function.prototype.toString).
 //
-// A module is the run of statements after a bundler's marker comment (`// dist/<module>.js`, `// node_modules/...`);
-// a module written in several parts (its imports, then its code) is one module. When the bundles differ, the report
-// names the modules whose statements differ and the first statement where the two programs part.
+// When the bundles differ, the report names the modules whose statements differ (a module is the run of statements
+// after a bundler's marker comment, `// dist/<module>.js`) and the first statement where they part. When every
+// difference is a binding with another name (what a bundler's renumbering does: `path45` for `path`), it lists the
+// renamed bindings instead. Renamed bindings are still a difference: a program can see names (error messages,
+// a function's name, eval), so whether a rename is harmless is for the reader to judge.
 
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -24,9 +24,8 @@ import { MISSING, TOOLS } from "./bundle.mjs";
 
 const MARK = /^ ((?:\.\.\/)*(?:dist|node_modules|scripts|src)\/\S+)$/;
 const HEADER = "(bundle header)";
-// Node fields that say where or how something is written, not what it is: `{ a }` is `{ a: a }`.
-const UNCOMPARED = new Set(["type", "start", "end", "range", "loc", "shorthand"]);
-const FUNCTIONS = new Set(["FunctionExpression", "ArrowFunctionExpression", "ClassExpression"]);
+// Node fields that say where or how something is written, not what it is.
+const UNCOMPARED = new Set(["type", "start", "end", "range", "loc", "raw"]);
 const PROPERTIES = new Set(["Property", "MethodDefinition", "PropertyDefinition"]);
 
 function loadParsers() {
@@ -38,56 +37,50 @@ function loadParsers() {
   }
 }
 
-// What an import takes: its kind (default, namespace, named, or none for an import only run for its effects), source,
-// the name it takes there, and its attributes.
-function imported(specifier, declaration) {
+const attributesOf = (declaration) => (declaration.attributes ?? []).map((attribute) => [attribute.key.name ?? attribute.key.value, attribute.value.value]);
+
+// What an import binds: its kind (none for an import run only for its effects), source, the name it takes there,
+// and its attributes.
+function importedBy(specifier, declaration) {
   const kind = specifier ? { ImportDefaultSpecifier: "default", ImportNamespaceSpecifier: "namespace", ImportSpecifier: "named" }[specifier.type] : "none";
   const name = kind === "named" ? (specifier.imported.name ?? specifier.imported.value) : null;
-  const attributes = (declaration.attributes ?? []).map((attribute) => [attribute.key.name ?? attribute.key.value, attribute.value.value]);
-  return JSON.stringify(["import", kind, declaration.source.value, name, attributes]);
+  return ["import", kind, declaration.source.value, name, attributesOf(declaration)];
 }
 
-// The identifiers a declaration binds (`function a`, `class A`, `var a, { b = 1 } = c`).
-function declared(declaration) {
-  if (declaration.id) return [declaration.id];
-  const found = [];
-  const collect = (pattern) => {
-    if (!pattern) return;
-    if (pattern.type === "Identifier") found.push(pattern);
-    else if (pattern.type === "ObjectPattern") pattern.properties.forEach((property) => collect(property.type === "RestElement" ? property.argument : property.value));
-    else if (pattern.type === "ArrayPattern") pattern.elements.forEach(collect);
-    else if (pattern.type === "AssignmentPattern") collect(pattern.left);
-    else if (pattern.type === "RestElement") collect(pattern.argument);
-  };
-  (declaration.declarations ?? []).forEach((declarator) => collect(declarator.id));
-  return found;
+const propertyName = (node) => (node.computed ? null : node.key.type === "Identifier" ? node.key.name : node.key.value);
+
+// The comparable form of a node. `named(identifier)` says what an identifier that is not a property's own name stands
+// for: itself (its name) when names are compared, or the binding it refers to when renaming is looked for.
+function form(node, named) {
+  if (Array.isArray(node)) return node.map((child) => form(child, named));
+  if (!node || typeof node !== "object") return node;
+  switch (node.type) {
+    case "Identifier":
+      return named(node);
+    case "Literal":
+      if (node.regex) return ["Literal", "regex", node.regex.pattern, node.regex.flags];
+      if (node.bigint !== undefined) return ["Literal", "bigint", node.bigint];
+      return ["Literal", node.value === null ? "null" : typeof node.value, node.value];
+    case "ParenthesizedExpression":
+      return form(node.expression, named);
+    case "AssignmentExpression":
+      return ["AssignmentExpression", node.operator, node.left.type === "ParenthesizedExpression" ? ["parenthesised", form(node.left.expression, named)] : form(node.left, named), form(node.right, named)];
+    case "ExportSpecifier":
+      return ["ExportSpecifier", form(node.local, named), node.exported.name ?? node.exported.value];
+  }
+  const fields = [node.type];
+  const own = PROPERTIES.has(node.type) ? propertyName(node) : null;
+  for (const [field, value] of Object.entries(node)) {
+    if (UNCOMPARED.has(field)) continue;
+    // `{ a }` is `{ a: a }`, except that `{ __proto__ }` makes an own property and `{ __proto__: a }` the prototype.
+    if (field === "shorthand" && own !== "__proto__") continue;
+    fields.push(field, field === "key" && own !== null ? ["name", own] : form(value, named));
+  }
+  return fields;
 }
 
-const anonymous = (node) => node && FUNCTIONS.has(node.type) && !node.id;
-
-// Whether a running program can see the binding's name: a function's or class's own name, or a name given to an
-// anonymous function or class (`var f = () => {}`, `f = class {}`, `(f = function () {}) => f`).
-function seen(variable) {
-  if (variable.defs.some((definition) => definition.type === "FunctionName" || definition.type === "ClassName")) return true;
-  if (variable.defs.some((definition) => definition.node.type === "VariableDeclarator" && definition.node.id === definition.name && anonymous(definition.node.init))) return true;
-  return variable.references.some((reference) => reference.isWrite() && anonymous(reference.writeExpr));
-}
-
-// The bundle as { requests, imports, statements: [{ module, line, key }] }: the modules it requests in the order it
-// first does, what it imports, and each top-level statement but the imports as a comparable key.
-export function canonical(text, { acorn, scope }) {
-  const markers = [];
-  const ast = acorn.parse(text, {
-    ecmaVersion: "latest",
-    sourceType: "module",
-    allowHashBang: true,
-    ranges: true,
-    locations: true,
-    onComment: (block, comment, start) => {
-      const mark = !block && MARK.exec(comment);
-      if (mark) markers.push({ start, name: mark[1].replace(/^(\.\.\/)+/, "") });
-    },
-  });
+// The program as { requests, imports: Set, statements: [{ module, line, key }] }, with identifiers as named() says.
+function program(ast, markers, named) {
   const moduleAt = (position) => {
     let name = HEADER;
     for (const mark of markers) {
@@ -96,96 +89,97 @@ export function canonical(text, { acorn, scope }) {
     }
     return name;
   };
-  const manager = scope.analyze(ast, { ecmaVersion: 2026, sourceType: "module" });
-  const evaluated = manager.globalScope.through.some((reference) => reference.identifier.name === "eval");
-
-  // Each binding's identity, and what each identifier node refers to.
-  const refers = new Map();
-  const scopesIn = new Map();
-  const placesIn = new Map();
-  const next = (counts, key) => {
-    const count = counts.get(key) ?? 0;
-    counts.set(key, count + 1);
-    return count;
-  };
-  for (const found of manager.scopes) {
-    const owner = moduleAt(found.block.start);
-    const scopeName = found.type === "module" || found.type === "global" ? "top" : next(scopesIn, owner);
-    for (const variable of found.variables) {
-      const [definition] = variable.defs;
-      let identity;
-      if (!definition) identity = JSON.stringify(["implicit", variable.name]);
-      else if (definition.type === "ImportBinding") identity = imported(definition.node, definition.parent);
-      else {
-        const module = moduleAt(definition.name.start);
-        const place = next(placesIn, `${module}\0${scopeName}`);
-        identity = JSON.stringify(["binding", module, scopeName, place, evaluated || seen(variable) ? variable.name : null]);
-      }
-      // A class's name is a binding inside the class and another outside it; its declaration stands for the outer.
-      for (const identifier of variable.identifiers) if (!refers.has(identifier)) refers.set(identifier, ["B", identity]);
-      for (const reference of variable.references) refers.set(reference.identifier, ["B", identity]);
-    }
-    for (const reference of found.references) if (!reference.resolved) refers.set(reference.identifier, ["G", reference.identifier.name]);
-  }
-
-  const key = (node) => {
-    if (Array.isArray(node)) return node.map(key);
-    if (!node || typeof node !== "object") return node;
-    if (node.type === "Identifier") return refers.get(node) ?? ["N", node.name];
-    if (node.type === "Literal") {
-      if (node.regex) return ["Literal", "regex", node.regex.pattern, node.regex.flags];
-      if (node.bigint !== undefined) return ["Literal", "bigint", node.bigint];
-      return ["Literal", node.value === null ? "null" : typeof node.value, node.value];
-    }
-    if (node.type === "ExportSpecifier") return ["ExportSpecifier", key(node.local), node.exported.name ?? node.exported.value];
-    // A property's own name is a name even where it is also a binding's (`{ a }`).
-    const named = PROPERTIES.has(node.type) && !node.computed && node.key.type === "Identifier";
-    const fields = [node.type];
-    for (const [name, value] of Object.entries(node)) {
-      if (!UNCOMPARED.has(name)) fields.push(name, named && name === "key" ? ["N", value.name] : key(value));
-    }
-    // `export function a` exports the name "a", whatever the binding is called.
-    if (node.type === "ExportNamedDeclaration" && node.declaration) fields.push("exports", declared(node.declaration).map((identifier) => identifier.name));
-    return fields;
-  };
-
   const requests = [];
   const imports = new Set();
   const statements = [];
   for (const statement of ast.body) {
-    if (statement.source && !requests.includes(statement.source.value)) requests.push(statement.source.value);
+    if (statement.source) {
+      const request = JSON.stringify([statement.source.value, attributesOf(statement)]);
+      if (!requests.includes(request)) requests.push(request);
+    }
     if (statement.type === "ImportDeclaration") {
-      if (!statement.specifiers.length) imports.add(imported(null, statement));
-      for (const specifier of statement.specifiers) imports.add(imported(specifier, statement));
+      if (!statement.specifiers.length) imports.add(JSON.stringify(importedBy(null, statement)));
+      for (const specifier of statement.specifiers) imports.add(JSON.stringify([...importedBy(specifier, statement), named(specifier.local)]));
       continue;
     }
-    statements.push({ module: moduleAt(statement.start), line: statement.loc.start.line, key: JSON.stringify(key(statement)) });
+    statements.push({ module: moduleAt(statement.start), line: statement.loc.start.line, key: JSON.stringify(form(statement, named)) });
   }
   return { requests, imports, statements };
 }
 
-function grouped(statements) {
-  const modules = new Map();
-  for (const { module, key } of statements) modules.set(module, [...(modules.get(module) ?? []), key]);
-  return modules;
+function parse(text, { acorn }) {
+  const markers = [];
+  const ast = acorn.parse(text, {
+    ecmaVersion: "latest",
+    sourceType: "module",
+    allowHashBang: true,
+    preserveParens: true,
+    ranges: true,
+    locations: true,
+    onComment: (block, comment, start) => {
+      const mark = !block && MARK.exec(comment);
+      if (mark) markers.push({ start, name: mark[1].replace(/^(\.\.\/)+/, "") });
+    },
+  });
+  return { ast, markers };
 }
 
-// { same, requests: null or both orders, imports: { removed, added }, modules: [names whose statements differ],
-// parted: null or { module, before, after } (the line of the first statement where the programs part, or null) }
+// Each identifier that refers to a binding, mapped to that binding's place: its scope (by the order scopes start
+// in) and its place in that scope, or what it imports. Places are only for looking for renamed bindings.
+function places({ ast }, { scope }) {
+  const manager = scope.analyze(ast, { ecmaVersion: 2026, sourceType: "module", childVisitorKeys: { ParenthesizedExpression: ["expression"] } });
+  const placed = new Map();
+  manager.scopes.forEach((found, scopeIndex) => {
+    found.variables.forEach((variable, index) => {
+      const [definition] = variable.defs;
+      const place = definition?.type === "ImportBinding" ? importedBy(definition.node, definition.parent) : ["binding", scopeIndex, index];
+      const entry = { place: JSON.stringify(place), name: variable.name };
+      // A class's name is a binding inside the class and another outside it; its declaration stands for the outer.
+      for (const identifier of variable.identifiers) if (!placed.has(identifier)) placed.set(identifier, entry);
+      for (const reference of variable.references) placed.set(reference.identifier, entry);
+    });
+  });
+  return placed;
+}
+
+function same(a, b) {
+  return JSON.stringify(a.requests) === JSON.stringify(b.requests) && JSON.stringify([...a.imports].sort()) === JSON.stringify([...b.imports].sort()) && a.statements.length === b.statements.length && a.statements.every((statement, index) => statement.key === b.statements[index].key);
+}
+
+// { same, renamed: null or [{ before, after }], requests, imports: { removed, added }, modules, parted }
 export function compareBundles(before, after, parsers = loadParsers()) {
-  const [a, b] = [canonical(before, parsers), canonical(after, parsers)];
+  const parsed = [parse(before, parsers), parse(after, parsers)];
+  const [a, b] = parsed.map(({ ast, markers }) => program(ast, markers, (identifier) => ["name", identifier.name]));
+  if (same(a, b)) return { same: true };
+
+  // Is every difference a binding with another name?
+  const placed = parsed.map((one) => places(one, parsers));
+  const names = [new Map(), new Map()];
+  const [x, y] = parsed.map(({ ast, markers }, side) =>
+    program(ast, markers, (identifier) => {
+      const entry = placed[side].get(identifier);
+      if (!entry) return ["name", identifier.name];
+      names[side].set(entry.place, entry.name);
+      return ["binding", entry.place];
+    }),
+  );
+  const renamed = same(x, y) ? [...names[0]].filter(([place, name]) => names[1].get(place) !== name).map(([place, name]) => ({ before: name, after: names[1].get(place) })) : null;
+
   const requests = JSON.stringify(a.requests) === JSON.stringify(b.requests) ? null : { before: a.requests, after: b.requests };
   const imports = { removed: [...a.imports].filter((item) => !b.imports.has(item)), added: [...b.imports].filter((item) => !a.imports.has(item)) };
-  const [x, y] = [grouped(a.statements), grouped(b.statements)];
-  const modules = [...new Set([...x.keys(), ...y.keys()])].filter((name) => JSON.stringify(x.get(name)) !== JSON.stringify(y.get(name)));
-  const length = Math.max(a.statements.length, b.statements.length);
+  const grouped = (statements) => {
+    const modules = new Map();
+    for (const { module, key } of statements) modules.set(module, [...(modules.get(module) ?? []), key]);
+    return modules;
+  };
+  const [p, q] = [grouped(a.statements), grouped(b.statements)];
+  const modules = [...new Set([...p.keys(), ...q.keys()])].filter((name) => JSON.stringify(p.get(name)) !== JSON.stringify(q.get(name)));
   let parted = null;
-  for (let index = 0; index < length && !parted; index++) {
+  for (let index = 0; index < Math.max(a.statements.length, b.statements.length) && !parted; index++) {
     const [was, now] = [a.statements[index], b.statements[index]];
     if (was?.key !== now?.key) parted = { module: (was ?? now).module, before: was?.line ?? null, after: now?.line ?? null };
   }
-  const same = !requests && !imports.removed.length && !imports.added.length && !parted;
-  return { same, requests, imports, modules, parted };
+  return { same: false, renamed, requests, imports, modules, parted };
 }
 
 function main([before, after]) {
@@ -195,6 +189,14 @@ function main([before, after]) {
   if (result.same) {
     console.log("the bundles hold the same program");
     return 0;
+  }
+  if (result.renamed) {
+    const pairs = new Map();
+    for (const { before: was, after: now } of result.renamed) pairs.set(`${was} -> ${now}`, (pairs.get(`${was} -> ${now}`) ?? 0) + 1);
+    console.log(`the bundles differ only in the names of ${result.renamed.length} bindings:`);
+    for (const [pair, count] of [...pairs].slice(0, 50)) console.log(`  ${pair}${count > 1 ? ` (${count} bindings)` : ""}`);
+    if (pairs.size > 50) console.log(`  (and ${pairs.size - 50} more names)`);
+    return 1;
   }
   if (result.requests) console.log(`the modules are requested in another order:\n  - ${result.requests.before.join(", ")}\n  + ${result.requests.after.join(", ")}`);
   for (const item of result.imports.removed) console.log(`imported only by the first: ${item}`);

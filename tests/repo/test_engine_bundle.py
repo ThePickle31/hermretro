@@ -1,9 +1,10 @@
 """tools/engine/bundle.mjs and compare_bundles.mjs. A bundle built from an engine's modules runs, holds every module
 and the packages they import, keeps scripts/ beside it (the engine reaches the Chromatic CLI through it), and holds
 nothing but the engine's modules and packages its lock names, each licensed; --check sees a changed byte. The
-comparison calls two bundles the same when only what a bundler changes differs (renamed bindings, layout, where
-imports stand) and different for anything that changes what runs: each such case is run in Node first, to show the
-two programs really do differ. The pinned packages in tools/engine/npm are the engine's own locked versions."""
+comparison calls two bundles the same only when nothing but layout, grouping parentheses and where imports stand
+differs, names a difference that is only renamed bindings, and calls different anything that changes what runs:
+each such case is run in Node first, to show the two programs really do differ. The pinned packages in
+tools/engine/npm are the engine's own locked versions."""
 
 import json
 import os
@@ -18,6 +19,7 @@ TOOLS = ROOT / "tools" / "engine"
 NODE = shutil.which("node")
 INSTALLED = (TOOLS / "npm" / "node_modules" / "esbuild" / "package.json").is_file()
 ENGINE_LOCK = ROOT / "engine" / "modretro-chromatic" / "scripts" / "runtime-package-lock.json"
+PNGJS_LICENCE = TOOLS / "npm" / "node_modules" / "pngjs" / "LICENSE"
 
 
 def lock_naming(*packages: str) -> str:
@@ -37,7 +39,9 @@ ENGINE = {
     ),
     "scripts/helper.mjs": 'export const suffix = "!";\n',
     "scripts/runtime-package-lock.json": lock_naming("node_modules/pngjs"),
-    "licenses/bundled-javascript.txt": "# Bundled JavaScript dependency licenses\n\n## pngjs@7.0.0\n\nMIT\n",
+    # The notice carries the package's own licence text, as ModRetro's build writes it.
+    "licenses/bundled-javascript.txt": "# Bundled JavaScript dependency licenses\n\n## pngjs@7.0.0\n\n"
+    + (PNGJS_LICENCE.read_text().strip() + "\n" if PNGJS_LICENCE.is_file() else ""),
 }
 ENTRY = (
     'import { greet } from "./greet.js";\nimport { suffix } from "../scripts/helper.mjs";\n'
@@ -81,6 +85,22 @@ DIFFERENT = {
     "a name given to an arrow": (
         "const f = () => 1;\nconsole.log(f.name);\n",
         "const g = () => 1;\nconsole.log(g.name);\n",
+    ),
+    "__proto__ in shorthand": (
+        "const __proto__ = { value: 7 };\nconsole.log({ __proto__ }.value);\n",
+        "const __proto__ = { value: 7 };\nconsole.log({ __proto__: __proto__ }.value);\n",
+    ),
+    "a parenthesised assignment target": (
+        "let f;\nf = () => {};\nconsole.log(f.name);\n",
+        "let f;\n(f) = () => {};\nconsole.log(f.name);\n",
+    ),
+    "an imported name eval reads": (
+        'import { basename as aa } from "node:path";\nconsole.log(eval("typeof aa"));\n',
+        'import { basename as bb } from "node:path";\nconsole.log(eval("typeof aa"));\n',
+    ),
+    "a name in an error message": (
+        "try {\n  const first = first;\n} catch (error) {\n  console.log(error.message);\n}\n",
+        "try {\n  const second = second;\n} catch (error) {\n  console.log(error.message);\n}\n",
     ),
 }
 # Bundles that must compare the same as themselves.
@@ -179,8 +199,12 @@ class EngineBundleTests(unittest.TestCase):
         self.assertFalse((ROOT / "--check").exists())
 
     def test_a_package_without_its_licence_or_lock_entry_is_refused(self):
+        notices = ENGINE["licenses/bundled-javascript.txt"]
         refusals = {
-            "licenses/bundled-javascript.txt": ("# Bundled JavaScript dependency licenses\n", "no licence for pngjs"),
+            "licenses/bundled-javascript.txt": (
+                notices.replace("Permission", "Leave"),
+                "does not carry the licence of pngjs",
+            ),
             "scripts/runtime-package-lock.json": (lock_naming(), "does not name pngjs@7.0.0"),
         }
         for rel, (text, said) in refusals.items():
@@ -241,26 +265,47 @@ class EngineBundleTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
         self.assertEqual(done.stderr, "")
 
-    def test_the_comparison_ignores_what_a_bundler_changes(self):
-        self.assertEqual(self.build().returncode, 0)
-        built = self.bundle.read_text()
-        renamed = built.replace("import path from", "import path7 from").replace(
-            "path.basename(name)", "(path7.basename(name))"
-        )
-        self.assertNotEqual(renamed, built)
-        self.assertSame(built, renamed)
-        # Names renumbered, layout changed, an import moved to another module and split in two.
+    def test_the_comparison_ignores_layout_grouping_and_where_imports_stand(self):
+        # Layout changed, parentheses added, a shorthand written out, an import moved to another module and split.
         moved = bundle_with(
             **{
                 'import { basename as basename2, dirname } from "node:path";\n': "",
-                "basename2(value)": "basename(value)",
-                "var first = 1;": "var first3   =   (1);",
-                "{ first, value": "{ first: first3, value",
-                'sha256: "x", first }': 'sha256: "x", first: first3 }',
-                "// dist/b.js\n": '// dist/b.js\nimport { dirname } from "node:path";\nimport { basename } from "node:path";\n',
+                "var first = 1;": "var first   =   (1);",
+                "{ first, value": "{ first: first, value",
+                "// dist/b.js\n": (
+                    '// dist/b.js\nimport { dirname } from "node:path";\n'
+                    'import { basename as basename2 } from "node:path";\n'
+                ),
             }
         )
         self.assertSame(BUNDLE, moved)
+
+    def test_renamed_bindings_are_named_and_still_differ(self):
+        self.assertEqual(self.build().returncode, 0)
+        built = self.bundle.read_text()
+        renamed = built.replace("import path from", "import path7 from").replace(
+            "path.basename(name)", "path7.basename(name)"
+        )
+        self.assertNotEqual(renamed, built)
+        done = self.compare(built, renamed)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("differ only in the names of 1 bindings:\n  path -> path7", done.stdout)
+
+    def test_a_build_that_writes_more_than_the_bundle_is_refused(self):
+        (self.engine / "dist" / "look.css").write_text("body { color: red; }\n")
+        self.entry.write_text('import "./look.css";\nexport const said = 1;\n')
+        done = self.build()
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("only dist/server.js is the bundle", done.stderr)
+        self.assertFalse(self.bundle.exists())
+
+    def test_the_comparison_sees_requests_in_another_order(self):
+        # The same module asked for with other attributes can be another module, so attributes are part of a request.
+        first = 'import data from "./x.json" with { type: "json" };\nimport "./x.json";\nconsole.log(data);\n'
+        second = 'import "./x.json";\nimport data from "./x.json" with { type: "json" };\nconsole.log(data);\n'
+        done = self.compare(first, second)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("requested in another order", done.stdout)
 
     def test_the_comparison_sees_every_change_to_what_runs(self):
         changes = {
