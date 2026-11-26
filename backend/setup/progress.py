@@ -44,7 +44,7 @@ MANIFEST = (
         "version": "bd6f41c",
         "source": "github.com/chrismaltby/gbvm",
         "bytes": 3_995_554,
-        "purpose": "The Game Boy engine inside every game",
+        "purpose": "GB Studio's runtime, built into every ROM",
     },
     {
         "id": "packages",
