@@ -34,7 +34,7 @@ warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]
 # Generated or vendored: never measured.
-exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-names.js", "player/web/", "tools/npm/"]
+exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-names.js", "player/web/", "tools/npm/", "tools/engine/npm/"]
 
 [exceptions]
 # Files allowed above the size limit, each with its reason. Split the file instead when you can.

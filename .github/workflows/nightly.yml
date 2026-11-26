@@ -108,6 +108,10 @@ jobs:
       - name: Install the pinned dev tools
         run: |
           npm ci --prefix tools/npm --ignore-scripts --no-audit --no-fund
+          # The engine's build tools (tests/repo/test_engine_bundle.py), where the checked-out commit has them.
+          if [ -f tools/engine/npm/package-lock.json ]; then
+            npm ci --prefix tools/engine/npm --ignore-scripts --no-audit --no-fund
+          fi
           python tools/py/setup.py
       - name: python tools/check.py unit bundle lint page
         run: python tools/check.py unit bundle lint page --strict
