@@ -30151,7 +30151,7 @@ var StdioServerTransport = class {
 
 // dist/build.js
 import { execFile as execFile2, spawn } from "node:child_process";
-import { createHash as createHash9 } from "node:crypto";
+import { createHash as createHash9, randomUUID as randomUUID18 } from "node:crypto";
 import { constants as constants4 } from "node:fs";
 import fs from "node:fs/promises";
 import { access as access3, lstat as lstat9, mkdir as mkdir4, mkdtemp as mkdtemp2, readdir as readdir4, readFile as readFile5, realpath as realpath7, rename as rename4, rm as rm3, stat as stat3, writeFile } from "node:fs/promises";
@@ -31537,6 +31537,100 @@ async function removeIsolatedBuildDirectory(directory, projectRoot) {
   }
   await rm3(directory, { recursive: true, force: true });
 }
+// A game's GB Studio builds share one compiler folder, so GB Studio's object cache (`_gbscache`, whose keys include the
+// folder's path) lasts from one build to the next. Everything else in it is removed before and after each build.
+// One build uses it at a time; another build of the same game meanwhile gets a fresh folder of its own.
+const SHARED_BUILD_CACHE = "_gbscache";
+const SHARED_BUILD_UNFINISHED = ".unfinished";
+const SHARED_BUILD_CLAIM = /^\.claim-(\d+)-[0-9a-f-]{36}$/;
+function sharedBuildKeeps(entry) {
+  return entry === SHARED_BUILD_CACHE || SHARED_BUILD_CLAIM.test(entry);
+}
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error2) {
+    return !isSystemError(error2, "ESRCH");
+  }
+}
+async function clearSharedBuildDirectory(directory) {
+  for (const entry of await readdir4(directory)) {
+    if (!sharedBuildKeeps(entry))
+      await rm3(path16.join(directory, entry), { recursive: true, force: true });
+  }
+}
+async function forgetCacheWrittenSince(directory, since) {
+  let entries;
+  try {
+    entries = await readdir4(directory, { withFileTypes: true });
+  } catch (error2) {
+    if (isSystemError(error2, "ENOENT"))
+      return;
+    throw error2;
+  }
+  for (const entry of entries) {
+    const candidate = path16.join(directory, entry.name);
+    if (entry.isDirectory())
+      await forgetCacheWrittenSince(candidate, since);
+    else if ((await lstat9(candidate)).ctimeMs >= since)
+      await rm3(candidate, { force: true });
+  }
+}
+async function claimSharedBuildDirectory(projectRoot) {
+  if (process.platform === "win32" || typeof process.getuid !== "function")
+    return void 0;
+  const uid = process.getuid();
+  const temporaryParent = await selectTrustedTemporaryParent(projectRoot);
+  const name = createHash9("sha256").update(`${uid}\0${projectRoot}`).digest("hex").slice(0, 6);
+  const directory = path16.join(temporaryParent, `gbs_${name}`);
+  try {
+    await mkdir4(directory, { mode: 448 });
+  } catch (error2) {
+    if (!isSystemError(error2, "EEXIST"))
+      throw error2;
+  }
+  const existing = await lstat9(directory);
+  if (existing.isSymbolicLink() || !existing.isDirectory() || existing.uid !== uid || (existing.mode & 63) !== 0 || !samePlatformPath(await realpath7(directory), directory) || isInside(projectRoot, directory)) {
+    return void 0;
+  }
+  const claim = path16.join(directory, `.claim-${process.pid}-${randomUUID18()}`);
+  await writeFile(claim, "", { flag: "wx", mode: 384 });
+  try {
+    for (const entry of await readdir4(directory)) {
+      const owner = SHARED_BUILD_CLAIM.exec(entry);
+      if (!owner || path16.join(directory, entry) === claim)
+        continue;
+      if (processIsAlive(Number(owner[1]))) {
+        await rm3(claim, { force: true });
+        return void 0;
+      }
+      await rm3(path16.join(directory, entry), { force: true });
+    }
+    // A build that never finished (its engine stopped mid-build) may have left a cached object half written.
+    if (await exists3(path16.join(directory, SHARED_BUILD_UNFINISHED)))
+      await rm3(path16.join(directory, SHARED_BUILD_CACHE), { recursive: true, force: true });
+    await clearSharedBuildDirectory(directory);
+    const startedAt = Date.now();
+    await writeFile(path16.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
+    return { directory, claim, startedAt };
+  } catch (error2) {
+    await rm3(claim, { force: true }).catch(() => {
+    });
+    throw error2;
+  }
+}
+async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
+  try {
+    // GB Studio writes its cache only after compiling, without replacing files atomically: a compiler that was
+    // stopped or failed may have left an object half written, so what it wrote is forgotten.
+    if (!compilerSucceeded)
+      await forgetCacheWrittenSince(path16.join(shared.directory, SHARED_BUILD_CACHE), shared.startedAt - 2e3);
+    await clearSharedBuildDirectory(shared.directory);
+  } finally {
+    await rm3(shared.claim, { force: true });
+  }
+}
 async function secureInternalBuildFile(directory, filename) {
   const candidate = path16.join(directory, filename);
   let metadata2;
@@ -31748,7 +31842,9 @@ async function buildRom(options) {
       throw error2;
     }
   }
-  const temporaryDirectory = builder === "gb-studio-cli" ? await createIsolatedBuildDirectory(root) : void 0;
+  const sharedBuild = builder === "gb-studio-cli" ? await claimSharedBuildDirectory(root).catch(() => void 0) : void 0;
+  const temporaryDirectory = builder === "gb-studio-cli" ? sharedBuild?.directory ?? await createIsolatedBuildDirectory(root) : void 0;
+  let compilerSucceeded = false;
   const startedAt = performance.now();
   let exitCode = 0;
   let stdout = "";
@@ -31780,6 +31876,7 @@ async function buildRom(options) {
         signal: options.signal,
         environment: isolatedCompilerEnvironment(temporaryDirectory)
       });
+      compilerSucceeded = true;
       stdout = result2.stdout;
       stderr = withoutNodeDeprecationNotice(result2.stderr);
       compilerStderr = stderr;
@@ -31888,7 +31985,10 @@ async function buildRom(options) {
       });
     if (temporaryDirectory) {
       try {
-        await removeIsolatedBuildDirectory(temporaryDirectory, root);
+        if (sharedBuild)
+          await releaseSharedBuildDirectory(sharedBuild, compilerSucceeded);
+        else
+          await removeIsolatedBuildDirectory(temporaryDirectory, root);
       } catch (error2) {
         if (!buildFailed) {
           throw error2;

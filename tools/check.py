@@ -354,9 +354,14 @@ def check_acceptance(args) -> str:
         result = run(
             [sys.executable, "tests/acceptance/broker_acceptance.py"], env=env, timeout=ACCEPTANCE_MINUTES * 60
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as stopped:
+        # What it printed up to then: the last check that passed shows where it stopped.
+        printed = "\n".join(
+            tail(output if isinstance(output, str) else (output or b"").decode(errors="replace"), 15)
+            for output in (stopped.stdout, stopped.stderr)
+        ).strip()
         raise AssertionError(
-            f"the acceptance suite did not finish in {ACCEPTANCE_MINUTES} minutes\nFIX: rerun python "
+            f"the acceptance suite did not finish in {ACCEPTANCE_MINUTES} minutes\n{printed}\nFIX: rerun python "
             "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops"
         )
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())

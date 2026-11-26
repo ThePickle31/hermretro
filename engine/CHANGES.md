@@ -300,3 +300,11 @@ files, what changed and why.
   copy count as reused. A cached web export and the native ROM receipt are signed for the compiler that made them (the
   CLI and its build worker, by content), so after the compiler changes neither is reused. Every rebuild changed the ROM
   and invalidated the game's saves, and a copy built from the same source could never match its author's ROM.
+- `dist/server.js` (`dist/build.js` module, `rom_build`): a game's GB Studio builds reuse one compiler folder,
+  `gbs_<6 hex digits of the user and project folder>` in the trusted temporary folder, instead of a fresh
+  `gbs-XXXXXX` each time, so GB Studio's object cache (`_gbscache`, keyed by content and by the folder's path)
+  lasts between builds: a rebuild compiles only what changed (about 0.4 s instead of 6 s for the starter, on every
+  computer), with the same ROM. The folder is the user's own (mode 700, checked), and everything but the cache is
+  removed before and after each build. One build holds it at a time through a `.claim-<pid>-<uuid>` file (a dead
+  process's claim is removed); another build meanwhile, and Windows, get a fresh folder as before. What a stopped or
+  failed compiler wrote to the cache is removed, and the whole cache after an engine that stopped mid-build.

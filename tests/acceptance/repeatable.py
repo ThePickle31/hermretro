@@ -80,6 +80,24 @@ def check_repeatable(suite, client, rom_b: str):
         web=web,
         native=original,
     )
+    # The copy's first build compiled everything; this one takes the compiled engine files from GB Studio's cache.
+    rebuilt = build(client, copy)
+    first_ms, again_ms = copied.get("durationMs"), rebuilt.get("durationMs")
+    suite.check(
+        "R9",
+        "Building the copy again reuses GB Studio's cache of its first build, at least three times faster, and gives "
+        "that same ROM",
+        bool(original)
+        and rebuilt.get("success") is True
+        and rebuilt["sha256"] == original
+        and isinstance(first_ms, int)
+        and isinstance(again_ms, int)
+        and again_ms * 3 < first_ms,
+        original=original,
+        rebuilt=rebuilt["sha256"] or rebuilt.get("error"),
+        first_ms=first_ms,
+        again_ms=again_ms,
+    )
 
     unlisted_image = copy / "assets" / "backgrounds" / "unlisted.png"
     unlisted_image.parent.mkdir(parents=True, exist_ok=True)
