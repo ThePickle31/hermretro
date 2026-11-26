@@ -52,11 +52,12 @@ function importedBy(specifier, declaration) {
   return ["import", kind, declaration.source.value, name, attributesOf(declaration)];
 }
 
-// A property's own name when it is written as one: `a`, `"a"`, `1`, or `#a` for a private name.
-function propertyName(node) {
+// A property's own key when it is written as a name: `a`, `"a"` and `'a'` are the key "a" (and `1` and `"1"` the
+// key "1"); a private name `#a` is a key of another kind, never the same as a string "#a".
+function propertyKey(node) {
   if (node.computed) return null;
-  if (node.key.type === "PrivateIdentifier") return `#${node.key.name}`;
-  return node.key.type === "Identifier" ? node.key.name : String(node.key.value);
+  if (node.key.type === "PrivateIdentifier") return ["private", node.key.name];
+  return ["name", node.key.type === "Identifier" ? node.key.name : String(node.key.value)];
 }
 
 // The comparable form of a node. `named(identifier)` says what an identifier that is not a property's own name stands
@@ -77,12 +78,12 @@ function form(node, named) {
       return ["ExportSpecifier", form(node.local, named), node.exported.name ?? node.exported.value];
   }
   const fields = [node.type];
-  const own = PROPERTIES.has(node.type) ? propertyName(node) : null;
+  const own = PROPERTIES.has(node.type) ? propertyKey(node) : null;
   for (const [field, value] of Object.entries(node)) {
     if (UNCOMPARED.has(field)) continue;
     // `{ a }` is `{ a: a }`, except that `{ __proto__ }` makes an own property and `{ __proto__: a }` the prototype.
-    if (field === "shorthand" && own !== "__proto__") continue;
-    if (field === "key" && own !== null) fields.push(field, ["name", own, node.key.type]);
+    if (field === "shorthand" && own?.[1] !== "__proto__") continue;
+    if (field === "key" && own !== null) fields.push(field, own);
     // A parenthesised target (`(f) = ...`, `[(f) = ...] = ...`) gives an anonymous function no name.
     else if (field === "left" && value.type === "ParenthesizedExpression") fields.push(field, ["parenthesised", form(value.expression, named)]);
     else fields.push(field, form(value, named));

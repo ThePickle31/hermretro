@@ -8,7 +8,8 @@ request into `dev` and CI.
 
 1. Linux or macOS (Apple Silicon or Intel), Python 3.11 or newer, Node.js 22 or newer, Git.
 2. Fork the repository, clone your fork and branch from `dev`: `feat/…`, `fix/…`, `docs/…` or `chore/…`.
-3. `python tools/dev setup` (ruff, the Python linter and formatter, and the page tools; development only).
+3. `python tools/dev setup` (ruff, the Python linter and formatter, the page tools and the engine's build tools;
+   development only).
 4. `python tools/check.py` must pass before you push. For backend or engine changes also run
    `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py` once (the toolchain, into a folder of your
    own), then `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full`.

@@ -155,7 +155,8 @@ class EngineCompareTests(unittest.TestCase):
         self.assertNotIn("differ only in the names", done.stdout)
 
     def test_literals_compare_by_value_and_directives_by_spelling(self):
-        self.assertSame("console.log({ 1: 1, 0x10: 2 });\n", 'console.log({ "1": 1, 16: 2 });\n')
+        self.assertSame("console.log({ 1: 1, 0x10: 2, A: 3 });\n", 'console.log({ "1": 1, 16: 2, "A": 3 });\n')
+        self.assertDifferent("class C {\n  #A = 1;\n}\n", 'class C {\n  "#A" = 1;\n}\n')
         # "use\x20strict" is not the directive "use strict", so its spelling counts.
         self.assertDifferent('function f() {\n  "use strict";\n}\n', 'function f() {\n  "use\\x20strict";\n}\n')
 
