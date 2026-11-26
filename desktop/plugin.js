@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 3783d7cdc7d6c9c8f6a9403b36e7c40d5c90949115777baeef739b5f07488d58
- * body: sha256 c4263d1ac63c0bafa438059bbf3387683c38b58402c00d8166c4185af9c4baf6
+ * sources: sha256 df42a33e2722c316d07cdf20a971204f167d64a802efd7bac87a0d857d688e2f
+ * body: sha256 a57ab8a77f7f4e3902f2712f6527ea819351428d89db8a1880a9c5fad21028c8
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -3860,29 +3860,30 @@ phase==="running";const failedRun=reset.phase==="done"&&reset.summary?.failed;re
 jsx(DialogFooter,{className:"cs-rst-foot",children:footer(reset)})]})})}var NO_PROFILE="No studio profile";var NOT_OURS="Not made by hermretro";async function profileOn(profile,here){const routes=typeof host.profileRoutes==="function"?await host.profileRoutes()??[]:[];const route=routes.
 find(candidate=>routeProfile(candidate)===profile&&(candidate.connectionId||"local")===here);return route?{route,profile}:null}async function statusOn(here,ambient,skip=[]){const routes=typeof host.profileRoutes===
 "function"?await host.profileRoutes()??[]:[];const others=routes.filter(route=>(route.connectionId||"local")===here).map(routeProfile);const profiles=[...new Set([STUDIO_PROFILE,ambient,...others].filter(
-profile=>profile&&!skip.includes(profile)))];for(const profile of profiles){const target=await profileOn(profile,here);if(!target){continue}try{const status=await requestOn(target,RPC_STATUS,{},6e4);if(status?.
-ok){return{status,answered:target}}}catch{}}return null}async function readPlan(target){const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(plan?.error||"What hermr\
-etro keeps could not be read.")}return plan}async function readContext(){const here=connectionOf({route:null});const ambient=appProfile();const found=await statusOn(here,ambient);if(!found){throw new Error(
-"hermretro did not answer on this Hermes.")}let{status,answered}=found;const named=status.profile?.studio??{};const made=Boolean(status.profile?.is_studio||named.exists&&named.ours&&named.installed);let studio=made?
-answered.profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):null;if(made&&!studio){throw new Error("The hermretro profile cannot be reached right now.")}let target=studio??answered;
-let plan=await readPlan(target);let foreign=!made&&Boolean(named.exists);if(studio&&!plan.parts.profile?.ours){const other=await statusOn(here,ambient,[STUDIO_PROFILE]);if(!other){throw new Error("her\
-mretro answers only in a profile named hermretro that it did not make.")}studio=null;foreign=true;({status,answered}=other);target=answered;plan=await readPlan(target)}const installedIn=status.plugin?.
-installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.profile??null;const install=installProfile?await profileOn(installProfile,here):null;if(installProfile&&!install){throw new Error(
-`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||installedIn?.
-profile===STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is installed here":plan.
-parts.profile?.holds?"Holds your games":typeof host.deleteProfile!=="function"?"Update Hermes to delete it":null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){
+profile=>profile&&!skip.includes(profile)))];for(const profile of profiles){const target=await profileOn(profile,here);if(!target){continue}try{const status=await requestOn(target,RPC_STATUS,{sync:false},
+6e4);if(status?.ok){return{status,answered:target}}}catch{}}return null}async function readPlan(target){const plan=await requestOn(target,RPC_RESET_PLAN,{},12e4);if(!plan?.ok){throw new Error(plan?.error||
+"What hermretro keeps could not be read.")}return plan}async function readContext(){const here=connectionOf({route:null});const ambient=appProfile();const found=await statusOn(here,ambient);if(!found){
+throw new Error("hermretro did not answer on this Hermes.")}let{status,answered}=found;const named=status.profile?.studio??{};const made=Boolean(status.profile?.is_studio||named.exists&&named.ours&&named.
+installed);let studio=made?answered.profile===STUDIO_PROFILE?answered:await profileOn(STUDIO_PROFILE,here):null;if(made&&!studio){throw new Error("The hermretro profile cannot be reached right now.")}
+let target=studio??answered;let plan=await readPlan(target);let foreign=!made&&Boolean(named.exists);if(studio&&!plan.parts.profile?.ours){const other=await statusOn(here,ambient,[STUDIO_PROFILE]);if(!other){
+throw new Error("hermretro answers only in a profile named hermretro that it did not make.")}studio=null;foreign=true;({status,answered}=other);target=answered;plan=await readPlan(target)}const installedIn=status.
+plugin?.installed_in??null;const installProfile=installedIn?.linked?null:installedIn?.profile??null;const install=installProfile?await profileOn(installProfile,here):null;if(installProfile&&!install){
+throw new Error(`The ${installProfile} profile, where hermretro is installed, cannot be reached right now.`)}const ours=studio?null:foreign?NOT_OURS:NO_PROFILE;const holdsPlugin=Boolean(installedIn?.linked)||
+installedIn?.profile===STUDIO_PROFILE;return{here,ambient,target,studio,install,version:status.plugin?.version??null,parts:plan.parts,locked:{chats:ours,profile:ours??(holdsPlugin?"hermretro is instal\
+led here":plan.parts.profile?.holds?"Holds your games":typeof host.deleteProfile!=="function"?"Update Hermes to delete it":null),toolchain:plan.parts.toolchain?.custom?"A folder you chose":null}}}function useReset(ctx){
 const[state,setState]=useState(()=>{const summary=pendingReset(ctx);return summary?{phase:"done",summary}:{phase:"closed"}});const[choices,setChoices]=useState(DEFAULT_CHOICES);const[restarting,setRestarting]=useState(
 false);const[typed,setTyped]=useState("");const context=state.context??null;const settled=settleChoices(choices,context?.locked);useEffect(()=>{if(state.phase!=="loading"){return}let live=true;readContext().
 then(found=>live&&setState({phase:"choose",context:found}),error=>live&&setState({phase:"failed",error:String(error?.message??error)}));return()=>{live=false}},[state.phase]);const updated=state.phase===
-"done"&&state.summary?.update?.kind==="updated";useEffect(()=>{if(!updated||state.version){return}const install=state.summary?.install;if(!install){return}requestOn(install,RPC_STATUS,{},6e4).then(data=>data?.
-plugin?.version&&setState(current=>({...current,version:data.plugin.version})),()=>{})},[updated]);const run=async()=>{const steps=resetSteps(settled.choices);setState(current=>({...current,phase:"run\
-ning",steps,step:0}));setUpdating(true);let summary;try{summary=await runReset({ctx,choices:settled.choices,...context,onStep:step=>setState(current=>({...current,step}))})}finally{setUpdating(false)}
-setState(current=>({...current,phase:"done",summary}))};const close=()=>{if(state.phase==="running"){return}forgetReset(ctx);setChoices(DEFAULT_CHOICES);setTyped("");setState({phase:"closed"})};const restart=async()=>{
-setRestarting(true);try{const here=state.summary?.here??state.context?.here;const ambient=state.summary?.ambient??state.context?.ambient;if(here&&connectionOf({route:null})!==here||ambient&&appProfile()!==
-ambient){throw new Error("Hermes is on another connection now.")}if(await host.restartGateway()!==false){forgetReset(ctx);await refreshDesktopHalf()}}catch(error){host.notify({kind:"error",message:`Th\
-e gateway did not restart: ${String(error?.message??error)}`})}finally{setRestarting(false)}};return{...state,choices:settled.choices,forced:settled.forced,notes:settled.notes,typed,type:setTyped,choose:(id,value)=>setChoices(
-current=>({...current,[id]:value})),deleteAll:()=>setChoices(Object.fromEntries(Object.keys(DEFAULT_CHOICES).map(id=>[id,"delete"]))),open:()=>setState({phase:"loading"}),confirm:()=>setState(current=>({
-...current,phase:"confirm"})),back:()=>setState(current=>({...current,phase:"choose"})),close,run:()=>void run(),canRestart:typeof host.restartGateway==="function",restarting,restart:()=>void restart()}}function SettingsPage({ctx}){const reset=useReset(ctx);return jsxs("div",{className:"cs-rst-page",children:[jsx("style",{children:RESET_CSS}),jsx("h3",{className:"cs-rst-head",children:"Reset"}),jsx("\
+"done"&&state.summary?.update?.kind==="updated";useEffect(()=>{if(!updated||state.version){return}const install=state.summary?.install;if(!install){return}requestOn(install,RPC_STATUS,{sync:false},6e4).
+then(data=>data?.plugin?.version&&setState(current=>({...current,version:data.plugin.version})),()=>{})},[updated]);const run=async()=>{const steps=resetSteps(settled.choices);setState(current=>({...current,
+phase:"running",steps,step:0}));setUpdating(true);let summary;try{summary=await runReset({ctx,choices:settled.choices,...context,onStep:step=>setState(current=>({...current,step}))})}finally{setUpdating(
+false)}setState(current=>({...current,phase:"done",summary}))};const close=()=>{if(state.phase==="running"){return}forgetReset(ctx);setChoices(DEFAULT_CHOICES);setTyped("");setState({phase:"closed"})};
+const restart=async()=>{setRestarting(true);try{const here=state.summary?.here??state.context?.here;const ambient=state.summary?.ambient??state.context?.ambient;if(here&&connectionOf({route:null})!==here||
+ambient&&appProfile()!==ambient){throw new Error("Hermes is on another connection now.")}if(await host.restartGateway()!==false){forgetReset(ctx);await refreshDesktopHalf()}}catch(error){host.notify({
+kind:"error",message:`The gateway did not restart: ${String(error?.message??error)}`})}finally{setRestarting(false)}};return{...state,choices:settled.choices,forced:settled.forced,notes:settled.notes,
+typed,type:setTyped,choose:(id,value)=>setChoices(current=>({...current,[id]:value})),deleteAll:()=>setChoices(Object.fromEntries(Object.keys(DEFAULT_CHOICES).map(id=>[id,"delete"]))),open:()=>setState(
+{phase:"loading"}),confirm:()=>setState(current=>({...current,phase:"confirm"})),back:()=>{setTyped("");setState(current=>({...current,phase:"choose"}))},close,run:()=>void run(),canRestart:typeof host.
+restartGateway==="function",restarting,restart:()=>void restart()}}function SettingsPage({ctx}){const reset=useReset(ctx);return jsxs("div",{className:"cs-rst-page",children:[jsx("style",{children:RESET_CSS}),jsx("h3",{className:"cs-rst-head",children:"Reset"}),jsx("\
 div",{className:"cs-rst-card",children:jsx(ListRow,{title:"Factory reset",action:jsx(Button,{onClick:reset.open,size:"sm",variant:"destructive",children:"Factory reset…"})})}),jsx(ResetDialog,{reset})]})}var cart_hermretro_default=["data:image/png;base64,","iVBORw0KGgoAAAANSUhEUgAAASsAAAFUCAYAAAB80BqgAACvQUlEQVR4nO39245lS3bm+YVHxN55TmaSTCaTWaoSUI8gQPfq","ggqtrlapBaEBPYAE6CWoC/Vj9AsIaEGFLqABAf0M6vu6KEC\
 iwEoeM5knMjN37HBhOP3n/MfYc/khzoc1gAVfvuacNu0w7LNv","DBtmdvFf/9f/x6///d///f/i5z//+X/z6NGjH11cXDy+uLh49Pjx40eXl5dXn/nf3/l88cUXj377298++ta3vvVo5GJ+fPTo","6cXFxY8eP3782Zdffnn1/Hz+4R/+4dHnn38urS8uLi5+cnFx8\
 Wweef78+dPnz5//6MmTJ589f/78i8ePH//kyy+/fPbkyZPL","58+fz/VHT548mb8Xjx8/fvrs2bMfffbZZ5/N+ydNMmnPvdd5uXovmbyMTDpz39OnTx/95je/uSmf+/199uzZC2ldv3/+/eLZ","s2c/efz48bPPP//8ctIYUc6578mTJxd///d//3Tq8Wtf+9qU6So\

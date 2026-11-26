@@ -83,6 +83,13 @@ await runScenario(async ({ act, dom, scenario, settingsPages, mount, settle, cli
   check('Logs & captures stays free to choose while Games is deleted', () => { assert.equal(chosen('Logs & captures'), 'Delete') })
   await pick('Logs & captures', 'Keep'); await click('Continue', dialog())
   check('the confirm step carries the note where the kept size would be', () => { assert.match(said(), /Keep.*Logs & capturesGame captures go with Games/) })
+  await typeInto(dialog().querySelector('input'), 'reset')
+  await click('Back', dialog())
+  await click('Continue', dialog())
+  check('going back to the choices asks for the word again', () => {
+    assert.equal(dialog().querySelector('input').value, '')
+    assert.ok([...dialog().querySelectorAll('button')].find(node => node.textContent === 'Reset').disabled)
+  })
   await click('Back', dialog())
   await pick('Games', 'Keep'); await pick('Logs & captures', 'Delete')
   await click('Continue', dialog())

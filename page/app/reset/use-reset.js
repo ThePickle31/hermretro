@@ -37,7 +37,8 @@ async function statusOn(here, ambient, skip = []) {
     }
 
     try {
-      const status = await requestOn(target, RPC_STATUS, {}, 60_000)
+      // Only reads: opening the dialog changes nothing (status would otherwise sync the studio's providers).
+      const status = await requestOn(target, RPC_STATUS, { sync: false }, 60_000)
 
       if (status?.ok) {
         return { status, answered: target }
@@ -181,7 +182,7 @@ export function useReset(ctx) {
       return
     }
 
-    requestOn(install, RPC_STATUS, {}, 60_000).then(
+    requestOn(install, RPC_STATUS, { sync: false }, 60_000).then(
       data => data?.plugin?.version && setState(current => ({ ...current, version: data.plugin.version })),
       () => {}
     )
@@ -256,7 +257,11 @@ export function useReset(ctx) {
     deleteAll: () => setChoices(Object.fromEntries(Object.keys(DEFAULT_CHOICES).map(id => [id, 'delete']))),
     open: () => setState({ phase: 'loading' }),
     confirm: () => setState(current => ({ ...current, phase: 'confirm' })),
-    back: () => setState(current => ({ ...current, phase: 'choose' })),
+    // Back to the choices: a changed plan is confirmed again.
+    back: () => {
+      setTyped('')
+      setState(current => ({ ...current, phase: 'choose' }))
+    },
     close,
     run: () => void run(),
     canRestart: typeof host.restartGateway === 'function',
