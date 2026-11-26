@@ -7,7 +7,9 @@ from tests.acceptance.fixture import OWNER_A, OWNER_C, diff, snapshot, structure
 CHILD = {"session_id": "sess-child-1", "task_id": "task-child-1", "delegated": True}
 
 
-def check_child_lease(suite, client_a, edited_source, last_frame):
+def check_child_lease(suite, client_a, last_frame):
+    # A's files as the child finds them (its builds since the edit wrote their ROM's romSha256 into game.json).
+    before = snapshot(suite.project_a)
     orphan = client_a.call({"profile": "s01-profile", "conversation_id": "conv-nobody"}, "session_status", origin=CHILD)
     child_read = client_a.call(OWNER_A, "variable_inspect", origin=CHILD)
     child_write = client_a.call(
@@ -45,7 +47,7 @@ def check_child_lease(suite, client_a, edited_source, last_frame):
         and child_read.get("ok")
         and child_write.get("denied", {}).get("code") == "LEASE_REQUIRED"
         and child_grant_self.get("denied", {}).get("code") == "PARENT_ONLY"
-        and diff(edited_source, snap_a2) == []
+        and diff(before, snap_a2) == []
         and grant.get("ok")
         and child_write2.get("ok")
         and not child_write2["result"].get("isError")

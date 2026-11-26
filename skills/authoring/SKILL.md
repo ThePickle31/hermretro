@@ -128,6 +128,7 @@ Verify the change at the level the request needs: reread the native resources, b
   exact ROM before presenting, and name anything missing in the build report.
 - Before presenting, fill in the game card with `chromatic_game_info` (cover art, title, tagline,
   description, genres); `chromatic_present_game` refuses with `GAME_INFO_INCOMPLETE` until it is complete.
+  Set its `license` only to the one the user chose; never pick one for them.
   End every turn that changed or built the game with one `chromatic_build_report` (the Build page's card).
   For a game with `docs/game/TEST-PLAN.md`, bind each check to its recording as it passes and run
   `chromatic_playtest {}` after every rebuild ([the test plan, replayed](../rom-debugging/references/recorded-playtesting.md#the-test-plan-replayed)).

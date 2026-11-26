@@ -24,8 +24,8 @@ import uuid
 from pathlib import Path
 
 from ..system import paths
-from . import game_card
-from .project import GAME_FILES, ROM_STEM, _json, canonical_rom, project_file, project_title
+from . import game_card, licence
+from .project import GAME_FILES, ROM_STEM, _json, canonical_rom, file_sha256, project_file, project_title
 
 # What a publish with the source adds: the folders below and the project's .gbsproj.
 SOURCE_FOLDERS = ("project", "assets", "plugins", "art")
@@ -39,9 +39,14 @@ STATE_DIR = game_card.RECORD_DIR
 IDENTITY_FILE = "identity.json"
 PUBLISH_FILE = "publish.json"  # release.record_publish
 INSTALL_FILE = "install.json"  # release.record_install
+LICENCE_FILE = "licence.json"  # the LICENSE ensure wrote: {sha256}
 FIRST_VERSION = "0.1.0"
 # The game folder's format (``game.json``'s ``format``): a game of a newer format is not installed by this hermretro.
 FORMAT_VERSION = 1
+# The fields of ``game.json`` hermretro itself writes as it lays out and builds a game: never the user's edit.
+MANAGED_FIELDS = ("format", "romSha256", "builtWith")
+# The GB Studio file the toolchain's setup patches so a build's save signature is repeatable (its receipt names it).
+SAVE_SIGNATURE_SOURCE = "src/lib/compiler/compileData.ts"
 VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 # The first line of every file ensure writes and may rewrite; a file without it is left as it is.
@@ -125,11 +130,11 @@ def new_identity(root: Path, *, fresh_changelog: bool = True) -> str:
 
 @game_card.locked
 def ensure(root: Path) -> list[str]:
-    """Fill in what the game lacks: its id (kept in ``.hermretro/``, copied into ``game.json``), ``gameVersion``
-    and ``rom`` in ``game.json``, a README made from the card, ``CHANGELOG.md`` and ``.gitignore``. Rewrites only
-    files it made itself (a ``.gitignore`` of the user's own only gains ``/scratch/``) and changes nothing that is
-    already right; never moves or deletes anything. A game installed without its source only has its id kept. Returns
-    the names it wrote."""
+    """Fill in what the game lacks: its id (kept in ``.hermretro/``, copied into ``game.json``), ``gameVersion``,
+    ``rom`` and ``format`` in ``game.json`` (never lowering a newer format), a README made from the card,
+    ``CHANGELOG.md``, ``.gitignore`` and the ``LICENSE`` of the card's licence. Rewrites only files it made itself (a
+    ``.gitignore`` of the user's own only gains ``/scratch/``) and changes nothing that is already right; never moves
+    or deletes anything. A game installed without its source only has its id kept. Returns the names it wrote."""
     root = Path(root)
     card = game_card.load(root)
     project = project_file(root) is not None
@@ -155,12 +160,15 @@ def ensure(root: Path) -> list[str]:
             "id": identifier,
             "gameVersion": version if isinstance(version, str) and VERSION_PATTERN.match(version) else FIRST_VERSION,
             "rom": canonical_rom(root),
+            "format": card["format"] if card_format(card) is not None else FORMAT_VERSION,
         }
         if any(card.get(key) != value for key, value in wanted.items()):
             card = game_card.set_fields(root, wanted)
             written.append(game_card.CARD_FILE)
         if replaceable(root / "README.md") and write_text(root / "README.md", readme(root, card)):
             written.append("README.md")
+        if _write_licence(root, card):
+            written.append(licence.LICENSE_FILE)
     if not (root / "CHANGELOG.md").exists() and write_text(root / "CHANGELOG.md", CHANGELOG_HEAD):
         written.append("CHANGELOG.md")
     ignore = root / ".gitignore"
@@ -168,6 +176,68 @@ def ensure(root: Path) -> list[str]:
     if wrote:
         written.append(".gitignore")
     return written
+
+
+def card_format(card: dict) -> int | None:
+    """The card's ``format`` when it is one (a whole number from 1), else None."""
+    value = card.get("format")
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 1 else None
+
+
+def _write_licence(root: Path, card: dict) -> bool:
+    """Write the ``LICENSE`` of the card's licence when the game has none or has the one ensure wrote last (its
+    digest kept in ``.hermretro/``). A ``LICENSE`` of the user's own is never replaced. Returns whether it wrote."""
+    wanted = licence.text(root, card)
+    path = root / licence.LICENSE_FILE
+    if wanted is None or path.is_symlink():
+        return False
+    if path.exists():
+        try:
+            if file_sha256(path) != state(root, LICENCE_FILE).get("sha256"):
+                return False
+        except OSError:
+            return False
+    if not write_text(path, wanted):
+        return False
+    write_state(root, LICENCE_FILE, {"sha256": file_sha256(path)})
+    return True
+
+
+@game_card.locked
+def record_build(root: Path) -> bool:
+    """After a successful build of the game's ROM: ``game.json`` records that ROM's SHA-256 (``romSha256``, what a
+    published game carries and an install checks) and what built it (``builtWith``). Returns whether it wrote."""
+    root = Path(root)
+    rom = root / canonical_rom(root)
+    card = game_card.load(root)
+    if not card or not rom.is_file() or rom.is_symlink():
+        return False
+    fields = {"romSha256": file_sha256(rom), "builtWith": built_with()}
+    if all(card.get(key) == value for key, value in fields.items()):
+        return False
+    game_card.set_fields(root, fields)
+    return True
+
+
+def built_with() -> dict:
+    """What builds games here: the engine's version and, from the toolchain's setup record, the GB Studio version and
+    commit and whether its save signature is the repeatable one (a game rebuilt from its source matches its author's
+    ROM only with that). A part that cannot be read is left out."""
+    found = {}
+    engine = _json(paths.ENGINE_ROOT / "package.json").get("version")
+    if isinstance(engine, str):
+        found["engine"] = engine
+    receipt = _json(paths.setup_root() / "receipts" / "cli.json")
+    provenance = receipt.get("provenance") if isinstance(receipt.get("provenance"), dict) else {}
+    if receipt.get("status") == "ready" and isinstance(receipt.get("version"), str):
+        found["gbStudio"] = receipt["version"]
+        if isinstance(provenance.get("sourceCommit"), str):
+            found["gbStudioCommit"] = provenance["sourceCommit"]
+        patches = provenance.get("buildMetadataPatches")
+        found["repeatable"] = isinstance(patches, list) and any(
+            isinstance(patch, dict) and patch.get("path") == SAVE_SIGNATURE_SOURCE for patch in patches
+        )
+    return found
 
 
 def _ignore_scratch(path: Path) -> bool:
@@ -289,6 +359,15 @@ def check(root: Path) -> dict:
         identifier and card.get("rom") == canonical_rom(root) and VERSION_PATTERN.match(str(card.get("gameVersion")))
     ):
         problems.append(_finding("NOT_LAID_OUT", game_card.CARD_FILE, "The game folder could not be given its layout."))
+    newer = card_format(card)
+    if newer is not None and newer > FORMAT_VERSION:
+        problems.append(
+            _finding(
+                "FORMAT_NEWER",
+                game_card.CARD_FILE,
+                f"The game is format {newer}; this hermretro reads up to {FORMAT_VERSION}.",
+            )
+        )
     try:
         entries = sorted(os.listdir(root))
     except OSError:

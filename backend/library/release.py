@@ -15,11 +15,12 @@ Records, in ``.hermretro/`` (never published):
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 from pathlib import Path
 
-from . import game_card, layout
+from . import cartridge, game_card, layout, licence, publish_scan
 from .freshness import sources_newer_than
 from .layout import INSTALL_FILE, PUBLISH_FILE
 from .project import GAME_FILES, file_sha256, project_file
@@ -69,22 +70,43 @@ def payload_digest(root: Path, *, source: bool) -> str:
 
 
 def readiness(root: Path, *, source: bool) -> dict:
-    """``{ok, problems}``: whether the game may be published as it stands. Its layout has no problem, its card is
-    complete, its ROM exists and was built after every source change, and a publish with the source has the
-    project. Each problem is ``{code, path, message}``."""
+    """``{ok, problems, warnings}``: whether the game may be published as it stands. Its layout has no problem, its
+    card is complete and names a licence, its ROM exists, fits a Chromatic cartridge, was built after every source
+    change and is the one ``game.json``'s ``romSha256`` names, a publish with the source has the project, and the
+    pre-publish ``scan`` blocks nothing. Each finding is ``{code, path, message}``; the warnings are the scan's."""
     root = Path(root)
     problems = list(layout.check(root)["problems"])
     card = game_card.status(root, strict=True)
     if not card["complete"]:
         problems.append(_finding("CARD", game_card.CARD_FILE, "The game card is missing " + ", ".join(card["missing"])))
-    rom = root / layout.game_rom(root)
+    stored = game_card.load(root)
+    if licence.chosen(stored) is None:
+        problems.append(_finding("NO_LICENSE", game_card.CARD_FILE, "The game names no licence; choose one first."))
+    relative = layout.game_rom(root)
+    rom = root / relative
     if not _regular(rom):
-        problems.append(_finding("NO_ROM", layout.game_rom(root), "The game has not been built."))
-    elif project_file(root) is not None and sources_newer_than(root, rom.stat().st_mtime):
-        problems.append(_finding("ROM_OLD", layout.game_rom(root), "The game changed after its last build."))
+        problems.append(_finding("NO_ROM", relative, "The game has not been built."))
+    else:
+        if project_file(root) is not None and sources_newer_than(root, rom.stat().st_mtime):
+            problems.append(_finding("ROM_OLD", relative, "The game changed after its last build."))
+        info = cartridge.inspect(rom)
+        for problem in info["problems"] + cartridge.check_name(info, relative):
+            problems.append(_finding("ROM_UNFIT", relative, problem["message"]))
+        if stored.get("romSha256") != file_sha256(rom):
+            problems.append(_finding("ROM_SHA_STALE", relative, "game.json's romSha256 is not this ROM; build again."))
     if source and project_file(root) is None:
         problems.append(_finding("NO_SOURCE", "", "The game has no source to publish."))
-    return {"ok": not problems, "problems": problems}
+    found = scan(root, source=source)
+    return {
+        "ok": not problems and not found["blocking"],
+        "problems": problems + found["blocking"],
+        "warnings": found["warnings"],
+    }
+
+
+def scan(root: Path, *, source: bool) -> dict:
+    """``{blocking, warnings}``: what a publish of the game would carry that it must not (``publish_scan``)."""
+    return publish_scan.scan(Path(root), files(root, source=source))
 
 
 def _finding(code: str, path: str, message: str) -> dict:
@@ -192,13 +214,18 @@ def installed(root: Path) -> dict | None:
 
 
 def installed_digest(root: Path, *, mode: str) -> str:
-    """What a user's edit of an installed game changes: its game files (but the README and ``.gitignore`` hermretro
-    writes itself, which a newer hermretro may rewrite), every file of its project and source folders, hidden ones
+    """What a user's edit of an installed game changes: its game files (but the README, ``.gitignore`` and
+    ``LICENSE`` hermretro writes itself, which a newer hermretro may rewrite, and the fields of ``game.json`` it
+    records as it lays out and builds the game), every file of its project and source folders, hidden ones
     too, and for a game alone its ROM. A game with its source rebuilds its ROM from that source, so the ROM and every
     other build output are left out: a build never counts as an edit. A game alone that gains a project counts."""
     root = Path(root)
     found = [name for name in GAME_FILES if _regular(root / name)]
     found = [name for name in found if not (name in ("README.md", ".gitignore") and layout.replaceable(root / name))]
+    if licence.LICENSE_FILE in found and file_sha256(root / licence.LICENSE_FILE) == layout.state(
+        root, layout.LICENCE_FILE
+    ).get("sha256"):
+        found.remove(licence.LICENSE_FILE)  # the LICENSE hermretro wrote from the card
     if mode == "game":
         rom = installed_rom_path(root) or layout.game_rom(root)
         found += [rom] if _regular(root / rom) else []
@@ -211,10 +238,21 @@ def installed_digest(root: Path, *, mode: str) -> str:
             found += [
                 Path(directory, name).relative_to(root).as_posix() for name in names if _regular(Path(directory, name))
             ]
-    digest = hashlib.sha256(b"hermretro\0installed\0v2\0")
+    digest = hashlib.sha256(b"hermretro\0installed\0v3\0")
     for relative in sorted(found):
-        digest.update(relative.encode() + b"\0" + file_sha256(root / relative).encode() + b"\0")
+        content = _card_digest(root) if relative == game_card.CARD_FILE else file_sha256(root / relative)
+        digest.update(relative.encode() + b"\0" + content.encode() + b"\0")
     return digest.hexdigest()
+
+
+def _card_digest(root: Path) -> str:
+    """``game.json`` as the user wrote it: the fields hermretro itself writes as it lays out and builds the game
+    (``layout.MANAGED_FIELDS``) are left out, so a build is never an edit."""
+    card = game_card.load(root)
+    if not card:
+        return file_sha256(Path(root) / game_card.CARD_FILE)
+    kept = {key: value for key, value in card.items() if key not in layout.MANAGED_FIELDS}
+    return hashlib.sha256(json.dumps(kept, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def local_edits(root: Path) -> bool | None:

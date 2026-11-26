@@ -113,3 +113,18 @@ def installed_from(root: Path) -> dict | None:
         "installedAt": project.timestamp(record.get("installedAt"), None),
         "edited": release.local_edits(root) is True,
     }
+
+
+def mark_duplicates(games: list[dict]) -> None:
+    """Give each described game ``duplicateId``: the other library folders holding a game with its id (a game folder
+    copied by hand), or None. One id is one game: an install of it, an update and its history all go by it."""
+    folders: dict[str, list[str]] = {}
+    for game in games:
+        identity = layout.game_identity(Path(game["projectRoot"]))
+        game["_identity"] = identity
+        if identity is not None:
+            folders.setdefault(identity, []).append(game["projectRoot"])
+    for game in games:
+        same = folders.get(game.pop("_identity") or "", [])
+        others = [root for root in same if root != game["projectRoot"]]
+        game["duplicateId"] = others or None

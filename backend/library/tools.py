@@ -10,7 +10,7 @@ from .. import player as player_server
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..system.events import emit
-from . import freshness, game_card, layout, pipeline, playtest_tools, report_tools
+from . import licence, freshness, game_card, layout, pipeline, playtest_tools, report_tools
 from . import games as library
 from .tool_args import tool_error, tool_project
 
@@ -231,6 +231,12 @@ GAME_INFO_TOOL = {
                 "additionalProperties": {"type": "string", "maxLength": game_card.MAX_CONTROL_CHARS},
                 "description": "Optional button to action, e.g. {\"D-pad\": \"walk\", \"A\": \"pounce\"}.",
             },
+            "license": {
+                "type": "string",
+                "enum": list(licence.LICENSES),
+                "description": "The licence the user chose for the game; hermretro writes LICENSE from it. Set it "
+                "only when the user names one: never choose it for them. Publishing needs one.",
+            },
             "cover": {
                 "type": "string",
                 "maxLength": 4096,
@@ -246,7 +252,7 @@ GAME_INFO_TOOL = {
     },
 }
 
-_CARD_FIELDS = ("title", "tagline", "description", "about", "genres", "tags", "controls")
+_CARD_FIELDS = ("title", "tagline", "description", "about", "genres", "tags", "controls", "license")
 
 
 def game_info_handler(args: dict, **kwargs) -> str:

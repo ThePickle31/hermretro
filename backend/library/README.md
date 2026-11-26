@@ -129,12 +129,20 @@ as `layout`. A problem (`NO_PROJECT`, `NO_ROM` for a game without its source, `N
 Games card's Layout tag.
 
 `release.py` is what a publish holds and records (nothing reaches the network): `readiness(root, source=...)`
-(layout, a complete card, a current ROM, the project for a source publish), `prepare_release(root, version, notes)`
+(layout, a complete card naming a licence, a current ROM that fits a Chromatic cartridge and is the one `game.json`'s
+`romSha256` names, the project for a source publish, and nothing `scan` blocks), `scan(root, source=...)`
+(`publish_scan.py`: secrets, home-folder paths, files an install would refuse, and the code under `plugins/`), `prepare_release(root, version, notes)`
 before the commit (`gameVersion`, one changelog entry, the README), `files(root, source=...)` (exactly what to commit:
 no hidden files, links or linked folders), and after the push `record_publish` (`.hermretro/publish.json`: `{repo,
 commit, version, source, payload, t}`, `payload` being `payload_digest`); `published`, `unpublished_changes` and
 `next_version` read it. `record_install`/`installed` keep where an installed game came from, and `local_edits`
 compares the game's files with its `fingerprint` (`installed_digest`, below).
+
+`licence.py` holds the licences a card may name (`LICENSES`) and the `LICENSE` text of each; `layout.ensure` writes
+it (never over a `LICENSE` of the user's own; the digest of the one it wrote is `.hermretro/licence.json`). After each
+successful build of a game, `layout.record_build` records the ROM's `romSha256` and `builtWith` (the engine and GB
+Studio that built it) in `game.json`; `layout.ensure` gives an older game its `format`. Two library folders that hold
+one game (one id) carry `duplicateId` in the games RPC.
 
 ## Installing a game from a link
 

@@ -1,5 +1,5 @@
 """The game card: every game's ``game.json`` (title, tagline, description, about, genres, tags,
-controls) and its ``cover.png`` (160x144 pixel art), at the root of the project folder.
+controls, license) and its ``cover.png`` (160x144 pixel art), at the root of the project folder.
 
 The card is what the Games page shows for a game, and what ``chromatic_present_game`` requires before
 it shows a game to the user. The project's own sources stay the game's truth; the card describes it.
@@ -22,6 +22,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import licence
 from .game_cover import COVER_FILE, COVER_HEIGHT, COVER_WIDTH, _copy_problem, _cover, check_cover
 from .game_cover import copied_asset, cover_path
 from .game_cover import MAX_COVER_COLOURS as MAX_COVER_COLOURS  # public to tools.py's schema text
@@ -301,6 +302,8 @@ def update(
         problem = _controls_problem(fields["controls"])
         if problem:
             problems.append(problem)
+    if "license" in fields and licence.problem(fields["license"]):
+        problems.append(licence.problem(fields["license"]))
     cover, source = None, None
     if cover_source is not None:
         source = Path(str(cover_source).removeprefix("file://")).expanduser()
@@ -330,6 +333,8 @@ def update(
         data["tags"] = list(dict.fromkeys(tag.strip() for tag in fields["tags"]))
     if "controls" in fields:
         data["controls"] = {k.strip(): v.strip() for k, v in fields["controls"].items()}
+    if "license" in fields:
+        data["license"] = fields["license"]
     if cover is not None and source is not None:
         target = cover_path(root)
         if source.resolve() != target.resolve():
@@ -383,6 +388,7 @@ def public(root: Path) -> dict | None:
         "controls": {k: v for k, v in (data.get("controls") or {}).items() if isinstance(k, str) and isinstance(v, str)}
         if isinstance(data.get("controls"), dict)
         else {},
+        "license": licence.chosen(data),
         "complete": state["complete"],
         "missing": state["missing"],
         "hasCover": bool(state["cover"] and state["cover"]["ok"]),

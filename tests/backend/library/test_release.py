@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.library import game_card, layout, release  # noqa: E402 - the repository root goes on sys.path first
-from tests.support import isolated_home, make_project  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home, make_project, make_rom  # noqa: E402 - the repository root goes on sys.path first
 
 REPO = "https://example.invalid/space-game"
 
@@ -45,7 +45,10 @@ class Release(unittest.TestCase):
         )
 
     def test_a_finished_current_game_is_ready_and_its_gaps_are_named(self):
-        self.assertEqual(release.readiness(self.root, source=True), {"ok": True, "problems": []})
+        (self.root / "build" / "game.gbc").write_bytes(make_rom())
+        game_card.set_fields(self.root, {"license": "MIT"})
+        layout.record_build(self.root)
+        self.assertEqual(release.readiness(self.root, source=True), {"ok": True, "problems": [], "warnings": []})
         game_card.set_fields(self.root, {"tagline": ""})
         scene = self.root / "project" / "scene.gbsres"
         scene.write_text('{"changed": true}')

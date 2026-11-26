@@ -398,6 +398,11 @@ class Registry:
                 # What the ROM was built from (pipeline.rom_state). Left out when a file changed while it ran: the
                 # gate never pairs this ROM with sources the compiler may not have read.
                 build["sources"] = sources_before
+            if not failed:
+                try:
+                    layout.record_build(Path(root))  # game.json's romSha256 and builtWith
+                except OSError:
+                    pass
             return self.upsert(root, chat=chat, build=build)
         if tool == "web_preview" and not failed and lane_root and arguments.get("action") in (None, "open"):
             # The engine reuses an export whose sources did not change without rewriting its files, so
@@ -436,4 +441,5 @@ class Registry:
             if described:
                 games.append(described)
         games.sort(key=lambda g: project.timestamp(g.get("updatedAt")), reverse=True)
+        shelf.mark_duplicates(games)
         return games, unavailable
