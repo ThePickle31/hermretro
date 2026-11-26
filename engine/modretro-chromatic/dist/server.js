@@ -31591,6 +31591,7 @@ async function clearSharedBuildDirectory(directory) {
 // GB Studio's cache keys follow only `include "..."` lines into the build's include folder, so a game that brings
 // compiler input of its own could leave a stale engine object: its own engine code (`assets/engine`) or any plugin
 // (an engine overlay, or an event that writes a header an engine file reads). Such a game builds in a fresh folder.
+// A plugin is a folder in `plugins`; GB Studio's own `plugins/README.md` is not one.
 async function gameBringsCompilerInput(projectDirectory) {
   try {
     await lstat9(path16.join(projectDirectory, "assets", "engine"));
@@ -31600,7 +31601,7 @@ async function gameBringsCompilerInput(projectDirectory) {
       throw error2;
   }
   try {
-    return (await readdir4(path16.join(projectDirectory, "plugins"))).length > 0;
+    return (await readdir4(path16.join(projectDirectory, "plugins"), { withFileTypes: true })).some((entry) => !entry.isFile());
   } catch (error2) {
     if (isSystemError(error2, "ENOENT"))
       return false;

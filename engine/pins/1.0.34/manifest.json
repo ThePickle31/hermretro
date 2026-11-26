@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 517,
  "symlink_count": 0,
- "total_bytes": 36278718,
+ "total_bytes": 36278851,
  "suffix_counts": {
   ".js": 142,
   ".map": 140,
@@ -28,7 +28,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "1c14e57591f7845b5874aaa1ee9208a0b07034522633849554559fab52fcbbd1",
+ "aggregate_sha256": "93ab749736d76eb9a302a136c50915db8b5516ce79c8aca0699da7ae86ec984b",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -1048,9 +1048,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3083083,
+   "size": 3083216,
    "mode": "0o644",
-   "sha256": "4074e23c47546e6ef7360a600699c70bcd4c0f5ab52c91343eed1d34811d087c"
+   "sha256": "ebc8d44f51f96d5659bfb957d747b787fd40aa98a4dfcc3df9177c3b8d8f885d"
   },
   {
    "path": "dist/server.js.map",
