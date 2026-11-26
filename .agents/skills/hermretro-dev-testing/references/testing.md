@@ -45,7 +45,7 @@ ruff is pinned to one version with the SHA-256 of every published file (`tools/p
 `pip --require-hashes --only-binary=:all:`, so nothing else can land and nothing is built. Run again, it returns
 at once unless `requirements.txt` changed (then `lint` says so and names the command). Settings, in
 `tools/py/ruff.toml`: lines up to 120 characters, Python 3.11 syntax, the rule groups E9 F B PLE UP SIM (with
-the few ignores it lists and why), quotes kept as written. The vendored engine and player, `skills/`, `tools/npm/`
+the few ignores it lists and why), quotes kept as written. The engine, the vendored player, `skills/`, `tools/npm/`
 and `.dev/` are not linted.
 
 - `python tools/check.py lint` checks; `python tools/check.py fix` applies ruff's safe fixes, `ruff format` and the

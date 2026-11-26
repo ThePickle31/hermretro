@@ -382,7 +382,7 @@ _NOT_REUSABLE: set[tuple] = set()  # earlier copies looked at, by their files' s
 
 def select_engine(node_path: str | None = None) -> dict:
     """``paths.select_engine``, after making the prepared copy for the bundled engine when the engine changed (the
-    maintainer's edit or a new version) and an earlier copy holds the CLI build this engine pins. Nothing is
+    an edit or a new version) and an earlier copy holds the CLI build this engine pins. Nothing is
     downloaded and nothing is asked: the user accepted ModRetro's terms for that CLI when they installed it.
     node_path: the Node the worker runs with, which decides the CLI build."""
     selection = paths.select_engine()

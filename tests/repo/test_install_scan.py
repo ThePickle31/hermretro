@@ -3,7 +3,7 @@
 Hermes scans every plugin at install time and asks for confirmation (the Force switch) when any finding
 is rated high. The engine's ffmpeg capture code once read its video input through a per-process path
 under the proc filesystem, which the scanner's ``proc_access`` rule rates high; hermretro changes it to
-``/dev/fd/6`` (see engine/CHANGES.md). This keeps a future engine update from bringing it back.
+``/dev/fd/6`` (see engine/CHANGES.md). This keeps a later engine change from bringing it back.
 """
 
 import re

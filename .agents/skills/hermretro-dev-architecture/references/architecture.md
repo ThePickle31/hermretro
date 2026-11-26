@@ -2,9 +2,9 @@
 
 hermretro is one Hermes plugin with two halves. The **agent half** (Python, `__init__.py` + `backend/`) gives
 the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `page/`) is the
-hermretro page in Hermes Desktop. Underneath both is the **engine**: ModRetro's own Chromatic MCP server,
-a pinned release under `engine/modretro-chromatic/` with the maintainer's changes (`engine/CHANGES.md`; what was
-left out: `THIRD_PARTY_NOTICES.md`; the files: `engine/pins/<version>/manifest.json`).
+hermretro page in Hermes Desktop. Underneath both is the **engine**, hermretro's own Chromatic MCP server under
+`engine/modretro-chromatic/`, started from ModRetro's 1.0.34 (its changes: `engine/CHANGES.md`; what was left out:
+`THIRD_PARTY_NOTICES.md`; the files: `engine/pins/<version>/manifest.json`).
 
 ```
 Hermes gateway (one process, every profile)                 per user, ~/.hermes/hermretro/
@@ -41,8 +41,8 @@ Every folder in the repository.
 | `player/` | The browser player served to the page, its device art and the generated frame script |
 | `player/web/` | ModRetro's web player (vendored) |
 | `player/skins/` | The emulator's device skins, one folder each (`skin.webp`, `skin.json`) (`hermretro-dev-skins`) |
-| `engine/` | The vendored ModRetro engine and its pins |
-| `engine/modretro-chromatic/` | The vendored engine; only the maintainer changes it (`engine/CHANGES.md`), in its `dist/` modules (`dist/entry.js` is the server's own); `dist/server.js` is built from them (`node tools/engine/bundle.mjs`) |
+| `engine/` | hermretro's engine (started from ModRetro's) and its pins |
+| `engine/modretro-chromatic/` | The engine; changed in its `dist/` modules (`dist/entry.js` is the server's own), each change in `engine/CHANGES.md`; `dist/server.js` is built from them (`node tools/engine/bundle.mjs`) |
 | `engine/CHANGES.md` | hermretro's changes to the engine, one line each |
 | `engine/pins/` | Per engine version: tool contracts and file manifest |
 | `skills/` | Skills the plugin gives the agent |
@@ -62,7 +62,7 @@ Every folder in the repository.
 | `tools/` | Developer tools; check.py runs every check |
 | `tools/bundle/` | Builds page/ into the generated files and lints it (ESLint config and the boundary rules) |
 | `tools/ci/` | Clean install, toolchain preparation and Hermes API checks used by CI |
-| `tools/engine/` | Engine helpers: manifest, schema reconciliation, the update to a new release and its report, the bundle built from the engine's modules (`bundle.mjs`) and the module-by-module comparison of two bundles (`compare_bundles.mjs`) |
+| `tools/engine/` | Engine helpers: manifest, schema reconciliation, the event catalog, the bundle built from the engine's modules (`bundle.mjs`) and the module-by-module comparison of two bundles (`compare_bundles.mjs`) |
 | `tools/engine/npm/` | Pinned npm tools for building and comparing the engine's bundle: its esbuild, the packages it includes, and acorn and eslint-scope |
 | `tools/debug/` | Debugging helpers for a running gateway |
 | `tools/dev/` | The development loop against the local Hermes: live checkout, plugin reload, page watch and live preview, and the sandbox (a private Hermes with a scripted model and a headless browser) (python tools/dev) |

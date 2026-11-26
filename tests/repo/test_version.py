@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
-# Where the version may legitimately appear as text: the manifest itself, the vendored engine (its own
+# Where the version may legitimately appear as text: the manifest itself, the engine (its own
 # versions), lockfiles, generated bundles and the README's note about upgrading from older versions.
 ALLOWED = ("plugin.yaml", "engine/", "tools/npm/package-lock.json", "desktop/plugin.js", "player/frame-shim.js")
 

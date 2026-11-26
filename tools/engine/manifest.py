@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record or verify the manifest of the engine as hermretro ships it, the maintainer's edits included.
+"""Record or verify the manifest of the engine as hermretro ships it.
 
 Records relative path, size, mode and SHA-256 for every file. It copies nothing: the manifest identifies the
 engine without redistributing it. The files hermretro leaves out of the repository (ModRetro's packed CLI
