@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32308374,
+ "total_bytes": 32308397,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "424dedcdf6aebbffe5d70d9067336f821a0b5b4ffd91fcfafaad7ca37cbf53b8",
+ "aggregate_sha256": "ec9552913b81524af1ac0bcfa4d23e9c03b15d91014f2952752888681e0fe9a0",
  "entries": [
   {
    "path": "LICENSE",
@@ -1991,9 +1991,9 @@
   {
    "path": "src/web-annotations/view.js",
    "type": "file",
-   "size": 61294,
+   "size": 61317,
    "mode": "0o644",
-   "sha256": "ffb6c49654d2c0f250a970ad84478851d601724a7edfeac895d15d0ddb9c0097"
+   "sha256": "d5eb5c9e9dcaf8261e519cdd3d11e0f3b1d0a51eab98b432e82c1c8e15dcfb56"
   },
   {
    "path": "src/web-build.js",
