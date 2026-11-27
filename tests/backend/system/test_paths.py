@@ -276,15 +276,20 @@ class PreparedEngine(unittest.TestCase):
             patcher = mock.patch.object(paths, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.release('{"name": "modretro-chromatic", "bundledChromaticFormat": "packed"}')
+        self.release('{"name": "hermretro-engine", "bundledChromaticFormat": "packed"}')
         receipt.write_text(json.dumps({"engine_version": paths.ENGINE_VERSION, "target": "linux-x64", "added": {}}))
 
     def release(self, package: str) -> None:
         """Ship a bundled engine with this package.json and prepare the copy from it, as provisioning does."""
         self.bundled.mkdir(exist_ok=True)
         (self.bundled / "package.json").write_text(package)
-        digest = engine_tree.file_sha256(self.bundled / "package.json")
-        self.manifest.write_text(json.dumps({"entries": [{"path": "package.json", "sha256": digest}]}))
+        entries = [{"path": "package.json", "sha256": engine_tree.file_sha256(self.bundled / "package.json")}]
+        manifest = {"entries": entries, "aggregate_sha256": engine_tree.manifest_digest(entries)}
+        self.manifest.write_text(json.dumps(manifest))
+        # The process checking it was started with this engine, as one is after a release.
+        patcher = mock.patch.object(paths, "ENGINE_IDENTITY", paths._identity(paths.ENGINE_VERSION, manifest))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.prepared.mkdir(exist_ok=True)
         (self.prepared / "package.json").write_bytes(paths.prepared_package_json("linux-x64"))
 
@@ -293,7 +298,7 @@ class PreparedEngine(unittest.TestCase):
 
     def test_an_edited_package_json_retires_the_old_copy(self):
         prepared_before = (self.prepared / "package.json").read_bytes()
-        self.release('{"name": "modretro-chromatic", "edited": true}')
+        self.release('{"name": "hermretro-engine", "edited": true}')
         (self.prepared / "package.json").write_bytes(prepared_before)
         self.assertEqual(paths.verify_prepared_engine()["detail"], "changed package.json")
 

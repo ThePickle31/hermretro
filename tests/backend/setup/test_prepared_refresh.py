@@ -272,6 +272,23 @@ class TheRealBuild(Refresh):
         self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists())
 
+    def test_a_copy_made_before_an_engine_change_no_longer_verifies(self):
+        # Left by a process that loaded the old engine, and checked by one that still names it.
+        self.earlier_copy("1.0.33")
+        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
+        self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
+        self.assertEqual(paths.verify_prepared_engine()["detail"], "the engine changed since this process loaded it")
+
+    def test_an_executable_package_json_is_still_a_prepared_copy(self):
+        # The copy's package.json is written anew (0644): the source's recorded mode is not the copy's.
+        self.earlier_copy("1.0.33")
+        (paths.ENGINE_ROOT / "package.json").chmod(0o755)
+        self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
+        with mock.patch.object(paths, "ENGINE_IDENTITY", paths.engine_identity()):  # loaded after the chmod
+            self.assertTrue(provision.refresh_prepared_engine("/usr/bin/node"))
+            self.assertTrue(paths.verify_prepared_engine()["verified"])
+
     def test_a_copy_whose_script_lost_its_execute_bit_does_not_verify(self):
         self.earlier_copy("1.0.33")
         self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])

@@ -389,17 +389,26 @@ def verify_prepared_engine() -> dict:
                 "verified": False,
                 "detail": f"prepared for engine {receipt.get('engine_version')}, plugin now has {ENGINE_VERSION}",
             }
-        entries = json.loads(ENGINE_MANIFEST.read_text())["entries"]
+        manifest = json.loads(ENGINE_MANIFEST.read_text())
+        entries = manifest["entries"]
+        # The copy is named for the engine this process loaded: a manifest that is another's cannot vouch for it.
+        if (
+            _identity(ENGINE_VERSION, manifest) != ENGINE_IDENTITY
+            or engine_tree.manifest_digest(entries) != manifest["aggregate_sha256"]
+        ):
+            return {"present": True, "verified": False, "detail": "the engine changed since this process loaded it"}
         expected = {e["path"]: e["sha256"] for e in entries if e["path"] not in VENDOR_ARCHIVES}
         expected.update(receipt["added"])
         expected["package.json"] = hashlib.sha256(prepared_package_json(receipt["target"])).hexdigest()
+        executable = engine_tree.executable(entries)
+        executable.pop("package.json", None)  # written anew for the copy (provision._prepare), with its own mode
         problems = (
             engine_tree.compare_tree(
                 PREPARED_ENGINE,
                 expected,
                 optional=frozenset(CAPTURE_FFMPEG),
                 engine_folder=False,
-                executable=engine_tree.executable(entries),
+                executable=executable,
             )
             if PREPARED_ENGINE.is_dir()
             else ["missing engine copy"]
