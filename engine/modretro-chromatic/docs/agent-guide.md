@@ -181,7 +181,7 @@ The plugin does not manage activation or collect codes. Do not infer an invalid
 code or a seat limit from a generic failure. After the updater workflow, use
 fresh device discovery and selection and the normal flash confirmation; preserve
 any previous write's uncertain outcome. See the
-[deployment skill](../skills/chromatic-deployment/SKILL.md#prepare-a-first-write-on-a-new-computer).
+[hermretro's deployment skill](../../../skills/deployment/SKILL.md#prepare-a-first-write-on-a-new-computer).
 
 After a targeted correction, check its result before proceeding. If the same
 failure persists without new evidence, retain the concrete blocker and choose
@@ -371,7 +371,7 @@ or mismatched debugging artifacts are never successful verification.
 Use additive `diagnostics`, including any source path, line, and suggested
 action, to choose the next focused resource inspection. Preserve the actual
 compiler error when no specific diagnosis is supported. The official desktop
-editor can [run a selected scene](../skills/modretro-chromatic-authoring/references/extensions-and-build.md)
+editor can [run a selected scene](../../../skills/authoring/references/extensions-and-build.md)
 for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview

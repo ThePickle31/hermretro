@@ -115,18 +115,18 @@ playback is not implemented.
 The Emulator tab offers a user-sent annotation for opening a project preview
 or creating a blank project. It does not replace or close an existing session.
 
-These steps are for macOS. On Linux they need the FFmpeg helper hermretro does
-not ship, and listing devices fails without it.
+These steps are for macOS. Linux capture needs the FFmpeg helper hermretro does
+not ship, so listing devices fails there; where the helper is present, Linux has
+no Enable step or macOS permission prompt, and its listing briefly opens matching
+nodes to query capture capabilities without streaming.
 
-1. Call `device_capture {"action":"open"}`. On macOS, use `open_settings` with
+1. Call `device_capture {"action":"open"}`. Use `open_settings` with
    `tab: "connection"`; the user turns on **Enable device capture** and grants
    normal camera access. Optional USB audio requests microphone access separately.
    Tools cannot silently enable macOS capture. Turning it off revokes admission
-   immediately, including during a pending permission request. On Linux, continue
-   to device selection: there is no Enable step or macOS permission prompt.
+   immediately, including during a pending permission request.
 2. `list_devices` returns exact Chromatic choices and counts of unlabeled,
-   unsupported, and omitted inputs. macOS listing is passive; Linux listing
-   briefly opens matching nodes to query capture capabilities without streaming.
+   unsupported, and omitted inputs. Listing is passive.
    `permission_status` reports platform-specific access state without prompting. Neither
    operation proves capture will succeed. A denial can depend on OS permission or
    launch context; do not assume the user refused access.

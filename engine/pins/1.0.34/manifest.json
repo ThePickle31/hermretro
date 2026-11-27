@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33372191,
+ "total_bytes": 33372036,
  "suffix_counts": {
   ".js": 147,
   ".md": 64,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "2086f66c8e65dd71ef4d7ae6869b9fd80399a213dd5d86f0fb3535887f6be65c",
+ "aggregate_sha256": "75ed6310f3b3bd70abd1db17bca8e7e2cb96f09636db9447dc9befde212e4a93",
  "entries": [
   {
    "path": "LICENSE",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 45005,
+   "size": 45000,
    "mode": "0o644",
-   "sha256": "58fc076804f25dd2c9cd5211186348bc81643c285b57dd642bd3d3861c7c1395"
+   "sha256": "663df7cd98085f787099216aa7ad40153b12b4e8c0b487e5707ef50c28efc3fb"
   },
   {
    "path": "docs/architecture.md",
@@ -1151,9 +1151,9 @@
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 28117,
+   "size": 28082,
    "mode": "0o644",
-   "sha256": "cb87fc6db8eee0549568b1e1dc38301f94f4d6838f0240bb3cc357d1bc5f29be"
+   "sha256": "c5cf4707f9edbab46610d2028e5647d6359a670bf019df534f041bd65dc1ed95"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1193,23 +1193,23 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12525,
+   "size": 12534,
    "mode": "0o644",
-   "sha256": "9ff67408aa2f63b730cc10fffbf23e812f03e4429233311a1f5061222b4bc592"
+   "sha256": "3675e026636fc0e59d97bda2b89d14b303e0874f26fbcb9e6653cd171a450a97"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15971,
+   "size": 15852,
    "mode": "0o644",
-   "sha256": "64d094a5ef41dde11d77ec7fd704ccc7322969fddff62ae18bd406e3257187d5"
+   "sha256": "348f8d0af976f4b1eb49ff670b0bd6274397087a032246c3247788e15bb376b2"
   },
   {
    "path": "docs/stepped-playtesting.md",
    "type": "file",
-   "size": 9725,
+   "size": 9720,
    "mode": "0o644",
-   "sha256": "8e2ebfe6d09d69487ea3ea21122548de948db07785ab4736f4a06e4c51ec4393"
+   "sha256": "3e8e6f39fc63b775f58827dabbed480e272063e14700f46dbc75934fe948e422"
   },
   {
    "path": "docs/tilemaps.md",

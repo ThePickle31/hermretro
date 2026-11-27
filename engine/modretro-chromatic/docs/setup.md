@@ -40,10 +40,9 @@ to obtain or add.
 
 ## Preview an existing project
 
-A game already in hermretro's library is worked on in its own conversation:
-open it from the Build page, where it is already selected. A project not yet in
-the library is selected as
-[hermretro's project-selection guide](../../../skills/authoring/references/project-selection.md)
+In hermretro, each game is opened and edited in its own conversation, from the
+Build page, as
+[hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project)
 describes. Keep custom launchers such as
 `tools/preview.mjs` and project scripts intact; the engine does not need to
 rewrite them to preview your game.
@@ -52,9 +51,9 @@ The agent uses these tools in order (hermretro names each `chromatic_<name>`):
 
 1. `session_status {}` to check the current session. Finish any active operation
    through its original session before switching projects.
-2. In the game's own conversation the game is already selected. For a project
-   not yet in the library, `project_select {"projectPath":"/absolute/path/to/game.gbsproj"}`
-   selects it within the authorized workspace.
+2. `project_select {"projectPath":"/absolute/path/to/game.gbsproj"}` selects a
+   project within the authorized workspace. In hermretro, a game's own
+   conversation has it selected already.
 3. `project_inspect {}` to confirm the selected project and source.
 4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
    Omit `probes` for this passive check. Prepare missing dependencies with

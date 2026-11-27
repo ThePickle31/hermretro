@@ -49,7 +49,7 @@ resolving symlinks, and the bundled starter additionally requires
 ## Check setup and compile a real ROM
 
 Maintainers check the engine from hermretro's repository root with
-`python tools/check.py full` (it includes a real-engine run that builds and
+`python tools/check.py full --strict` (it includes a real-engine run that builds and
 plays games). The agent's `chromatic_toolchain_doctor` reports the dependencies
 without changing anything; then build the selected project with
 `chromatic_rom_build`.
