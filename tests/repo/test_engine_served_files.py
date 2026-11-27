@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import json
 import re
+from html.parser import HTMLParser
 import shutil
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from urllib.parse import urljoin
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -27,7 +29,7 @@ SRC = ENGINE_ROOT / "src"
 TOOLS = ROOT / "tools" / "engine" / "npm"
 NODE = shutil.which("node")
 ORIGIN = "https://engine.invalid/capability-9f2c71/"
-# Where each page's files are served from, as folder URLs.
+# Where each page's files are served from, as folder URLs: the preview page is at ORIGIN, its files under its mount.
 PREVIEW = [ORIGIN + "codex-annotations/"]
 CAPTURE = [ORIGIN, ORIGIN + "codex-device-view/"]  # the capture page on its own, and inside the preview
 # argv: the pinned tools, the module holding the list, the list's name, the folder its entries are relative to, the
@@ -83,17 +85,36 @@ console.log(JSON.stringify({ served, problems }));
 SERVABLE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*(?:/[A-Za-z0-9_-][A-Za-z0-9._-]*)*")
 
 
-def entry_scripts(module: str, mount: str = "") -> list[str]:
-    """The module scripts the HTML a page's module writes loads, from its active <script> tags, beside the page (or
-    under mount, written as the template's ${...} for it)."""
-    text = re.sub(r"<!--.*?-->", "", (SRC / module).read_text(encoding="utf-8"), flags=re.S)
-    found = []
-    for tag in re.findall(r"<script\b[^>]*>", text):
-        source = re.search(r'\bsrc="\./([^"]+)"', tag)
-        if re.search(r'\btype="module"', tag) and source:
-            found.append(source.group(1).removeprefix(mount))
-    assert found, f"{module} writes no module <script>"
-    return found
+class ModuleScripts(HTMLParser):
+    """The src of each <script type="module"> in HTML, read the way a browser reads its attributes."""
+
+    def __init__(self):
+        super().__init__()
+        self.found: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "script" and attributes.get("type") == "module" and attributes.get("src"):
+            self.found.append(attributes["src"])
+
+
+def entry_scripts(module: str, page: str, mount: str, substitutions: dict[str, str] | None = None) -> list[str]:
+    """The listed names of the module scripts the HTML a page's module writes loads, resolved from the page's URL;
+    a script outside the mount its files are served from is returned whole, so it is never on the list."""
+    text = (SRC / module).read_text(encoding="utf-8")
+    for name, value in (substitutions or {}).items():
+        text = text.replace("${" + name + "}", value)
+    parser = ModuleScripts()
+    parser.feed(text)
+    assert parser.found, f"{module} writes no module <script>"
+    urls = [urljoin(page, source) for source in parser.found]
+    return [url.removeprefix(mount) if url.startswith(mount) else url for url in urls]
+
+
+def listed_constant(module: str, name: str) -> str:
+    found = re.search(rf'const {name} = "([^"]+)";', (SRC / module).read_text(encoding="utf-8"))
+    assert found, f"{module} has no {name}"
+    return found.group(1)
 
 
 @unittest.skipUnless(NODE and (TOOLS / "node_modules" / "acorn").is_dir(), "node or tools/engine/npm is missing")
@@ -113,14 +134,16 @@ class ServedFiles(unittest.TestCase):
 
     def test_the_capture_page_serves_its_entry_and_every_module_its_files_import(self):
         served = self.served("native-device-capture.js", "ASSETS", SRC, CAPTURE, ignores_query=False)
-        for entry in entry_scripts("device-capture/page.js"):
-            self.assertIn(entry, served, "the capture page's HTML loads it")
+        for page in CAPTURE:  # its files are served beside the page itself
+            for entry in entry_scripts("device-capture/page.js", page, page):
+                self.assertIn(entry, served, f"the capture page's HTML loads it (page at {page})")
         # The preview's Device view loads the capture client from the capture page's files by a computed URL.
         self.assertIn("device-capture/native-client.js", served)
 
     def test_the_preview_serves_its_entry_and_every_module_its_annotation_files_import(self):
         served = self.served("web-preview.js", "ANNOTATION_FILES", SRC / "web-annotations", PREVIEW, ignores_query=True)
-        for entry in entry_scripts("web-preview.js", mount="${ANNOTATION_MOUNT}/"):
+        mount = listed_constant("web-preview.js", "ANNOTATION_MOUNT")
+        for entry in entry_scripts("web-preview.js", ORIGIN, PREVIEW[0], {"ANNOTATION_MOUNT": mount}):
             self.assertIn(entry, served, "the preview's HTML loads it")
 
 
