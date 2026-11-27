@@ -26,6 +26,7 @@
 "player/web/LICENSES/*" = "Licences of the vendored player"
 "tools/py/requirements.txt" = "The pinned, hash-checked Python dev tools"
 "tools/dev/bench_games/*.txt" = "The benchmark's games, one prompt each (python tools/dev bench)"
+"tools/review/*.md" = "How a change is reviewed: the process, the rules and the reviewers' briefs"
 
 [size]
 # The one per-file size rule. Python and page source files: a warning above `warn` lines (check.py's unit row names

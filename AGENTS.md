@@ -20,7 +20,7 @@ This guide holds the map, the commands and the rules. How to do each kind of wor
 | `engine/dist/server.js` | The engine's bundle, generated from its modules by `tools/engine/bundle.mjs` and committed |
 | `player/`, `skills/`, `profile/` | The browser player and device art; the skills the plugin gives the agent (for making games, not for working on hermretro); the `hermretro` studio profile's files |
 | `tests/` | Mirrors the code: `backend/<feature>/`, `page/`, `repo/` (repository-wide checks), `acceptance/` (real engine), `dev/`; `support.py` temp-folder helpers |
-| `tools/` | `check.py` (every check), `dev/` (the development loop), `release.py`, `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` and `py/` (pinned dev tools), `layout.toml` (committed documents and file sizes) |
+| `tools/` | `check.py` (every check), `dev/` (the development loop), `release.py`, `bundle/` (page build), `ci/`, `engine/`, `debug/`, `npm/` and `py/` (pinned dev tools), `review/` (how a change is reviewed and the rules it is held to), `layout.toml` (committed documents and file sizes) |
 | `.agents/skills/` | The development skills (below); `.claude/skills` links to the same folder |
 
 Python and page source files warn above 400 lines and fail above 600 (`tools/layout.toml` lists the exceptions).
