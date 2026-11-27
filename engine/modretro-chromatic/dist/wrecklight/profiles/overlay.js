@@ -49,4 +49,3 @@ export const WRECKLIGHT_OVERLAY_SOURCE_REVIEW = {
         "_release": "10"
     }
 };
-//# sourceMappingURL=overlay.js.map

@@ -353,4 +353,3 @@ export class NativeHelperProcess {
         return this.closed;
     }
 }
-//# sourceMappingURL=native-helper.js.map

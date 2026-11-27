@@ -774,4 +774,3 @@ export function mountPlayerControls(canvas, original, context, isCurrent) {
         },
     };
 }
-//# sourceMappingURL=player.js.map

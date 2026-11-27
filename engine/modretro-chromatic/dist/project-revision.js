@@ -158,4 +158,3 @@ export function isPublicProjectRevisionPath(relativePath, descriptorRelativePath
     const descriptor = normalizeRelativePath(descriptorRelativePath);
     return normalized === descriptor || PUBLIC_REVISION_DIRECTORIES.some((directory) => normalized.startsWith(`${directory}/`));
 }
-//# sourceMappingURL=project-revision.js.map

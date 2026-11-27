@@ -34,4 +34,3 @@ export function registerTilemapTools(server, context) {
         annotations: mutation,
     }, (input) => context.safely(() => context.runTransaction((project, access) => compileTilemap(project.projectPath, input, access))));
 }
-//# sourceMappingURL=tilemap.js.map

@@ -1430,4 +1430,3 @@ export async function deleteScene(projectPath, input, indexedAccess) {
 export const sceneInspect = inspectScene;
 export const sceneDelete = deleteScene;
 export const sceneApply = applySceneBatch;
-//# sourceMappingURL=scene-batch.js.map

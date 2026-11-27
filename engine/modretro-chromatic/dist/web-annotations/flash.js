@@ -811,4 +811,3 @@ export function mountFlashControl(root, generation, current, verifyGame, sourceR
         },
     };
 }
-//# sourceMappingURL=flash.js.map

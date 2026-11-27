@@ -53,4 +53,3 @@ export const WRECKLIGHT_CAPTURE_SOURCE_REVIEW = {
         },
     },
 };
-//# sourceMappingURL=capture.js.map

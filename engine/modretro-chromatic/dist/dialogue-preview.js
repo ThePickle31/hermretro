@@ -302,4 +302,3 @@ export async function previewDialogue(projectPath, input, access) {
         confidence: prepared.analysis.confidence,
     };
 }
-//# sourceMappingURL=dialogue-preview.js.map

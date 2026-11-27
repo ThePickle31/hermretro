@@ -176,4 +176,3 @@ export async function updateNativeTitleAtlas(projectPath, input, access) {
     }, access);
     return { ...value, ...transaction, note: "The public project revision excludes plugin files; use headerSha256 as the next header preimage. Dependency-profile recognition and rendered output require separate validation." };
 }
-//# sourceMappingURL=native-title-atlas.js.map

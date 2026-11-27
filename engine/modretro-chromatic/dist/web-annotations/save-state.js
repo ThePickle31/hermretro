@@ -276,4 +276,3 @@ export async function restoreSaveState(player, text, expectedIdentity, canRestor
         }
     });
 }
-//# sourceMappingURL=save-state.js.map

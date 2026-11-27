@@ -242,4 +242,3 @@ export function tilemapDiff(before, after, width, atlas) {
         truncated: changedCells > samples.length,
     };
 }
-//# sourceMappingURL=tilemap-compose.js.map

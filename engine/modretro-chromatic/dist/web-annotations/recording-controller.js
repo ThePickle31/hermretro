@@ -168,4 +168,3 @@ export class RecordingController {
     dispose() { this.stop("The browser owner closed."); if (this.timer)
         clearInterval(this.timer); this.timer = undefined; }
 }
-//# sourceMappingURL=recording-controller.js.map

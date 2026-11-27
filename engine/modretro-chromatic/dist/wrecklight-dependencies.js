@@ -2124,4 +2124,3 @@ export function reviewedNativeBackgroundOwner(reference, metadataPath) {
     }
     return undefined;
 }
-//# sourceMappingURL=wrecklight-dependencies.js.map

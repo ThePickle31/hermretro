@@ -22,4 +22,3 @@ main{display:block;min-height:0;width:100%;padding:var(--cgv-device-top,0px) 0 0
 .capture-notices #state:empty,.capture-notices .view-feedback:empty{display:none}
 .capture-notices #saved{position:static;transform:none;box-sizing:border-box;width:100%;text-align:left}
 </style>`;
-//# sourceMappingURL=native-page.js.map

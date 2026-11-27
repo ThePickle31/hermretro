@@ -28,4 +28,3 @@ export const WRECKLIGHT_BRAKEMAW_FINISH_SOURCE_REVIEW = {
     // The helper writes native camera offsets, not script-memory variables.
     engineRenderReads: ["92", "8", "137", "81", "136"],
 };
-//# sourceMappingURL=brakemaw-finish.js.map

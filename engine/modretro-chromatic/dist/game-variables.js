@@ -220,4 +220,3 @@ export async function updateVariable(projectPath, input, access) {
         revision: await resourceRevision(selected.projectRoot, selected.filename),
     };
 }
-//# sourceMappingURL=game-variables.js.map

@@ -706,4 +706,3 @@ export class PreviewCaptureStore {
         }
     }
 }
-//# sourceMappingURL=web-preview-captures.js.map

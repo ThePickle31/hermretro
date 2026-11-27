@@ -9,4 +9,3 @@ export const WRECKLIGHT_PROJECTILE_SPAWN_CONTACT_SOURCE_REVIEW = {
         },
     ],
 };
-//# sourceMappingURL=projectile-spawn-contact.js.map

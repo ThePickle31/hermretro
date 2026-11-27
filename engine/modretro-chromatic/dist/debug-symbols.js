@@ -331,4 +331,3 @@ export function decodeCurrentScene(manifest, bytes) {
     }
     return matches[0];
 }
-//# sourceMappingURL=debug-symbols.js.map

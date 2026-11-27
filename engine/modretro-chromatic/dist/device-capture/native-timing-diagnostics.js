@@ -217,4 +217,3 @@ export function createTimingDiagnostics(startedAt) {
     }
     return { observe, observeRaf, missRaf, noteTimedRequest, noteTimedResponse, noteTimedNoResponse, summary };
 }
-//# sourceMappingURL=native-timing-diagnostics.js.map

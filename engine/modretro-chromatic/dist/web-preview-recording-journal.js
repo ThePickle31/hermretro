@@ -187,4 +187,3 @@ export class RecordingJournal {
     }
     async read(id) { recordingId(id); await this.directorySafe(); return this.readFile(`${id}.json`); }
 }
-//# sourceMappingURL=web-preview-recording-journal.js.map

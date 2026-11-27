@@ -163,4 +163,3 @@ export function mountAudioControl(audio, context, getVolume = () => 0.5) {
         dispose,
     };
 }
-//# sourceMappingURL=audio.js.map

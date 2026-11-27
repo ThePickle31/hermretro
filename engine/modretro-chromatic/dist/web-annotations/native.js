@@ -395,4 +395,3 @@ export function connectAnnotations(canvas, api, hooks) {
         },
     };
 }
-//# sourceMappingURL=native.js.map

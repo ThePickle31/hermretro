@@ -642,4 +642,3 @@ export async function spriteContactSheet(projectRoot, input, access) {
         frames: frames.map(({ animationIndex, frameIndex }) => ({ animationIndex, frameIndex })),
     };
 }
-//# sourceMappingURL=sprites.js.map

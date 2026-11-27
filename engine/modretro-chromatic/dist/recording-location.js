@@ -135,4 +135,3 @@ export function recordingArchiveOrigin(root, resolvePath) {
         throw new Error("Archive mapping changed during reading");
     return original;
 }
-//# sourceMappingURL=recording-location.js.map

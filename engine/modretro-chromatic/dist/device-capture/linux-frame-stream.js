@@ -112,4 +112,3 @@ export class LinuxFrameStream {
             throw new Error("Linux preview ended with missing or unmatched packet evidence.");
     }
 }
-//# sourceMappingURL=linux-frame-stream.js.map

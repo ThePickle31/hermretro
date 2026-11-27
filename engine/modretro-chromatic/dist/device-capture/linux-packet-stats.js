@@ -62,4 +62,3 @@ export class LinuxPacketStats {
     finish() { if (this.pending || !this.count)
         throw new Error("Linux recording ended without complete encoded-packet evidence."); }
 }
-//# sourceMappingURL=linux-packet-stats.js.map

@@ -20,4 +20,3 @@ export const WRECKLIGHT_FLAT_PROJECTILE_SOURCE_REVIEW = {
         _release: "10",
     },
 };
-//# sourceMappingURL=flat-projectile.js.map

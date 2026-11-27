@@ -268,4 +268,3 @@ export async function worldDependencies(access, query) {
     }
     return resultPage(returned, coverageReturned);
 }
-//# sourceMappingURL=world-queries.js.map

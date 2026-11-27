@@ -115,4 +115,3 @@ export async function readBoundedCaptureAsset(filename, maximum) {
         await file.close();
     }
 }
-//# sourceMappingURL=native-files.js.map

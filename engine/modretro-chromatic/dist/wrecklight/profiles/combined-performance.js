@@ -53,4 +53,3 @@ export const WRECKLIGHT_COMBINED_PERFORMANCE_SOURCE_REVIEW = {
     // They do not add direct reads or writes to the invoking event's VM effects.
     engineRenderReads: ["8", "585"], // Health, CombatOwnedBits
 };
-//# sourceMappingURL=combined-performance.js.map

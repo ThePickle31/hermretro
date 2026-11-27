@@ -17,7 +17,6 @@ view before reloading, so it cannot leave an idle view blocking closure.
 
 Chromatic discovery supports players 1–8, explains conflicting player numbers,
 and gives specific recovery advice without weakening write confirmation.
-See the [1.0.8 release notes](docs/release-1.0.8.md) for verification and limits.
 
 ## What's new in 1.0.7
 
@@ -26,8 +25,6 @@ Chromatic**. Saved device requests still recover their original status without
 repeating a write. If device access is unavailable, the panel explains the issue
 while browser play remains available.
 
-See the [1.0.7 release notes](docs/release-1.0.7.md) for verification and limits.
-
 ## What's new in 1.0.6
 
 Native capture now checks a JPEG's actual dimensions and headers before sending
@@ -35,8 +32,7 @@ it to the preview or Codex. Malformed or unsupported headers are rejected while
 the existing file, checksum and size checks stay in place.
 
 The native helper is unchanged. This update does not establish OS sandboxing or
-new physical-device compatibility. See the [1.0.6 release notes](docs/release-1.0.6.md)
-for the validation scope and remaining limits.
+new physical-device compatibility.
 
 ## What's new in 1.0.5
 
@@ -48,7 +44,6 @@ is saved. Interrupted or uncertain recordings retain their original status.
 Real three-minute and ten-minute idle captures were saved and decoded. Full UI
 validation remains incomplete, including a blocked direct navigation to a
 Timing URL. Saved media and metadata paths are available through `read_capture`.
-See the [1.0.5 release notes](docs/release-1.0.5.md) for the exact scope and limits.
 
 ## What's new in 1.0.4
 
@@ -60,8 +55,7 @@ command; an uncertain release blocks further tool input.
 
 Live checks on Jump Test confirmed two complete jumps and released input. This
 does not establish Wrecklight gameplay, sustained frame rate, or physical-device
-capture. All 1.0.3 features remain available. See the
-[1.0.4 release notes](docs/release-1.0.4.md) for details and limits.
+capture. All 1.0.3 features remain available.
 
 ## What's new in 1.0.3
 
@@ -78,8 +72,7 @@ Import complete authored sprite PNG/native-metadata pairs with the
 project revisions, and fresh IDs protect the existing project.
 
 A short physical video probe passed. Longer recordings and optional USB audio
-have synthetic coverage but still need physical-device validation. See the
-[1.0.3 release notes](docs/release-1.0.3.md) for supported platforms and limits.
+have synthetic coverage but still need physical-device validation.
 
 ## What's new in 1.0.2
 
@@ -455,8 +448,7 @@ Wrecklight remains an optional repository template. Compression uses Node's
 built-in Brotli support, with no extra compression tool or CLI download.
 Executables, complete supplier notices and device artwork use separate,
 authenticated streams. Reading a notice or showing the preview does not decode
-or launch a CLI executable. The images keep their original WebP bytes and URLs;
-source maps remain included.
+or launch a CLI executable. The images keep their original WebP bytes and URLs.
 
 Read a complete supplier notice offline from the extracted plugin directory:
 

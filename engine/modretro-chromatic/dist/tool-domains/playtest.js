@@ -268,4 +268,3 @@ export function registerPlaytestTools(context) {
         annotations: readOnly,
     }, async (input) => safely(() => context.runOperation(() => context.sourceDebug(input))));
 }
-//# sourceMappingURL=playtest.js.map

@@ -112,4 +112,3 @@ export function encodeResourceBytes(values) {
     }
     return encoded;
 }
-//# sourceMappingURL=resource-codec.js.map

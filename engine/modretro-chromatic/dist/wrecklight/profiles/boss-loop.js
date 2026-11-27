@@ -153,4 +153,3 @@ export const WRECKLIGHT_BOSS_LOOP_SOURCE_REVIEW = {
         { id: poseSites[2], kind: "brakemawCuePose" },
     ],
 };
-//# sourceMappingURL=boss-loop.js.map

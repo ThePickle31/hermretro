@@ -119,4 +119,3 @@ export function registerChromaticTools(server, context) {
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (input, extra) => invoke({ ...input, command: "play" }, extra.signal));
 }
-//# sourceMappingURL=chromatic.js.map

@@ -437,4 +437,3 @@ export async function readNativeProjectMetadata(root) {
     }
     return values;
 }
-//# sourceMappingURL=native-import-files.js.map

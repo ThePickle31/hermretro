@@ -1377,4 +1377,3 @@ export function createPlayerView(canvas, title) {
     view.setAnnotating(false);
     return view;
 }
-//# sourceMappingURL=view.js.map

@@ -61,4 +61,3 @@ export function isSemanticCursorCurrent(payload, current, query) {
         payload.semanticGeneration === current.semanticGeneration &&
         payload.query === query);
 }
-//# sourceMappingURL=project-access.js.map

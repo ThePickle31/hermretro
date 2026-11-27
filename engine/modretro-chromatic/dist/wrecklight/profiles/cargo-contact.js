@@ -38,4 +38,3 @@ export const WRECKLIGHT_CARGO_CONTACT_SOURCE_REVIEW = {
         children: ["lunge"],
     },
 };
-//# sourceMappingURL=cargo-contact.js.map

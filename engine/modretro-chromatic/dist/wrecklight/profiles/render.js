@@ -21,4 +21,3 @@ export const WRECKLIGHT_RENDER_SOURCE_REVIEW = {
         _release: "10",
     },
 };
-//# sourceMappingURL=render.js.map

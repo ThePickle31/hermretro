@@ -482,4 +482,3 @@ export async function paintBackgroundPalette(projectPath, input, access) {
         tileSlotHistogram: applied.tileSlotHistogram,
     };
 }
-//# sourceMappingURL=palettes.js.map

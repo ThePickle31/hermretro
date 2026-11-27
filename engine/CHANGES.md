@@ -337,3 +337,9 @@ that module.
   builds from them (`python tools/check.py engine` checks it), holding the same modules as before.
 - `tools/engine/update.py` and `tools/engine/report.py` (removed): the engine is no longer updated by merging a
   ModRetro release into it. A fix from a later release is ported by hand, like any change.
+- `dist/**/*.js.map` (removed, with each module's `sourceMappingURL` line), `scripts/*.d.mts` (removed, and from
+  `package.json`'s `files`), `docs/release-1.0.*.md` (removed, and the README's links to them). The server bundle is
+  byte for byte the same; the one difference is in opt-in diagnostics: with `node --enable-source-maps`, a stack
+  trace through a module loaded directly names `dist/<module>.js` instead of a `src/*.ts` file the release never
+  shipped (and which no longer matched the modules we changed). The type declarations are for a compiler nobody
+  runs, and ModRetro's release notes stay readable in the tag `engine-upstream-1.0.34`.

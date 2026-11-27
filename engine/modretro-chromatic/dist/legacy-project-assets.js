@@ -85,4 +85,3 @@ export function legacyPluginAssetCandidates(discovery) {
     }
     return [...paths.values()].flatMap((candidates) => candidates.length === 1 ? candidates : []);
 }
-//# sourceMappingURL=legacy-project-assets.js.map

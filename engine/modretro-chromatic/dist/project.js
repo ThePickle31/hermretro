@@ -1133,4 +1133,3 @@ export async function updateSettings(projectPath, updates, indexedAccess) {
         return { projectPath: inventory.projectPath, projectRoot: inventory.projectRoot, resourcePath: toRelative(inventory.projectRoot, target), settings };
     });
 }
-//# sourceMappingURL=project.js.map

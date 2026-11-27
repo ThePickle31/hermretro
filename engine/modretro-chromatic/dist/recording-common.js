@@ -415,4 +415,3 @@ export function decodePng(data) {
         throw new Error("A retained framebuffer has invalid native dimensions");
     return Buffer.from(result.data);
 }
-//# sourceMappingURL=recording-common.js.map
