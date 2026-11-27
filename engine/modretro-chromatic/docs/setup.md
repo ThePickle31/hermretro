@@ -51,13 +51,16 @@ The agent uses these tools in order (hermretro names each `chromatic_<name>`):
    the existing project within the authorized workspace.
 3. `project_inspect {}` to confirm the selected project and source.
 4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
-   Omit `probes` for this passive check. Missing dependencies need the setup
-   flow below; metadata readiness alone does not prove a successful build.
-5. `rom_build {}` to build it. To show it to the user, follow
+   Omit `probes` for this passive check. In hermretro, prepare missing
+   dependencies with `toolchain_prepare {"components":["build"]}` or from the
+   hermretro page, never with the standalone commands below; metadata readiness
+   alone does not prove a successful build.
+5. `rom_build {}` to build the ROM (`make:rom`). The playable web copy is a
+   separate `make:web` export. To show the game to the user, follow
    [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro): it names what
    `chromatic_present_game` needs first.
 
-This path uses the official GB Studio `make:web` compiler and the engine's
+The web copy uses the official GB Studio `make:web` compiler and the engine's
 player controls. It does not run your npm scripts or import behavior from a
 custom preview launcher. Keep the launcher and game source unchanged; any
 custom behavior still needs a separate review. For a physical Chromatic feed,
@@ -66,6 +69,8 @@ launcher.
 
 ## Start before MCP is available
 
+This section sets the engine up on its own, in a root you choose. hermretro uses
+its own root, prepared from the hermretro page or `toolchain_prepare`.
 Hermes installs and updates the plugin; that is separate from dependency setup.
 The setup scripts are in the engine's `scripts/` folder inside the installed
 plugin. Do not run `npm install` or `npm run setup` in the plugin folder.

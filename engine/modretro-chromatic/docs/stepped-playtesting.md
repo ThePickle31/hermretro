@@ -1,6 +1,6 @@
 # Build, play, fix, and retest
 
-The model editing the game can play it through the
+The model editing the game can play it through
 [the engine](../README.md). Build the native
 project, choose a short controller input, inspect real frames, and decide what
 to do next. The emulator does not advance while the model is thinking.

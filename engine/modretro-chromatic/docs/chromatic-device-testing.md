@@ -16,6 +16,10 @@ Start with a request like:
 
 ## Flash from the browser preview
 
+This is the engine's own preview page (a `web_preview` URL). The hermretro
+emulator does not install to a device: its **Install** puts the flash prompt into
+the game's chat, and the agent then uses `flash` as described below.
+
 Open your game with `web_preview`. **Install on Chromatic** appears beneath the
 player and keyboard controls. Device checks start when you open that panel,
 so browser play does not need access to the device status files. A saved pending
