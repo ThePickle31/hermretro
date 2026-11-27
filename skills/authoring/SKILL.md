@@ -92,7 +92,7 @@ For example, to make a door go to another room: find both scene IDs, inspect the
 Open each page when a step needs it.
 
 - [Native resource layout and tool examples](references/project-authoring.md): scenes, actors, events, variables, collision, palettes, settings, and focused edits.
-- [Resource tools](references/resource-tools.md): every authoring tool by resource, relationship queries, `chromatic_scene_apply` batches and operations files.
+- [Resource tools](references/resource-tools.md): the authoring tools by resource, relationship queries, `chromatic_scene_apply` batches and operations files.
 - [Event cookbook](references/event-cookbook.md): working event JSON for a HUD, pickups, hazards and collision groups, patrolling enemies, gated exits, menus, threads, held buttons, sound effects and scene switches. `chromatic_event_describe` gives any other event's args, defaults and an example; never read GB Studio's source for them.
 - [GB Studio behaviours](references/gb-studio-behaviours.md): what builds but misbehaves in play (sprite palette entry 2, sprite palette slots, text in `LOGO` scenes, the text tile ring, locked start scripts, sounds before the fade-in, sprites over menus, `$00$` text tokens, top-down respawns, collision boxes, projectile hits and script keys, actors off screen, button presses).
 - [Scene types](references/scene-types.md): GB Studio's default platformer jump in numbers, how the top-down grid lines up and blocks, and how a shoot-'em-up scrolls, stops and moves the player, with shooting and enemies that fire back.

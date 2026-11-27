@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32312206,
+ "total_bytes": 32312315,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "bc51101052c0bb6101007c9532421751b9c7daf854f7e162b58cf246bd296cf0",
+ "aggregate_sha256": "78df4f70667671edd9dbfd9f2779847d9a4f1928425ef7d4f936a3faaa9c707c",
  "entries": [
   {
    "path": "LICENSE",
@@ -129,9 +129,9 @@
   {
    "path": "docs/architecture.md",
    "type": "file",
-   "size": 23258,
+   "size": 23367,
    "mode": "0o644",
-   "sha256": "8d22752450b2987a852bdeabc119e90070291d70f0bd00cdd6287789f29a9c2b"
+   "sha256": "040a2d3ade4ad48ea65af0a3b7daffbaeacf682b826c5840ba2aa0dfa2fc254b"
   },
   {
    "path": "docs/chromatic-device-testing.md",
