@@ -189,7 +189,7 @@ rather than claiming an unconfirmed process exit.
 hermretro's real-engine run builds and plays real games against the engine:
 from the repository root, run `python tools/check.py full --strict` (without
 `--strict`, a missing toolchain skips the run instead of failing; the
-[testing guide](../../../.agents/skills/hermretro-dev-testing/references/testing.md)
+[testing guide](../../.agents/skills/hermretro-dev-testing/references/testing.md)
 says how to prepare it). It runs on Linux and macOS; it is not evidence of
 native Windows execution.
 

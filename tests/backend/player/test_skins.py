@@ -39,7 +39,7 @@ class ShippedSkins(unittest.TestCase):
 
     def test_the_engine_finds_every_finish_it_lists_in_the_skin_folders(self):
         # The engine's preview and live-feed window read chromatic-<id>.<ext> as player/skins/<id>/skin.<ext>.
-        module = (skins.paths.ENGINE_ROOT / "dist" / "web-preview.js").read_text(encoding="utf-8")
+        module = (skins.paths.ENGINE_ROOT / "src" / "web-preview.js").read_text(encoding="utf-8")
         listed = re.search(r"const DEVICE_IMAGES = \[([^\]]+)\]", module).group(1)
         for skin_id in re.findall(r'"([a-z0-9-]+)"', listed):
             image = "skin.png" if skin_id == "supply-co" else "skin.webp"

@@ -5,7 +5,7 @@ Starts one private engine process, enumerates every tool, and diffs name,
 description, inputSchema, outputSchema and annotations against the pinned file.
 Exits non-zero on any missing, extra, duplicate or altered contract.
 
-    python tools/engine/reconcile_schemas.py engine/pins/<version>/tools.json [report.json]
+    python tools/engine/reconcile_schemas.py engine/contract/tools.json [report.json]
 """
 
 from __future__ import annotations

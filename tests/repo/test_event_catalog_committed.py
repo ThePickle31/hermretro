@@ -1,4 +1,4 @@
-"""The committed event catalog (engine/modretro-chromatic/dist/gb-studio-events.json) is complete and its examples
+"""The committed event catalog (engine/src/gb-studio-events.json) is complete and its examples
 work, and every recipe in the authoring skill's event cookbook fits it. Whether the recipes build is checked by the
 acceptance run (C3), which has the toolchain."""
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / "skills" / "authoring" / "references"
-CATALOG = ROOT / "engine" / "modretro-chromatic" / "dist" / "gb-studio-events.json"
+CATALOG = ROOT / "engine" / "src" / "gb-studio-events.json"
 CALL_BINDING = re.compile(r"^\$(?:actor|variable)\[[^\]]+\]\$$")
 
 

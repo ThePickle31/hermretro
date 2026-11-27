@@ -5,7 +5,7 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 e63af305e9fc20266cef2421ef552b70cf0e4f081463d96f90434fe28c12831b
+ * sources: sha256 814f13e3840cece4dccff2e75dbddff4a26f334753f623cd9fc25f90bdf75e63
  * body: sha256 6b303fc424113527182409c5117c6b1165035868038fbc819b371aff7f2bea51
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,

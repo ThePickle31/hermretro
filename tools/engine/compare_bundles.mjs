@@ -15,7 +15,7 @@
 // `//# sourceURL=` comment names a file).
 //
 // When the bundles differ, the report names the modules whose statements differ (a module is the run of statements
-// after a bundler's marker comment, `// dist/<module>.js`) and the first statement where they part. When every
+// after a bundler's marker comment, `// src/<module>.js`) and the first statement where they part. When every
 // difference is a binding with another name (what a bundler's renumbering does: `path45` for `path`), it lists the
 // renamed bindings instead. Renamed bindings are still a difference: a program can see names (error messages,
 // a function's name, eval), so whether a rename is harmless is for the reader to judge.

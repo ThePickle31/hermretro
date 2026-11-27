@@ -7,8 +7,8 @@ archives and the Linux capture ffmpeg builds) keep their recorded entries when t
 without them records the same release. Python's bytecode (__pycache__, *.pyc) is never recorded: running the
 engine's scripts writes it, and a clean checkout has none. The path defaults to the current engine's pin.
 
-    python tools/engine/manifest.py write  [engine/pins/<version>/manifest.json]
-    python tools/engine/manifest.py verify [engine/pins/<version>/manifest.json]
+    python tools/engine/manifest.py write  [engine/contract/manifest.json]
+    python tools/engine/manifest.py verify [engine/contract/manifest.json]
 """
 
 from __future__ import annotations

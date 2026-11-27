@@ -34,8 +34,8 @@ import { NativeDeviceCaptureService } from "./native-device-capture.js";
 
 const SERVER_NAME = "modretro-chromatic";
 const SERVER_VERSION = "1.0.34";
-const WEB_ANNOTATION_ASSETS = fileURLToPath(new URL("../dist/web-annotations/", import.meta.url));
-const DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath(new URL("../../../player/skins/", import.meta.url));
+const WEB_ANNOTATION_ASSETS = fileURLToPath(new URL("../src/web-annotations/", import.meta.url));
+const DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath(new URL("../../player/skins/", import.meta.url));
 const readOnly = {
     readOnlyHint: true,
     destructiveHint: false,
@@ -331,7 +331,7 @@ function createGbStudioServer(options = {}) {
         helperManifest: fileURLToPath(new URL("../native/capture/macos/manifest.json", import.meta.url)),
         linuxHelperManifest: fileURLToPath(new URL("../native/capture/linux/manifest.json", import.meta.url)),
         deviceAssetsRoot: DEVICE_ASSETS,
-        assetsRoot: fileURLToPath(new URL("../dist/", import.meta.url)),
+        assetsRoot: fileURLToPath(new URL("../src/", import.meta.url)),
         isSelected: (root, generation) => session.selectedProject?.projectRoot === root && session.selectionGeneration === generation
     });
     let initialSelectionError;

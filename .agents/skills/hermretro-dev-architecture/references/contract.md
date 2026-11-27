@@ -132,7 +132,7 @@ Off by default. Setting `hardware_enabled` (plugin settings, `config_schema`) tu
 tools on: `chromatic_device`, `chromatic_setup`, `chromatic_play`, `chromatic_flash`,
 `chromatic_device_capture`. While off they return a denial explaining how to enable them.
 Developer Mode activation always stays in the official ModRetro Updater.
-The engine's `device` tool (`engine/modretro-chromatic/dist/chromatic.js`, `ChromaticService`): `status` answers at
+The engine's `device` tool (`engine/src/chromatic.js`, `ChromaticService`): `status` answers at
 once without touching USB (`{success, sessionId, platform, arch, backend: {supported, target | reason}, drivers,
 acceptingOperations, operations, ...}`); `list_devices` starts a scan and answers `{operationId, state: "running", ...}`;
 `operation_status` with that `operationId` answers, once `state` is `succeeded`, a `result` of `{devices: [{player,
@@ -371,7 +371,7 @@ The `build` start reply includes `pending.storedId`, `pending.name`, and the reg
 
 `captures` reads `<project>/captures/` (the player's screenshots and videos; `backend/library/README.md`, "Captures").
 Save states are the engine's: `<project>/save-states/<build digest>/<sha256>.gbstate.json`, written by its web preview
-(`engine/modretro-chromatic/dist/web-preview-states.js`), at most 8 kept per build; no RPC reads them
+(`engine/src/web-preview-states.js`), at most 8 kept per build; no RPC reads them
 (`backend/library/README.md`, "Save states", has the fields).
 
 `chromatic_present_game` `{ note?, unfinished?, project? }` is the agent's way to show a finished game: it needs a

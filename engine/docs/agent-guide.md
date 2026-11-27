@@ -6,7 +6,7 @@ hermretro; running it on its own is not supported. hermretro's agent does not
 read this guide: it follows hermretro's own skills (the repository's `skills/`),
 which were adapted from it. This guide documents the engine's tools and contracts
 as a maintainer's reference. For first installation, updates, or missing
-dependencies, see [hermretro's setup skill](../../../skills/setup/SKILL.md).
+dependencies, see [hermretro's setup skill](../../skills/setup/SKILL.md).
 
 ## Operating contract
 
@@ -50,7 +50,7 @@ do not impose that vendor libc gate on non-hardware authoring startup;
 Chromatic device operations still require a supported target. Choose the
 artifact accordingly and report only the platforms actually qualified.
 
-Prepare dependencies with [hermretro's setup skill](../../../skills/setup/SKILL.md) or the
+Prepare dependencies with [hermretro's setup skill](../../skills/setup/SKILL.md) or the
 hermretro page, into hermretro's own root. The shell entrypoints below are a
 maintainer's way into the setup manager ([setup reference](setup.md)); when the
 setup tool is unavailable, the agent follows the setup skill's recovery instead.
@@ -176,7 +176,7 @@ The plugin does not manage activation or collect codes. Do not infer an invalid
 code or a seat limit from a generic failure. After the updater workflow, use
 fresh device discovery and selection and the normal flash confirmation; preserve
 any previous write's uncertain outcome. See the
-[hermretro's deployment skill](../../../skills/deployment/SKILL.md#prepare-a-first-write-on-a-new-computer).
+[hermretro's deployment skill](../../skills/deployment/SKILL.md#prepare-a-first-write-on-a-new-computer).
 
 After a targeted correction, check its result before proceeding. If the same
 failure persists without new evidence, retain the concrete blocker and choose
@@ -362,12 +362,12 @@ or mismatched debugging artifacts are never successful verification.
 Use additive `diagnostics`, including any source path, line, and suggested
 action, to choose the next focused resource inspection. Preserve the actual
 compiler error when no specific diagnosis is supported. The official desktop
-editor can [run a selected scene](../../../skills/authoring/references/extensions-and-build.md)
+editor can [run a selected scene](../../skills/authoring/references/extensions-and-build.md)
 for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview
 
-Show the game to the user as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes (`chromatic_present_game`); never open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
+Show the game to the user as [hermretro's authoring skill](../../skills/authoring/SKILL.md#in-hermretro) describes (`chromatic_present_game`); never open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
 
 Browser availability is not a prerequisite for gameplay testing. If the browser
 is missing, locked or unreachable, retain its state and continue with public
@@ -377,7 +377,7 @@ for setup and retained evidence; browser UI/annotation and physical capture
 still require their own checks.
 
 This describes the engine's own preview; hermretro shows a game as
-[hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
+[hermretro's authoring skill](../../skills/authoring/SKILL.md#in-hermretro)
 describes. For new or iterated projects, use `web_preview` to show a successful
 playable build early. Keep the appropriate owned preview tab visible and open while
 working so the user can follow. After meaningful successful builds, update that
@@ -661,11 +661,11 @@ missing compiler, optional emulator, or hardware evidence honestly.
 
 ## Domain references
 
-- hermretro's skills: [setup](../../../skills/setup/SKILL.md),
-  [authoring](../../../skills/authoring/SKILL.md),
-  [pixel art](../../../skills/pixel-art/SKILL.md),
-  [ROM debugging](../../../skills/rom-debugging/SKILL.md),
-  [deployment](../../../skills/deployment/SKILL.md)
+- hermretro's skills: [setup](../../skills/setup/SKILL.md),
+  [authoring](../../skills/authoring/SKILL.md),
+  [pixel art](../../skills/pixel-art/SKILL.md),
+  [ROM debugging](../../skills/rom-debugging/SKILL.md),
+  [deployment](../../skills/deployment/SKILL.md)
 - ModRetro's original skills, archived as published in [`../skills/`](../skills/): they describe
   ModRetro's plugin, including parts this engine no longer has; follow hermretro's skills above
 - [Architecture and security boundaries](architecture.md)
@@ -686,4 +686,4 @@ Closing a preview uses a fresh acknowledgment from every recording-capable view,
 
 ### Open a ready view
 
-The agent manages project selection and preparation before showing anything. In hermretro, the game handoff is `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes; the agent never opens a `web_preview` URL itself. Never ask the user to repeat the same request through an in-view button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device, and the capture URL goes to the user. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.
+The agent manages project selection and preparation before showing anything. In hermretro, the game handoff is `chromatic_present_game`, as [hermretro's authoring skill](../../skills/authoring/SKILL.md#in-hermretro) describes; the agent never opens a `web_preview` URL itself. Never ask the user to repeat the same request through an in-view button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device, and the capture URL goes to the user. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.

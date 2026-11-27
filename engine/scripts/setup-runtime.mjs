@@ -113,7 +113,7 @@ function assertPublicMember(filename) {
   const lower = filename.toLowerCase();
   const parts = lower.split("/");
   const basename = parts.at(-1);
-  if (parts.some((part) => PRIVATE_DIRECTORIES.has(part)) || basename === ".npmrc" || basename === ".ds_store" ||
+  if (parts.some((part, index) => PRIVATE_DIRECTORIES.has(part) && !(part === "src" && index === 0)) || basename === ".npmrc" || basename === ".ds_store" ||
     basename === ".env" || basename.startsWith(".env.") || /\.(?:sav|ram|rtc|state|pyc|pyo)$/u.test(basename) ||
     /\.test\.[cm]?[jt]sx?$/u.test(basename) || /\.(?:playtest|gbstate)\.json$/u.test(basename) ||
     /^dist\/playtest\.(?:js|js\.map|d\.ts)$/u.test(lower) || /^scripts\/dogfood-/u.test(lower) ||

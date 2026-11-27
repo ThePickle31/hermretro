@@ -1,5 +1,5 @@
 // What the engine's annotate hit test calls a thing on the game screen, in plain words. The engine
-// (dist/web-annotations/targets.js) names targets like "Inferred sprite group; 4 parts",
+// (src/web-annotations/targets.js) names targets like "Inferred sprite group; 4 parts",
 // "Sprite 12; tile 3A" or "Background tile 2F" with a role of game-sprite, game-background or
 // game-window. Shared by the frame (hover label) and the page (mark list, chips, message text).
 

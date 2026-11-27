@@ -7,7 +7,7 @@ unsafe or damaged entry stops the command; the plugin does not silently replace 
 
 Use [the engine](../README.md) to find your device, set up required drivers,
 stream a live demo, or flash a selected homebrew ROM. The official vendor
-backend is pinned to version 1.2.1; install it once with [hermretro's setup skill](../../../skills/setup/SKILL.md)
+backend is pinned to version 1.2.1; install it once with [hermretro's setup skill](../../skills/setup/SKILL.md)
 before the first device task.
 
 Start with a request like:
@@ -20,7 +20,7 @@ Start with a request like:
 This is the engine's own preview page (a `web_preview` URL). The hermretro
 emulator does not install to a device: its **Install** puts the flash prompt into
 the game's chat, and the agent then flashes it as
-[hermretro's deployment skill](../../../skills/deployment/SKILL.md#in-hermretro)
+[hermretro's deployment skill](../../skills/deployment/SKILL.md#in-hermretro)
 describes.
 
 Open your game with `web_preview`. **Install on Chromatic** appears beneath the

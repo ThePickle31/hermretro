@@ -1,16 +1,17 @@
 # hermretro's changes to the engine
 
-`engine/modretro-chromatic/` is hermretro's engine. It started from ModRetro's Chromatic engine 1.0.34 (MIT: its
+`engine/` is hermretro's engine. It started from ModRetro's Chromatic engine 1.0.34 (MIT: its
 licence and notices stay) and is changed only by hermretro: a fix ModRetro makes in a later release is read in their
 release and made again here by hand, as any other change. The tag `engine-upstream-1.0.34` holds that release as it
 was published, without the files left out (`THIRD_PARTY_NOTICES.md`):
-`git diff engine-upstream-1.0.34 HEAD -- engine/modretro-chromatic` shows every change. One line per change: the
+`git diff -M engine-upstream-1.0.34 HEAD -- engine` shows every change (the release is at `engine/modretro-chromatic/` in
+the tag). One line per change: the
 files, what changed and why.
 
-The changes are made in the engine's `dist/` modules (the server's own is `dist/entry.js`), and
-`node tools/engine/bundle.mjs` builds `dist/server.js` from them. The entries before "the bundle is built from its
-modules" below were made in the bundle itself; where one names `dist/server.js` and a module, the change is now in
-that module.
+The changes are made in the engine's `src/` modules (the server's own is `src/entry.js`), and
+`node tools/engine/bundle.mjs` builds `dist/server.js` from them; lines from before the move to `src/` name them
+under `dist/`. The entries before "the bundle is built from its modules" below were made in the bundle itself; where
+one names `dist/server.js` and a module, the change is now in that module.
 
 - `dist/server.js`, `dist/device-capture/linux-helper.js`: the path ffmpeg reads the Chromatic's video from during
   Linux hardware capture is `/dev/fd/6` instead of the equivalent per-process path under the proc filesystem (two
@@ -391,3 +392,14 @@ that module.
   sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
   published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in
   hermretro's library (editing its copy, or keeping both on an update) is unchanged.
+- The layout (moved, nothing else changed): `engine/modretro-chromatic/` is now `engine/` itself; the server's
+  modules, `entry.js`, the player's browser files (`web-annotations/`, `device-capture/`) and the event catalog moved
+  from `dist/` to `src/`, so `dist/` holds only the generated `server.js`; and `engine/pins/1.0.34/` is now
+  `engine/contract/`, with no version folder. `contract/` and this changelog are hermretro's record of the engine, so
+  the manifest and the prepared copy leave them out (`is_engine_record` in `backend/system/paths.py`), and a note here
+  changes the engine's identity no more than it did outside the engine folder. Three module paths that the bundle
+  resolves beside itself now name `../src/` (the web annotations, the capture assets and `event-catalog.js`'s
+  catalog), which reaches the same file from `src/` and from `dist/server.js`, and the device-art fallback is
+  `../../player/skins/`. The bundle's code is otherwise the same: only its module comments read `// src/...`. Earlier
+  lines in this file name the old paths. `git diff -M engine-upstream-1.0.34 HEAD -- engine` still compares with
+  ModRetro's release.

@@ -5,7 +5,7 @@ GBDK, runs them in PyBoy for stepped playtesting and recordings, serves the brow
 Chromatic through ModRetro's Chromatic CLI.
 
 It started from ModRetro's Chromatic plugin for Codex, release 1.0.34 (MIT, see [License](#license)). hermretro
-maintains it: every change since is listed in [`../CHANGES.md`](../CHANGES.md), and the tag `engine-upstream-1.0.34`
+maintains it: every change since is listed in [`CHANGES.md`](CHANGES.md), and the tag `engine-upstream-1.0.34`
 holds that release as published.
 
 ## How hermretro runs it
@@ -17,15 +17,18 @@ holds that release as published.
 - **Setup.** The hermretro page installs the toolchain through the engine's `toolchain_prepare` tool, with the `build`
   and `emulator` components: the pinned GB Studio CLI and GBDK, and an isolated Python with PyBoy, under hermretro's
   own folder. The Chromatic CLI is a separate install, for hardware only.
-- **The manifest.** The plugin starts only an engine whose files match `engine/pins/<version>/manifest.json`.
+- **The manifest.** The plugin starts only an engine whose files match `contract/manifest.json`. The record
+  (`contract/` and `CHANGES.md`) is not part of it.
 - **Tool names.** The guides use the engine's own tool names; hermretro's agent calls each one `chromatic_<name>`.
 
 ## Layout
 
 | Path | What it is |
 |---|---|
-| `dist/` | The server's source: one module per file, and `entry.js`, the server's own module |
-| `dist/server.js` | The bundle, generated from `dist/` by `tools/engine/bundle.mjs`; never edited by hand |
+| `src/` | The server's source: one module per file, `entry.js` the server's own, and the player's browser files (`web-annotations/`, `device-capture/`) |
+| `dist/server.js` | The bundle, generated from `src/` by `tools/engine/bundle.mjs`; never edited by hand |
+| `contract/` | hermretro's record of the engine: its tool contracts and file manifest |
+| `CHANGES.md` | Also part of the record: every change hermretro made since ModRetro's 1.0.34 |
 | `scripts/` | The launcher, setup and doctor, the emulator worker and the Chromatic CLI runtime, used as they are (the bundle imports some of them) |
 | `skills/` | ModRetro's original agent skills, archived as published: they describe ModRetro's plugin, including parts this engine no longer has (Wrecklight, `native_graphics_update`). The ones hermretro gives its agent are adapted from them, in the repository's `skills/` |
 | `docs/` | Guides to the tools, setup, playtesting and the device |
@@ -40,9 +43,9 @@ holds that release as published.
 
 The commands run from the hermretro repository root.
 
-1. Change the module in `dist/` (or a file in `scripts/`, `skills/` or `docs/` in place).
+1. Change the module in `src/` (or a file in `scripts/`, `skills/` or `docs/` in place).
 2. Rebuild the bundle with `node tools/engine/bundle.mjs`; `python tools/check.py engine` fails when it is stale.
-3. Add the change's line to [`../CHANGES.md`](../CHANGES.md) and write a fresh manifest with
+3. Add the change's line to [`CHANGES.md`](CHANGES.md) and write a fresh manifest with
    `python tools/engine/manifest.py write`.
 4. Run `python tools/check.py full`, which includes the real-engine acceptance run.
 

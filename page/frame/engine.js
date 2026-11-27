@@ -1,4 +1,4 @@
-// The parts of ModRetro's player view (engine dist/web-annotations/view.js) the frame reads and
+// The parts of ModRetro's player view (engine src/web-annotations/view.js) the frame reads and
 // drives: its root element, its own buttons (by `data-action`) and the state it shows on the root.
 import { FROM_FRAME, PRESSABLE } from '#shared/player/protocol.js'
 import { post } from './post.js'

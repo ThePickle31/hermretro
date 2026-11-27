@@ -16,7 +16,7 @@ recording evidence. Use the verified cartridge from the intended build/export;
 if a build is needed, build the selected project. Do not substitute a sample or
 transfer browser save states into PyBoy.
 
-If PyBoy is missing, follow [hermretro's setup skill](../../../skills/setup/SKILL.md)
+If PyBoy is missing, follow [hermretro's setup skill](../../skills/setup/SKILL.md)
 with the `emulator` component under existing task authorization. A real access
 denial, unavailable dependency or uncertain action remains scoped to the
 affected work: preserve its result and do not replay it or use another route to

@@ -256,30 +256,22 @@ class LockStep(unittest.TestCase):
 
     def test_the_engine_version_agrees_everywhere(self):
         version = paths.ENGINE_VERSION
-        self.assertEqual(json.loads(read("engine/modretro-chromatic/package.json"))["version"], version)
-        pins = ROOT / "engine" / "pins"
+        self.assertEqual(json.loads(read("engine/package.json"))["version"], version)
         self.assertEqual(
-            [p.name for p in pins.iterdir() if p.is_dir()], [version], "one pins folder, the engine's version"
+            sorted(p.name for p in paths.ENGINE_PINS.iterdir()),
+            ["manifest.json", "schema-reconcile.json", "tools.json"],
         )
-        self.assertEqual(
-            sorted(p.name for p in (pins / version).iterdir()), ["manifest.json", "schema-reconcile.json", "tools.json"]
-        )
-        self.assertEqual(json.loads(read(f"engine/pins/{version}/manifest.json"))["package_version"], version)
+        self.assertEqual(json.loads((paths.ENGINE_PINS / "manifest.json").read_text())["package_version"], version)
         self.assertEqual(json.loads(paths.PINNED_TOOLS.read_text())["initialize"]["serverInfo"]["version"], version)
         for skill in sorted(
             re.sub(r"^(modretro-)?chromatic-", "", path.name)
-            for path in (ROOT / "engine" / "modretro-chromatic" / "skills").iterdir()
+            for path in (paths.ENGINE_ROOT / "skills").iterdir()
             if path.is_dir()
         ):  # every skill adapted from the engine's, read from the engine's own folders
             self.assertRegex(read(f"skills/{skill}/SKILL.md"), rf"(?m)^version: {re.escape(version)}$", skill)
         notices = read("THIRD_PARTY_NOTICES.md")
         self.assertIn(f"## ModRetro Chromatic Plugin engine {version}", notices)
-        mentioned = {
-            a or b
-            for a, b in re.findall(
-                r"engine/pins/([0-9]+\.[0-9]+\.[0-9]+)/|ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices
-            )
-        }
+        mentioned = set(re.findall(r"ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices))
         self.assertEqual(mentioned, {version}, "engine versions named in THIRD_PARTY_NOTICES.md")
 
 

@@ -41,7 +41,7 @@ The agent guide (`AGENTS.md`) lists them; in short:
 
 - Never hand-edit `desktop/plugin.js` or `player/frame-shim.js`: change `page/`, run `node tools/bundle/bundle.mjs`
   and commit both built files with your sources.
-- The engine (`engine/modretro-chromatic/`): the server is changed in its `dist/` modules, never in
+- The engine (`engine/`): the server is changed in its `src/` modules, never in
   `dist/server.js` (rebuild it with `node tools/engine/bundle.mjs`); its other files (`scripts/`, `skills/`, `docs/`)
   are edited in place. Add the change's line to `engine/CHANGES.md` and write a fresh manifest
   (`python tools/engine/manifest.py write`).

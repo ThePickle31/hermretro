@@ -34,10 +34,10 @@ DEMO_ROM_PATH = "rom/hello-color.gbc"
 
 def annotations_dir() -> Path:
     for root in (paths.PREPARED_ENGINE, paths.ENGINE_ROOT):
-        candidate = root / "dist" / "web-annotations"
+        candidate = root / "src" / "web-annotations"
         if (candidate / "bridge.js").is_file():
             return candidate
-    return paths.ENGINE_ROOT / "dist" / "web-annotations"
+    return paths.ENGINE_ROOT / "src" / "web-annotations"
 
 
 def patched_view(source: Path) -> bytes:

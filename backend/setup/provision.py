@@ -318,7 +318,13 @@ def _prepare(
             paths.ENGINE_ROOT,
             stage,
             symlinks=False,
-            ignore=lambda folder, names: [n for n in names if str(Path(folder) / n) in skipped or paths.is_bytecode(n)],
+            ignore=lambda folder, names: [
+                n
+                for n in names
+                if str(Path(folder) / n) in skipped
+                or paths.is_left_beside(n)
+                or paths.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
+            ],
         )
         for rel, data, mode in (
             (exe_rel, executable, int(pins["executable"]["mode"], 8)),

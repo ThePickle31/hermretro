@@ -335,6 +335,46 @@ class EngineEntries(unittest.TestCase):
             self.assertEqual(self.listed(), ["package.json", "scripts/worker.py"])
             self.assertEqual(paths._compare_tree(self.root, self.expected), [])
 
+    def test_the_engines_record_is_left_out_of_an_engine_folder_and_not_of_a_copy(self):
+        (self.root / "contract").mkdir()
+        (self.root / "contract" / "manifest.json").write_text("{}")
+        (self.root / "CHANGES.md").write_text("- a note")
+        (self.root / "scripts" / "CHANGES.md").write_text("only the top-level one is the record")
+        self.expected["scripts/CHANGES.md"] = paths._file_sha256(self.root / "scripts" / "CHANGES.md")
+        self.assertEqual(self.listed(), ["package.json", "scripts/CHANGES.md", "scripts/worker.py"])
+        self.assertEqual(paths._compare_tree(self.root, self.expected), [])
+        # A prepared copy holds no record, so one there is a file it should not have.
+        self.assertEqual(
+            paths._compare_tree(self.root, self.expected, engine_folder=False),
+            ["unexpected file CHANGES.md", "unexpected file contract/manifest.json"],
+        )
+
+    def test_a_loaded_file_that_an_update_moved_still_gives_a_fingerprint(self):
+        before = paths.code_fingerprint()
+        with mock.patch.object(paths, "LOADED_FILES", (*paths.LOADED_FILES, "engine/contract/moved.json")):
+            moved = paths.code_fingerprint()
+        self.assertNotEqual(moved, before)
+
+    def test_a_loaded_file_that_goes_between_its_stamp_and_its_read_is_stamped_again(self):
+        gone = paths.PLUGIN_ROOT / "engine" / "contract" / "tools.json"
+        real_stamp, real_read = paths._file_stamp, Path.read_bytes
+        stamped = []
+
+        def stamp(path):
+            if path != gone:
+                return real_stamp(path)
+            stamped.append(path)
+            return (1, 1) if len(stamped) == 1 else (-1, -1)  # there when first stamped, gone after
+
+        def read(path):
+            if path.name == gone.name:
+                raise FileNotFoundError(path)
+            return real_read(path)
+
+        with mock.patch.object(paths, "_file_stamp", stamp), mock.patch.object(Path, "read_bytes", read):
+            self.assertIsInstance(paths.code_fingerprint(), str)
+        self.assertEqual(len(stamped), 2)
+
     def test_a_link_is_listed_and_refused_whatever_its_name(self):
         (self.root / "scripts" / "gone.pyc").symlink_to(self.root / "nowhere.pyc")
         (self.root / "scripts" / "linked").symlink_to(self.root / "scripts", target_is_directory=True)

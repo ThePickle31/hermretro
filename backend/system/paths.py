@@ -41,11 +41,12 @@ def _manifest_version(manifest: Path) -> str:
 
 
 PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
-ENGINE_ROOT = PLUGIN_ROOT / "engine" / "modretro-chromatic"
+ENGINE_ROOT = PLUGIN_ROOT / "engine"
 # The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
 SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
-# What this plugin pinned for the engine version it ships: its tool contracts and the hash of every engine file.
-ENGINE_PINS = PLUGIN_ROOT / "engine" / "pins" / ENGINE_VERSION
+# What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is part
+# of the record of the engine, not of the engine: the manifest and the prepared copy leave it out (engine_entries).
+ENGINE_PINS = ENGINE_ROOT / "contract"
 PINNED_TOOLS = ENGINE_PINS / "tools.json"
 ENGINE_MANIFEST = ENGINE_PINS / "manifest.json"
 
@@ -290,15 +291,32 @@ def _file_sha256(path: Path) -> str:
 
 
 def is_bytecode(name: str) -> bool:
-    """Whether a file or folder name is Python's own bytecode, which running the engine's scripts writes: never part
-    of the engine, so neither recorded in its manifest, compared with it nor copied into the prepared engine."""
+    """Whether a file or folder name is Python's own bytecode, which running the engine's scripts writes."""
     return name == "__pycache__" or name.endswith(".pyc")
 
 
-def engine_entries(root: Path) -> list[Path]:
-    """Every file and link under root, sorted, but Python's bytecode. A running script writes bytecode and renames it
-    into place meanwhile, so it is left out by name from the folder listing, before anything stats it; a link is
-    listed whatever its name."""
+def is_left_beside(name: str) -> bool:
+    """Whether a file or folder name is one the system writes beside the engine's files rather than part of it:
+    Python's bytecode, or the .DS_Store macOS Finder leaves in a folder it showed (git ignores both, so an update
+    keeps them). Never recorded in the manifest, compared with it nor copied into the prepared engine."""
+    return is_bytecode(name) or name == ".DS_Store"
+
+
+# hermretro's record of the engine, at its top: its contract (tool contracts and manifest) and its changelog.
+ENGINE_RECORD = (ENGINE_PINS.name, "CHANGES.md")
+
+
+def is_engine_record(root: Path | str, path: Path | str) -> bool:
+    """Whether path is part of the engine's record (ENGINE_RECORD), which no copy or manifest of the engine holds: a
+    note in the changelog is not a change to the engine."""
+    return Path(path).parent == Path(root) and Path(path).name in ENGINE_RECORD
+
+
+def engine_entries(root: Path, *, engine_folder: bool = True) -> list[Path]:
+    """Every file and link under root, sorted, but Python's bytecode and, in an engine folder (the bundled engine or
+    another checkout's), its record. A running script writes bytecode and renames it into place meanwhile, so it is
+    left out by name from the folder listing, before anything stats it; a link is listed whatever its name. A copy of
+    the engine holds no record, so one there is listed like any other file."""
     found: list[Path] = []
     folders = [root]
     while folders:
@@ -306,7 +324,7 @@ def engine_entries(root: Path) -> list[Path]:
             for entry in listing:
                 if entry.is_symlink():
                     found.append(Path(entry.path))
-                elif is_bytecode(entry.name):
+                elif is_left_beside(entry.name) or (engine_folder and is_engine_record(root, entry.path)):
                     continue
                 elif entry.is_dir():
                     folders.append(Path(entry.path))
@@ -315,11 +333,13 @@ def engine_entries(root: Path) -> list[Path]:
     return sorted(found)
 
 
-def _compare_tree(root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset()) -> list[str]:
+def _compare_tree(
+    root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset(), *, engine_folder: bool = True
+) -> list[str]:
     """Every regular file under root against rel -> SHA-256. No extras, no symlinks."""
     problems: list[str] = []
     seen: set[str] = set()
-    for path in engine_entries(root):
+    for path in engine_entries(root, engine_folder=engine_folder):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
         if stat.S_ISLNK(info.st_mode):
@@ -392,7 +412,7 @@ def verify_prepared_engine() -> dict:
         expected.update(receipt["added"])
         expected["package.json"] = hashlib.sha256(prepared_package_json(receipt["target"])).hexdigest()
         problems = (
-            _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG))
+            _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG), engine_folder=False)
             if PREPARED_ENGINE.is_dir()
             else ["missing engine copy"]
         )
@@ -420,13 +440,25 @@ def code_fingerprint() -> str:
     new files start, in a loop, until the plugin is reloaded."""
     folder = BACKEND_ROOT
     sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
-    stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in sources)
-    return _fingerprint_for(stamp)
+    try:
+        return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
+    except FileNotFoundError:  # a loaded file went between its stamp and its read: stamp them again
+        return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
+
+
+def _file_stamp(path: Path) -> tuple[int, int]:
+    """A file's modification time and size, or (-1, -1) once it is gone: an update can move a file this process
+    loaded, and the fingerprint must still answer (as changed) so the page can offer the reload."""
+    try:
+        info = path.stat()
+    except FileNotFoundError:
+        return -1, -1
+    return info.st_mtime_ns, info.st_size
 
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
 # the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
-LOADED_FILES = ("__init__.py", "plugin.yaml", f"engine/pins/{ENGINE_VERSION}/tools.json")
+LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/contract/tools.json")
 
 
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:
@@ -444,7 +476,7 @@ def _fingerprint_for(stamp: tuple) -> str:
     # The version comes in through plugin.yaml's bytes, read now, never the value this process imported.
     digest = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
     folder = BACKEND_ROOT
-    for name, _mtime, _size in stamp:
+    for name, _mtime, size in stamp:
         digest.update(name.encode())
-        digest.update((folder / name).read_bytes())
+        digest.update((folder / name).read_bytes() if size >= 0 else b"(missing)")
     return digest.hexdigest()[:24]

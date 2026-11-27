@@ -15,7 +15,6 @@ manifest = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(manifest)
 
 ARCHIVE = "third-party/chromatic-cli/notices.br"
-PINS = ROOT / "engine" / "pins"
 
 
 class EngineManifestTests(unittest.TestCase):
@@ -53,7 +52,7 @@ class EngineManifestTests(unittest.TestCase):
             rebuilt = manifest.build(self.engine(Path(after), {"dist/server.js": "new"}), recorded)
         self.assertNotEqual(rebuilt["aggregate_sha256"], recorded["aggregate_sha256"])
 
-    def test_python_bytecode_is_not_recorded(self):
+    def test_bytecode_finder_metadata_and_the_record_are_not_recorded(self):
         with tempfile.TemporaryDirectory() as clean, tempfile.TemporaryDirectory() as run:
             scripts = {"scripts/worker.py": "print(1)"}
             recorded = manifest.build(self.engine(Path(clean), scripts))
@@ -61,23 +60,27 @@ class EngineManifestTests(unittest.TestCase):
                 "scripts/__pycache__/worker.cpython-314.pyc": "bytecode",
                 "scripts/__pycache__/notes.txt": "kept with the cache",
                 "scripts/old.pyc": "bytecode",
+                # Finder's metadata, here in a folder an update from the old layout leaves behind.
+                "pins/.DS_Store": "finder",
+                ".DS_Store": "finder",
+                "contract/manifest.json": "the engine's record",
             }
             rebuilt = manifest.build(self.engine(Path(run), {**scripts, **cached}))
         self.assertEqual(rebuilt["aggregate_sha256"], recorded["aggregate_sha256"])
 
-    def test_no_committed_manifest_lists_python_bytecode(self):
-        for pin in sorted(PINS.glob("*/manifest.json")):
-            listed = [
-                e["path"]
-                for e in json.loads(pin.read_text())["entries"]
-                if any(manifest.paths.is_bytecode(name) for name in e["path"].split("/"))
-            ]
-            self.assertEqual(
-                listed,
-                [],
-                f"{pin.relative_to(ROOT)} lists Python bytecode, which a clean checkout does not have. FIX: python "
-                "tools/engine/manifest.py write (it skips __pycache__ and *.pyc) and commit the manifest",
-            )
+    def test_the_committed_manifest_lists_nothing_left_beside_the_engine(self):
+        pin = manifest.paths.ENGINE_MANIFEST
+        listed = [
+            e["path"]
+            for e in json.loads(pin.read_text())["entries"]
+            if any(manifest.paths.is_left_beside(name) for name in e["path"].split("/"))
+        ]
+        self.assertEqual(
+            listed,
+            [],
+            f"{pin.relative_to(ROOT)} lists Python bytecode or Finder metadata, which a clean checkout does not have. "
+            "FIX: python tools/engine/manifest.py write (it skips them) and commit the manifest",
+        )
 
 
 if __name__ == "__main__":

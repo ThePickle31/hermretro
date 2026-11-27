@@ -6,7 +6,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ThePickle31/hermretro.git",
-    "directory": "engine/modretro-chromatic"
+    "directory": "engine"
   },
   "bugs": {
     "url": "https://github.com/ThePickle31/hermretro/issues"
@@ -17,6 +17,7 @@
   "files": [
     "THIRD_PARTY_NOTICES.md",
     "dist/",
+    "src/",
     "assets/devices/",
     "assets/chromatic-cli/1.2.1.br",
     "assets/chromatic-cli/1.2.1-v2.br",

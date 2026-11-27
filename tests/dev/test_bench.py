@@ -96,7 +96,7 @@ class ReportTest(Fixture):
                 [
                     call("terminal", source),
                     call("read_file", {"path": "games/Test/project/scenes/title.gbsres"}),
-                    call("read_file", {"path": "engine/modretro-chromatic/dist/server.js"}),
+                    call("read_file", {"path": "engine/dist/server.js"}),
                     call("chromatic_emulator_checkpoint", {"action": "save", "label": "start"}),
                     call(
                         "tool_call",
@@ -141,6 +141,29 @@ class ReportTest(Fixture):
             f"{logged(990)},000 WARNING [{SESSION}] run_agent: Removed duplicate tool call: terminal\n",
             encoding="utf-8",
         )
+
+    def test_engine_source_counts_in_either_layout_and_from_its_folder(self):
+        for arguments in (
+            {"path": "engine/modretro-chromatic/dist/project-files.js"},  # sessions recorded before the move
+            {"path": "engine/src/project-files.js"},
+            {"command": "sed -n '1,80p' ./engine/src/entry.js"},
+            {"command": "cd ./engine && cat src/entry.js"},
+            {"command": "cd engine; cat src/entry.js"},
+            {"path": "/srv/hermes/plugins/hermretro/engine/src/entry.js"},
+            {"command": "cat src/entry.js", "workdir": "/srv/hermes/plugins/hermretro/engine"},
+            {"command": "cd /srv/hermes/plugins/hermretro/engine && cat src/entry.js"},
+            {"command": "cat src/entry.js", "workdir": "/srv/code/hermretro-wt/engine-layout/engine"},
+            {"command": "ls", "workdir": "/srv/hermes/hermretro/.cache/engine-2.0.0-abc"},
+        ):
+            self.assertTrue(bench.reads_source(arguments), arguments)
+        for arguments in (
+            {"command": "ls", "workdir": "/srv/hermes/games/Test"},
+            {"command": "ls", "workdir": "/srv/hermes/games/Test/assets/engine"},
+            {"path": "/srv/hermes/games/Test/assets/engine/src/core.c"},
+            {"command": "cat ./assets/engine/src/core.c"},
+            {"command": "cd assets/engine && ls"},
+        ):
+            self.assertFalse(bench.reads_source(arguments), arguments)
 
     def test_counts_what_the_session_did(self):
         found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]

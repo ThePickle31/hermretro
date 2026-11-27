@@ -5,7 +5,7 @@ project JavaScript. This is trusted maintained-source configuration, not a
 public project setting. A command name, plugin manifest, successful build, or
 project-provided `complete` flag never establishes complete semantic coverage.
 
-The catalog (`REVIEWED_CUSTOM_EVENTS` in `dist/custom-event-dependencies.js`)
+The catalog (`REVIEWED_CUSTOM_EVENTS` in `src/custom-event-dependencies.js`)
 is empty today: its reviewed profiles were all for ModRetro's Wrecklight sample,
 which hermretro does not ship. So every project-owned custom event is
 unreviewed, and its effects leave coverage incomplete. A profile added later
@@ -25,7 +25,7 @@ inspection remains available, but does not grant room-edit coverage.
 
 ## What a review must establish
 
-A reviewed contract in `dist/custom-event-dependencies.js` records:
+A reviewed contract in `src/custom-event-dependencies.js` records:
 
 - A review ID and version, the reviewed loader profile, and the exported command.
 - The complete handler's project-relative path, byte count and SHA256.

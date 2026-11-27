@@ -29,7 +29,7 @@ from .project import (
 MAX_SOURCE_FILES = 20000
 # File times of a build and the web export made right after it can differ by a little.
 FRESH_SLACK_SECONDS = 2.0
-# The record the engine writes into each web export it makes (engine/modretro-chromatic/dist/web-build.js).
+# The record the engine writes into each web export it makes (engine/src/web-build.js).
 WEB_MANIFEST = ".codex-web-build.json"
 
 

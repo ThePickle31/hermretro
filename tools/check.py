@@ -116,7 +116,7 @@ def check_engine(args) -> str:
         # The bundler's own FIX line names its --check run; this one names the command to run instead.
         reason = "\n".join(line for line in output.splitlines() if not line.startswith("FIX:"))
         raise AssertionError(
-            tail(reason) + "\nFIX: node tools/engine/bundle.mjs, then commit engine/modretro-chromatic/dist/server.js "
+            tail(reason) + "\nFIX: node tools/engine/bundle.mjs, then commit engine/dist/server.js "
             "with the engine's modules (never edit it by hand)"
         )
     return output.splitlines()[-1] if output else "ok"

@@ -103,7 +103,7 @@ Tested so far on Linux x64 (including the Desktop install above); macOS (Apple S
 
 ## How it is built
 
-- `engine/modretro-chromatic/` — hermretro's engine, started from ModRetro's Chromatic engine 1.0.34 (MIT; its
+- `engine/` — hermretro's engine, started from ModRetro's Chromatic engine 1.0.34 (MIT; its
   changes are listed in `engine/CHANGES.md`) and verified against a manifest.
 - `backend/` — the Hermes side, one folder per feature. `broker/` is the single authority on the machine: it gives each conversation
   its own engine worker, coordinates writers on the same project, and gates hardware. Tool handlers and the
@@ -129,7 +129,7 @@ Tested so far on Linux x64 (including the Desktop install above); macOS (Apple S
   (`backend/<feature>/rpcs.py`; every name and shape in `.agents/skills/hermretro-dev-architecture/references/contract.md`). The plugin's own agent tool `chromatic_present_game` shows a
   finished game to the user in the emulator beside the chat; builds open nothing by themselves.
 - `skills/` — agent skills.
-- `engine/pins/<version>/` — the engine's pinned tool contracts and file manifest.
+- `engine/contract/` — the engine's pinned tool contracts and file manifest.
 - `tests/` — mirrors the code (`backend/<feature>/`, `page/`, `repo/`, `acceptance/`); the full folder map is in
   `.agents/skills/hermretro-dev-architecture/references/architecture.md`.
 
