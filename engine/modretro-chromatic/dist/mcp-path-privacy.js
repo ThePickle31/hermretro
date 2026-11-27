@@ -212,4 +212,3 @@ export function createMcpPathPrivacy(options) {
     const sanitizeString = stringSanitizer(options);
     return (value) => redactValue(value, sanitizeString);
 }
-//# sourceMappingURL=mcp-path-privacy.js.map

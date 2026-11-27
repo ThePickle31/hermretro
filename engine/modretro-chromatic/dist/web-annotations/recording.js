@@ -743,4 +743,3 @@ export function mountRecordingControl(canvas, audio, host, identity, saveCapture
             host.replaceChildren();
         } };
 }
-//# sourceMappingURL=recording.js.map

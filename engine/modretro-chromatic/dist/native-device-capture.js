@@ -1269,4 +1269,3 @@ export class NativeDeviceCaptureService {
         json(res, 200, await this.control(value.action, value.durationMs, value.inventoryId && value.selection ? { inventoryId: value.inventoryId, selection: value.selection } : undefined, value.tab));
     }
 }
-//# sourceMappingURL=native-device-capture.js.map

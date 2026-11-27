@@ -415,4 +415,3 @@ export class PreviewRecordingBroker {
     dispose() { if (this.timer)
         clearInterval(this.timer); this.timer = undefined; }
 }
-//# sourceMappingURL=web-preview-recording.js.map

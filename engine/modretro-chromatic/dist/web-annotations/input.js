@@ -132,4 +132,3 @@ export function createInputLatch(options) {
         },
     };
 }
-//# sourceMappingURL=input.js.map

@@ -88,4 +88,3 @@ export function mountDevicePicker(root, onSelect) {
         dispose() { root.removeEventListener("pointerdown", outside); },
     };
 }
-//# sourceMappingURL=device-picker.js.map

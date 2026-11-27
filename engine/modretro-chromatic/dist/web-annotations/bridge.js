@@ -501,4 +501,3 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
     window.addEventListener("pageshow", () => { active = true; failedPlayer = null; void tryAttach(); });
     void tryAttach();
 }
-//# sourceMappingURL=bridge.js.map

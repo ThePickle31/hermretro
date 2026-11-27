@@ -430,4 +430,3 @@ export class ChromaticJournalLease {
             throw failure;
     }
 }
-//# sourceMappingURL=chromatic-journal.js.map

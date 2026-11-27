@@ -1462,4 +1462,3 @@ export class EmulatorService {
         return result;
     }
 }
-//# sourceMappingURL=emulator.js.map

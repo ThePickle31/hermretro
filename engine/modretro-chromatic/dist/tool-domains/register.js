@@ -253,4 +253,3 @@ export function registerProjectDomains(server, context) {
         inputSchema: domainSchemas.worldDependencies, annotations: readOnly,
     }, async (input) => inspect((_project, access) => worldDependencies(access, input)));
 }
-//# sourceMappingURL=register.js.map

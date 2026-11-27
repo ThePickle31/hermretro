@@ -86,4 +86,3 @@ export const nativeResponseSchema = z.union([
     z.object({ requestId: z.string().uuid(), ok: z.literal(true), result: z.object(sequence).passthrough() }).strict(),
     z.object({ requestId: z.string().uuid(), ok: z.literal(false), error: nativeErrorSchema, ...sequence }).strict(),
 ]);
-//# sourceMappingURL=native-protocol.js.map

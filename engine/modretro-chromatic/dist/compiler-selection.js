@@ -104,4 +104,3 @@ export async function selectProjectCompiler(projectRoot, configuredRoot) {
     const cliPath = await findGbStudioCli(toolchainRoot);
     return { toolchainRoot, cliPath, compilerRoot: cliPath ? path.resolve(path.dirname(cliPath), "..", "..") : null };
 }
-//# sourceMappingURL=compiler-selection.js.map

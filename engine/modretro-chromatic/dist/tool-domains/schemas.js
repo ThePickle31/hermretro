@@ -361,4 +361,3 @@ export const domainSchemas = {
         bank: z.number().int().min(0).max(7).optional().describe("memory/vram only: optional for VRAM (0–1) or WRAM (0–7). A banked WRAM range must fit within 4 KiB."),
     }).strict(),
 };
-//# sourceMappingURL=schemas.js.map

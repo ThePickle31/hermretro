@@ -851,4 +851,3 @@ export async function previewSceneContactSheet(projectPath, input, access) {
         selection: "explicit-scene-ids-in-request-order", otherScenesIncluded: false,
     };
 }
-//# sourceMappingURL=scene-graphics.js.map

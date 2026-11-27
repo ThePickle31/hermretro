@@ -20,4 +20,3 @@ export const WRECKLIGHT_OPENING_CORRECTION_SOURCE_REVIEW = {
             metadataPath: "assets/backgrounds/airworks-recovery-v01.png.gbsres",
         }],
 };
-//# sourceMappingURL=opening-correction.js.map

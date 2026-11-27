@@ -898,4 +898,3 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
         customEventFingerprint: resolution.fingerprint,
     };
 }
-//# sourceMappingURL=world-script-graph.js.map

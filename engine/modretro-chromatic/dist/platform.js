@@ -363,4 +363,3 @@ export async function verifyWindowsPrivatePath(candidate, options = {}) {
         return false;
     }
 }
-//# sourceMappingURL=platform.js.map

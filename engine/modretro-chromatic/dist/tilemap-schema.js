@@ -163,4 +163,3 @@ export const tilemapSchemas = {
         limit: z.number().int().min(1).max(128).optional(),
     }).strict(),
 };
-//# sourceMappingURL=tilemap-schema.js.map

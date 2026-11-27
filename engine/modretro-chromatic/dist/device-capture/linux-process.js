@@ -109,4 +109,3 @@ export class LinuxCaptureProcess {
         return this.stopping;
     }
 }
-//# sourceMappingURL=linux-process.js.map

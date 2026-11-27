@@ -168,4 +168,3 @@ export async function updateEngineFields(projectPath, input, access) {
         revision: updated?.sha256 ?? await resourceRevision(selected.projectRoot, selected.filename),
     };
 }
-//# sourceMappingURL=engine-fields.js.map

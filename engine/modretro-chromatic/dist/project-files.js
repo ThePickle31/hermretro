@@ -654,4 +654,3 @@ export function nextResourceIndex(resources) {
             : highest;
     }, -1) + 1;
 }
-//# sourceMappingURL=project-files.js.map

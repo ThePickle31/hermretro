@@ -567,4 +567,3 @@ export async function compileTilemap(projectPath, input, access) {
 export async function inspectTilemap(projectPath, input, access) {
     return withTilemapIndex(projectPath, access, (index) => inspectTilemapIndexed(projectPath, input, index));
 }
-//# sourceMappingURL=tilemaps.js.map

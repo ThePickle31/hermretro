@@ -180,4 +180,3 @@ export const WRECKLIGHT_BOSS_THREE_PHASE_SOURCE_REVIEW = {
         requiredChildren: ["shot", "move", "lowShot", "highShot"],
     },
 };
-//# sourceMappingURL=boss-three-phase.js.map

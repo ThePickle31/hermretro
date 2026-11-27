@@ -679,4 +679,3 @@ export function readRecording(root, resolvePath, options = {}) {
     guardDirectory(root, rootIdentity, canonicalRoot);
     return result;
 }
-//# sourceMappingURL=recording-archive.js.map

@@ -1352,4 +1352,3 @@ export class ProjectWorldIndex {
         };
     }
 }
-//# sourceMappingURL=project-world-index.js.map

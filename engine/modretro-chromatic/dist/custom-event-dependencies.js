@@ -223,4 +223,3 @@ export function extractReviewedEvent(contract, args, children, context) {
 // Only reviewed maintained-source entries belong here. Project names, manifests
 // and `complete` flags cannot create authority or replace a current byte match.
 export const REVIEWED_CUSTOM_EVENTS = new ReviewedEventRegistry(WRECKLIGHT_CONTRACTS);
-//# sourceMappingURL=custom-event-dependencies.js.map

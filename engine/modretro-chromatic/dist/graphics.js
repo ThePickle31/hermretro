@@ -459,4 +459,3 @@ export function analyzeGraphicsImage(image, assetPath, options = {}) {
         valid: !hasError,
     };
 }
-//# sourceMappingURL=graphics.js.map

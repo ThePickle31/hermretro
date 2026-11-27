@@ -366,4 +366,3 @@ export function connectPlayerControl(options) {
     void poll();
     return dispose;
 }
-//# sourceMappingURL=remote.js.map

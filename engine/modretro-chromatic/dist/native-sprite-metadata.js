@@ -218,4 +218,3 @@ export function createNativeSpriteMetadata(bytes, pngBytes, image, output, exist
         counts: { states: source.states.length, animations, frames, objects, ids: idMap.length, sourcePatterns8x16: patterns.size, flipCanonicalPatterns8x16: flipPatterns.size, declaredNumTiles: source.numTiles },
         patternAccounting: "Unique referenced 8x16 source pixel patterns, normalized transparency; no flip deduplication. Not compiled tile allocation or runtime scanline proof." };
 }
-//# sourceMappingURL=native-sprite-metadata.js.map

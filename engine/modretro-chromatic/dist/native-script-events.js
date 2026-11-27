@@ -258,4 +258,3 @@ export function findInvalidNativeScriptEvent(proposed, previous, options = {}) {
     }
     return undefined;
 }
-//# sourceMappingURL=native-script-events.js.map

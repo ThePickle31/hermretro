@@ -19,4 +19,3 @@ export async function prepareToolchain(packageRoot, components, options = {}) {
         message: result.status === "complete" ? "Game tools are ready. Continue the original build or preview in this session."
             : "Game tool setup did not finish. Completed components are preserved; inspect the failure before any retry." };
 }
-//# sourceMappingURL=toolchain-prepare.js.map

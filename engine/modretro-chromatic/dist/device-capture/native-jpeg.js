@@ -187,4 +187,3 @@ export function validateNativeJpeg(bytes, expected) {
     }
     invalid("missing end marker");
 }
-//# sourceMappingURL=native-jpeg.js.map

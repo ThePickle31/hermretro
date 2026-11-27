@@ -36,4 +36,3 @@ export const WRECKLIGHT_SCROLL_SOURCE_REVIEW = {
         _release: "10",
     },
 };
-//# sourceMappingURL=scroll.js.map

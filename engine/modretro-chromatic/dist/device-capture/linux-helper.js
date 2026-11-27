@@ -418,4 +418,3 @@ export class LinuxNativeHelper {
         return this.closing;
     }
 }
-//# sourceMappingURL=linux-helper.js.map

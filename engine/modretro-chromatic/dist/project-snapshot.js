@@ -665,4 +665,3 @@ export async function inventoryProjectNormalized(projectPath, options = {}, sele
     const snapshot = await loadProjectSnapshot(projectPath, { selectionGeneration });
     return inventoryProjectSnapshot(snapshot, options);
 }
-//# sourceMappingURL=project-snapshot.js.map

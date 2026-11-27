@@ -282,4 +282,3 @@ export async function deleteTrigger(projectPath, input, access) {
         };
     });
 }
-//# sourceMappingURL=triggers.js.map

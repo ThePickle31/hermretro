@@ -1099,4 +1099,3 @@ export function mountNativeCapture(root, options = {}) {
             endMeasurement(measurement, "disposed"); publishMeasurement(); picker.dispose(); colorGeneration++; clearInterval(pollTimer); clearInterval(renderTimer); clearTimeout(toastTimer); window.removeEventListener("pagehide", pagehide); window.removeEventListener("pageshow", pageshow); document.removeEventListener("visibilitychange", visibility); disposeTooltips(); disposeToolbarTooltips?.(); disposeFooterTooltips?.(); toolbarScope?.replaceChildren(); footerScope?.replaceChildren(); errorDialog.dispose(); },
     };
 }
-//# sourceMappingURL=native-client.js.map

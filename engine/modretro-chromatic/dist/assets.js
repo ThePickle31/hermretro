@@ -780,4 +780,3 @@ export async function deleteAsset(projectRoot, input, access) {
     await Promise.all([rm(temporaryPng), rm(temporarySidecar)]);
     return { ...assetResult(loaded.metadata, loaded.assetPath), deleted: true };
 }
-//# sourceMappingURL=assets.js.map

@@ -105,4 +105,3 @@ export async function readWrecklightTemplate(root) {
     }
     return files;
 }
-//# sourceMappingURL=bundled-template.js.map

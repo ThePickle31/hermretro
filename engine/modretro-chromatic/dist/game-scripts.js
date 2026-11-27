@@ -411,4 +411,3 @@ export async function createSceneTransition(projectPath, input, access) {
         ...(input.expectedRevision === undefined ? {} : { expectedRevision: input.expectedRevision }),
     }, access, inventory);
 }
-//# sourceMappingURL=game-scripts.js.map

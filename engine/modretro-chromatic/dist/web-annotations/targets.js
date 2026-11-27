@@ -240,4 +240,3 @@ export function metadata(snapshot, target) {
         Hardware: `${target.rect.x},${target.rect.y} ${target.rect.width}x${target.rect.height}px; ${target.details}`.slice(0, 256),
     };
 }
-//# sourceMappingURL=targets.js.map

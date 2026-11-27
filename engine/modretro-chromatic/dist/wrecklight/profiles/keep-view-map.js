@@ -16,4 +16,3 @@ export const WRECKLIGHT_KEEP_VIEW_MAP_SOURCE_REVIEW = {
         },
     ],
 };
-//# sourceMappingURL=keep-view-map.js.map

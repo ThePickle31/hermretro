@@ -51,4 +51,3 @@ export function parseInputReceipt(value) {
         throw new Error("Inconsistent browser input outcome.");
     return { ...v, generation: inputGeneration(v.generation), requestedDurationMs: inputDuration(v.requestedDurationMs) };
 }
-//# sourceMappingURL=input-protocol.js.map

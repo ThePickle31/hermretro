@@ -151,4 +151,3 @@ export function packTilePalettes(tilePalettes, capacity) {
     }
     return packingResult(greedyFamilies, lowerBound, "exact", false);
 }
-//# sourceMappingURL=graphics-palette-packing.js.map
