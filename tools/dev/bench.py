@@ -43,7 +43,7 @@ SOURCE_MARKERS = ("gb-studio", "modretro-chromatic", ".cache/engine-")
 # The engine itself: hermretro's folder (an install, a checkout or a worktree) followed by engine, or a path relative
 # to that folder. A game's own assets/engine/ is neither.
 ENGINE_PATH = re.compile(
-    r"(?:/hermretro(?:-wt/[^/\s\"']+)?/engine|(?<![\w./-])engine/(?:src|dist|scripts))(?=$|[/\s\"'&;|)])"
+    r"(?:/hermretro(?:-wt/[^/\s\"']+)?/engine|(?<![\w./-])(?:\./)?engine/(?:src|dist|scripts))(?=$|[/\s\"'&;|)])"
 )
 SOURCE_READERS = {"read_file", "search_files"}
 

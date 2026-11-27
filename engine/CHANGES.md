@@ -400,5 +400,5 @@ one names `dist/server.js` and a module, the change is now in that module.
   resolves beside itself now name `../src/` (the web annotations, the capture assets and `event-catalog.js`'s
   catalog), which reaches the same file from `src/` and from `dist/server.js`, and the device-art fallback is
   `../../player/skins/`. The bundle's code is otherwise the same: only its module comments read `// src/...`. Earlier
-  lines in this file name the old paths. `git diff engine-upstream-1.0.34 HEAD -- engine` still compares with
+  lines in this file name the old paths. `git diff -M engine-upstream-1.0.34 HEAD -- engine` still compares with
   ModRetro's release.
