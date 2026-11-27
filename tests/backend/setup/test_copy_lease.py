@@ -7,8 +7,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -42,12 +44,30 @@ class Lease(unittest.TestCase):
             self.assertTrue(unused)
 
     def test_a_worker_waiting_on_a_removed_lease_learns_the_copy_went(self):
-        with copy_lease.unused(self.copy) as unused:
+        # It opened the lease file and waits for its lock while a removal holds it, then deletes copy and lease.
+        waiting, outcome = threading.Event(), []
+        real_flock = copy_lease.fcntl.flock
+
+        def flock(descriptor, operation):
+            if operation == copy_lease.fcntl.LOCK_SH:
+                waiting.set()
+            return real_flock(descriptor, operation)
+
+        def worker():
+            try:
+                outcome.append(copy_lease.hold(self.copy))
+            except FileNotFoundError as error:
+                outcome.append(error)
+
+        with mock.patch.object(copy_lease.fcntl, "flock", flock), copy_lease.unused(self.copy) as unused:
             self.assertTrue(unused)
-            self.copy.rmdir()  # removed under the exclusive lease
+            thread = threading.Thread(target=worker)
+            thread.start()
+            self.assertTrue(waiting.wait(10), "the worker never reached its lock")
+            self.copy.rmdir()  # removed under the exclusive lease, the lease file with it
             copy_lease.path_for(self.copy).unlink()
-        with self.assertRaises(FileNotFoundError):
-            copy_lease.hold(self.copy)
+        thread.join(10)
+        self.assertIsInstance(outcome[0], FileNotFoundError, "it holds the old file's lock as if the copy were there")
 
     def test_a_worker_keeps_the_lease_after_its_starter_lets_go(self):
         lease = copy_lease.hold(self.copy)
@@ -88,6 +108,32 @@ class Launcher(unittest.TestCase):
         )
         self.assertEqual(done.returncode, 0, done.stderr)
         return json.loads(done.stdout)
+
+    def test_a_server_the_launcher_starts_has_the_lease(self):
+        # As start-mcp.mjs does: spawn with mcpServerStdio, and the child (the server) looks at the descriptor.
+        with tempfile.TemporaryDirectory() as folder:
+            copy = Path(folder) / "engine-2.0.2-0123456789ab"
+            copy.mkdir()
+            lease = copy_lease.hold(copy)
+            self.addCleanup(os.close, lease)
+            code = (
+                "const { spawn } = await import('node:child_process');"
+                "const { mcpServerStdio } = await import(process.argv[2]);"
+                "const n = Number(process.env.HERMRETRO_COPY_LEASE_FD);"
+                "const child = spawn(process.execPath, ['-e', `console.log(require('node:fs').fstatSync(${n}).ino)`],"
+                " { stdio: mcpServerStdio(process.env, process.platform) });"
+                "child.on('exit', (code) => process.exit(code));"
+            )
+            done = subprocess.run(
+                ["node", "--input-type=module", "-e", code, ".", LAUNCHER.as_uri()],
+                env={**os.environ, copy_lease.DESCRIPTOR_VARIABLE: str(lease)},
+                pass_fds=(lease,),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(int(done.stdout.strip()), os.fstat(lease).st_ino)
 
     def test_the_lease_keeps_its_number_in_the_server(self):
         self.assertEqual(self.stdio({copy_lease.DESCRIPTOR_VARIABLE: "5"}), ["inherit"] * 3 + ["ignore", "ignore", 5])

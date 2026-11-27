@@ -207,8 +207,8 @@ left alone by plugin updates and removal. The engine adds one folder of its own 
 it into `~/.modretro-chromatic-runtime/` as ModRetro's packed plugin does. A copy for a new engine is made from an
 earlier one's CLI. Every worker running in a copy holds its lease (`engine-<name>.lease` beside it, `copy_lease.py`)
 for as long as it runs, the engine process and its server inheriting it, so nothing removes or replaces a copy a worker
-uses: `prune_prepared_copies` (after a refresh, and as a broker starts) removes the other engines' copies whose leases
-are free once this engine's copy verifies, a repair of a copy in use is refused (`IN_USE`), and emptying the download
+uses: `prune_prepared_copies` (after a refresh, and as a broker starts) removes the other engines' copies of the same CLI
+build whose leases are free once this engine's copy verifies, a repair of a copy in use is refused (`IN_USE`), and emptying the download
 folder is refused while a game still runs from it. A copy from before leases (no lease file) is left to Setup's removal. Per-profile state (saved frames, asset versions) is in that profile's
 `plugin-data/hermretro/`. Nothing is written into the plugin folder.
 

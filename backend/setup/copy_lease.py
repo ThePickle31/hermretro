@@ -65,9 +65,9 @@ def unused(copy: Path, *, unleased_is_unused: bool = False) -> Iterator[bool]:
     """Whether no worker runs in copy, holding its lease exclusively meanwhile so that none starts in it. A copy not
     there yet is unused; one without a lease file counts as in use unless ``unleased_is_unused``."""
     try:
-        descriptor = _open(copy, create=unleased_is_unused or not copy.exists())
-    except FileNotFoundError:
-        yield False
+        descriptor = _open(copy, create=not copy.exists())
+    except FileNotFoundError:  # made before leases: no lease file is made for it here either
+        yield unleased_is_unused
         return
     try:
         try:

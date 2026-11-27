@@ -159,10 +159,13 @@ class ChoosingTheSource(Refresh):
 class Pruning(Refresh):
     """A starting broker removes the other engines' copies, once this engine's copy verifies."""
 
+    def setUp(self):
+        super().setUp()
+        paths.PREPARED_ENGINE.mkdir()  # this engine's copy, holding the CLI build the earlier copies hold
+        paths.DEVICE_CLI_RECEIPT.write_text(json.dumps({"target": TARGET, "cli_version": "1.2.1"}))
+
     def test_the_other_engines_copies_go_once_this_ones_verifies(self):
         older = [self.earlier_copy("1.0.33"), self.earlier_copy("1.0.34")]
-        paths.PREPARED_ENGINE.mkdir()
-        paths.DEVICE_CLI_RECEIPT.write_text("{}")
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
             self.assertEqual(provision.prune_prepared_copies(), 2)
         self.assertEqual([copy.exists() for copy in older], [False, False])
@@ -194,6 +197,13 @@ class Pruning(Refresh):
             mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
             mock.patch.object(paths, "engine_identity", return_value="9.9.9-changed000000"),
         ):
+            self.assertEqual(provision.prune_prepared_copies(), 0)
+        self.assertTrue(older.exists())
+
+    def test_a_copy_of_another_cli_build_stays(self):
+        # Another checkout pinning that build may still need it: this engine's copy cannot give it.
+        older = self.earlier_copy("1.0.34", cli_version="1.1.0")
+        with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
             self.assertEqual(provision.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
 

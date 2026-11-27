@@ -265,22 +265,22 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
     _require_loaded_engine()  # first, and before the download: a gateway an engine change left stale says so at once
     _require_bundled_engine()
     pins = _pins(target)
-    with lock():
+    with lock():  # held to the end: nothing removes or replaces the copy before its runtime has accepted it
         receipt = read_receipt() or {}
-        kept = (receipt.get("target"), receipt.get("cli_version")) == (target, pins["version"])
-        if not (kept and paths.verify_prepared_engine()["verified"]):  # a verified copy of this build stays as it is
-            archive_bytes = _download(pins["package"], opener)
-            with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
-                executable = _member(
-                    archive, "package/" + pins["executable"]["path"].split("/", 1)[1], pins["executable"]
-                )
-                notice = _member(archive, "package/" + pins["notice"]["path"].split("/", 1)[1], pins["notice"])
-            _prepare(target, pins, executable, notice, installed_at=_now())
-        lease = copy_lease.hold(paths.PREPARED_ENGINE)  # nothing removes it before the check below has run in it
-    try:
+        if (receipt.get("target"), receipt.get("cli_version")) == (target, pins["version"]) and (
+            paths.verify_prepared_engine()["verified"]
+        ):  # a copy of this build, kept as it is (a worker may run in it) unless its runtime refuses it
+            try:
+                return _installed(target, pins)
+            except ProvisionError as error:
+                if error.code != "ENGINE_REFUSED":
+                    raise
+        archive_bytes = _download(pins["package"], opener)
+        with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
+            executable = _member(archive, "package/" + pins["executable"]["path"].split("/", 1)[1], pins["executable"])
+            notice = _member(archive, "package/" + pins["notice"]["path"].split("/", 1)[1], pins["notice"])
+        _prepare(target, pins, executable, notice, installed_at=_now())
         return _installed(target, pins)
-    finally:
-        os.close(lease)
 
 
 def _installed(target: str, pins: dict) -> dict:
@@ -530,8 +530,8 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
 
 
 def prune_prepared_copies() -> int:
-    """Remove every other engine's prepared copy that no worker runs in (its lease is free), with its receipt and lease,
-    once this engine's copy verifies: its CLI is the one they would give. Returns how many went; none while another
+    """Remove every other engine's prepared copy that no worker runs in (its lease is free) and that holds the same CLI
+    build as this engine's, with its receipt and lease, once this engine's copy verifies: it gives that CLI now. Returns how many went; none while another
     setup holds the lock or the engine on disk is not the one this process loaded (its copy may be the older one)."""
     if not paths.verify_prepared_engine()["verified"]:
         return 0  # an earlier copy may still have to give its CLI to this engine's
@@ -540,9 +540,10 @@ def prune_prepared_copies() -> int:
         with lock():
             if paths.engine_identity() != paths.ENGINE_IDENTITY:
                 return 0
+            cli = _cli_build(paths.DEVICE_CLI_RECEIPT)
             for receipt, copy in _earlier_copies():
-                if copy == paths.PREPARED_ENGINE:
-                    continue
+                if copy == paths.PREPARED_ENGINE or _cli_build(receipt) != cli:
+                    continue  # another checkout pinning another CLI build may still need its copy's
                 with copy_lease.unused(copy) as unused:
                     if unused:
                         remove_tree(copy)
@@ -558,6 +559,15 @@ def prune_prepared_copies() -> int:
     except ProvisionError:  # BUSY: the next refresh or broker to start tries again
         pass
     return removed
+
+
+def _cli_build(receipt: Path) -> tuple | None:
+    """The CLI build a copy holds, by its receipt: (target, version), or None when the receipt is unreadable."""
+    try:
+        found = json.loads(receipt.read_text())
+    except (OSError, ValueError):
+        return None
+    return (found.get("target"), found.get("cli_version")) if isinstance(found, dict) else None
 
 
 def _drop_without_copy(leftover: Path, copy_name: str) -> None:
