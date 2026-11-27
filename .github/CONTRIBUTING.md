@@ -43,7 +43,7 @@ The agent guide (`AGENTS.md`) lists them; in short:
   and commit both built files with your sources.
 - The engine (`engine/`): the server is changed in its `src/` modules, never in
   `dist/server.js` (rebuild it with `node tools/engine/bundle.mjs`); its other files (`scripts/`, `skills/`, `docs/`)
-  are edited in place. Raise the engine's version by one (`version` in `engine/package.json`), add the change's
+  are edited in place. Raise the engine's version, usually by one patch (`version` in `engine/package.json`), add the change's
   line under a heading for it in `engine/CHANGES.md` and write a fresh manifest
   (`python tools/engine/manifest.py write`).
 - `python tools/check.py scan` must say `safe` (`.agents/skills/hermretro-dev-testing/references/install-scanner.md` lists what trips it).

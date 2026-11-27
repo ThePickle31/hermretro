@@ -45,8 +45,8 @@ The commands run from the hermretro repository root.
 
 1. Change the module in `src/` (or a file in `scripts/`, `skills/` or `docs/` in place).
 2. Rebuild the bundle with `node tools/engine/bundle.mjs`; `python tools/check.py engine` fails when it is stale.
-3. Raise `version` in `package.json` by one (2.0.0 to 2.0.1), the engine's only record of its version: every change
-   to the engine raises it, and CI fails one that does not (`tools/engine/version.py`).
+3. Raise `version` in `package.json`, the engine's only record of its version, usually by one patch (2.0.0 to
+   2.0.1): every change to the engine raises it, and CI fails one that does not (`tools/engine/version.py`).
 4. Add the change's line to [`CHANGES.md`](CHANGES.md) under a heading for the new version, and write a fresh
    manifest with `python tools/engine/manifest.py write`.
 5. Run `python tools/check.py full`, which includes the real-engine acceptance run.

@@ -127,7 +127,7 @@ class Bump(unittest.TestCase):
     def check(self, files: dict, moves: dict | None = None) -> subprocess.CompletedProcess:
         self.commit(files, moves)
         return subprocess.run(
-            [sys.executable, "-I", str(SCRIPT), self.base, "HEAD"], cwd=self.repo, capture_output=True, text=True
+            [sys.executable, "-I", "-B", str(SCRIPT), self.base, "HEAD"], cwd=self.repo, capture_output=True, text=True
         )
 
     def assert_passes(self, files: dict, moves: dict | None = None) -> None:
