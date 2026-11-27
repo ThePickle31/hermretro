@@ -17,11 +17,7 @@ import { fileURLToPath } from "node:url";
 import { chromaticTargetFromManifest, chromaticFormatFromManifest, requireChromaticHostTarget } from "./chromatic-runtime.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const packageLimits = {
-  manifestBytes: 1024 * 1024,
-  // Match setup-runtime.mjs's file limit.
-  fileBytes: 24 * 1024 * 1024,
-};
+const packageManifestBytes = 1024 * 1024;
 const packagedSetupGuidance = "From a trusted compiled package, use scripts/setup.sh (macOS/Linux) or scripts/setup.ps1 (Windows) to run doctor, then plan with a new owned --root. Only explicitly authorized apply may prepare a replacement; plugin installation and activation remain separate.";
 const unsafeLauncherVariables = new Set([
   "BASH_ENV",
@@ -217,7 +213,7 @@ function sameFile(left, right) {
 }
 
 /** Read a bounded regular file without following a link or a replaced leaf, or allocating past its limit. */
-function readPackageFile(root, relative, limit = packageLimits.fileBytes) {
+function readPackageFile(root, relative, limit) {
   const { selected, metadata: before } = unlinkedPackageMember(root, relative);
   if (!before.isFile() || before.size > limit) {
     throw new Error(`The package member is not a bounded regular file: ${relative}`);
@@ -267,7 +263,7 @@ function verifyLauncherPlatform(root) {
     if (error.code === "ENOENT") return;
     throw error;
   }
-  const manifest = packageJson(readPackageFile(selected, "package.json", packageLimits.manifestBytes), "launcher package manifest");
+  const manifest = packageJson(readPackageFile(selected, "package.json", packageManifestBytes), "launcher package manifest");
   requireChromaticHostTarget(chromaticTargetFromManifest(manifest));
   chromaticFormatFromManifest(manifest);
 }

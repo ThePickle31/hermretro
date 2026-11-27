@@ -59,10 +59,11 @@ dependencies without changing anything; for the engine on its own,
 project: `chromatic_rom_build` in hermretro, `rom_build` for the engine on its own.
 
 For experimental Windows x64, follow [Windows setup](windows-setup.md) to
-prepare the native runtime from PowerShell without Git Bash or WSL, then run:
+prepare the native runtime from PowerShell without Git Bash or WSL, then run
+doctor with the same root and components as the apply step:
 
 ```powershell
-npm.cmd run doctor
+powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --root $gbStudioSetupRoot --components build --json
 ```
 
 Verify that the diagnosed GBDK compiler is `lcc.exe`, the optional PyBoy

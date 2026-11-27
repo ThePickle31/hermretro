@@ -79,16 +79,13 @@ bound toolchains, active games/previews, partial outcomes, and lock ownership.
 door is read-only. The public Chromatic `setup` tool handles device operations,
 not dependency installation.
 
-After preparation, use the [supported activation path](setup.md#preparation-is-not-activation-or-gameplay-acceptance)
-in the intended desktop user's profile. A portable compiled distribution and a
-prepared payload bound to local absolute paths are different artifacts. Verify
-the exact installed version and callable tools in a new task after installation;
-a new task alone does not install or activate anything.
-Then complete the requested real build or browser export. Do not stop at a
-passive readiness report or give the user manual Node/npm installation work.
-Do not copy `codex.exe` across profiles, infer local Git credentials from a
-connected GitHub app, or treat a lifecycle hook/approval UI as installation
-consent. On Windows use local paths, preferably short paths on `C:`; UNC/network
+After preparation, check readiness with the [supported checks](setup.md#preparation-is-not-activation-or-gameplay-acceptance):
+in hermretro, `chromatic_session_status` and `chromatic_toolchain_doctor`; for
+the engine on its own, `node scripts/setup.mjs doctor` with the same root and
+components. Then complete the requested real build or browser export. Do not
+stop at a passive readiness report or give the user manual Node/npm installation
+work. Do not infer local Git credentials from a connected GitHub app, or treat a
+lifecycle hook/approval UI as installation consent. On Windows use local paths, preferably short paths on `C:`; UNC/network
 roots are unsupported and upstream GBDK has path limitations on other drives.
 
 ## Start and select the intended project

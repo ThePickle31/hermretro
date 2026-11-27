@@ -25,7 +25,6 @@ import {
 
 const PACKAGE_NAME = "modretro-chromatic";
 const MAX_FILES = 4096;
-// Match start-mcp.mjs's file limits.
 const MAX_BYTES = 136 * 1024 * 1024;
 const MAX_FILE_BYTES = 24 * 1024 * 1024;
 const AUTOMATIC_PACKAGE_FILES = new Set(["LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"]);

@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 33378871,
+ "total_bytes": 33378688,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "040e5321f1f458357f435cd5ec6a886ccf9d0b250be65650ea47953726ecd8a5",
+ "aggregate_sha256": "3ac007fe87b6ff4e47ba77cecaf87b2328d88fc99cdc069e9d3083c39974c928",
  "entries": [
   {
    "path": "LICENSE",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44728,
+   "size": 44577,
    "mode": "0o644",
-   "sha256": "6d1128218ab8d3008bb65730e2cddcd758e9ec59a263d0d927db746ea13db136"
+   "sha256": "4c96893eaf85dd51e4763c8ec990cb2680d651ab1dd42887e8a43722bf7becbc"
   },
   {
    "path": "docs/architecture.md",
@@ -1200,9 +1200,9 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12799,
+   "size": 12968,
    "mode": "0o644",
-   "sha256": "7271fcb3c4f0b6753e008a743dbb8d9d1c78127a0bffaeec67738942dd616689"
+   "sha256": "55021b1281490f3e3b4754ce5d9fb049da01cc9d62418b6d79bcc85f519048b1"
   },
   {
    "path": "docs/setup.md",
@@ -2187,16 +2187,16 @@
   {
    "path": "scripts/setup-runtime.mjs",
    "type": "file",
-   "size": 34656,
+   "size": 34618,
    "mode": "0o644",
-   "sha256": "2c0963370b038887ac2e1bbe26f53ce614b9b599acecbc33f73a4379376f444b"
+   "sha256": "91fd049a886c2d4c38c0faf7e8d50bde6c268f2d9b9b1df5ebfe804780c305be"
   },
   {
    "path": "scripts/setup.mjs",
    "type": "file",
-   "size": 39228,
+   "size": 39187,
    "mode": "0o644",
-   "sha256": "12c62bcb3fc05e82b8b268e5ef4d90029758a3c014cbb5a61bdfa45d6ac00b8a"
+   "sha256": "784c48adae43de3d4fdf65ecf127052e3277a8528cd255bc2f8f896b6a3501c3"
   },
   {
    "path": "scripts/setup.ps1",
@@ -2215,9 +2215,9 @@
   {
    "path": "scripts/start-mcp.mjs",
    "type": "file",
-   "size": 14238,
+   "size": 14116,
    "mode": "0o644",
-   "sha256": "72d064beb10e747b2336d599377ea59afb302fc0e743f5aca6f339a27769ab52"
+   "sha256": "2fa3cc248a0934a6b9921006dcba77b51194f5dd39c7443941be0d19379afb53"
   },
   {
    "path": "skills/chromatic-deployment/SKILL.md",

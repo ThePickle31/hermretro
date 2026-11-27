@@ -232,7 +232,7 @@ export async function planSetup(options = {}) {
     canApply: supported && !rootIssue, ...(rootIssue ? { rootIssue } : {}), ...(lock ? { lock } : {}),
     writes: [bundled ? "Only the selected owned dependency root: downloads, caches, staging, component receipts and toolchain. The installed plugin is unchanged." : "Only the selected owned root: downloads, caches, staging, component receipts, runtime and toolchain"],
     consentRequired: true, activation: "not-selected",
-    nextSteps: [rootIssue || (!supported ? "This platform has no packaged installer; no changes will be attempted." : "Review versions, sources and destinations, then run apply with --yes for these components."), "Doctor metadata checks do not execute a compiler or import emulator packages. Explicit apply verifies tools and may download/build dependencies.", "Installation into Codex, plugin refresh, PATH/profile edits, desktop launch and access changes are separate actions."],
+    nextSteps: [rootIssue || (!supported ? "This platform has no packaged installer; no changes will be attempted." : "Review versions, sources and destinations, then run apply with --yes for these components."), "Doctor metadata checks do not execute a compiler or import emulator packages. Explicit apply verifies tools and may download/build dependencies.", "PATH/profile edits, desktop launch and access changes are separate actions."],
   };
 }
 
