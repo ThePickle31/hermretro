@@ -13,6 +13,8 @@
   ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
   mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
                     FOLDER/gallery.html
+  review VERB       a pull request's review (tools/review/README.md): prepare, take and record a pass's briefs,
+                    findings and answers (--pass N), or say where it stands (status)
   bench VERB        the benchmark: every game in tools/dev/bench_games/ made at once by a one-shot chat in the
                     studio profile (run, which waits for them all), what each cost (report), and each game against
                     an earlier run's (compare: exit 1 when one got clearly worse, 2 when one could not be judged)
@@ -39,6 +41,7 @@ import bench  # noqa: E402 - this folder, put on the path just above
 import bench_compare  # noqa: E402
 import local_hermes as hermes  # noqa: E402
 import mockup  # noqa: E402
+import review  # noqa: E402
 import studio  # noqa: E402
 import studio_states  # noqa: E402
 
@@ -306,6 +309,26 @@ def cmd_mockup(args) -> int:
     return 0
 
 
+def cmd_review(args) -> int:
+    branch = review.Review(Path.cwd())
+    if args.verb == "status":
+        print(branch.status())
+        return 0
+    if args.pass_ is None:
+        print(f"review {args.verb} needs --pass N", file=sys.stderr)
+        return 2
+    if args.verb == "prepare":
+        print(branch.prepare(args.pass_, over_cap=args.over_cap))
+    elif args.verb == "take":
+        print(branch.take(args.pass_))
+    else:
+        if not args.model:
+            print("review record needs --model (the model the pass's reviewer ran)", file=sys.stderr)
+            return 2
+        print(branch.record(args.pass_, args.model, args.security_model))
+    return 0
+
+
 def cmd_bench(args) -> int:
     root = hermes.hermes_root()
     profile = root / "profiles" / hermes.STUDIO
@@ -393,6 +416,13 @@ def parser() -> argparse.ArgumentParser:
     round_.add_argument("--only", help="these mockups only (ids, comma-separated); today's page is always shot")
     round_.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
     round_.set_defaults(run=cmd_mockup)
+    reviewing = commands.add_parser("review")
+    reviewing.add_argument("verb", choices=["prepare", "take", "record", "status"])
+    reviewing.add_argument("--pass", dest="pass_", type=int, help="the pass (prepare, take, record)")
+    reviewing.add_argument("--model", help="record: the model the pass's reviewer ran")
+    reviewing.add_argument("--security-model", help="record: the model its security reviewer ran")
+    reviewing.add_argument("--over-cap", action="store_true", help="prepare: a pass past the third, the owner asked")
+    reviewing.set_defaults(run=cmd_review)
     benchmark = commands.add_parser("bench")
     benchmark.add_argument("verb", choices=["run", "report", "compare"])
     benchmark.add_argument("games", nargs="*", help="run: only the games whose name contains one of these")
@@ -416,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         return args.run(args)
-    except (studio.StudioError, bench.BenchError) as error:
+    except (studio.StudioError, bench.BenchError, review.ReviewError, review.findings.FindingsError) as error:
         print(error, file=sys.stderr)
         return 1
 

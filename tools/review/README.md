@@ -39,6 +39,12 @@ Each pass's brief, findings and answers stay out of the repository, in `notes/re
 with what was approved in `notes/reviews/<branch>/decisions.md`. The pull request's Review section says
 each pass's tier, models and outcome in a line.
 
+`python tools/dev review` does the bookkeeping, from the change's worktree once its pull request is open and
+pushed: `prepare --pass <n>` (the tier, the pinned checkout and the briefs), `take --pass <n>` (once the
+reviewers wrote their findings: the checkout goes and `answers.md` starts), `record --pass <n> --model <model>`
+(with `--security-model` beside a security review: refuses an unanswered finding, writes the Review section and
+says whether another pass runs) and `status`.
+
 ## Findings and answers
 
 A reviewer writes each finding as a heading, most important first, its evidence beneath it:
