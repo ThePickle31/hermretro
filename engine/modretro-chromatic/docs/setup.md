@@ -1,5 +1,10 @@
 # ModRetro Chromatic: setup
 
+> This is ModRetro's guide to setting the engine up on its own. In hermretro,
+> setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
+> and `chromatic_toolchain_doctor`, into hermretro's own folder
+> (`~/.hermes/hermretro/.cache/`), and a game is shown with `chromatic_present_game`.
+
 The [ModRetro Chromatic plugin](../README.md) can author, build, and
 directly playtest games without the GB Studio desktop editor. The plugin ships
 installers and a shared dependency catalog, not every third-party binary.

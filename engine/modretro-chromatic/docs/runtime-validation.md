@@ -1,5 +1,10 @@
 # Runtime validation
 
+> This is ModRetro's guide to setting the engine up on its own. In hermretro,
+> setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
+> and `chromatic_toolchain_doctor`, into hermretro's own folder
+> (`~/.hermes/hermretro/.cache/`), and a game is shown with `chromatic_present_game`.
+
 Verify the [ModRetro Chromatic plugin](../README.md) against a real
 native game project. Each layer establishes a different fact: TypeScript
 checks validate plugin
@@ -48,8 +53,9 @@ resolving symlinks, and the bundled starter additionally requires
 
 Maintainers check the engine from hermretro's repository root with
 `python tools/check.py full` (it includes a real-engine run that builds and
-plays games). On a prepared engine, `npm run doctor` reports the dependencies
-without changing anything. Otherwise follow [setup](setup.md), then use
+plays games). In hermretro, the agent's `chromatic_toolchain_doctor` reports the
+dependencies without changing anything; for the engine on its own,
+`node scripts/setup.mjs doctor --root <setup root>` does. Then use
 `toolchain_doctor` and `rom_build` in the selected project.
 
 For experimental Windows x64, follow [Windows setup](windows-setup.md) to

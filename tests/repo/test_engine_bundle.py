@@ -18,7 +18,6 @@ NODE = shutil.which("node")
 INSTALLED = (TOOLS / "npm" / "node_modules" / "esbuild" / "package.json").is_file()
 ENGINE_LOCK = ROOT / "engine" / "modretro-chromatic" / "scripts" / "runtime-package-lock.json"
 PNGJS_LICENCE = TOOLS / "npm" / "node_modules" / "pngjs" / "LICENSE"
-# ModRetro's own build of the engine bundle, which bundle.mjs must match byte for byte.
 
 
 def lock_naming(*packages: str) -> str:

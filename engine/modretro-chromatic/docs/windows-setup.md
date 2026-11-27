@@ -1,5 +1,8 @@
 # ModRetro Chromatic: Windows setup
 
+> hermretro does not run on Windows yet. This is ModRetro's guide to setting the
+> engine up on its own there.
+
 This guide covers the [ModRetro Chromatic plugin](../README.md).
 
 Windows x64 support is experimental. The plugin has portable setup and test
@@ -25,8 +28,8 @@ Inspect the current bindings, then a dedicated target root:
 
 ```powershell
 $gbStudioSetupRoot = Join-Path $env:LOCALAPPDATA 'modretro-chromatic'
-powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --components runtime
-powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" plan --root $gbStudioSetupRoot --components runtime
+powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --components build
+powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" plan --root $gbStudioSetupRoot --components build
 ```
 
 The launcher checks a selected Node executable with `--version`. Without a
@@ -39,13 +42,13 @@ probes.
 Review versions, sources, components, and paths before explicitly applying:
 
 ```powershell
-powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" apply --root $gbStudioSetupRoot --components runtime --yes
-powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --root $gbStudioSetupRoot --components runtime --json
+powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" apply --root $gbStudioSetupRoot --components build --yes
+powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --root $gbStudioSetupRoot --components build --json
 ```
 
-The examples select only `runtime` for authoring. Use `--components runtime,build`
-for builds/browser export, add `emulator` for automatic playtesting, or explicitly
-add `desktop` for the visual editor. Omitting the component list defaults to
+The examples select `build`, for builds and browser export; this engine carries
+its own runtime, so setup leaves `runtime` out. Add `emulator` for automatic
+playtesting, or explicitly add `desktop` for the visual editor. Omitting the component list defaults to
 `runtime,build,emulator`; always select what the user requested. Repeat the
 selected `--components` and `--root` on plan,
 apply, and doctor so verification checks the capabilities you chose.

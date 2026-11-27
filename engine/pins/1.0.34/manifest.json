@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 340,
  "symlink_count": 0,
- "total_bytes": 33912988,
+ "total_bytes": 33914059,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "f9a7b178f4e9732a11ebb01872d8c184addcf2e162792eb61d7cd3051d4c9e18",
+ "aggregate_sha256": "604e2996326e1c70d49e56ffa54b22e0a3691431b7c477327809ed7dbd993506",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4327,
+   "size": 4480,
    "mode": "0o644",
-   "sha256": "0f62bdfe2d38ff5bbcfdb39868b29d43a8c32a136e52473540bd0ab4b53e897a"
+   "sha256": "6aec5a29728b99656d466f5ca7fc1ea4fa768ba8188c2024785521684732da80"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -1200,16 +1200,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12383,
+   "size": 12760,
    "mode": "0o644",
-   "sha256": "9676c5d77b456ff4cfa66c23890a3c5f57c97082ec2fdbcda9dbbd13b057a280"
+   "sha256": "7e291e8e125ded9d9bc6cb5592d161451877d00b2d15d26c98d86cac50370434"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 14939,
+   "size": 15251,
    "mode": "0o644",
-   "sha256": "157e4561bf0a0e135e53b711ab305caedfde763435a8bd70cd6bd2387612370c"
+   "sha256": "d89e1b63618c874fb2bbc5f6853b606034546cbde77bed40ff6bf23db297ee7a"
   },
   {
    "path": "docs/stepped-playtesting.md",
@@ -1235,9 +1235,9 @@
   {
    "path": "docs/windows-setup.md",
    "type": "file",
-   "size": 4663,
+   "size": 4785,
    "mode": "0o644",
-   "sha256": "a5ed54fc70ed0d4757313cfc789823e71885db6c4e695207336a3b1e753120e8"
+   "sha256": "5323cd3b192d7b92d6df7905f7b759e40897615550dcb38a3eba5295b6afbb44"
   },
   {
    "path": "docs/wrecklight-authoring.md",
@@ -1277,9 +1277,9 @@
   {
    "path": "examples/dogfood-signal-lost/README.md",
    "type": "file",
-   "size": 3097,
+   "size": 3204,
    "mode": "0o644",
-   "sha256": "2550aefe57456323a616faccf856709de1288c176a867cb74af26f0b130501b8"
+   "sha256": "99f0d749542fa7950dc42f06fbb00744e39236dfccb9138872f6ca0d61edc66f"
   },
   {
    "path": "examples/dogfood-signal-lost/assets/avatars/README.md",
