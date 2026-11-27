@@ -95,6 +95,8 @@ class Headings(unittest.TestCase):
                 live = {"initialize": {"serverInfo": server}, "tools": [], "pages": 1, "ready_seconds": 0.1}
                 report = reconcile_schemas.compare(pinned, {**live, "package_version": package_version}, PINNED)
                 self.assertEqual(report["passed"], passed)
+                mismatch = None if passed else {"live": live_version, "package": package_version}
+                self.assertEqual(report.get("version_mismatch"), mismatch)
                 self.assertNotIn("version", report["live_server_info"], "a bump changes no recorded report")
 
 

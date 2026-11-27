@@ -78,6 +78,8 @@ def compare(pinned_doc: dict, live: dict, pinned_path: Path) -> dict:
         "order_identical": pinned_names == live_names,
         "altered": altered,
     }
+    if not report["live_version_is_package_version"]:  # named only when they differ: a passing report has no version
+        report["version_mismatch"] = {"live": server_info.get("version"), "package": live["package_version"]}
     report["passed"] = (
         not report["duplicates"]
         and not report["missing_from_live"]
