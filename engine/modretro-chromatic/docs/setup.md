@@ -257,9 +257,10 @@ editor. Setup never launches the desktop application.
 
 ## Preparation is not activation or gameplay acceptance
 
-Setup prepares dependencies; it does not change the engine hermretro runs. Check
-read-only `session_status` and the relevant `toolchain_doctor` tasks in the
-conversation, then make a real build and play it: metadata readiness, probe
+Setup prepares dependencies; it does not change the engine hermretro runs. In
+hermretro, check read-only `chromatic_session_status` and the relevant
+`chromatic_toolchain_doctor` tasks in the conversation, then make a real build
+with `chromatic_rom_build` and play it: metadata readiness, probe
 results, an official build and actual gameplay are separate evidence.
 
 Packaged targets are macOS and Linux x64/arm64, plus experimental Windows x64.

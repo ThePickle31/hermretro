@@ -3,16 +3,16 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 340,
+ "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 33914059,
+ "total_bytes": 33378871,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
   ".gbsres": 42,
   ".json": 21,
   ".png": 17,
-  ".mjs": 15,
+  ".mjs": 14,
   ".txt": 8,
   "(none)": 7,
   ".yaml": 4,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "604e2996326e1c70d49e56ffa54b22e0a3691431b7c477327809ed7dbd993506",
+ "aggregate_sha256": "040e5321f1f458357f435cd5ec6a886ccf9d0b250be65650ea47953726ecd8a5",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4480,
+   "size": 4458,
    "mode": "0o644",
-   "sha256": "6aec5a29728b99656d466f5ca7fc1ea4fa768ba8188c2024785521684732da80"
+   "sha256": "cbe5aed10feaa07ad3257c32f9798859da244fcfef615d4c636f30a388b790ca"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -1200,16 +1200,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12760,
+   "size": 12799,
    "mode": "0o644",
-   "sha256": "7e291e8e125ded9d9bc6cb5592d161451877d00b2d15d26c98d86cac50370434"
+   "sha256": "7271fcb3c4f0b6753e008a743dbb8d9d1c78127a0bffaeec67738942dd616689"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15251,
+   "size": 15312,
    "mode": "0o644",
-   "sha256": "d89e1b63618c874fb2bbc5f6853b606034546cbde77bed40ff6bf23db297ee7a"
+   "sha256": "97305ce7d6914b7ceccc85ae3b6f7ded4e97f9e88d5f9ff5f7989a1ab99e8e59"
   },
   {
    "path": "docs/stepped-playtesting.md",
@@ -1277,9 +1277,9 @@
   {
    "path": "examples/dogfood-signal-lost/README.md",
    "type": "file",
-   "size": 3204,
+   "size": 3130,
    "mode": "0o644",
-   "sha256": "99f0d749542fa7950dc42f06fbb00744e39236dfccb9138872f6ca0d61edc66f"
+   "sha256": "cf6dcf77c360a7ad51d8732e847d3d1a5527bdefc4f8c25773eb8f3eb625ada0"
   },
   {
    "path": "examples/dogfood-signal-lost/assets/avatars/README.md",
@@ -2075,9 +2075,9 @@
   {
    "path": "package.json",
    "type": "file",
-   "size": 2957,
+   "size": 2919,
    "mode": "0o644",
-   "sha256": "5cc3226c7593b698e02d07d53507649e88b1fc8c1d353c47fa18c165f2f46eff"
+   "sha256": "da68e926f3aabb24c89d1e1435d9fa71f17c136d6842a93750b8a18b57112a91"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",
@@ -2103,16 +2103,9 @@
   {
    "path": "scripts/dependency-doctor.mjs",
    "type": "file",
-   "size": 38665,
+   "size": 38555,
    "mode": "0o644",
-   "sha256": "af253db9e6b0eb942dabe5bbb607c9b7420e234e58a2a0714c088fa18caf5a10"
-  },
-  {
-   "path": "scripts/device-client-deps.mjs",
-   "type": "file",
-   "size": 535044,
-   "mode": "0o644",
-   "sha256": "62d169c947d33e2332ca110672413b24e65ab4554bd0fefb010bd80913458785"
+   "sha256": "0b2806cd2b26b7c8f5ddbe1ea3d737f47c17a0933611c8cf95e0f309c8b332c0"
   },
   {
    "path": "scripts/doctor.mjs",

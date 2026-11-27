@@ -25,7 +25,7 @@ holds that release as published.
 |---|---|
 | `dist/` | The server's source: one module per file, and `entry.js`, the server's own module |
 | `dist/server.js` | The bundle, generated from `dist/` by `tools/engine/bundle.mjs`; never edited by hand |
-| `scripts/` | The launcher, setup and doctor, the emulator worker, the Chromatic CLI runtime and the device client's packages, used as they are (the bundle imports them) |
+| `scripts/` | The launcher, setup and doctor, the emulator worker and the Chromatic CLI runtime, used as they are (the bundle imports some of them) |
 | `skills/` | ModRetro's original agent skills, kept as published; the ones hermretro gives its agent are adapted from them, in the repository's `skills/` |
 | `docs/` | ModRetro's guides to the tools, setup and the device (written for its Codex plugin) |
 | `examples/` | The starter every new game is made from, the `hello-color` demo ROM, and ModRetro's samples |

@@ -76,8 +76,7 @@
     "!**/save-states/**",
     "!dist/playtest.js",
     "!dist/playtest.d.ts",
-    "!**/*.playtest.json",
-    "scripts/device-client-deps.mjs"
+    "!**/*.playtest.json"
   ],
   "scripts": {
     "doctor": "node ./scripts/doctor.mjs",

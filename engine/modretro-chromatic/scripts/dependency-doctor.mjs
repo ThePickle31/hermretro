@@ -273,8 +273,7 @@ async function detectRuntime(result, context) {
     const starter = await object(path.join(runtimeRoot, "examples", "starter", "project.gbsproj"), runtimeRoot);
     if (starter._resourceType !== "project" || typeof starter.name !== "string" || !starter.name.trim()) throw new Error("The packaged native game starter metadata is malformed.");
     if (installed.bundledMcp === true) {
-      await regular(path.join(runtimeRoot, "scripts", "device-client-deps.mjs"), runtimeRoot);
-      detected(result, installed.version, "Bundled MCP entrypoint, device client, worker and starter are present; no modules imported.");
+      detected(result, installed.version, "Bundled MCP entrypoint, worker and starter are present; no modules imported.");
       return;
     }
     const lock = await optionalObject(path.join(packageRoot, "scripts", "runtime-package-lock.json"), packageRoot)
