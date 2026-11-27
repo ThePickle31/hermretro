@@ -1,16 +1,17 @@
 # hermretro's changes to the engine
 
-`engine/modretro-chromatic/` is hermretro's engine. It started from ModRetro's Chromatic engine 1.0.34 (MIT: its
+`engine/` is hermretro's engine. It started from ModRetro's Chromatic engine 1.0.34 (MIT: its
 licence and notices stay) and is changed only by hermretro: a fix ModRetro makes in a later release is read in their
 release and made again here by hand, as any other change. The tag `engine-upstream-1.0.34` holds that release as it
 was published, without the files left out (`THIRD_PARTY_NOTICES.md`):
-`git diff engine-upstream-1.0.34 HEAD -- engine/modretro-chromatic` shows every change. One line per change: the
+`git diff -M engine-upstream-1.0.34 HEAD -- engine` shows every change (the release is at `engine/modretro-chromatic/` in
+the tag). One line per change: the
 files, what changed and why.
 
-The changes are made in the engine's `dist/` modules (the server's own is `dist/entry.js`), and
-`node tools/engine/bundle.mjs` builds `dist/server.js` from them. The entries before "the bundle is built from its
-modules" below were made in the bundle itself; where one names `dist/server.js` and a module, the change is now in
-that module.
+The changes are made in the engine's `src/` modules (the server's own is `src/entry.js`), and
+`node tools/engine/bundle.mjs` builds `dist/server.js` from them; lines from before the move to `src/` name them
+under `dist/`. The entries before "the bundle is built from its modules" below were made in the bundle itself; where
+one names `dist/server.js` and a module, the change is now in that module.
 
 - `dist/server.js`, `dist/device-capture/linux-helper.js`: the path ffmpeg reads the Chromatic's video from during
   Linux hardware capture is `/dev/fd/6` instead of the equivalent per-process path under the proc filesystem (two

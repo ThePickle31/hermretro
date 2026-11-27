@@ -37,7 +37,8 @@ RUNS = Path(__file__).resolve().parents[2] / "notes" / "bench"
 REASONING = "high"
 # Where the agent reads GB Studio's or the engine's source instead of a tool or skill telling it: with a terminal
 # command, or with the file tools.
-SOURCE_MARKERS = ("gb-studio", "engine/src/", "engine/dist/", "engine/scripts/", ".cache/engine-")
+# Before the move to engine/src/ (#230), the engine was under engine/modretro-chromatic/: recorded sessions name it.
+SOURCE_MARKERS = ("gb-studio", "modretro-chromatic", "engine/src/", "engine/dist/", "engine/scripts/", ".cache/engine-")
 SOURCE_READERS = {"read_file", "search_files"}
 NORMAL_ENDS = {"cli_close", "agent_close"}
 DUPLICATE_DROP = "Removed duplicate tool call"

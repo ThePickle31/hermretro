@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32351396,
+ "total_bytes": 32351522,
  "suffix_counts": {
   ".js": 111,
   ".md": 61,
@@ -26,14 +26,14 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "c56bb29588980b2bac13bc289a6aa40b14db81bd30bd1ffa406b8c1624b2c7a9",
+ "aggregate_sha256": "7f6c488e285ce634fd775ea5a013e328581a7f2f20a99147678ba717e6481954",
  "entries": [
   {
    "path": "CHANGES.md",
    "type": "file",
-   "size": 43634,
+   "size": 43719,
    "mode": "0o644",
-   "sha256": "00b3e809b7eacceb7a074d5ac9de93060884630f270901db057edcd76a77c133"
+   "sha256": "bf0fbc43571c9aa71c7b8d4c212127372073c0a6fcc1e4bbb9358a72c3c67db6"
   },
   {
    "path": "LICENSE",
@@ -171,9 +171,9 @@
   {
    "path": "docs/reviewed-custom-events.md",
    "type": "file",
-   "size": 7831,
+   "size": 7829,
    "mode": "0o644",
-   "sha256": "cff58b33ffc013246d26e5102807a164f19607b63ca9a5be53118f69f2f19478"
+   "sha256": "8635be8be2ec0e96a650d7921b092b9a0bd756f65491f0d3f90a23a912372678"
   },
   {
    "path": "docs/runtime-validation.md",
@@ -1137,9 +1137,9 @@
   {
    "path": "scripts/setup-runtime.mjs",
    "type": "file",
-   "size": 31914,
+   "size": 31957,
    "mode": "0o644",
-   "sha256": "52196c371359e515cb96b1ea01ed5330931642fb72fb81d8c5ba746b0efd1c7d"
+   "sha256": "a75e724408ace07a8778c43407ebf6457ff2297aeff82e22e0ac8bdd06ffd48f"
   },
   {
    "path": "scripts/setup.mjs",

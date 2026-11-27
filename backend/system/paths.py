@@ -302,10 +302,11 @@ def is_engine_record(root: Path | str, path: Path | str) -> bool:
     return Path(path) == Path(root) / ENGINE_PINS.name
 
 
-def engine_entries(root: Path) -> list[Path]:
-    """Every file and link under root, sorted, but Python's bytecode. A running script writes bytecode and renames it
-    into place meanwhile, so it is left out by name from the folder listing, before anything stats it; a link is
-    listed whatever its name."""
+def engine_entries(root: Path, *, engine_folder: bool = True) -> list[Path]:
+    """Every file and link under root, sorted, but Python's bytecode and, in an engine folder (the bundled engine or
+    another checkout's), its record. A running script writes bytecode and renames it into place meanwhile, so it is
+    left out by name from the folder listing, before anything stats it; a link is listed whatever its name. A copy of
+    the engine holds no record, so one there is listed like any other file."""
     found: list[Path] = []
     folders = [root]
     while folders:
@@ -313,7 +314,7 @@ def engine_entries(root: Path) -> list[Path]:
             for entry in listing:
                 if entry.is_symlink():
                     found.append(Path(entry.path))
-                elif is_bytecode(entry.name) or is_engine_record(root, entry.path):
+                elif is_bytecode(entry.name) or (engine_folder and is_engine_record(root, entry.path)):
                     continue
                 elif entry.is_dir():
                     folders.append(Path(entry.path))
@@ -322,11 +323,13 @@ def engine_entries(root: Path) -> list[Path]:
     return sorted(found)
 
 
-def _compare_tree(root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset()) -> list[str]:
+def _compare_tree(
+    root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset(), *, engine_folder: bool = True
+) -> list[str]:
     """Every regular file under root against rel -> SHA-256. No extras, no symlinks."""
     problems: list[str] = []
     seen: set[str] = set()
-    for path in engine_entries(root):
+    for path in engine_entries(root, engine_folder=engine_folder):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
         if stat.S_ISLNK(info.st_mode):
@@ -399,7 +402,7 @@ def verify_prepared_engine() -> dict:
         expected.update(receipt["added"])
         expected["package.json"] = hashlib.sha256(prepared_package_json(receipt["target"])).hexdigest()
         problems = (
-            _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG))
+            _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG), engine_folder=False)
             if PREPARED_ENGINE.is_dir()
             else ["missing engine copy"]
         )
@@ -427,8 +430,18 @@ def code_fingerprint() -> str:
     new files start, in a loop, until the plugin is reloaded."""
     folder = BACKEND_ROOT
     sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
-    stamp = tuple((rel, path.stat().st_mtime_ns, path.stat().st_size) for rel, path in sources)
+    stamp = tuple((rel, *_file_stamp(path)) for rel, path in sources)
     return _fingerprint_for(stamp)
+
+
+def _file_stamp(path: Path) -> tuple[int, int]:
+    """A file's modification time and size, or (-1, -1) once it is gone: an update can move a file this process
+    loaded, and the fingerprint must still answer (as changed) so the page can offer the reload."""
+    try:
+        info = path.stat()
+    except FileNotFoundError:
+        return -1, -1
+    return info.st_mtime_ns, info.st_size
 
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
@@ -451,7 +464,7 @@ def _fingerprint_for(stamp: tuple) -> str:
     # The version comes in through plugin.yaml's bytes, read now, never the value this process imported.
     digest = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
     folder = BACKEND_ROOT
-    for name, _mtime, _size in stamp:
+    for name, _mtime, size in stamp:
         digest.update(name.encode())
-        digest.update((folder / name).read_bytes())
+        digest.update((folder / name).read_bytes() if size >= 0 else b"(missing)")
     return digest.hexdigest()[:24]
