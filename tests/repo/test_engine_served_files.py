@@ -2,23 +2,22 @@
 `native-device-capture.js`) and the preview (`ANNOTATION_FILES` in `web-preview.js`) each serve their listed files
 from one folder URL; a listed module importing anything else fails in the browser with a 404 and never starts.
 
-The lists and the imports are read with the pinned JavaScript parser (tools/engine/npm), so a comment never counts.
-Each import is resolved as the browser resolves it, against the importing file's URL in each place its page is
-served from, under a capability segment no import can name; only a relative request that lands on a listed file
-passes. A listed name must be one the routers serve (each segment plain, never starting with a dot), and each page's
-entry script, read from the active <script> tags of the HTML the engine writes, must be listed too."""
+`engine_served_files.mjs` reads the lists and the imports with the pinned JavaScript parser (tools/engine/npm), so a
+comment never counts, and resolves each request as the browser does (WHATWG URL), against the importing file's URL in
+each place its page is served from, under a capability segment no import can name: only a relative request that
+lands on a listed file passes. Each page's entry scripts, read with an HTML parser from the HTML the engine writes,
+are resolved the same way from the page's URL. A listed name must be one the routers serve."""
 
 from __future__ import annotations
 
 import json
 import re
-from html.parser import HTMLParser
 import shutil
 import subprocess
 import sys
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urljoin
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -27,61 +26,15 @@ from backend.system.paths import ENGINE_ROOT  # noqa: E402 - the repository root
 
 SRC = ENGINE_ROOT / "src"
 TOOLS = ROOT / "tools" / "engine" / "npm"
+SCRIPT = Path(__file__).with_name("engine_served_files.mjs")
 NODE = shutil.which("node")
 ORIGIN = "https://engine.invalid/capability-9f2c71/"
-# Where each page's files are served from, as folder URLs: the preview page is at ORIGIN, its files under its mount.
+# Where each page's files are served from, as folder URLs: the preview page is at ORIGIN, its files under its mount;
+# the capture page's files are beside it, on its own or inside the preview.
 PREVIEW = [ORIGIN + "codex-annotations/"]
-CAPTURE = [ORIGIN, ORIGIN + "codex-device-view/"]  # the capture page on its own, and inside the preview
-# argv: the pinned tools, the module holding the list, the list's name, the folder its entries are relative to, the
-# folder URLs they are served from, and whether the server ignores a query. Prints the listed entries and every
-# import of theirs that the browser would not find.
-CHECK = """
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-const [tools, listModule, listName, folder, basesJson, ignoresQuery] = process.argv.slice(1);
-const acorn = createRequire(path.join(tools, "package.json"))("acorn");
-const parse = (file) => acorn.parse(readFileSync(file, "utf8"), { ecmaVersion: "latest", sourceType: "module" });
-function* nodes(node) {
-  if (!node || typeof node.type !== "string") return;
-  yield node;
-  for (const value of Object.values(node))
-    for (const child of Array.isArray(value) ? value : [value]) if (child && typeof child === "object") yield* nodes(child);
-}
-const declared = [...nodes(parse(listModule))].find((node) => node.type === "VariableDeclarator" && node.id.name === listName);
-if (declared?.init?.type !== "ArrayExpression") throw new Error(`${listModule} has no ${listName} array`);
-const served = declared.init.elements.map((element, index) => {
-  if (element?.type !== "Literal" || typeof element.value !== "string")
-    throw new Error(`${listName}[${index}] in ${listModule} is not a string literal`);
-  return element.value;
-});
-// A request's text when the source states it: a string, or a template with nothing substituted.
-const literal = (source) => source?.type === "Literal" && typeof source.value === "string" ? source.value
-  : source?.type === "TemplateLiteral" && source.expressions.length === 0 ? source.quasis[0].value.cooked : null;
-const problems = [];
-for (const entry of served) {
-  const kinds = ["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration", "ImportExpression"];
-  for (const node of nodes(parse(path.join(folder, entry)))) {
-    if (!kinds.includes(node.type) || !node.source) continue;
-    const request = literal(node.source);
-    if (request === null) continue;  // a computed request: its target is checked by name below
-    for (const base of JSON.parse(basesJson)) {
-      const url = new URL(request, base + entry);
-      const reached = url.href.startsWith(base) ? url.href.slice(base.length) : null;
-      // The browser never sends a fragment; the preview's router also drops the query, the capture page's refuses one.
-      const sent = reached === null ? null : reached.replace(/#.*$/, "");
-      const file = sent === null ? null : ignoresQuery === "yes" ? sent.replace(/\?.*$/, "") : sent;
-      if (!/^\\.\\.?\\//.test(request) || file === null || !served.includes(file))
-        problems.push(`${entry} imports ${JSON.stringify(request)}, which the page served from ${base} does not serve`);
-    }
-  }
-}
-console.log(JSON.stringify({ served, problems }));
-"""
-
-
+CAPTURE = [ORIGIN, ORIGIN + "codex-device-view/"]
 # A name both routers serve: plain segments, none starting with a dot (web-preview.js and native-device-capture.js
-# refuse those and any of ?#%\\).
+# refuse those and any of ?#%\).
 SERVABLE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*(?:/[A-Za-z0-9_-][A-Za-z0-9._-]*)*")
 
 
@@ -98,20 +51,18 @@ class ModuleScripts(HTMLParser):
             self.found.append(attributes["src"])
 
 
-def entry_scripts(module: str, page: str, mount: str, substitutions: dict[str, str] | None = None) -> list[str]:
-    """The listed names of the module scripts the HTML a page's module writes loads, resolved from the page's URL;
-    a script outside the mount its files are served from is returned whole, so it is never on the list."""
+def entry_scripts(module: str, substitutions: dict[str, str] | None = None) -> list[str]:
+    """The src of each module script in the HTML a page's module writes, as written there."""
     text = (SRC / module).read_text(encoding="utf-8")
     for name, value in (substitutions or {}).items():
         text = text.replace("${" + name + "}", value)
     parser = ModuleScripts()
     parser.feed(text)
     assert parser.found, f"{module} writes no module <script>"
-    urls = [urljoin(page, source) for source in parser.found]
-    return [url.removeprefix(mount) if url.startswith(mount) else url for url in urls]
+    return parser.found
 
 
-def listed_constant(module: str, name: str) -> str:
+def string_constant(module: str, name: str) -> str:
     found = re.search(rf'const {name} = "([^"]+)";', (SRC / module).read_text(encoding="utf-8"))
     assert found, f"{module} has no {name}"
     return found.group(1)
@@ -119,32 +70,42 @@ def listed_constant(module: str, name: str) -> str:
 
 @unittest.skipUnless(NODE and (TOOLS / "node_modules" / "acorn").is_dir(), "node or tools/engine/npm is missing")
 class ServedFiles(unittest.TestCase):
-    def served(self, module: str, name: str, folder: Path, bases: list[str], ignores_query: bool) -> list[str]:
-        command = [NODE, "--input-type=module", "-e", CHECK, str(TOOLS), str(SRC / module), name, str(folder)]
+    def served(self, module: str, name: str, folder: Path, bases: list[str], *, ignores_query: bool, entries) -> list:
         done = subprocess.run(
-            [*command, json.dumps(bases), "yes" if ignores_query else "no"], capture_output=True, text=True, timeout=60
+            [
+                NODE,
+                str(SCRIPT),
+                str(TOOLS),
+                str(SRC / module),
+                name,
+                str(folder),
+                json.dumps(bases),
+                "yes" if ignores_query else "no",
+                json.dumps(entries),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         self.assertEqual(done.returncode, 0, done.stderr)
         found = json.loads(done.stdout)
         for entry in found["served"]:
             self.assertTrue((folder / entry).is_file(), f"{entry} is listed in {name} but missing")
             self.assertRegex(entry, f"^{SERVABLE.pattern}$", f"{entry} in {name} is a name the routers refuse")
-        self.assertEqual(found["problems"], [], f"FIX: list what {name}'s files import, as paths beside them")
+        self.assertEqual(found["problems"], [], f"FIX: serve what the page loads, as files on {name}")
         return found["served"]
 
     def test_the_capture_page_serves_its_entry_and_every_module_its_files_import(self):
-        served = self.served("native-device-capture.js", "ASSETS", SRC, CAPTURE, ignores_query=False)
-        for page in CAPTURE:  # its files are served beside the page itself
-            for entry in entry_scripts("device-capture/page.js", page, page):
-                self.assertIn(entry, served, f"the capture page's HTML loads it (page at {page})")
+        entries = [[page, page, source] for page in CAPTURE for source in entry_scripts("device-capture/page.js")]
+        served = self.served("native-device-capture.js", "ASSETS", SRC, CAPTURE, ignores_query=False, entries=entries)
         # The preview's Device view loads the capture client from the capture page's files by a computed URL.
         self.assertIn("device-capture/native-client.js", served)
 
     def test_the_preview_serves_its_entry_and_every_module_its_annotation_files_import(self):
-        served = self.served("web-preview.js", "ANNOTATION_FILES", SRC / "web-annotations", PREVIEW, ignores_query=True)
-        mount = listed_constant("web-preview.js", "ANNOTATION_MOUNT")
-        for entry in entry_scripts("web-preview.js", ORIGIN, PREVIEW[0], {"ANNOTATION_MOUNT": mount}):
-            self.assertIn(entry, served, "the preview's HTML loads it")
+        mount = string_constant("web-preview.js", "ANNOTATION_MOUNT")
+        entries = [[ORIGIN, PREVIEW[0], src] for src in entry_scripts("web-preview.js", {"ANNOTATION_MOUNT": mount})]
+        folder = SRC / "web-annotations"
+        self.served("web-preview.js", "ANNOTATION_FILES", folder, PREVIEW, ignores_query=True, entries=entries)
 
 
 if __name__ == "__main__":
