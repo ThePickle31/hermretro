@@ -21,7 +21,7 @@ holds every change since ModRetro's 1.0.34.
 ## 2.0.1
 
 - `docs/stepped-playtesting.md`, `docs/architecture.md`: the emulator list gains the missing `emulator_audio` and
-  `emulator_replay` and drops its hard-coded count, and the naming rule allows the device tools' bare names
+  `emulator_replay` and drops its hard-coded count, and the naming rule names the only bare tool names
   (`device`, `setup`, `flash`, `play`).
 
 ## 2.0.0
