@@ -448,8 +448,7 @@ Wrecklight remains an optional repository template. Compression uses Node's
 built-in Brotli support, with no extra compression tool or CLI download.
 Executables, complete supplier notices and device artwork use separate,
 authenticated streams. Reading a notice or showing the preview does not decode
-or launch a CLI executable. The images keep their original WebP bytes and URLs;
-source maps remain included.
+or launch a CLI executable. The images keep their original WebP bytes and URLs.
 
 Read a complete supplier notice offline from the extracted plugin directory:
 

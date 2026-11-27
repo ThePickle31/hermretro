@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 351,
  "symlink_count": 0,
- "total_bytes": 34135093,
+ "total_bytes": 34135064,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".gbc": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "87d17d703e476b30a395095c44945063fc6c362a94aae1eafd1ba23709b2b403",
+ "aggregate_sha256": "bdb74f273bdc55a15e621399b5f7fe398d1ab67d9fb5397cdd57e183af3fe417",
  "entries": [
   {
    "path": ".codex-plugin/assets/composer-icon.png",
@@ -66,9 +66,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 27391,
+   "size": 27362,
    "mode": "0o644",
-   "sha256": "3291cfaed7b80ce73d22fa504151e2189bfbe0300a3e120530f2e9613bf6c14d"
+   "sha256": "0881c0f659fc2d96ea12beb52b6e147a5ad0073858832b739b32ad3773283215"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
