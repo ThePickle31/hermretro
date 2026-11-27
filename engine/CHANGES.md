@@ -353,7 +353,7 @@ that module.
   (`scripts/setup.mjs`), the runtime copy's receipt branch and its requirement for the two files
   (`scripts/setup-runtime.mjs`), the doctor's reading of the receipt (`scripts/dependency-doctor.mjs`), and the
   refusal to write into a Codex payload (`scripts/setup-compiler.mjs`/`.sh`, `scripts/setup-emulator.mjs`/`.sh`).
-  Each ran only when such a receipt or a `+codex.payload.` version was present, which hermretro's engine never has.
+  None of it ran for hermretro's bundled engine, which never has such a receipt or a `+codex.payload.` version.
   The doctor's check that `scripts/device-client-deps.mjs` is present goes with that module.
   `package.json` keeps the npm scripts whose files exist and drops its build-only devDependencies; the docs and
   hermretro's setup and deployment skills no longer describe the removed files. Windows code paths and

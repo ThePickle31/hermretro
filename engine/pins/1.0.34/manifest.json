@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 33378840,
+ "total_bytes": 33379151,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "02c294162a116b5b1085b69024cbe44241bacce16f94ee358fb3d2065a3ff85e",
+ "aggregate_sha256": "63dc73fb32065f2f4eaa18983cd0f191a17ff43bb1d578e303e831132f197037",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4525,
+   "size": 4836,
    "mode": "0o644",
-   "sha256": "568e189c31f7a1308ab6aeeba600dd775897389f78b911d48ad74e3c76efc201"
+   "sha256": "bb1aab98a590b430604b14e92becb38f416713021e3a8a6cc1249d868f4d567b"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
