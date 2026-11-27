@@ -379,11 +379,11 @@ that module.
   The read-only guard on the bundled sample now guards the bundled `examples/` folder: for every shipped path it
   answers as before (a root enclosing the examples falls back to the selected project, or is refused), and its
   refusal no longer names the removed template. `examples/wrecklight`, which the engine never shipped, is no longer a
-  reserved name for a local project. With no reviewed contracts, `semanticGeneration` no longer advances when a game
-  with a plugin event edits its settings, variables, engine fields or `assets/engine/`: Wrecklight's contracts had
-  pulled those files into every such game's custom-event fingerprint. Those edits change the project revision, which
-  every consumer of the generation (semantic cursors, the pre-write freshness check) also requires, and plugin edits
-  still advance the generation, so no outcome changes; only the reported count.
+  reserved name for a local project. Wrecklight's contracts also carried the rule that a project's event handlers can
+  read its plugins, engine assets, settings, variables and engine fields, which put those files into every game's
+  custom-event fingerprint. That rule is now the registry's own (`isEventInput`), and the semantic generation
+  advances on a fingerprint change with or without contracts, so it counts exactly as before, including an edit that
+  is later undone.
   The runtime copy loses its Wrecklight source pins. The Wrecklight guides, `docs/native-title-atlas.md`, the
   sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
   published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in

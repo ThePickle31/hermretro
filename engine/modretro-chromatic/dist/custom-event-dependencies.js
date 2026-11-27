@@ -10,6 +10,13 @@ const MAX_CONTRACTS = 714;
 const MAX_BINDINGS = 256;
 const MAX_EFFECTS = 4096;
 const compilerResourcePath = (name) => /^(?:project|assets|plugins)\/.+\.gbsres$/.test(name);
+// A project's own event handlers can read its plugins, engine assets, settings,
+// variables and engine fields, so a change to any of them changes what its
+// events mean, whether or not a reviewed contract covers them.
+const EVENT_INPUT_PREFIXES = ["plugins/", "assets/engine/"];
+const EVENT_INPUT_RESOURCE_TYPES = ["settings", "variables", "engineFieldValues"];
+const isEventInput = (name, file) => EVENT_INPUT_PREFIXES.some((prefix) => name.startsWith(prefix))
+    || (compilerResourcePath(name) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file?.json?._resourceType)));
 function digest(value) {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -103,6 +110,10 @@ export class ReviewedEventRegistry {
             return { fingerprint: this.fingerprint, byCommand: new Map(this.contracts.map((contract) => [contract.command, { reason: files ? "The reviewed handler is missing" : "A complete indexed plugin source snapshot is required" }])), unreviewedExports: [] };
         }
         const paths = new Set(candidates.map(([name]) => name));
+        for (const [name, file] of files ?? []) {
+            if (isEventInput(name, file))
+                paths.add(name);
+        }
         for (const contract of this.contracts) {
             paths.add(contract.handler.path);
             for (const binding of contract.dependencies)

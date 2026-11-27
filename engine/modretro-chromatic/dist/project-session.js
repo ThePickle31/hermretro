@@ -462,7 +462,7 @@ export class ProjectSession {
         return this.#bundleRoots.some((root) => isWithin(candidate, path.join(root, "examples")));
     }
     #bundledExamplesError(candidate) {
-        return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "The bundled examples are read-only. Create a project from the starter with project_create, then select the editable copy.", candidate);
+        return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "This folder encloses the engine's read-only bundled examples. Use a workspace or project outside them; to change a bundled example, create a project from the starter with project_create and edit that copy.", candidate);
     }
     async #discoverExactProject(candidate) {
         const requested = path.resolve(candidate);

@@ -1024,8 +1024,7 @@ export class ProjectWorldIndex {
             ...(this.#compilerObservation ? { reviewedCompiler: this.#compilerObservation } : {}),
             ...(previousGraph ? { previousGraph } : {}),
         });
-        if (previousGraph && this.#reviewedCustomEvents.contracts.length > 0
-            && previousGraph.customEventFingerprint !== this.#graph.customEventFingerprint) {
+        if (previousGraph && previousGraph.customEventFingerprint !== this.#graph.customEventFingerprint) {
             // Required definitions can be public resources as well as plugin files.
             // Their semantic binding changes even when the handler bytes do not.
             this.semanticGeneration += 1;

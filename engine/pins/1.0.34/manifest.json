@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 297,
  "symlink_count": 0,
- "total_bytes": 32305864,
+ "total_bytes": 32307097,
  "suffix_counts": {
   ".js": 111,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "e38f834f6fa60f5a07e5907c46f0784949fae041ffa26d3caebe6d07f736b399",
+ "aggregate_sha256": "eb5faeb059eb32b7dd778642198d2a7cf852d9e022419dc36a61f678d6370091",
  "entries": [
   {
    "path": "LICENSE",
@@ -192,9 +192,9 @@
   {
    "path": "dist/custom-event-dependencies.js",
    "type": "file",
-   "size": 15049,
+   "size": 15760,
    "mode": "0o644",
-   "sha256": "018042840d75229f7aa120dd409aa03980da7c88dd52d06f485873fc2d7715d4"
+   "sha256": "9cd72503398ccf5492083c557617c65aacd4a3d6bd284b4f61abec7b176093b1"
   },
   {
    "path": "dist/debug-symbols.js",
@@ -500,9 +500,9 @@
   {
    "path": "dist/project-session.js",
    "type": "file",
-   "size": 31550,
+   "size": 31634,
    "mode": "0o644",
-   "sha256": "98ea26b3232bf5ce89a1fd49d44fbd5d66e696aea9cf835a4e48ce7c0021e563"
+   "sha256": "12b9d486d364d6d182981419ef30ddf05d3cb119a996a4fe1380a3a2b759eef3"
   },
   {
    "path": "dist/project-snapshot.js",
@@ -521,9 +521,9 @@
   {
    "path": "dist/project-world-index.js",
    "type": "file",
-   "size": 68904,
+   "size": 68841,
    "mode": "0o644",
-   "sha256": "0fa3a3797f0848916bc1da63c99275cd03d46ad2ee9f889ec0d887ddd50ad9d9"
+   "sha256": "f5d394118199390200dfc9d31aabda9bebd9e72ceed9cfa07cfc4ad85ca64b74"
   },
   {
    "path": "dist/project.js",
@@ -591,9 +591,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2602602,
+   "size": 2603103,
    "mode": "0o644",
-   "sha256": "53ceba813619a2a775f378feb862d526eda40596904d4032f45fa24ec9cb890c"
+   "sha256": "15272468ddc3da524372dbc0c16a7d141fa6a3a34d265a5494ff4bf59dff01bf"
   },
   {
    "path": "dist/source-debug.js",

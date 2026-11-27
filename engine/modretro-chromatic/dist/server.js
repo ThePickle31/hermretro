@@ -24854,6 +24854,9 @@ var MAX_CONTRACTS = 714;
 var MAX_BINDINGS = 256;
 var MAX_EFFECTS = 4096;
 var compilerResourcePath = (name3) => /^(?:project|assets|plugins)\/.+\.gbsres$/.test(name3);
+var EVENT_INPUT_PREFIXES = ["plugins/", "assets/engine/"];
+var EVENT_INPUT_RESOURCE_TYPES = ["settings", "variables", "engineFieldValues"];
+var isEventInput = (name3, file2) => EVENT_INPUT_PREFIXES.some((prefix2) => name3.startsWith(prefix2)) || compilerResourcePath(name3) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file2?.json?._resourceType));
 function digest2(value) {
   return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -24918,6 +24921,10 @@ var ReviewedEventRegistry = class {
       return { fingerprint: this.fingerprint, byCommand: new Map(this.contracts.map((contract) => [contract.command, { reason: files ? "The reviewed handler is missing" : "A complete indexed plugin source snapshot is required" }])), unreviewedExports: [] };
     }
     const paths = new Set(candidates.map(([name3]) => name3));
+    for (const [name3, file2] of files ?? []) {
+      if (isEventInput(name3, file2))
+        paths.add(name3);
+    }
     for (const contract of this.contracts) {
       paths.add(contract.handler.path);
       for (const binding of contract.dependencies)
@@ -44300,7 +44307,7 @@ var ProjectWorldIndex = class {
       ...this.#compilerObservation ? { reviewedCompiler: this.#compilerObservation } : {},
       ...previousGraph ? { previousGraph } : {}
     });
-    if (previousGraph && this.#reviewedCustomEvents.contracts.length > 0 && previousGraph.customEventFingerprint !== this.#graph.customEventFingerprint) {
+    if (previousGraph && previousGraph.customEventFingerprint !== this.#graph.customEventFingerprint) {
       this.semanticGeneration += 1;
     }
     this.coverage = this.#graph.coverage;
@@ -45089,7 +45096,7 @@ var ProjectSession = class {
     return this.#bundleRoots.some((root) => isWithin(candidate, path33.join(root, "examples")));
   }
   #bundledExamplesError(candidate) {
-    return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "The bundled examples are read-only. Create a project from the starter with project_create, then select the editable copy.", candidate);
+    return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "This folder encloses the engine's read-only bundled examples. Use a workspace or project outside them; to change a bundled example, create a project from the starter with project_create and edit that copy.", candidate);
   }
   async #discoverExactProject(candidate) {
     const requested = path33.resolve(candidate);
