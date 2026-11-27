@@ -191,21 +191,11 @@ async function resolveRoots(options, environment, platform) {
     : platform === "win32" ? (environmentValue(environment, "LOCALAPPDATA", platform) ?? path.join(home, "AppData", "Local"))
     : (environmentValue(environment, "XDG_DATA_HOME", platform) ?? path.join(home, ".local", "share"));
   const setupRoot = await directory(selectedSetup ?? path.join(dataRoot, "modretro-chromatic"), "Setup root");
-  let receipt;
-  const receiptEvidence = [];
-  if (!explicitSetup) {
-    try {
-      receipt = await optionalObject(path.join(packageRoot, ".codex-plugin", "local-payload.json"), packageRoot);
-      if (receipt && (receipt.schemaVersion !== 1 || receipt.pluginName !== "modretro-chromatic")) throw new Error("Unsupported local-payload receipt.");
-      if (receipt) for (const key of ["runtimeRoot", "toolchainRoot", "nodeExecutable"]) absolute(receipt[key], `Receipt ${key}`);
-    } catch (error) { receipt = undefined; receiptEvidence.push(`Local payload inspection receipt was ignored: ${error.message}`); }
-  }
   const bound = (name) => explicitSetup ? undefined : environmentValue(environment, name, platform);
-  const selectedRuntime = options.runtimeRoot ?? supplied.runtimeRoot ?? bound("GB_STUDIO_RUNTIME_ROOT") ?? receipt?.runtimeRoot;
-  const selectedToolchain = options.toolchainRoot ?? supplied.toolchainRoot ?? bound("GB_STUDIO_TOOLCHAIN_ROOT") ?? receipt?.toolchainRoot;
-  const origin = (option, resolved, envName, fromReceipt, fallback) => option !== undefined ? "explicit option"
-    : resolved !== undefined ? "explicit resolved root" : bound(envName) !== undefined ? `environment ${envName}`
-      : fromReceipt !== undefined ? "local-payload inspection receipt (not activated or reverified)" : fallback;
+  const selectedRuntime = options.runtimeRoot ?? supplied.runtimeRoot ?? bound("GB_STUDIO_RUNTIME_ROOT");
+  const selectedToolchain = options.toolchainRoot ?? supplied.toolchainRoot ?? bound("GB_STUDIO_TOOLCHAIN_ROOT");
+  const origin = (option, resolved, envName, fallback) => option !== undefined ? "explicit option"
+    : resolved !== undefined ? "explicit resolved root" : bound(envName) !== undefined ? `environment ${envName}` : fallback;
   const bundled = (await optionalObject(path.join(packageRoot, "package.json"), packageRoot))?.bundledMcp === true;
   const roots = {
     packageRoot, setupRoot,
@@ -213,14 +203,14 @@ async function resolveRoots(options, environment, platform) {
     toolchainRoot: await toolchainOwner(selectedToolchain ?? path.join(setupRoot, "toolchain")),
     nodeRoot: await directory(options.nodeRoot ?? supplied.nodeRoot ?? path.join(setupRoot, "node"), "Managed Node root"),
   };
-  return { roots, receipt, receiptEvidence, explicitSetup,
-    nodeExecutable: options.nodeExecutable ?? supplied.nodeExecutable ?? bound("GB_STUDIO_NODE") ?? receipt?.nodeExecutable,
+  return { roots, explicitSetup,
+    nodeExecutable: options.nodeExecutable ?? supplied.nodeExecutable ?? bound("GB_STUDIO_NODE"),
     pythonPath: options.pythonPath ?? bound("GB_STUDIO_PYTHON"),
     provenance: {
-      runtime: origin(options.runtimeRoot, supplied.runtimeRoot, "GB_STUDIO_RUNTIME_ROOT", receipt?.runtimeRoot, "external setup runtime sibling"),
-      toolchain: origin(options.toolchainRoot, supplied.toolchainRoot, "GB_STUDIO_TOOLCHAIN_ROOT", receipt?.toolchainRoot, "external setup toolchain sibling"),
-      node: origin(options.nodeExecutable, supplied.nodeExecutable, "GB_STUDIO_NODE", receipt?.nodeExecutable, "managed receipt or current Node process"),
-      python: origin(options.pythonPath, undefined, "GB_STUDIO_PYTHON", undefined, "selected toolchain virtual environment"),
+      runtime: origin(options.runtimeRoot, supplied.runtimeRoot, "GB_STUDIO_RUNTIME_ROOT", "external setup runtime sibling"),
+      toolchain: origin(options.toolchainRoot, supplied.toolchainRoot, "GB_STUDIO_TOOLCHAIN_ROOT", "external setup toolchain sibling"),
+      node: origin(options.nodeExecutable, supplied.nodeExecutable, "GB_STUDIO_NODE", "managed receipt or current Node process"),
+      python: origin(options.pythonPath, undefined, "GB_STUDIO_PYTHON", "selected toolchain virtual environment"),
       setup: explicitSetup ? "explicit setup root" : "operating-system external data root",
     } };
 }
@@ -270,9 +260,8 @@ async function detectRuntime(result, context) {
   const { packageRoot, runtimeRoot } = context.roots;
   result.path = runtimeRoot;
   await detectFile(result, async () => {
-    const source = await optionalObject(path.join(packageRoot, "package.json"), packageRoot)
-      ?? await optionalObject(path.join(packageRoot, ".codex-plugin", "plugin.json"), packageRoot);
-    const required = source?.version?.split("+")[0] ?? context.receipt?.sourceVersion;
+    const source = await optionalObject(path.join(packageRoot, "package.json"), packageRoot);
+    const required = source?.version?.split("+")[0];
     if (!version(required)) throw new Error("Source runtime package version is not known.");
     result.requiredVersion = required;
     const installed = await object(path.join(runtimeRoot, "package.json"), runtimeRoot);
@@ -480,7 +469,7 @@ export async function detectDependencies(options = {}) {
   }]));
   const report = { schemaVersion: 1, mode: "detect", readinessBasis: "compatible-metadata", platform, arch,
     roots: resolved.roots, requestedTasks, components, tasks, ready: requestedTasks.every((name) => tasks[name].ready),
-    nextSteps: [...resolved.receiptEvidence, ...new Set(requestedTasks.flatMap((name) => tasks[name].requiredComponents.flatMap((id) => byId[id].nextSteps)))],
+    nextSteps: [...new Set(requestedTasks.flatMap((name) => tasks[name].requiredComponents.flatMap((id) => byId[id].nextSteps)))],
   };
   context.components = Object.fromEntries(components.map((item) => [item.id, { ...item }]));
   context.roots = { ...resolved.roots };

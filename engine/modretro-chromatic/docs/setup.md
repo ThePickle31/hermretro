@@ -2,8 +2,6 @@
 > [dependency setup skill](../skills/modretro-chromatic-setup/SKILL.md).
 > Codex owns installation and updates. Run setup with `build` and/or `emulator`
 > only; the launcher automatically uses the stable per-user toolchain directory.
-> Do not generate/register a replacement plugin. The legacy runtime/payload
-> sections below apply to development distributions, not store dependency repair.
 
 # ModRetro Chromatic: setup
 
@@ -32,10 +30,7 @@ entrypoints and carries the result through supported activation. It can start
 without a working MCP server. The commands below are reference instructions
 for Codex and maintainers; users do not need to copy them into a terminal.
 No manual Node/npm installation is required: the OS-shell setup entrypoint can
-prepare the pinned runtime. The portable MCP configuration itself invokes
-`node`, so on a host without Node it remains unavailable until Codex completes
-first-use setup and installs the generated machine-local plugin payload. This
-is not automatic bootstrap by the MCP launcher.
+prepare the pinned runtime.
 
 ## Obtain and add the compiled release
 
@@ -44,42 +39,6 @@ its version, source commit, and a checksum. Get the actual release asset or
 reviewed local bundle from the project maintainer. Do not invent a download URL
 or treat a Git clone/source archive as a compiled release: this repository does not commit
 `dist`. Publication of a downloadable release is a separate delivery step.
-
-The first-install bundle uses Codex's supported local marketplace layout:
-
-```text
-release-root/
-  .agents/plugins/marketplace.json
-  plugins/modretro-chromatic/
-    .codex-plugin/plugin.json
-    .mcp.json
-    dist/
-    scripts/
-    skills/modretro-chromatic-setup/SKILL.md
-```
-
-Its marketplace entry points to `./plugins/modretro-chromatic`. Keep the complete
-bundle together when extracting it. In a Codex host with local marketplace
-support, open **Plugins → Add a marketplace**, supply `release-root`, then
-install **ModRetro Chromatic** from that marketplace. This
-initial UI operation does not require a terminal command or global Python.
-Do not use a hosted plugin-upload action as a substitute for this native stdio
-plugin's local installation.
-
-In a fresh task, invoke the setup skill from the installed plugin. The host
-loads skills separately from MCP status, and dependency setup itself does not
-use MCP. An initially unavailable Node or MCP server is still a setup problem
-to report; source-level separation is not proof of cold-host skill discovery.
-If discovery is unavailable, an explicit request to read the supplied
-`plugins/modretro-chromatic/skills/modretro-chromatic-setup/SKILL.md` is a file-directed setup
-route. Distinguish that result from a discovered skill.
-
-This initial installation exposes the setup instructions; it is not the final
-machine-local binding. The registrar refuses to overwrite the real plugin
-directory in a downloaded bundle. After dependency preparation, use the
-explicit local-marketplace transition below, in the same desktop profile.
-Keep the original bundle untouched and identify each installation by its
-actual marketplace and plugin ID, not just its display name.
 
 ## Upgrade from codex-gb-studio
 
@@ -100,10 +59,6 @@ directory. To reuse one that setup already owns, explicitly select it with
 `--root` or `GB_STUDIO_SETUP_ROOT` and review the plan. Compatible dependencies
 can be reused; the old plugin runtime is not the new package and must be
 prepared for this release. Keep any old runtime needed by an active session.
-
-Registration adds a new `modretro-chromatic` entry and leaves the old entry,
-link, and unrelated plugins intact. Existing marketplace names stay unchanged;
-use the actual marketplace name returned by registration when installing.
 
 Some names deliberately remain compatible: `GB_STUDIO_*` configuration,
 `.gb-studio-setup.json` and its ownership schema, project locks/revision hashes,
@@ -154,10 +109,8 @@ distribution path. Repository access and Codex plugin installation are separate
 from dependency setup; a private repository does not become public through this
 installer. A source checkout must first be built by its maintainer.
 
-Use the scripts in that package, including when it is an immutable installed
-payload. Do not run `npm install` or `npm run setup` in the plugin cache: prepared
-payloads intentionally have empty npm scripts, and changing their bytes can
-invalidate verification.
+Use the scripts in that package. Do not run `npm install` or `npm run setup` in
+the plugin cache.
 
 On macOS/Linux, start with the packaged POSIX-shell entrypoint:
 
@@ -281,9 +234,9 @@ probe; `--dry-run` selects the passive plan even when supplied with `apply`.
 
 ## Roots and immutable packages
 
-Without `--root`, doctor inspects configured runtime/toolchain bindings or the
-package's local-payload receipt. That is inspection, not permission to repair
-those locations. With `--root`, doctor inspects that managed target instead.
+Without `--root`, doctor inspects configured runtime/toolchain bindings. That is
+inspection, not permission to repair those locations. With `--root`, doctor
+inspects that managed target instead.
 Plan/apply always target the owned setup root, not an existing bound toolchain.
 
 The passive shell doctor can also run from `<root>/runtime` with the enclosing
@@ -304,8 +257,8 @@ adoption. `GB_STUDIO_SETUP_ROOT` selects the default managed root. Otherwise:
 | Linux | `$XDG_DATA_HOME/modretro-chromatic`, or `~/.local/share/modretro-chromatic` |
 | Windows | `%LOCALAPPDATA%\modretro-chromatic` |
 
-The root contains separate `node`, `runtime`, `toolchain`, staging/cache,
-receipt, and payload locations. Yarn uses one archive cache inside this root;
+The root contains separate `node`, `runtime`, `toolchain`, staging/cache, and
+receipt locations. Yarn uses one archive cache inside this root;
 separate setup roots remain isolated. Each toolchain still needs its own
 `node_modules`. Setup does not migrate or delete older caches.
 
@@ -342,16 +295,20 @@ editor. Setup never launches the desktop application.
 
 ## Preparation is not activation or gameplay acceptance
 
-A completed apply with a ready runtime prepares a new immutable payload under
-`payloads/` and writes `prepared-mcp.json` for a future launch. The result names
-the exact payload and bindings. It does not install, replace, enable, or refresh
-the plugin in Codex. Continue authorized registration and installation needed
-for the requested game workflow; a request only to prepare dependencies is not
-activation authority. The generated configuration selects the chosen Node
-executable directly (managed Node on a fresh host), so later MCP startup does
-not depend on a user-installed Node being on `PATH`.
+A completed apply with a ready runtime does not install, replace, enable, or
+refresh the plugin in Codex. Continue authorized installation needed for the
+requested game workflow; a request only to prepare dependencies is not
+activation authority.
 
-### Keep distributions and local updates distinct
+Use existing authorization for the selected installation; ask only when scope
+is missing or the platform requires approval. Do not switch an active game's
+runtime underneath it. Verify the exact installed/enabled plugin identity, then
+check read-only `session_status` and the relevant `toolchain_doctor` tasks in a
+**fresh Codex task**. Starting a new task alone does not install or activate a
+plugin, and an on-disk receipt does not prove tools were loaded. Keep
+preparation, installation, and callable verification as separate results.
+
+### Keep distributions distinct
 
 The compact universal package includes all six Chromatic CLI builds in a
 compressed offline bundle. This does not change the supported setup platforms.
@@ -359,87 +316,9 @@ Build and emulator dependencies still use the explicit setup flow above.
 
 A **portable compiled distribution** carries the compiled plugin,
 skills, setup entrypoints, and distribution manifest. It does not bind the
-producer's absolute runtime or toolchain paths. The enclosing release bundle
-adds the local marketplace metadata. Prepare dependencies on the recipient
-host before expecting working MCP tools; installing the bundle does not
-promise that Node or the MCP server will start automatically there.
-
-A **local update payload** uses `+codex.payload.<hash>` and binds exact local
-Node/runtime/toolchain paths in its receipt. Keep those paths available. Do not
-copy that payload to another machine as a portable release, edit its launcher,
-or run the generic `update_plugin_cachebuster.py` on it. Prepare a new payload
-from the selected compiled source for changed bindings instead.
-
-The payload suffix identifies those local bindings, not a source commit or a
-new public release. Use the distributor's version, source commit and bundle
-checksum when comparing an installation with a reported issue.
-
-### Agent steps for registration and installation
-
-Use the host's supported plugin installation capabilities. The existing
-personal-marketplace registrar is one route when a trusted host Python and
-the Plugin Creator marketplace helper are available:
-
-For the first-install bundle above, select a separate machine-local marketplace
-at `<root>/marketplace`; pass that explicit `--marketplace-root`. For an
-existing managed installation, retain its known marketplace and owned link
-instead. The registrar can replace a verified owned link with authorized
-`--replace-link`, but never a real plugin directory. Do not silently fall back
-to another marketplace or rewrite the bundle's entry.
-
-Payload preparation gives npm a temporary private cache, logs and configuration
-under the selected payload output directory. Explicit npm configuration and
-network policy are preserved; the default user cache is not changed. A dry run
-removes its temporary inspection files and creates no payload or marketplace.
-
-1. Obtain a verified absolute Python 3.10+ executable from the host. A Codex
-   desktop host may expose its bundled dependency-runtime instructions; that
-   capability can be disabled or unavailable. Runtime-only setup does **not**
-   install Python or a Codex command. Do not guess their paths or add the
-   emulator merely to obtain Python.
-2. Run that Python with `-I -B` and `scripts/register-personal-plugin.py` from
-   the prepared `<root>/runtime` directory. Supply `--source <root>/runtime`,
-   `--runtime-root <root>/runtime`, `--toolchain-root <root>/toolchain`,
-   `--payload-root <root>/payloads`, the selected `--marketplace-root` when
-   using an explicit marketplace, and `--json`. Prefix only this child's
-   `PATH` with the directory of the returned Node executable. Do not change
-   global `PATH`. The working directory must be `<root>/runtime`, not `<root>`:
-   the registrar rejects executables located inside its working directory.
-   On Windows, use the intended desktop user's normal profile. Personal
-   registration requires `--confirm-user-profile`; an explicit marketplace
-   uses `--marketplace-root` instead, never both. See
-   [profile requirements](windows-setup.md#install-from-the-desktop-users-own-profile).
-3. Retain the returned `marketplaceName`, `marketplaceRoot`, `marketplacePath`, `pluginPath`,
-   payload identity/bindings, and `handoff` argument arrays. Registration reports
-   `installed:false`. Validate the marketplace name with the host Plugin
-   Creator skill's `scripts/read_marketplace_name.py`, using the same trusted
-   Python and `--marketplace-path` for the selected marketplace. Check it even
-   when the registrar reused an existing entry; do not invent the name.
-4. For the initial bundle flow, use Codex's supported **Uninstall** action on
-   the exact bootstrap installation, identified by its actual marketplace and
-   plugin ID. Verify it is no longer installed/enabled before installing the
-   machine-local entry. Preserve the bundle for rollback; do not delete or
-   overwrite it. Uninstall does not prove that an old task's backend process
-   has closed, so settle any active work separately.
-5. Use an actually available, supported host Codex executable for the returned
-   marketplace/install/list arguments. If no such command is available, add an
-   explicit marketplace through **Plugins → Add a marketplace**, supplying the
-   returned `marketplaceRoot`, then install the exact returned plugin and
-   marketplace entry. Use the personal-marketplace **View** UI only for the
-   default personal route. Do not install
-   an unrelated user CLI, copy `codex.exe` between profiles, or treat
-   `prepared-mcp.json` or the dependency root as a marketplace. If the host
-   cannot complete this route, report the missing capability and retain the
-   prepared result.
-
-Use existing authorization for the selected registration and installation;
-ask only when scope is missing or the platform requires approval. Do not switch
-an active game's runtime underneath it. Verify the exact installed/enabled
-plugin identity, then check read-only `session_status` and the relevant
-`toolchain_doctor` tasks in a **fresh Codex task**. Starting a new task alone
-does not install or activate a plugin, and an on-disk receipt does not prove
-tools were loaded. Keep preparation, registration, installation, and callable
-verification as separate results.
+producer's absolute runtime or toolchain paths. Prepare dependencies on the
+recipient host before expecting working MCP tools; installing the bundle does
+not promise that Node or the MCP server will start automatically there.
 
 Packaged targets are macOS and Linux x64/arm64, plus experimental Windows x64.
 Windows ARM64 is unsupported. A targeted `linux-*-gnu` distribution requires
@@ -454,8 +333,7 @@ dependency root on a prepared host, and a clean-machine native installation are
 different evidence. A doctor probe is not an official build, and a build is not
 direct gameplay acceptance. Report the actual platform and checks performed.
 
-Existing checkout-oriented `setup:compiler`, `setup:emulator`, and Windows
-front-door scripts remain advanced compatibility paths, not the primary
-installed-payload workflow. Their `--dry-run` is detection/planning only;
-`--use-existing` on a legacy sub-installer does not make every surrounding
-preparation or registration step read-only.
+Existing checkout-oriented `setup:compiler` and `setup:emulator` scripts remain
+advanced compatibility paths, not the primary setup workflow. Their `--dry-run`
+is detection/planning only; `--use-existing` on a legacy sub-installer does not
+make every surrounding preparation step read-only.

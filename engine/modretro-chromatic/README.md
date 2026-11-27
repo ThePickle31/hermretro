@@ -183,26 +183,13 @@ needs a supported Codex host path, described below.
 
 For a first installation, obtain the **compiled release bundle for your
 platform** from the project maintainer, together with its version and checksum.
-The bundle must include its local marketplace metadata. A Git clone or GitHub
-source archive lacks `dist` and is not that release. If no compiled download is
-published yet, request the reviewed local bundle rather than installing source.
+A Git clone or GitHub source archive lacks `dist` and is not that release. If
+no compiled download is published yet, request the reviewed local bundle rather
+than installing source.
 
-1. Extract the complete bundle, keeping its hidden `.agents` directory.
-2. In Codex, open **Plugins → Add a marketplace** and choose the extracted
-   release folder. Install **ModRetro Chromatic** from it.
-3. Start a fresh task and ask for a game or setup as below. The setup skill uses local
+1. Extract the complete bundle.
+2. Start a fresh task and ask for a game or setup as below. The setup skill uses local
    files and shell tools; it does not need a running ModRetro Chromatic MCP server.
-
-After setup, Codex replaces this bootstrap installation with the prepared
-machine-local entry through the supported installation flow. The downloaded
-bundle stays untouched. Existing active games must close normally before
-their runtime is changed.
-
-This requires a Codex host with local marketplace support. If the setup skill
-is not discovered, ask Codex to read the bundle's
-`plugins/modretro-chromatic/skills/modretro-chromatic-setup/SKILL.md` explicitly; report that
-as a file-based setup, not successful skill discovery. See the
-[first-install details](docs/setup.md#obtain-and-add-the-compiled-release).
 
 Ask Codex for the result you want, for example:
 
@@ -221,9 +208,7 @@ Necessary setup is part of the requested game workflow unless you limit
 downloads or changes. Codex asks only for missing scope or required platform approval. Downloads,
 caches, and prepared tools stay in the chosen owned root, outside the immutable
 package. Nothing is silently installed just by loading the plugin.
-You do not need to install Node/npm manually. On a Mac without Node, the portable
-MCP initially cannot start; Codex uses the shell setup entrypoint and installs
-the generated machine-local plugin payload, bound to its managed Node and toolchain.
+You do not need to install Node/npm manually.
 
 [Packaged setup and doctor](docs/setup.md) contains the commands Codex runs,
 component readiness, cancellation, and recovery details. [Windows setup](docs/windows-setup.md)
@@ -268,23 +253,15 @@ not prove an old session has closed. Follow the
 [migration guide](docs/setup.md#upgrade-from-codex-gb-studio) to reuse dependencies
 without moving or deleting existing state.
 
-A completed setup with a ready runtime prepares a plugin copy for Codex, called
-an immutable payload, and `prepared-mcp.json`; it **does not install or refresh
-the plugin in Codex**. When you requested installation too, Codex continues
-through the [supported host installation path](docs/setup.md#preparation-is-not-activation-or-gameplay-acceptance).
-Registration can use a trusted host-provided Python; installation uses an
-existing Codex command or the supported marketplace UI. You do not need to
-install a global Python or unrelated CLI for that route. If a required host
-capability is missing, Codex reports it rather than claiming the plugin is active.
-
-The prepared payload binds this machine's absolute paths. Keep its dependencies
-available; use a portable compiled distribution for another machine, then run
-setup there. Never patch an installed cache or refresh a payload's version by
-hand. Account for active games and previews before changing their runtime.
+A completed setup with a ready runtime **does not install or refresh the plugin
+in Codex**. When you requested installation too, Codex continues through the
+[supported host installation path](docs/setup.md#preparation-is-not-activation-or-gameplay-acceptance).
+If a required host capability is missing, Codex reports it rather than claiming
+the plugin is active.
 
 After installation, start a fresh Codex task and verify the installed identity
-and callable tools there. Then try the first request above. Preparation,
-registration, and a new task alone do not establish successful activation.
+and callable tools there. Then try the first request above. Preparation and a
+new task alone do not establish successful activation.
 
 ## Use the plugin
 
@@ -376,11 +353,6 @@ covers optional retained evidence, archive review, and supporting GIF clips.
   diagnostic location or suggested action. The desktop editor's
   [Run Scene](skills/modretro-chromatic-authoring/references/extensions-and-build.md#local-desktop-workflow)
   offers a scene-local check; plugin builds retain your authored starting point.
-- **Changed backing runtime:** prepare a new runtime/payload and reinstall it
-  through Codex. Keep the old runtime available to its active games and previews;
-  do not patch a cached launcher or receipt. See
-  [installation and replacement](docs/windows-setup.md#install-from-the-desktop-users-own-profile)
-  for the advanced registrar's intentional replacement flow.
 
 ## Documentation
 
@@ -390,8 +362,8 @@ For setup and creative work:
   passive readiness, explicit probes, owned roots, and recovery.
 - [Reusable native tilemaps](docs/tilemaps.md): named tile atlases, explicit room
   capture or fill, bounded primitive edits, and revision-guarded native outputs.
-- [Windows setup](docs/windows-setup.md): PowerShell bootstrap, experimental
-  platform limits, and separate desktop-user activation.
+- [Windows setup](docs/windows-setup.md): PowerShell bootstrap and experimental
+  platform limits.
 - [Stepped playtesting](docs/stepped-playtesting.md): play directly, inspect
   real frames, diagnose a failure, rebuild, and repeat the relevant steps.
 - [Recordings and checkpoints](docs/recorded-playtesting.md): optional input
@@ -415,7 +387,7 @@ For agents and plugin maintainers:
   authorization, indexing, and integration boundaries.
 - [Runtime validation](docs/runtime-validation.md): maintainer verification of
   project builds and emulator behavior. Its npm checks require a development
-  checkout; do not run them inside an installed payload.
+  checkout; do not run them inside an installed plugin.
 
 ## Development
 
@@ -436,16 +408,9 @@ npm run test:native-project  # Verify a real official native game project build.
 
 ### Packaging
 
-To create an uploader ZIP on a POSIX maintainer host after building:
-
-```sh
-npm run package:upload -- --output-root /absolute/path/to/new-output
-```
-
-This creates a compact universal ZIP with all six pinned Chromatic CLI builds
-available offline. It keeps the starter, Signal Lost, and Hello Color examples;
-Wrecklight remains an optional repository template. Compression uses Node's
-built-in Brotli support, with no extra compression tool or CLI download.
+The compact universal package keeps all six pinned Chromatic CLI builds
+available offline. Compression uses Node's built-in Brotli support, with no
+extra compression tool or CLI download.
 Executables, complete supplier notices and device artwork use separate,
 authenticated streams. Reading a notice or showing the preview does not decode
 or launch a CLI executable. The images keep their original WebP bytes and URLs.
@@ -461,22 +426,6 @@ Use `darwin-arm64`, `darwin-x64`, `linux-arm64-gnu`, `linux-x64-gnu`,
 without a device or setup. Redirect stdout to a new file outside the plugin if
 you want to save it. A requested CLI invocation also places its unchanged notice
 beside the verified executable in the owned cache.
-
-Upload the resulting `modretro-chromatic-plugin-for-codex-<version>-universal-upload.zip`.
-It contains the plugin at ZIP root, including the hidden manifest, MCP configuration,
-the square Chromaguy icon and portable executable modes. Keep the separately staged
-`distribution.json` as the file inventory; it is not part of the upload. Existing
-ZIPs are never overwritten, so choose a new output directory for another package.
-
-To stage the compact directory without a ZIP, use
-`npm run prepare:distribution -- --compact --output-root /absolute/path/to/new-output`.
-Compact packaging is universal. Add `--target darwin-arm64` to `package:upload`
-for the existing full platform-specific ZIP instead; an explicit target keeps
-the raw single-platform format and the Wrecklight template.
-These are maintainer commands, not first-run setup. Windows can consume a matching distribution but cannot stage
-portable archives because its file modes cannot preserve the pinned POSIX modes.
-`npm run prepare:plugin` remains the separate local update path and binds absolute
-runtime/toolchain locations.
 
 The source checkout also retains [historical review records](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/tree/main/docs/reviews).
 They describe their reviewed revisions and are excluded from distributed

@@ -61,7 +61,6 @@ Do not silently repoint or overwrite an independently configured toolchain.
 Reuse setup-owned components; never take over an unowned nonempty directory.
 
 After setup, continue the actual requested build in the same installed plugin.
-Do not follow legacy docs into local-payload generation or marketplace registration.
 When the request includes a build, verify that real project build; metadata readiness alone is not
 completion. For a setup-only request, the doctor probes are the verification (see below).
 

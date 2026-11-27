@@ -19,7 +19,6 @@ INSTALLED = (TOOLS / "npm" / "node_modules" / "esbuild" / "package.json").is_fil
 ENGINE_LOCK = ROOT / "engine" / "modretro-chromatic" / "scripts" / "runtime-package-lock.json"
 PNGJS_LICENCE = TOOLS / "npm" / "node_modules" / "pngjs" / "LICENSE"
 # ModRetro's own build of the engine bundle, which bundle.mjs must match byte for byte.
-MODRETRO_BUILD = ROOT / "engine" / "modretro-chromatic" / "scripts" / "bundle-mcp.mjs"
 
 
 def lock_naming(*packages: str) -> str:
@@ -95,29 +94,6 @@ class EngineBundleTests(unittest.TestCase):
         # Built in as dist/server.js, as an entry given by path is.
         self.assertIn("// dist/server.js", self.bundle.read_text())
         self.assertEqual(self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine), "--check").returncode, 0)
-
-    def test_the_bundle_is_byte_for_byte_what_modretros_build_makes(self):
-        self.assertEqual(self.build().returncode, 0)
-        # ModRetro's build (the engine's scripts/bundle-mcp.mjs) of the same modules, in a folder laid out as it wants:
-        # the entry as dist/server.js, the packages in node_modules and the device client it also bundles.
-        # Resolved: ModRetro's build matches scripts/ against the path it is given, and on macOS the temporary folder
-        # is reached through a link (/var is /private/var), so an unresolved path would not match what esbuild sees.
-        theirs = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
-        shutil.copytree(self.engine, theirs, dirs_exist_ok=True)
-        shutil.copy(self.entry, theirs / "dist" / "server.js")
-        (theirs / "scripts" / "device-client-deps.mjs").write_text("export const client = 1;\n")
-        shutil.copytree(TOOLS / "npm" / "node_modules" / "pngjs", theirs / "node_modules" / "pngjs")
-        script = (
-            f"const {{ bundleMcp }} = await import({json.dumps(MODRETRO_BUILD.as_uri())});"
-            f"process.stdout.write(bundleMcp({json.dumps(str(theirs))}).contents);"
-        )
-        # Its require("esbuild") finds the pinned esbuild, the version it names.
-        environment = {**os.environ, "NODE_PATH": str(TOOLS / "npm" / "node_modules")}
-        built = subprocess.run(
-            [NODE, "--input-type=module", "-e", script], capture_output=True, timeout=120, env=environment
-        )
-        self.assertEqual(built.returncode, 0, built.stderr.decode())
-        self.assertEqual(self.bundle.read_bytes(), built.stdout)
 
     def test_a_temporary_folder_reached_through_a_link_builds_the_same(self):
         # macOS reaches its temporary folder through a link; scripts/ must stay outside the bundle there too.

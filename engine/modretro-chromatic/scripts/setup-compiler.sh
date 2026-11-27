@@ -68,19 +68,6 @@ fi
 setup_script_directory="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 setup_plugin_root="$(cd -P -- "${setup_script_directory}/.." && pwd -P)"
 
-assert_mutable_toolchain() {
-  local setup_candidate="$1"
-  while [[ -n "$setup_candidate" ]]; do
-    if [[ -e "$setup_candidate/.codex-plugin/local-payload.json" || -L "$setup_candidate/.codex-plugin/local-payload.json" ]] ||
-      [[ -f "$setup_candidate/.codex-plugin/plugin.json" && "$(<"$setup_candidate/.codex-plugin/plugin.json")" == *+codex.payload.* ]]; then
-      printf '%s\n' 'Legacy setup cannot write into an immutable plugin payload or cache. Use packaged setup.mjs (or setup.sh/setup.ps1) with an external dependency root.' >&2
-      exit 1
-    fi
-    [[ "$setup_candidate" != / ]] || break
-    setup_candidate="${setup_candidate%/*}"
-  done
-}
-
 setup_system="$(uname -s)"
 setup_architecture="$(uname -m)"
 
@@ -133,7 +120,6 @@ if [[ ! -d "$setup_toolchain_root" ]]; then
   exit 1
 fi
 setup_toolchain_root="$(cd -P -- "$setup_toolchain_root" && pwd -P)"
-if [[ "$setup_use_existing" == false ]]; then assert_mutable_toolchain "$setup_toolchain_root"; fi
 # Preserve relative toolchain-root arguments, then run probes and installers
 # from the trusted plugin instead of a selected, potentially hostile project.
 cd -P -- "$setup_script_directory"
@@ -154,7 +140,6 @@ elif [[ -e "$setup_local" && ! -d "$setup_local" ]]; then
   printf 'The game toolchain .local path is not a directory: %s\n' "$setup_local" >&2
   exit 1
 fi
-if [[ "$setup_use_existing" == false ]]; then assert_mutable_toolchain "$setup_local"; fi
 
 setup_downloads="$setup_local/downloads"
 setup_apps="$setup_local/apps"

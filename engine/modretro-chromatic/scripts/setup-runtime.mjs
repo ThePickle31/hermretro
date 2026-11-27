@@ -25,11 +25,11 @@ import {
 
 const PACKAGE_NAME = "modretro-chromatic";
 const MAX_FILES = 4096;
-// Match the universal package limits in prepare-plugin-payload.mjs and start-mcp.mjs.
+// Match start-mcp.mjs's file limits.
 const MAX_BYTES = 136 * 1024 * 1024;
 const MAX_FILE_BYTES = 24 * 1024 * 1024;
 const AUTOMATIC_PACKAGE_FILES = new Set(["LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"]);
-const LOCAL_ONLY_FILES = new Set(["package.json", "package-lock.json", ".codex-plugin/local-payload.json", ".gitignore", ".npmignore"]);
+const LOCAL_ONLY_FILES = new Set(["package.json", "package-lock.json", ".gitignore", ".npmignore"]);
 const PRIVATE_DIRECTORIES = new Set([".git", ".agents", ".codex", ".local", "node_modules", "vendor", "artifacts", ".cache", "__pycache__", "coverage", "save-states", "src", "tests", "test"]);
 const WRECKLIGHT_MANIFEST = "examples/wrecklight/MANIFEST.json";
 const WRECKLIGHT_MANIFEST_PIN = Object.freeze({ bytes: 228142, sha256: "239d182ec218f5bc4145f58dc3c4ed3ec5ad3fc1425356c63c79269b659f9cdc" });
@@ -244,7 +244,7 @@ async function distributionFiles(packageRoot, packageManifest) {
   let visited = 0;
   let totalBytes = 0;
   const seen = new Set();
-  async function add(relative, receiptRecord) {
+  async function add(relative) {
     assertPublicMember(relative, enginePolicy.members);
     if (!runtimeMember(relative)) return;
     const identity = relative.toLowerCase();
@@ -253,60 +253,36 @@ async function distributionFiles(packageRoot, packageManifest) {
     const file = await regularBytes(packageRoot, relative);
     assertBundledSourceBytes(relative, file, relative === WRECKLIGHT_MANIFEST ? WRECKLIGHT_MANIFEST_PIN : enginePolicy.pins.get(relative));
     const sha256 = digest(file.bytes);
-    if (receiptRecord && (receiptRecord.sha256 !== sha256 || receiptRecord.size !== file.bytes.length || receiptRecord.mode !== file.mode)) {
-      throw new Error("Prepared payload member differs from its receipt: " + relative);
-    }
     totalBytes += file.bytes.length;
     if (seen.size > MAX_FILES || totalBytes > MAX_BYTES) throw new Error("Compiled runtime package exceeds its copy limits.");
     records.set(relative, { path: relative, ...file, sha256 });
   }
 
-  const receiptPresent = await metadata(path.join(packageRoot, ".codex-plugin", "local-payload.json"));
-  if (!receiptPresent && Array.isArray(packageManifest.files) && packageManifest.files.length > 0) {
-    if (!packageManifest.files.every((entry) => typeof entry === "string")) throw new Error("The package files allowlist must contain strings.");
-    const excluded = packageManifest.files.filter((entry) => entry.startsWith("!")).map((entry) => exclusion(entry.slice(1)));
-    const selected = packageManifest.files.filter((entry) => !entry.startsWith("!")).map((entry) => entry.replace(/\/$/u, ""));
-    async function visit(relative) {
-      if (excluded.some((pattern) => pattern.test(relative))) return;
-      relativeFile(relative);
-      if (!runtimeMember(relative)) return;
-      if (++visited > MAX_FILES * 2) throw new Error("Compiled runtime package contains too many entries.");
-      const filename = path.join(packageRoot, ...relative.split("/"));
-      const entry = await metadata(filename);
-      if (!entry) return;
-      await unlinked(filename);
-      if (entry.isDirectory()) {
-        assertPublicMember(relative, enginePolicy.paths);
-        for (const child of (await readdir(filename)).sort()) await visit(relative + "/" + child);
-      } else if (!records.has(relative)) await add(relative);
-    }
-    for (const relative of selected) await visit(relative);
-    for (const filename of AUTOMATIC_PACKAGE_FILES) {
-      if (await metadata(path.join(packageRoot, filename)) && !records.has(filename)) await add(filename);
-    }
-  } else {
-    // Prepared Codex payloads intentionally have files:[] and scripts:{}.
-    const receipt = await objectFile(packageRoot, ".codex-plugin/local-payload.json");
-    if (receipt.schemaVersion !== 1 || receipt.pluginName !== PACKAGE_NAME || !Array.isArray(receipt.files) || receipt.files.length > MAX_FILES) {
-      throw new Error("A package without a files allowlist requires its prepared local-payload receipt.");
-    }
-    const identities = new Set();
-    let packageVerified = false;
-    for (const entry of receipt.files) {
-      if (!isObject(entry)) throw new Error("Invalid local-payload file receipt.");
-      relativeFile(entry.path);
-      if (identities.has(entry.path.toLowerCase())) throw new Error("Duplicate local-payload file receipt.");
-      identities.add(entry.path.toLowerCase());
-      if (entry.path === "package.json") {
-        const actual = await regularBytes(packageRoot, "package.json", 1024 * 1024);
-        if (entry.sha256 !== digest(actual.bytes) || entry.size !== actual.bytes.length || entry.mode !== actual.mode) throw new Error("Prepared payload package manifest differs from its receipt.");
-        packageVerified = true;
-      }
-      if (runtimeMember(entry.path)) await add(entry.path, entry);
-    }
-    if (!packageVerified) throw new Error("Prepared local-payload receipt does not identify its package manifest.");
+  if (!Array.isArray(packageManifest.files) || packageManifest.files.length === 0) {
+    throw new Error("The package needs a files allowlist naming its runtime members.");
   }
-  for (const required of [".codex-plugin/plugin.json", ".mcp.json", "dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
+  if (!packageManifest.files.every((entry) => typeof entry === "string")) throw new Error("The package files allowlist must contain strings.");
+  const excluded = packageManifest.files.filter((entry) => entry.startsWith("!")).map((entry) => exclusion(entry.slice(1)));
+  const selected = packageManifest.files.filter((entry) => !entry.startsWith("!")).map((entry) => entry.replace(/\/$/u, ""));
+  async function visit(relative) {
+    if (excluded.some((pattern) => pattern.test(relative))) return;
+    relativeFile(relative);
+    if (!runtimeMember(relative)) return;
+    if (++visited > MAX_FILES * 2) throw new Error("Compiled runtime package contains too many entries.");
+    const filename = path.join(packageRoot, ...relative.split("/"));
+    const entry = await metadata(filename);
+    if (!entry) return;
+    await unlinked(filename);
+    if (entry.isDirectory()) {
+      assertPublicMember(relative, enginePolicy.paths);
+      for (const child of (await readdir(filename)).sort()) await visit(relative + "/" + child);
+    } else if (!records.has(relative)) await add(relative);
+  }
+  for (const relative of selected) await visit(relative);
+  for (const filename of AUTOMATIC_PACKAGE_FILES) {
+    if (await metadata(path.join(packageRoot, filename)) && !records.has(filename)) await add(filename);
+  }
+  for (const required of ["dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
     if (!records.has(required)) throw new Error("Compiled distribution is missing a required runtime member: " + required);
   }
   if (packageManifest.bundledChromatic !== undefined) {
@@ -374,7 +350,7 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
   }
   if (digest(JSON.stringify(provenance.files)) !== provenance.distributionSha256) throw new Error("Prepared runtime inventory no longer matches its recorded digest.");
   requireBundledManifest(provenance.files, enginePolicy);
-  for (const required of [".codex-plugin/plugin.json", ".mcp.json", "dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
+  for (const required of ["dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
     if (!expectedFiles.has(required)) throw new Error("Prepared runtime inventory lacks a required member: " + required);
   }
   let visited = 0;
@@ -450,27 +426,6 @@ function validateManifests(source, manifest, lock) {
   };
 }
 
-/** Restore a portable source eligible for a NEW payload; never retain old bindings. */
-function portablePluginFiles(files, version) {
-  const manifestFile = files.find((file) => file.path === ".codex-plugin/plugin.json");
-  const manifest = JSON.parse(manifestFile.bytes.toString("utf8"));
-  if (!isObject(manifest) || manifest.name !== PACKAGE_NAME || typeof manifest.version !== "string" ||
-    manifest.version.split("+")[0] !== version.split("+")[0]) {
-    throw new Error("The distributed plugin manifest does not match this package release.");
-  }
-  manifestFile.bytes = jsonBytes({ ...manifest, version: version.split("+")[0] });
-  manifestFile.sha256 = digest(manifestFile.bytes);
-  const configuration = files.find((file) => file.path === ".mcp.json");
-  const original = JSON.parse(configuration.bytes.toString("utf8"));
-  if (!isObject(original?.mcpServers?.["modretro-chromatic"])) throw new Error("The distributed plugin is missing its ModRetro Chromatic MCP launcher.");
-  configuration.bytes = jsonBytes({ mcpServers: { "modretro-chromatic": {
-    // Allow the 600-second compiler limit plus source validation and cleanup.
-    tool_timeout_sec: 900,
-    type: "stdio", cwd: ".", command: "node", args: ["./scripts/start-mcp.mjs"], env: { GB_STUDIO_LOG_LEVEL: "info" },
-  } } });
-  configuration.sha256 = digest(configuration.bytes);
-}
-
 function npmEnvironment(parent, shared) {
   const result = { ...shared };
   const networkNpm = new Set(["NPM_CONFIG_CA", "NPM_CONFIG_CAFILE", "NPM_CONFIG_PROXY", "NPM_CONFIG_HTTPS_PROXY", "NPM_CONFIG_NOPROXY"]);
@@ -534,9 +489,7 @@ export async function prepareRuntime({ packageRoot, runtimeRoot, setupRoot, node
     if (!isObject(reviewedManifest) || !isObject(reviewedLock)) throw new Error("Runtime dependency manifests must contain JSON objects.");
     const prepared = validateManifests(sourceManifest, reviewedManifest, reviewedLock);
     const sourceSha256 = inspected.sourceSha256;
-    portablePluginFiles(files, prepared.manifest.version);
-    // Literal inventory entries work for both built checkouts and files:[]
-    // cached payloads, without shipping source/dev files or stale cache markers.
+    // Literal inventory entries, without shipping source/dev files or stale cache markers.
     prepared.manifest.files = files.map((file) => file.path);
     prepared.manifest.scripts = {};
     if (sourceManifest.bundledChromatic === CHROMATIC_VERSION) {
