@@ -174,20 +174,27 @@ class LaneMixin:
                 "close the chats that are running games: the game tools restart with the current Node.js once "
                 "no game is running, then try again.",
             )
-        engine = EngineProcess(
-            selection["root"],
-            node=self.node,
-            client_name=client_name,
-            env=sanitized_environment(
-                {
-                    "PATH": os.pathsep.join([str(Path(self.node).parent), os.environ.get("PATH", "")]),
-                    "GB_STUDIO_SETUP_ROOT": str(paths.setup_root()),
-                    # A game installed without its source: its folder is the worker's whole authorization.
-                    **({"GB_STUDIO_WORKSPACE_ROOT": workspace} if workspace else {}),
-                }
-            ),
-        )
-        engine.start()
+        # A worker in a prepared copy holds its lease for as long as it runs, so the copy is never removed under it.
+        lease = setup.hold_copy(selection["root"]) if selection["prepared"] else None
+        try:
+            engine = EngineProcess(
+                selection["root"],
+                node=self.node,
+                client_name=client_name,
+                env=sanitized_environment(
+                    {
+                        "PATH": os.pathsep.join([str(Path(self.node).parent), os.environ.get("PATH", "")]),
+                        "GB_STUDIO_SETUP_ROOT": str(paths.setup_root()),
+                        # A game installed without its source: its folder is the worker's whole authorization.
+                        **({"GB_STUDIO_WORKSPACE_ROOT": workspace} if workspace else {}),
+                    }
+                ),
+                keep_fds=() if lease is None else (lease,),
+            )
+            engine.start()
+        finally:
+            if lease is not None:
+                os.close(lease)  # the worker holds its own
         return engine
 
     def view_lane(self, profile, ids) -> tuple[Lane | None, str | None]:

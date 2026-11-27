@@ -205,8 +205,11 @@ left alone by plugin updates and removal. The engine adds one folder of its own 
 `~/.codex-gb-studio/chromatic/` (device-operation journal). The device CLI is unpacked in the prepared engine copy
 (`.cache/engine-<version>-<digest>/`), whose `package.json` names no packed format, so the engine never unpacks
 it into `~/.modretro-chromatic-runtime/` as ModRetro's packed plugin does. A copy for a new engine is made from an
-earlier one's CLI and the earlier copies stay, since a worker may still run in one; a broker removes them as it starts,
-once its engine's copy verifies (`prune_prepared_copies`), when the broker before it and its workers have gone. Per-profile state (saved frames, asset versions) is in that profile's
+earlier one's CLI. Every worker running in a copy holds its lease (`engine-<name>.lease` beside it, `copy_lease.py`)
+for as long as it runs, the engine process inheriting it, so nothing removes or replaces a copy a worker uses:
+`prune_prepared_copies` (after a refresh, and as a broker starts) removes the other engines' copies whose leases are
+free once this engine's copy verifies, a repair waits until the copy is unused, and emptying the download folder is
+refused while a game still runs from it. Per-profile state (saved frames, asset versions) is in that profile's
 `plugin-data/hermretro/`. Nothing is written into the plugin folder.
 
 ## What runs where

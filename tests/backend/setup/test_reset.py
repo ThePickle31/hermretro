@@ -351,7 +351,7 @@ class Reset(unittest.TestCase):
             "removed_bytes": 10,
             "left_bytes": 5,
         }
-        with mock.patch.object(reset.provision, "remove_downloads", lambda: partial):
+        with mock.patch.object(reset.downloads, "remove_downloads", lambda: partial):
             self.assertTrue(reset.clear("toolchain", self.data, [])["partly"])
 
     def test_games_leave_the_demo_captures_to_logs(self):

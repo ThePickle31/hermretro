@@ -131,9 +131,10 @@ def main() -> int:
         return 3  # before any worker, socket or token is touched
 
     broker = Broker(state_dir, args.node)
-    # The broker before this one has gone with its workers, and this one's run in its own engine's copy or the bundled
-    # engine: no worker runs in an earlier engine's copy, so those can go. Beside the start, which it would slow.
-    threading.Thread(target=setup.prune_prepared_copies, name="prune-copies", daemon=True).start()
+    # Earlier engines' copies no worker runs in (their leases are free) can go, beside the start, which it would slow.
+    # Not by a broker started across an engine change (no fingerprint): it is replaced at once.
+    if broker.code_fingerprint is not None:
+        threading.Thread(target=setup.prune_prepared_copies, name="prune-copies", daemon=True).start()
     socket_path = state_dir / "broker.sock"
     socket_path.unlink(missing_ok=True)  # safe: we hold the election lock
     old_umask = os.umask(0o177)

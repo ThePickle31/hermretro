@@ -19,7 +19,16 @@ from ..hermes import host
 from ..hermes.declare import rpc
 from ..system import flags, host as host_os, paths
 from ..system.events import emit
-from . import claude_login, progress as onboarding, provision, recovery, releases, studio_profile, studio_providers
+from . import (
+    claude_login,
+    downloads,
+    progress as onboarding,
+    provision,
+    recovery,
+    releases,
+    studio_profile,
+    studio_providers,
+)
 from . import reset_rpcs as _reset_rpcs_mod
 from .broker_stop import BROKER_STOP_WAIT, broker_lock, broker_stopped
 
@@ -471,7 +480,7 @@ def rpc_remove_tools(ctx):
             with broker_stopped() as refused:
                 if refused:
                     return refused
-                removed = provision.remove_downloads()
+                removed = downloads.remove_downloads()
             if removed.get("ok"):
                 emit("setup.tools_removed", root=removed.get("root"))
             return removed

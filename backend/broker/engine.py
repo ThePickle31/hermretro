@@ -73,8 +73,10 @@ class EngineProcess:
         node: str = "node",
         client_name: str = "chromatic-studio-dev",
         env: dict[str, str] | None = None,
+        keep_fds: tuple[int, ...] = (),
     ):
         self.engine_root = Path(engine_root).resolve(strict=True)
+        self._keep_fds = keep_fds  # inherited by the engine process: a prepared copy's lease (setup's copy_lease)
         launcher = self.engine_root / "scripts" / "start-mcp.mjs"
         if not launcher.is_file():
             raise EngineError(f"Engine launcher missing: {launcher}")
@@ -129,6 +131,7 @@ class EngineProcess:
             text=True,
             bufsize=1,
             start_new_session=True,
+            pass_fds=self._keep_fds,
         )
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._read_stderr, daemon=True).start()
