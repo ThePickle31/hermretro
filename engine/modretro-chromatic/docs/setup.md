@@ -41,29 +41,19 @@ to obtain or add.
 ## Preview an existing project
 
 In hermretro, each game is opened and edited in its own conversation, from the
-Build page, as
-[hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project)
-describes. Keep custom launchers such as
-`tools/preview.mjs` and project scripts intact; the engine does not need to
-rewrite them to preview your game.
+Build page. Selecting, building and showing it follow
+[hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project).
+Keep custom launchers such as `tools/preview.mjs` and project scripts intact;
+the engine does not need to rewrite them to preview your game.
 
-The agent uses these tools in order (hermretro names each `chromatic_<name>`):
+The engine tools involved (hermretro names each `chromatic_<name>`):
 
-1. `session_status {}` to check the current session. Finish any active operation
-   through its original session before switching projects.
-2. Only if `session_status` shows another project, select the intended one as
-   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project)
-   describes; a game's own conversation has it selected already.
-3. `project_inspect {}` to confirm the selected project and source.
-4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
-   Omit `probes` for this passive check. Prepare missing dependencies with
-   `toolchain_prepare {"components":["build"]}` or from the hermretro page, never
-   with the shell commands below; metadata readiness alone does not prove a
-   successful build.
-5. `rom_build {}` to build the ROM (`make:rom`). The playable web copy is a
-   separate `make:web` export; the agent shows the game with
-   `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
-   describes.
+| Tool | Role |
+| --- | --- |
+| `session_status`, `project_select`, `project_inspect` | The current selection, selecting a project, and its resources |
+| `toolchain_doctor {"tasks":["projectBuild"]}` | A passive check of the build dependencies; `toolchain_prepare {"components":["build"]}` or the hermretro page prepares missing ones, never the shell commands below |
+| `rom_build` | The ROM (`make:rom`) |
+| `web_build`, `web_preview` | The playable web copy (`make:web`), which hermretro shows with its own `chromatic_present_game` |
 
 The web copy uses the official GB Studio `make:web` compiler and the engine's
 player controls. It does not run your npm scripts or import behavior from a
@@ -82,7 +72,10 @@ The setup scripts are in the engine's `scripts/` folder inside the installed
 plugin. Do not run `npm install` or `npm run setup` in the plugin folder.
 
 Name the root hermretro actually uses: `toolchain_doctor` reports it as
-`roots.setupRoot`. On macOS/Linux, start with the POSIX-shell entrypoint:
+`roots.setupRoot`. The shell launcher finds Node in that root or on `PATH`, not
+in Hermes's own tool store; when the only Node is Hermes's, put the folder of
+the Node executable the doctor reports first on `PATH`. On macOS/Linux, start
+with the POSIX-shell entrypoint:
 
 ```sh
 root="<roots.setupRoot from toolchain_doctor>"

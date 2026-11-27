@@ -112,8 +112,6 @@ and Recording tabs. Live mode supports annotations, fullscreen, screenshots and
 recording; it does not pretend to pause, reset or control physical game input.
 macOS can record matching USB audio; Linux capture is video-only. Live audio
 playback is not implemented.
-The Emulator tab offers a user-sent annotation for opening a project preview
-or creating a blank project. It does not replace or close an existing session.
 
 These steps are for macOS. Linux capture needs the FFmpeg helper hermretro does
 not ship, so listing devices fails there; where the helper is present, Linux has
