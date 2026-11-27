@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33371368,
+ "total_bytes": 33371149,
  "suffix_counts": {
   ".js": 147,
   ".md": 64,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "aea3c52823c8a552771044f74a877ef7f5e089a945b5b3805cdad82bab0fbff5",
+ "aggregate_sha256": "54d594327fcb35f0cf0b10aa8d32a3b7cef62a23de8497d3472c07d1083f7d1b",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4406,
+   "size": 4418,
    "mode": "0o644",
-   "sha256": "b1bb34cb2aecb166f60fcd7915a495e5c566229162f0b06bf902d1d0dac71f91"
+   "sha256": "d068df16c6d10f03554b73cbece36f34fa4eb2f9f4436568f28b611bdbdadfe7"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44958,
+   "size": 44705,
    "mode": "0o644",
-   "sha256": "e4c4eb398d8573298e4f6edd2a4bfd993c79acb717bbb54307475582c1e72137"
+   "sha256": "7f82f54208da47be642bfc724c7c671f474a5fbdb39fa7204e6392a3166fba01"
   },
   {
    "path": "docs/architecture.md",
@@ -1151,9 +1151,9 @@
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 27926,
+   "size": 27989,
    "mode": "0o644",
-   "sha256": "68d06c45560e91b7670978dad68ae9e7bab80752bb2141f7de3eb234cbe98064"
+   "sha256": "98dda3f6fbe18987e2dcff68df517bd1d11b2d4f787d63010f0feceacf06350a"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1193,16 +1193,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12514,
+   "size": 12328,
    "mode": "0o644",
-   "sha256": "af1a3d4a6e2e357813c9d4cbc50e0018235bd384ddf59f3747b5b447045c6add"
+   "sha256": "e62ea6ae0b865eb041789fee87a111bdc7754f594d88e1b1d592e75549cb9545"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15456,
+   "size": 15554,
    "mode": "0o644",
-   "sha256": "00335c4c4d56ae2b40cae5f56238aaabd7f6751cd055fa976de76e8531ed0bf6"
+   "sha256": "8440275f012970bcf6ce6a2b01f849c3c77053871ed1808afaecbe8681b526db"
   },
   {
    "path": "docs/stepped-playtesting.md",
@@ -1221,9 +1221,9 @@
   {
    "path": "docs/windows-setup.md",
    "type": "file",
-   "size": 4607,
+   "size": 4654,
    "mode": "0o644",
-   "sha256": "8ab0356a2fdb8aac7341232d02eeee545e3d90209ab1ee5e620b0d3ec7a935ec"
+   "sha256": "917480cc1bf2ea49ff2949ed6ad103c0ab54fbef47e51a1cc4209e9c072adca3"
   },
   {
    "path": "docs/wrecklight-authoring.md",

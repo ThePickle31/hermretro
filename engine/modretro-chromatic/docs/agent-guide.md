@@ -1,10 +1,11 @@
 # Agent workflow and MCP guide
 
 Use [hermretro's engine](../README.md) to author, compile,
-and playtest the user's actual native game project. Its authoring, pixel-art, and
-ROM-debugging skills share the local MCP server and the operating contract in
-this guide. Use the [setup skill](../skills/modretro-chromatic-setup/SKILL.md) for first
-installation, updates, or missing dependencies, including before MCP can start.
+and playtest the user's actual native game project. The engine runs inside
+hermretro; running it on its own is not supported. hermretro's skills share the
+local MCP server and the operating contract in this guide. Use
+[hermretro's setup skill](../../../skills/setup/SKILL.md) for first installation, updates, or missing
+dependencies.
 
 ## Operating contract
 
@@ -48,12 +49,10 @@ do not impose that vendor libc gate on non-hardware authoring startup;
 Chromatic device operations still require a supported target. Choose the
 artifact accordingly and report only the platforms actually qualified.
 
-In hermretro, prepare dependencies with
-[hermretro's setup skill](../../../skills/setup/SKILL.md) or the hermretro page,
-into hermretro's own root; the shell entrypoints below are for the engine on its
-own. If MCP cannot start there, follow ModRetro's
-[setup skill](../skills/modretro-chromatic-setup/SKILL.md) and the
-[setup reference](setup.md). Do not loop on unavailable MCP calls.
+Prepare dependencies with [hermretro's setup skill](../../../skills/setup/SKILL.md) or the
+hermretro page, into hermretro's own root. The shell entrypoints below are a
+maintainer's way into the setup manager ([setup reference](setup.md)). Do not
+loop on unavailable MCP calls.
 The bundled `setup.sh`/`setup.ps1` can report or explicitly bootstrap Node from a
 trusted compiled package. The agent runs those entrypoints; do not shift runnable
 setup commands to the user or assume a global Node/Python installation. Never
@@ -85,9 +84,7 @@ door is read-only. The public Chromatic `setup` tool handles device operations,
 not dependency installation.
 
 After preparation, check readiness with the [supported checks](setup.md#preparation-is-not-activation-or-gameplay-acceptance):
-in hermretro, `chromatic_session_status` and `chromatic_toolchain_doctor`; for
-the engine on its own, `scripts/setup.sh doctor` (`scripts/setup.ps1` on Windows)
-with the same root and components. Then complete the requested real build or browser export. Do not
+`chromatic_session_status` and `chromatic_toolchain_doctor`. Then complete the requested real build or browser export. Do not
 stop at a passive readiness report or give the user manual Node/npm installation
 work. Do not infer local Git credentials from a connected GitHub app, or treat a
 lifecycle hook/approval UI as installation consent. On Windows use local paths, preferably short paths on `C:`; UNC/network
@@ -377,7 +374,7 @@ for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview
 
-In hermretro, show the game to the user as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes (`chromatic_present_game`); never open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
+Show the game to the user as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes (`chromatic_present_game`); never open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
 
 Browser availability is not a prerequisite for gameplay testing. If the browser
 is missing, locked or unreachable, retain its state and continue with public

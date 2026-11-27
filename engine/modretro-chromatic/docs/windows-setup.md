@@ -1,7 +1,7 @@
 # Windows setup
 
-hermretro does not run on Windows yet. This guide covers setting
-[the engine](../README.md) up on its own there.
+hermretro does not run on Windows yet. This guide is a maintainer's reference
+for [the engine](../README.md)'s setup manager on Windows, kept for when it does.
 
 Windows x64 support is experimental. The plugin has portable setup and test
 coverage, but a complete native Windows installation, official game build,

@@ -2,9 +2,10 @@
 
 In hermretro, setup runs from the hermretro page, or the agent's
 `chromatic_toolchain_prepare` and `chromatic_toolchain_doctor`, into hermretro's
-own folder (`~/.hermes/hermretro/.cache/` by default). This guide covers the
-setup manager underneath: its components, pins, readiness and recovery, and the
-commands for setting the engine up on its own.
+own folder (`~/.hermes/hermretro/.cache/` by default). The engine runs inside
+hermretro; running it on its own is not supported. This guide covers the setup
+manager underneath: its components, pins, readiness and recovery, and the
+commands a maintainer can use to inspect or repair a setup root by hand.
 
 The engine can author, build, and directly playtest games without the GB Studio
 desktop editor. It ships installers and a shared dependency catalog, not every
@@ -51,14 +52,13 @@ The agent uses these tools in order (hermretro names each `chromatic_<name>`):
    the existing project within the authorized workspace.
 3. `project_inspect {}` to confirm the selected project and source.
 4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
-   Omit `probes` for this passive check. In hermretro, prepare missing
-   dependencies with `toolchain_prepare {"components":["build"]}` or from the
-   hermretro page, never with the standalone commands below; metadata readiness
-   alone does not prove a successful build.
-5. `rom_build {}` to build the ROM (`make:rom`), then `web_preview {}` to build
-   or reuse the official browser export (`make:web`) and open its URL. In
-   hermretro, the agent shows the game with `chromatic_present_game` instead, as
-   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
+   Omit `probes` for this passive check. Prepare missing dependencies with
+   `toolchain_prepare {"components":["build"]}` or from the hermretro page, never
+   with the shell commands below; metadata readiness alone does not prove a
+   successful build.
+5. `rom_build {}` to build the ROM (`make:rom`). The playable web copy is a
+   separate `make:web` export; the agent shows the game with
+   `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
    describes.
 
 The web copy uses the official GB Studio `make:web` compiler and the engine's
@@ -68,10 +68,11 @@ custom behavior still needs a separate review. For a physical Chromatic feed,
 use `device_capture {"action":"open_settings"}` instead of modifying a browser
 launcher.
 
-## Start before MCP is available
+## The setup manager by hand
 
-This section sets the engine up on its own, in a root you choose. hermretro uses
-its own root, prepared from the hermretro page or `toolchain_prepare`.
+These commands are a maintainer's way into the setup manager, for inspecting or
+repairing a setup root. They work on the root you name; hermretro reads only its
+own (`GB_STUDIO_SETUP_ROOT`, `~/.hermes/hermretro/.cache/toolchain` by default).
 Hermes installs and updates the plugin; that is separate from dependency setup.
 The setup scripts are in the engine's `scripts/` folder inside the installed
 plugin. Do not run `npm install` or `npm run setup` in the plugin folder.

@@ -7,7 +7,8 @@ unsafe or damaged entry stops the command; the plugin does not silently replace 
 
 Use [the engine](../README.md) to find your device, set up required drivers,
 stream a live demo, or flash a selected homebrew ROM. The official vendor
-backend is pinned to version 1.2.1; install it once before the first device task.
+backend is pinned to version 1.2.1; install it once with [hermretro's setup skill](../../../skills/setup/SKILL.md)
+before the first device task.
 
 Start with a request like:
 

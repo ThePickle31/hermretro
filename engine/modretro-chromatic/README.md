@@ -50,7 +50,7 @@ The commands run from the hermretro repository root.
 
 In hermretro, the agent's `chromatic_toolchain_doctor` reports the toolchain without changing anything, and the page or
 `chromatic_toolchain_prepare` repairs it. [docs/setup.md](docs/setup.md) explains the components, their pins, readiness
-and recovery, and the setup manager's own commands for setting the engine up on its own.
+and recovery, and the setup manager's own commands for inspecting or repairing a setup root by hand.
 
 ## Developer Mode activation
 

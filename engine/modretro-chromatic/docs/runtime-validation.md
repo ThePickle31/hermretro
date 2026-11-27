@@ -50,15 +50,14 @@ resolving symlinks, and the bundled starter additionally requires
 
 Maintainers check the engine from hermretro's repository root with
 `python tools/check.py full` (it includes a real-engine run that builds and
-plays games). In hermretro, the agent's `chromatic_toolchain_doctor` reports the
-dependencies without changing anything; for the engine on its own,
-`sh scripts/setup.sh doctor --root <setup root> --components build` does (name
-the components the apply step prepared). Then build the selected
-project: `chromatic_rom_build` in hermretro, `rom_build` for the engine on its own.
+plays games). The agent's `chromatic_toolchain_doctor` reports the dependencies
+without changing anything; then build the selected project with
+`chromatic_rom_build`.
 
-For experimental Windows x64, follow [Windows setup](windows-setup.md) to
-prepare the native runtime from PowerShell without Git Bash or WSL, then run
-doctor with the same root and components as the apply step:
+hermretro does not run on Windows yet. When it does, follow
+[Windows setup](windows-setup.md) to prepare the native runtime from PowerShell
+without Git Bash or WSL, then run doctor with the same root and components as
+the apply step:
 
 ```powershell
 powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --root $gbStudioSetupRoot --components build --json
