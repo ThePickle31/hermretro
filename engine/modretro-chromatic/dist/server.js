@@ -24855,8 +24855,9 @@ var MAX_BINDINGS = 256;
 var MAX_EFFECTS = 4096;
 var compilerResourcePath = (name3) => /^(?:project|assets|plugins)\/.+\.gbsres$/.test(name3);
 var EVENT_INPUT_PREFIXES = ["plugins/", "assets/engine/"];
+var EVENT_INPUT_PATHS = ["project.gbsproj", "assets/ui/cursor.png", "assets/ui/frame.png"];
 var EVENT_INPUT_RESOURCE_TYPES = ["settings", "variables", "engineFieldValues"];
-var isEventInput = (name3, file2) => EVENT_INPUT_PREFIXES.some((prefix2) => name3.startsWith(prefix2)) || compilerResourcePath(name3) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file2?.json?._resourceType));
+var isEventInput = (name3, file2) => EVENT_INPUT_PREFIXES.some((prefix2) => name3.startsWith(prefix2)) || EVENT_INPUT_PATHS.includes(name3) || compilerResourcePath(name3) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file2?.json?._resourceType));
 function digest2(value) {
   return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
 }

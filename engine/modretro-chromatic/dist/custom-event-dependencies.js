@@ -11,11 +11,14 @@ const MAX_BINDINGS = 256;
 const MAX_EFFECTS = 4096;
 const compilerResourcePath = (name) => /^(?:project|assets|plugins)\/.+\.gbsres$/.test(name);
 // A project's own event handlers can read its plugins, engine assets, settings,
-// variables and engine fields, so a change to any of them changes what its
+// variables and engine fields, its descriptor, and the UI frame and cursor that
+// text and menu events draw with. A change to any of them changes what its
 // events mean, whether or not a reviewed contract covers them.
 const EVENT_INPUT_PREFIXES = ["plugins/", "assets/engine/"];
+const EVENT_INPUT_PATHS = ["project.gbsproj", "assets/ui/cursor.png", "assets/ui/frame.png"];
 const EVENT_INPUT_RESOURCE_TYPES = ["settings", "variables", "engineFieldValues"];
 const isEventInput = (name, file) => EVENT_INPUT_PREFIXES.some((prefix) => name.startsWith(prefix))
+    || EVENT_INPUT_PATHS.includes(name)
     || (compilerResourcePath(name) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file?.json?._resourceType)));
 function digest(value) {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");
