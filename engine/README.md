@@ -63,14 +63,16 @@ browsers already hold them: renaming one would break what was made before.
 | `.codex-setup-*`, `.codex-web-cache/` and the owner `codex-gb-studio-setup` | The setup root's receipts and marker (`scripts/setup.*`, `scripts/dependency-doctor.mjs`), and the toolchain's key for signing web exports | Setup would no longer recognise its own toolchain, and no export signed before would verify |
 | `codex-gb-studio` and the `codex-gb-studio-*` owners and formats | The labels in the engine's stored digests and signatures, its save-state format, and the owners of its journals, locks and saves | No stored revision, receipt, signature or save state would match again |
 | `~/.codex-gb-studio/chromatic/` | The device operations journal's default folder (`src/chromatic-journal.js`) | An unfinished device operation would be forgotten |
-| `codex-states/`, `codex-captures/` | The preview's URLs for save states and recordings, kept in each recording's record; hermretro's player serves the same | Saved recordings would link to nothing |
+| `codex-captures/` | The preview's URL for recordings, kept in each recording's record; hermretro's player serves the same | Saved recordings would link to nothing |
 | `codex-gb-studio:device-color:v1`, `codex-preview-fresh:…`, `codex-preview-flash:…` | The browser's storage | The chosen finish and the preview's state would reset |
 | `codex` | The DevDay Edition finish (`player/skins/codex/`), kept as the chosen finish | The finish a player picked would be lost |
-| `modretro-chromatic` | The engine's own default setup folder when hermretro does not set one (`scripts/setup.mjs`, `scripts/start-mcp.mjs`, `scripts/dependency-doctor.mjs`, `scripts/setup.ps1`), and the owner of the Chromatic CLI's verified cache (`scripts/chromatic-runtime.mjs`) | A setup made there would no longer be found |
+| `modretro-chromatic` | The engine's own default setup folder when hermretro does not set one (`scripts/setup.*`, `scripts/start-mcp.mjs`, `scripts/dependency-doctor.mjs`), and the owner in the Chromatic CLI's verified cache marker | A setup made there would no longer be found, and the cache would be refused |
+| `~/.modretro-chromatic-runtime/` | The Chromatic CLI's verified cache (`scripts/chromatic-runtime.mjs`) | The CLI would be unpacked and verified again |
+| `plugins/modretro-chromatic/` | The optional GB Studio plugin's folder, copied into a game (`native-game-plugin/`) | A game that has it would hold a second copy |
 
-Names nothing stores or shows stay too: the preview's other URL paths and `X-Codex-*` headers, page element names
-such as `codex-game-view`, and `codex-chromatic-uac` in the Windows elevation helper. hermretro's player and page
-share several of them.
+Names nothing stores or shows stay too: the preview's other URL paths (`codex-states/` and the rest) and its
+`X-Codex-*` headers, page element names such as `codex-game-view`, and `codex-chromatic-uac` in the Windows elevation
+helper. hermretro's player and page share several of them.
 
 ## Checking setup
 

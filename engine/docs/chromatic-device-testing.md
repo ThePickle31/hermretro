@@ -85,7 +85,7 @@ Vendor success still needs a separate manual boot/gameplay check.
 
 ## Public tools
 
-The existing `modretro-chromatic` MCP server exposes these short local names:
+The engine's MCP server (`hermretro-engine`) exposes these short local names:
 
 | Tool | Use |
 | --- | --- |

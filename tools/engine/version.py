@@ -45,25 +45,43 @@ def engine_changes(old: str, new: str) -> list[str]:
     return [name.as_posix() for name in names if name.relative_to(ENGINE).parts[0] not in paths.ENGINE_RECORD]
 
 
+class Unreadable(Exception):
+    """engine/package.json is there but holds no x.y.z version."""
+
+
 def version_at(revision: str) -> tuple[int, int, int] | None:
     """The engine's version at a revision, or None when it has no engine/package.json there."""
     done = git("show", f"{revision}:{PACKAGE.as_posix()}")
     if done.returncode:
         return None
-    version = json.loads(done.stdout).get("version")
+    try:
+        package = json.loads(done.stdout)
+    except ValueError:
+        package = None
+    version = package.get("version") if isinstance(package, dict) else None
     found = VERSION.fullmatch(version) if isinstance(version, str) else None
     if not found:
-        sys.exit(f"{PACKAGE} at {revision} has no x.y.z version: {version!r}\nFIX: give it one, such as 2.0.0")
+        raise Unreadable(f"{PACKAGE} at {revision} holds no x.y.z version")
     return tuple(int(part) for part in found.groups())
 
 
 def problem(old: str, new: str) -> str | None:
     """Why NEW needs a new engine version, or None when it does not."""
     changed = engine_changes(old, new)
-    before, after = version_at(old), version_at(new)
-    if not changed or before is None or after is None or after > before:
+    if not changed:
         return None
     named = ", ".join(changed[:5]) + (f" and {len(changed) - 5} more" if len(changed) > 5 else "")
+    try:
+        before, after = version_at(old), version_at(new)
+    except Unreadable as error:
+        return f'{error}.\nFIX: give it a "version" such as 2.0.1, above the base\'s'
+    if after is None:
+        return (
+            f"The engine changed ({named}) but {PACKAGE}, the only record of its version, is gone.\n"
+            f"FIX: keep {PACKAGE} where it is, with its version raised"
+        )
+    if before is None or after > before:  # a base without an engine has no version to raise
+        return None
     base, current = ".".join(map(str, before)), ".".join(map(str, after))
     moved = f"is still {current}" if after == before else f"went down from {base} to {current}"
     following = f"{before[0]}.{before[1]}.{before[2] + 1}"

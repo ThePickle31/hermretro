@@ -386,7 +386,7 @@ def verify_engine() -> dict:
         return {"present": False, "version": None, "verified": False, "detail": "Bundled engine is missing."}
     try:
         problems = _compare_tree(ENGINE_ROOT, _recorded(), optional=frozenset(VENDOR_ARCHIVES + CAPTURE_FFMPEG))
-        version = json.loads((ENGINE_ROOT / "package.json").read_text()).get("version")
+        version = _engine_version(ENGINE_ROOT / "package.json")
         return {
             "present": True,
             "version": version,
@@ -471,9 +471,8 @@ def _file_stamp(path: Path) -> tuple[int, int]:
 
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
-# the manifest (it holds the version), the engine's package.json (the engine's version) and the tool contract the
-# tools register (and the broker starts) with.
-LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/package.json", "engine/contract/tools.json")
+# the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
+LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/contract/tools.json")
 
 
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:

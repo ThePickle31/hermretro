@@ -119,6 +119,21 @@ class Bump(unittest.TestCase):
         said = self.assert_fails({"engine/package.json": package("1.9.9")})
         self.assertIn("went down from 2.0.0 to 1.9.9", said)
 
+    def test_a_missing_or_unreadable_package_fails(self):
+        cases = {
+            "deleted": ({}, None, "is gone"),
+            "moved": ({}, {"engine/package.json": "engine/scripts/package.json"}, "is gone"),
+            "not JSON": ({"engine/package.json": "{"}, None, "holds no x.y.z version"),
+            "an array": ({"engine/package.json": "[]\n"}, None, "holds no x.y.z version"),
+            "two numbers": ({"engine/package.json": package("2.1")}, None, "holds no x.y.z version"),
+        }
+        for name, (files, moves, said) in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                if name == "deleted":
+                    self.git("rm", "--quiet", "engine/package.json")
+                self.assertIn(said, self.assert_fails(files, moves))
+
     def test_a_change_with_a_new_version_passes(self):
         for version in ("2.0.1", "2.1.0", "3.0.0"):
             with self.subTest(version):

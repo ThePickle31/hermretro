@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32311470,
+ "total_bytes": 32311755,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "a7230068bdfa2fbb31d91d259e68ce650f914d591b625b8c01e6c324c5abc59e",
+ "aggregate_sha256": "11028741bd86336d3e4fb594c8614a176509688f874e09b2918bf9d4dbdc308d",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 7569,
+   "size": 7872,
    "mode": "0o644",
-   "sha256": "4b4cbb9aeec7c9f6285d300a74f46ebd6c447ba70060d314f630c99f54a50ca8"
+   "sha256": "a9e618e7f02409272915c6980d5f42344f42bab6c918b714575d42fdb684f1dd"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -138,7 +138,7 @@
    "type": "file",
    "size": 27934,
    "mode": "0o644",
-   "sha256": "56c92dae8abd30ae050106f25fa7bef01687a3ea8968d5f3affcebde96f18fb9"
+   "sha256": "a53d7826c1792bebd8cc469274e7ee483cf32af3b64f45d307e697e66de1ca8f"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1158,9 +1158,9 @@
   {
    "path": "scripts/start-mcp.mjs",
    "type": "file",
-   "size": 14116,
+   "size": 14098,
    "mode": "0o644",
-   "sha256": "2fa3cc248a0934a6b9921006dcba77b51194f5dd39c7443941be0d19379afb53"
+   "sha256": "efe7732e8e2394c005d85ce8a7c93b3d6a8e52dd925d2a95cffc9f407c59bf12"
   },
   {
    "path": "skills/chromatic-deployment/SKILL.md",

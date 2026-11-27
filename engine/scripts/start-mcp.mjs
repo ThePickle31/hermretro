@@ -280,7 +280,7 @@ function startMcpLauncher() {
       ? "the explicitly configured runtime"
       : "this installed plugin";
     console.error(
-      `ModRetro Chromatic MCP could not find a prepared runtime for ${selection}. ` +
+      `hermretro engine could not find a prepared runtime for ${selection}. ` +
         `${packagedSetupGuidance} ` +
         `Inspected: ${candidateRoot}`,
     );
@@ -343,7 +343,7 @@ function startMcpLauncher() {
 
   child.once("error", (error) => {
     removeHandlers();
-    console.error(`ModRetro Chromatic MCP could not start ${serverPath}: ${error.message}`);
+    console.error(`hermretro engine could not start ${serverPath}: ${error.message}`);
     process.exitCode = 1;
   });
 
@@ -366,7 +366,7 @@ if (
   try {
     startMcpLauncher();
   } catch (error) {
-    console.error(`ModRetro Chromatic MCP could not start safely: ${error.message}`);
+    console.error(`hermretro engine could not start safely: ${error.message}`);
     process.exitCode = 1;
   }
 }
