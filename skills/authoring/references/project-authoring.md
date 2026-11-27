@@ -49,8 +49,9 @@ Actor script arrays include `script`, `startScript`, `updateScript`, and hit-scr
 
 ## Semantic tool calls
 
-Engine tool names are `<domain>_<operation>` identifiers, without `gbstudio_`;
-Hermes exposes each one as `chromatic_<domain>_<operation>`. A default session has no authorized
+Engine tool names are mostly `<domain>_<operation>` identifiers, without `gbstudio_`
+(the only bare names are `device`, `setup`, `flash` and `play`); Hermes exposes each
+one as `chromatic_<name>`, such as `chromatic_project_select` or `chromatic_flash`. A default session has no authorized
 workspace or selected project. For an existing project, explicitly select its
 absolute path, then inspect it:
 

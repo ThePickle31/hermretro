@@ -1,11 +1,11 @@
 {
  "manifest_schema": 1,
  "package_name": "hermretro-engine",
- "package_version": "2.0.0",
+ "package_version": "2.0.1",
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32312200,
+ "total_bytes": 32312313,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "c9c84d250edb476f2f884ecd5bae6ca95e1fbac8df9ab1cb123dde05e8a4961e",
+ "aggregate_sha256": "b1cdee89949db1f2c839cab15959e9250b1a868f58ab5c4e030a2bd129af2a17",
  "entries": [
   {
    "path": "LICENSE",
@@ -129,9 +129,9 @@
   {
    "path": "docs/architecture.md",
    "type": "file",
-   "size": 23258,
+   "size": 23365,
    "mode": "0o644",
-   "sha256": "8d22752450b2987a852bdeabc119e90070291d70f0bd00cdd6287789f29a9c2b"
+   "sha256": "6e7edee5bff936837aeb673084a8291be2ab71328d8139db740e5499ad45e0a8"
   },
   {
    "path": "docs/chromatic-device-testing.md",
@@ -185,9 +185,9 @@
   {
    "path": "docs/stepped-playtesting.md",
    "type": "file",
-   "size": 9717,
+   "size": 9723,
    "mode": "0o644",
-   "sha256": "3ed0aac49e6986eac63cd095a1278d57a3af9be56157f89f2b1183eebcbc0ced"
+   "sha256": "094ad631bbcf779351249bc1cd3169b94fbcb9c6548efc659850492e48af04d4"
   },
   {
    "path": "docs/tilemaps.md",
@@ -1020,7 +1020,7 @@
    "type": "file",
    "size": 2865,
    "mode": "0o644",
-   "sha256": "fb5dfa83331f72978c91f0031b3c8f2d47b5780ccfa8525e39cfbe37734137c7"
+   "sha256": "2ed294b9731e98158d2cb7ac98bc004d546300e771744f3099e7d9173b406eb4"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",

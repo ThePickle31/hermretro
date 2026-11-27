@@ -90,7 +90,7 @@ itself. An update made elsewhere (a terminal, Capabilities > Plugins) is loaded 
 
 | Area | State |
 |---|---|
-| All 81 original tools, as `chromatic_*` | Registered with exact schemas; a real model turn has created, built and playtested a project |
+| Every engine tool, as `chromatic_*` | Registered from its pinned contract, a few adapted for Hermes; a real model turn has created, built and playtested a project |
 | Real emulator frames reaching the model | Proven with a vision model |
 | One private engine worker per conversation | Proven across separate chats, resumed chats, delegation and compaction |
 | Skills (`hermretro:setup`, `game-planning`, `authoring`, `pixel-art`, `rom-debugging`, `deployment`) | Adapted from the originals |

@@ -78,8 +78,9 @@ for the user entrypoints, root selection, and recovery contract.
 
 ## Trust and verification
 
-Every raw MCP tool uses an unprefixed `<domain>_<operation>` name; hermretro
-gives each one to its agent as `chromatic_<name>`. The server exposes focused tools, including
+Every raw MCP tool has an unprefixed name, mostly `<domain>_<operation>` (the
+only bare names are `device`, `setup`, `flash` and `play`); hermretro gives each
+one to its agent as `chromatic_<name>` (`flash` becomes `chromatic_flash`). The server exposes focused tools, including
 `toolchain_doctor`, `project_select`, `script_edit`, `engine_field_inspect`,
 `engine_field_update`, `web_build`, `web_preview`, `web_preview_close`,
 `emulator_step`, `emulator_observe`, `emulator_recording`, and

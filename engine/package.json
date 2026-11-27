@@ -1,6 +1,6 @@
 {
   "name": "hermretro-engine",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "hermretro's engine: author, build, and playtest native Game Boy and Game Boy Color games.",
   "homepage": "https://github.com/ThePickle31/hermretro",
   "repository": {

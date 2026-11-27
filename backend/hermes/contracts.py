@@ -1,9 +1,12 @@
-"""Turn the pinned original tool contracts into Hermes tool schemas.
+"""Turn the pinned engine tool contracts into Hermes tool schemas.
 
 The pinned file is the single source. Names gain a `chromatic_` prefix because
 the originals (`device`, `setup`, `play`, `flash`) are too generic for a shared
 registry. Local `$ref`s are inlined and `$schema` is dropped, because provider
-tool-schema validators differ in what they accept; nothing else is changed.
+tool-schema validators differ in what they accept. A few tools then get hermretro's
+own adjustments (`hermes_schema`): the project creators' destination is optional,
+`rom_build`'s output path is explained, `script_inspect` gets its one-of, and
+`scene_apply` accepts `operationsPath` instead of inline `operations`.
 """
 
 from __future__ import annotations
