@@ -148,7 +148,7 @@ def _run_one(root: Path, call: Call, save: Save, rom: Path, binding: dict, recor
     if record:
         reserve = _reservation(finish_run.read_manifest(source))
         _make_room(root, reserve, _protected(root, state))
-        name = f"{binding['id'].lower()}-{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1_000_000:06d}"
+        name = f"{binding['id'].lower()}-{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() // 1000 % 1_000_000:06d}"
         arguments["recording"] = {"outputPath": str(Path(root).resolve() / RUNS / name), "maxBytes": reserve}
         arguments["finishRecording"] = True
     response = call("emulator_replay", arguments)
