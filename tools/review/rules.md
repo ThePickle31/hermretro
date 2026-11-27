@@ -46,9 +46,11 @@ applies only where its paths cover the file. Don't report:
 - A test that touches state uses `isolated_home(self)` from `tests/support.py`: never the real Hermes home.
   Tests never run the hardware tools.
 - No real people, accounts, email addresses or home folders in fixtures.
-- Every failure `python tools/check.py`, a CI job or a tool that promises it reports ends with a `FIX:` line.
-- A plugin tool's error is JSON with `error`, `code` and `nextStep` (`tool_error` in `backend/hermes/tool_args.py`
-  makes the common ones), plus the structured details its callers rely on.
+- Every failure `python tools/check.py`, a CI check or a tool that promises it diagnoses ends with a `FIX:`
+  line (`All checks pass` only gathers their results).
+- A plugin tool's own error is JSON with `error` and `code`, and `nextStep` where the contract asks for it
+  (`tool_error` in `backend/hermes/tool_args.py` makes the common ones; `ADAPTER_ERROR` always has it), plus the
+  structured details its callers rely on.
 
 ## `__init__.py`, `plugin.yaml`, `backend/**`
 

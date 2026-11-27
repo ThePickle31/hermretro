@@ -25,7 +25,8 @@ Also look for:
 - the hardware tools (`flash`, `play`, `setup`, capture) reached without the user's `hardware_enabled`
   setting and Hermes's approval prompt;
 - downloaded or unpacked code trusted without its pinned SHA-256;
-- tokens, credentials or a person's files reaching logs, errors, the page or another profile.
+- tokens, credentials or a person's files reaching logs, errors, another profile, or the page beyond the URLs
+  above.
 {{earlier}}
 Write the findings, most important first, each a heading with the evidence beneath it:
 
