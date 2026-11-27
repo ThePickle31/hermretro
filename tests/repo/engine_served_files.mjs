@@ -30,10 +30,9 @@ const served = declared.init.elements.map((element, index) => {
   return element.value;
 });
 
-// The listed file a relative request made from a URL reaches under base, or null. The browser never sends a
-// fragment; the preview's router also drops the query, the capture page's refuses one.
+// The listed file a request made from a URL reaches under base, or null. The browser never sends a fragment; the
+// preview's router also drops the query, the capture page's refuses one.
 function reaches(request, from, base) {
-  if (!/^\.\.?\//.test(request)) return null;
   const url = new URL(request, from).href.replace(/#.*$/, "");
   if (!url.startsWith(base)) return null;
   const file = ignoresQuery === "yes" ? url.slice(base.length).replace(/\?.*$/, "") : url.slice(base.length);
@@ -54,7 +53,8 @@ for (const entry of served) {
     const request = literal(node.source);
     if (request === null) continue; // a computed request: its target is checked by name in the test
     for (const base of JSON.parse(basesJson))
-      if (reaches(request, base + entry, base) === null)
+      // An import names a module by a path relative to its own (./ or ../); anything else is no file of the page's.
+      if (!/^\.\.?\//.test(request) || reaches(request, base + entry, base) === null)
         problems.push(`${entry} imports ${JSON.stringify(request)}, which the page served from ${base} does not serve`);
   }
 }

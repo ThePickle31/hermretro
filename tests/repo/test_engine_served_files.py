@@ -5,8 +5,8 @@ from one folder URL; a listed module importing anything else fails in the browse
 `engine_served_files.mjs` reads the lists and the imports with the pinned JavaScript parser (tools/engine/npm), so a
 comment never counts, and resolves each request as the browser does (WHATWG URL), against the importing file's URL in
 each place its page is served from, under a capability segment no import can name: only a relative request that
-lands on a listed file passes. Each page's entry scripts, read with an HTML parser from the HTML the engine writes,
-are resolved the same way from the page's URL. A listed name must be one the routers serve."""
+lands on a listed file passes. Each page's entry scripts, read with an HTML parser from the HTML the engine sends (the
+capture page's built export, the preview's template), are resolved the same way from the page's URL. A listed name must be one the routers serve."""
 
 from __future__ import annotations
 
@@ -51,15 +51,25 @@ class ModuleScripts(HTMLParser):
             self.found.append(attributes["src"])
 
 
-def entry_scripts(module: str, substitutions: dict[str, str] | None = None) -> list[str]:
-    """The src of each module script in the HTML a page's module writes, as written there."""
-    text = (SRC / module).read_text(encoding="utf-8")
-    for name, value in (substitutions or {}).items():
-        text = text.replace("${" + name + "}", value)
+def entry_scripts(html: str) -> list[str]:
+    """The src of each module script in a page's HTML, as written there."""
     parser = ModuleScripts()
-    parser.feed(text)
-    assert parser.found, f"{module} writes no module <script>"
+    parser.feed(html)
+    assert parser.found, "the page has no module <script>"
     return parser.found
+
+
+def exported(module: str, name: str) -> str:
+    """A string a module exports, as the engine builds it (the capture page is its template with replacements)."""
+    code = "const m = await import(process.argv[1]); process.stdout.write(m[process.argv[2]]);"
+    done = subprocess.run(
+        [NODE, "--input-type=module", "-e", code, (SRC / module).as_uri(), name],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout
 
 
 def string_constant(module: str, name: str) -> str:
@@ -96,14 +106,17 @@ class ServedFiles(unittest.TestCase):
         return found["served"]
 
     def test_the_capture_page_serves_its_entry_and_every_module_its_files_import(self):
-        entries = [[page, page, source] for page in CAPTURE for source in entry_scripts("device-capture/page.js")]
+        page_html = exported("device-capture/native-page.js", "NATIVE_CAPTURE_PAGE")  # what the capture page sends
+        entries = [[page, page, source] for page in CAPTURE for source in entry_scripts(page_html)]
         served = self.served("native-device-capture.js", "ASSETS", SRC, CAPTURE, ignores_query=False, entries=entries)
         # The preview's Device view loads the capture client from the capture page's files by a computed URL.
         self.assertIn("device-capture/native-client.js", served)
 
     def test_the_preview_serves_its_entry_and_every_module_its_annotation_files_import(self):
+        # The preview writes its page from a template naming its mount (prepareAnnotations).
         mount = string_constant("web-preview.js", "ANNOTATION_MOUNT")
-        entries = [[ORIGIN, PREVIEW[0], src] for src in entry_scripts("web-preview.js", {"ANNOTATION_MOUNT": mount})]
+        html = (SRC / "web-preview.js").read_text(encoding="utf-8").replace("${ANNOTATION_MOUNT}", mount)
+        entries = [[ORIGIN, PREVIEW[0], src] for src in entry_scripts(html)]
         folder = SRC / "web-annotations"
         self.served("web-preview.js", "ANNOTATION_FILES", folder, PREVIEW, ignores_query=True, entries=entries)
 
