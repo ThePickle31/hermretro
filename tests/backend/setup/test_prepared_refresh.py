@@ -83,7 +83,7 @@ class ChoosingTheSource(Refresh):
     def record(self, *args, **dates):
         self.built.append((args, dates))
 
-    def test_the_newest_earlier_copy_gives_its_cli_and_older_ones_go(self):
+    def test_the_newest_earlier_copy_gives_its_cli_and_every_copy_stays(self):
         oldest = self.earlier_copy("1.0.33")
         source = self.earlier_copy("1.0.34")
         self.assertTrue(provision.refresh_prepared_engine("/usr/bin/node"))
@@ -91,9 +91,10 @@ class ChoosingTheSource(Refresh):
         self.assertEqual(args, (TARGET, PINS, EXE, NOTICE))
         self.assertEqual(dates["node_path"], "/usr/bin/node")
         self.assertEqual(dates["installed_at"], "2026-01-01T00:00:00Z")
-        self.assertTrue(source.exists(), "a running worker may still read the copy it started in")
-        self.assertFalse(oldest.exists())
-        self.assertFalse((paths.DEPS_ROOT / "device-cli-1.0.33.json").exists())
+        # A worker of the running broker may still read any of them: only a starting broker removes them.
+        self.assertTrue(source.exists())
+        self.assertTrue(oldest.exists())
+        self.assertTrue((paths.DEPS_ROOT / "device-cli-1.0.33.json").exists())
 
     def test_a_copy_made_meanwhile_is_not_made_again(self):
         self.earlier_copy("1.0.34")
@@ -149,6 +150,38 @@ class ChoosingTheSource(Refresh):
         with mock.patch.object(paths, "select_engine", return_value=unverified):
             self.assertFalse(provision.select_engine()["prepared"])
         self.assertEqual(self.built, [])
+
+
+class Pruning(Refresh):
+    """A starting broker removes the other engines' copies, once this engine's copy verifies."""
+
+    def test_the_other_engines_copies_go_once_this_ones_verifies(self):
+        older = [self.earlier_copy("1.0.33"), self.earlier_copy("1.0.34")]
+        paths.PREPARED_ENGINE.mkdir()
+        paths.DEVICE_CLI_RECEIPT.write_text("{}")
+        with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
+            self.assertEqual(provision.prune_prepared_copies(), 2)
+        self.assertEqual([copy.exists() for copy in older], [False, False])
+        self.assertEqual(
+            sorted(p.name for p in paths.DEPS_ROOT.glob("device-cli-*.json")), [paths.DEVICE_CLI_RECEIPT.name]
+        )
+        self.assertTrue(paths.PREPARED_ENGINE.is_dir())
+
+    def test_nothing_goes_while_this_engines_copy_does_not_verify(self):
+        older = self.earlier_copy("1.0.34")  # it still has to give its CLI
+        with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": False}):
+            self.assertEqual(provision.prune_prepared_copies(), 0)
+        self.assertTrue(older.exists())
+
+    def test_nothing_goes_while_another_setup_holds_the_lock(self):
+        older = self.earlier_copy("1.0.34")
+        busy = provision.ProvisionError("BUSY", "Another hermretro setup is running.")
+        with (
+            mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
+            mock.patch.object(provision, "_lock", side_effect=busy),
+        ):
+            self.assertEqual(provision.prune_prepared_copies(), 0)
+        self.assertTrue(older.exists())
 
 
 class TheRealBuild(Refresh):

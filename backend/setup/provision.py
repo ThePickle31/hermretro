@@ -471,9 +471,9 @@ def _reusable_cli(target: str, pins: dict) -> tuple[bytes, bytes, dict, Path, tu
 
 
 def refresh_prepared_engine(node_path: str | None = None) -> bool:
-    """Make the prepared copy for the bundled engine from an earlier copy's CLI files, then remove the copies older
-    than that earlier one. False when there is none to reuse, another setup holds the lock, or the new copy does not
-    verify (setup then offers the install)."""
+    """Make the prepared copy for the bundled engine from an earlier copy's CLI files. False when there is none to
+    reuse, another setup holds the lock, or the new copy does not verify (setup then offers the install). The earlier
+    copies stay: a worker may still run in one (prune_prepared_copies removes them when none can)."""
     if not any(paths.DEPS_ROOT.glob("device-cli-*.json")):  # never installed: nothing to reuse
         return False
     target = host_target(node_path)["target"]
@@ -502,13 +502,29 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
                 if paths.engine_identity() == paths.ENGINE_IDENTITY:  # not because the engine changed since
                     _NOT_REUSABLE.add(key)
                 return False
-            for receipt_path, copy in _earlier_copies():  # the one just read may still serve a running worker
-                if copy not in (paths.PREPARED_ENGINE, source):
-                    remove_tree(copy)
-                    receipt_path.unlink(missing_ok=True)
         return True
     except (ProvisionError, OSError, ValueError, KeyError, StopIteration):  # BUSY included: tried again later
         return False
+
+
+def prune_prepared_copies() -> int:
+    """Remove every other engine's prepared copy and its receipt, once this engine's copy verifies (its CLI is the one
+    they would give). Only the broker calls it, as it starts (backend/broker/server.py): the broker before it has
+    exited, its workers with it, and its own run in this engine's copy or the bundled engine, so none runs in one.
+    Anywhere else (the gateway's Setup status, a refresh) a worker of the running broker might. Returns how many copies it removed; none while another setup holds the lock."""
+    if not paths.verify_prepared_engine()["verified"]:
+        return 0  # an earlier copy may still have to give its CLI to this engine's
+    removed = 0
+    try:
+        with _lock():
+            for receipt_path, copy in _earlier_copies():
+                if copy != paths.PREPARED_ENGINE:
+                    remove_tree(copy)
+                    receipt_path.unlink(missing_ok=True)
+                    removed += 1
+    except ProvisionError:  # BUSY: the next broker to start removes them
+        pass
+    return removed
 
 
 def summary() -> dict:

@@ -22,8 +22,8 @@ install the committed tree. `python tools/check.py acceptance` (part of `full`) 
 the hermretro page installed (`<hermretro home>/.cache/toolchain`); without one the check is skipped and said as not
 proven here (PR CI runs it on Linux and macOS when the change touches what it covers). It installs nothing, but it is not
 read-only there: its brokers and games live in a temporary folder, yet an engine worker that finds no prepared engine for
-the bundled version makes one in that `.cache` from an earlier copy's device CLI and removes the older copies
-(`refresh_prepared_engine` in `backend/setup/provision.py`), and the run writes `notes/evidence/broker-acceptance.json`.
+the bundled version makes one in that `.cache` from an earlier copy's device CLI
+(`refresh_prepared_engine` in `backend/setup/provision.py`; the next broker to start removes the older copies), and the run writes `notes/evidence/broker-acceptance.json`.
 To make a toolchain, or use one somewhere else, name the same folder for both:
 `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py`, then
 `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full` (a relative `<folder>` is resolved from where each command

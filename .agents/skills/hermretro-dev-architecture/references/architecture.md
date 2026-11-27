@@ -204,7 +204,9 @@ All of hermretro's own per-user state is in `~/.hermes/hermretro/` (see the READ
 left alone by plugin updates and removal. The engine adds one folder of its own once a Chromatic is used:
 `~/.codex-gb-studio/chromatic/` (device-operation journal). The device CLI is unpacked in the prepared engine copy
 (`.cache/engine-<version>-<digest>/`), whose `package.json` names no packed format, so the engine never unpacks
-it into `~/.modretro-chromatic-runtime/` as ModRetro's packed plugin does. Per-profile state (saved frames, asset versions) is in that profile's
+it into `~/.modretro-chromatic-runtime/` as ModRetro's packed plugin does. A copy for a new engine is made from an
+earlier one's CLI and the earlier copies stay, since a worker may still run in one; a broker removes them as it starts,
+once its engine's copy verifies (`prune_prepared_copies`), when the broker before it and its workers have gone. Per-profile state (saved frames, asset versions) is in that profile's
 `plugin-data/hermretro/`. Nothing is written into the plugin folder.
 
 ## What runs where
