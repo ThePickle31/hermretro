@@ -102,7 +102,7 @@ native backend and an authenticated local page. Linux (x64/ARM64) capture needs
 the engine's verified FFmpeg helper, which hermretro does not ship (see the
 [capture notes](../native/capture/README.md)); without it, Linux capture reports
 that it is unavailable. Windows device capture is unavailable. Emulation and
-supported Install/flashing remain available everywhere. In hermretro, give the
+supported Install/flashing remain available on hermretro's platforms. In hermretro, give the
 capture URL to the user. The browser never
 requests camera or microphone access.
 

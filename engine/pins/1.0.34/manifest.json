@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33372036,
+ "total_bytes": 33372099,
  "suffix_counts": {
   ".js": 147,
   ".md": 64,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "75ed6310f3b3bd70abd1db17bca8e7e2cb96f09636db9447dc9befde212e4a93",
+ "aggregate_sha256": "2604980f86d00daab37bae10cab5cf339ab0e20ea3440b09f02b98f4fdea5adc",
  "entries": [
   {
    "path": "LICENSE",
@@ -1151,9 +1151,9 @@
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 28082,
+   "size": 28096,
    "mode": "0o644",
-   "sha256": "c5cf4707f9edbab46610d2028e5647d6359a670bf019df534f041bd65dc1ed95"
+   "sha256": "b1f42c1fa6900976698bd874e164ac0b9e49c4cdc7bb68718d0f4d0ab3441dcd"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1200,9 +1200,9 @@
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15852,
+   "size": 15901,
    "mode": "0o644",
-   "sha256": "348f8d0af976f4b1eb49ff670b0bd6274397087a032246c3247788e15bb376b2"
+   "sha256": "cd47a46883b590df390d9baba15f615e16c1ea0c91fd232a0dd915a4ffaa7627"
   },
   {
    "path": "docs/stepped-playtesting.md",

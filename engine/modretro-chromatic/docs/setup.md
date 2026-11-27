@@ -51,9 +51,9 @@ The agent uses these tools in order (hermretro names each `chromatic_<name>`):
 
 1. `session_status {}` to check the current session. Finish any active operation
    through its original session before switching projects.
-2. `project_select {"projectPath":"/absolute/path/to/game.gbsproj"}` selects a
-   project within the authorized workspace. In hermretro, a game's own
-   conversation has it selected already.
+2. Only if `session_status` shows another project, select the intended one as
+   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project)
+   describes; a game's own conversation has it selected already.
 3. `project_inspect {}` to confirm the selected project and source.
 4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
    Omit `probes` for this passive check. Prepare missing dependencies with
