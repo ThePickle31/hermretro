@@ -1,9 +1,10 @@
 # hermretro's changes to the engine
 
-`engine/modretro-chromatic/` is ModRetro's release with the changes below, made by the maintainer (the engine's MIT
-licence allows them). The tag `engine-upstream-<version>` holds the release untouched, without the same left-out
-files (`THIRD_PARTY_NOTICES.md`):
-`git diff engine-upstream-<version> HEAD -- engine/modretro-chromatic` shows every change. One line per change: the
+`engine/modretro-chromatic/` is hermretro's engine. It started from ModRetro's Chromatic engine 1.0.34 (MIT: its
+licence and notices stay) and is changed only by hermretro: a fix ModRetro makes in a later release is read in their
+release and made again here by hand, as any other change. The tag `engine-upstream-1.0.34` holds that release as it
+was published, without the files left out (`THIRD_PARTY_NOTICES.md`):
+`git diff engine-upstream-1.0.34 HEAD -- engine/modretro-chromatic` shows every change. One line per change: the
 files, what changed and why.
 
 The changes are made in the engine's `dist/` modules (the server's own is `dist/entry.js`), and
@@ -334,3 +335,5 @@ that module.
   (which re-exports it) to the new `dist/project-error.js`, so `dist/project-files.js`, which the backend's writer
   lock loads directly, loads without the project model behind it. `dist/server.js` is what `node tools/engine/bundle.mjs`
   builds from them (`python tools/check.py engine` checks it), holding the same modules as before.
+- `tools/engine/update.py` and `tools/engine/report.py` (removed): the engine is no longer updated by merging a
+  ModRetro release into it. A fix from a later release is ported by hand, like any change.

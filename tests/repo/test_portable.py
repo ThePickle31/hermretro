@@ -14,8 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_USERS = {"u", "you"}
-# Vendored or generated files are not ours to change here.
-SKIPPED = ("engine/", "desktop/plugin.js", "player/frame-shim.js", "player/web/", "tools/npm/")
+# Vendored or generated files are not ours to change here. The engine is ours, so it is checked, bundle included.
+SKIPPED = ("desktop/plugin.js", "player/frame-shim.js", "player/web/", "tools/npm/")
 HOME = re.compile(r"(?<![\w.#/-])/(?:home|Users)/([A-Za-z0-9._-]+)")
 RUNTIME = re.compile(r"/run/user/\d+")
 # Assembled so this file does not match itself.

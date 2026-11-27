@@ -2,7 +2,7 @@
 library, so every game installed from a link can also be flashed. Standard library only.
 
 The engine's ``flash`` writes a ROM that ``rom_inspect`` calls valid (the Nintendo logo and the header checksum) and
-that is 336 bytes to 8 MiB; the vendored engine names no list of cartridge types the Chromatic's cartridge accepts
+that is 336 bytes to 8 MiB; the engine names no list of cartridge types the Chromatic's cartridge accepts
 (the vendor's backend answers ``flash.unsupported`` for one it cannot write). So the types accepted here are the ones
 the toolchains hermretro builds with emit: GB Studio writes ``0x1E`` (MBC5+RUMBLE+RAM+BATTERY) or ``0x10``
 (MBC3+TIMER+RAM+BATTERY) with 128 KiB of RAM (``buildMakeScript.ts``: ``-Wm-yt``, ``-Wm-ya4``), and GBDK's defaults
