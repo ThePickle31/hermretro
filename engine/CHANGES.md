@@ -21,7 +21,7 @@ holds every change since ModRetro's 1.0.34.
 ## 2.0.2
 
 - `scripts/start-mcp.mjs`: the launcher gives the server it starts hermretro's lease on the prepared engine copy, the
-  descriptor named by `HERMRETRO_COPY_LEASE_FD`, under the same number (`mcpServerStdio`). hermretro removes or
+  descriptor named by `HERMRETRO_COPY_LEASE_FD`, as the server's descriptor 3 (`mcpServerStdio`). hermretro removes or
   replaces no copy a worker holds the lease of, and with this the server holds it too, even once its launcher has gone.
 
 ## 2.0.1

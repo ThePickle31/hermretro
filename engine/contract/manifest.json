@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32313078,
+ "total_bytes": 32312972,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "0d0c49b08804fd8ea22884ac38c5f6f070f9dac71b03d4dda56b9a1f258367a2",
+ "aggregate_sha256": "23c0ac19adbeffe99e0973536d6dd63d829d78b620ae185d2e0a1273d92066c7",
  "entries": [
   {
    "path": "LICENSE",
@@ -1158,9 +1158,9 @@
   {
    "path": "scripts/start-mcp.mjs",
    "type": "file",
-   "size": 14863,
+   "size": 14757,
    "mode": "0o644",
-   "sha256": "f00f656165d4a58c4a40acaa3190557b4cef42d5b6eb6b2c10e19b2fe58cd29c"
+   "sha256": "5ae3268e07c4fc43491b3a8ba8df24535dc3b5bcba91ff1339b03f863b3aba7a"
   },
   {
    "path": "skills/chromatic-deployment/SKILL.md",

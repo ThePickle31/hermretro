@@ -114,13 +114,14 @@ class Launcher(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             copy = Path(folder) / "engine-2.0.2-0123456789ab"
             copy.mkdir()
-            lease = copy_lease.hold(copy)
+            held = copy_lease.hold(copy)
+            lease = os.dup2(held, 1234)  # a broker with many descriptors open
+            os.close(held)
             self.addCleanup(os.close, lease)
             code = (
                 "const { spawn } = await import('node:child_process');"
                 "const { mcpServerStdio } = await import(process.argv[2]);"
-                "const n = Number(process.env.HERMRETRO_COPY_LEASE_FD);"
-                "const child = spawn(process.execPath, ['-e', `console.log(require('node:fs').fstatSync(${n}).ino)`],"
+                "const child = spawn(process.execPath, ['-e', 'console.log(require(\\'node:fs\\').fstatSync(3).ino)'],"
                 " { stdio: mcpServerStdio(process.env, process.platform) });"
                 "child.on('exit', (code) => process.exit(code));"
             )
@@ -135,8 +136,8 @@ class Launcher(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(int(done.stdout.strip()), os.fstat(lease).st_ino)
 
-    def test_the_lease_keeps_its_number_in_the_server(self):
-        self.assertEqual(self.stdio({copy_lease.DESCRIPTOR_VARIABLE: "5"}), ["inherit"] * 3 + ["ignore", "ignore", 5])
+    def test_the_lease_is_the_servers_descriptor_3(self):
+        self.assertEqual(self.stdio({copy_lease.DESCRIPTOR_VARIABLE: "1234"}), ["inherit"] * 3 + [1234])
 
     def test_without_a_lease_the_server_gets_its_streams_only(self):
         for environment in ({}, {copy_lease.DESCRIPTOR_VARIABLE: "1"}, {copy_lease.DESCRIPTOR_VARIABLE: "five"}):
