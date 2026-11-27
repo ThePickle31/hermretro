@@ -385,8 +385,10 @@ ROM. Follow [headless fallback](stepped-playtesting.md#when-browser-play-is-unav
 for setup and retained evidence; browser UI/annotation and physical capture
 still require their own checks.
 
-For new or iterated projects, use `web_preview` to show a successful playable
-build early. Keep the appropriate owned preview tab visible and open while
+This describes the engine's own preview; hermretro shows a game as
+[hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
+describes. For new or iterated projects, use `web_preview` to show a successful
+playable build early. Keep the appropriate owned preview tab visible and open while
 working so the user can follow. After meaningful successful builds, update that
 preview at a safe point. Do not interrupt human play, saves or recordings;
 resolve unknown outcomes before updating. Do not arbitrarily reload or autoplay.

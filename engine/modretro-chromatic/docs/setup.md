@@ -53,14 +53,15 @@ The engine tools involved (hermretro names each `chromatic_<name>`):
 | `session_status`, `project_select`, `project_inspect` | The current selection, selecting a project, and its resources |
 | `toolchain_doctor {"tasks":["projectBuild"]}` | A passive check of the build dependencies; `toolchain_prepare {"components":["build"]}` or the hermretro page prepares missing ones, never the shell commands below |
 | `rom_build` | The ROM (`make:rom`) |
-| `web_build`, `web_preview` | The playable web copy (`make:web`), which hermretro shows with its own `chromatic_present_game` |
+| `web_build` | Builds or reuses the web export (`make:web`) |
+| `web_preview` | Serves that export as the engine's own preview; hermretro shows the game with its own `chromatic_present_game` instead |
 
 The web copy uses the official GB Studio `make:web` compiler and the engine's
 player controls. It does not run your npm scripts or import behavior from a
 custom preview launcher. Keep the launcher and game source unchanged; any
 custom behavior still needs a separate review. For a physical Chromatic feed,
-use `device_capture {"action":"open_settings"}` instead of modifying a browser
-launcher.
+follow the [capture steps](chromatic-device-testing.md#capture-the-physical-device)
+instead of modifying a browser launcher.
 
 ## The setup manager by hand
 
