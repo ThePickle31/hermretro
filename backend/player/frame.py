@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -11,8 +10,6 @@ from pathlib import Path
 from .. import library
 from ..system import paths
 from . import skins
-
-logger = logging.getLogger(__name__)
 
 ANNOTATION_MOUNT = "codex-annotations"
 COLOR_KEY = "codex-gb-studio:device-color:v1"
