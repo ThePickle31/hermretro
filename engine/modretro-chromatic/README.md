@@ -13,7 +13,7 @@ holds that release as published.
 - **The launcher.** hermretro's broker starts one engine per conversation with `scripts/start-mcp.mjs`, which checks
   the platform `package.json` names and starts `dist/server.js`. It runs from this folder in the plugin, or, once
   the Chromatic CLI is installed for hardware (`chromatic_studio_device_cli`), from a prepared copy under
-  `~/.hermes/hermretro/.cache/engine-<version>-<digest>/` that also holds the CLI build for the computer.
+  `~/.hermes/hermretro/.cache/engine-<version>-<digest>/` (by default) that also holds the CLI build for the computer.
 - **Setup.** The hermretro page installs the toolchain through the engine's `toolchain_prepare` tool, with the `build`
   and `emulator` components: the pinned GB Studio CLI and GBDK, and an isolated Python with PyBoy, under hermretro's
   own folder. The Chromatic CLI is a separate install, for hardware only.

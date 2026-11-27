@@ -3,7 +3,7 @@
 > This is ModRetro's guide to setting the engine up on its own. In hermretro,
 > setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
 > and `chromatic_toolchain_doctor`, into hermretro's own folder
-> (`~/.hermes/hermretro/.cache/`), and a game is shown with `chromatic_present_game`.
+> (`~/.hermes/hermretro/.cache/` by default), and a game is shown with `chromatic_present_game`.
 
 Verify the [ModRetro Chromatic plugin](../README.md) against a real
 native game project. Each layer establishes a different fact: TypeScript
