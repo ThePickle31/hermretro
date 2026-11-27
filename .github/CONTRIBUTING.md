@@ -56,7 +56,8 @@ The agent guide (`AGENTS.md`) lists them; in short:
   `chore`, `test`, `ci`; the scope optional): it becomes the squash commit and the release-note line.
 - Fill in the template: what changed and why, and how you verified it (on which systems).
 - CI must be green (**All checks pass**). The maintainer reviews and merges; first-time contributors' workflow
-  runs wait for approval.
+  runs wait for approval. A review holds the change to `tools/review/rules.md` (`tools/review/README.md` says
+  how a review runs).
 - If your pull request conflicts in `desktop/plugin.js`, merge `origin/dev`, run `node tools/bundle/bundle.mjs` and commit
   the two built files.
 
