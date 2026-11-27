@@ -50,6 +50,20 @@ class RemoveDownloads(unittest.TestCase):
         self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
         self.assertTrue((self.cache / f"engine-{paths.ENGINE_VERSION}").is_dir())
 
+    def test_the_copies_go_before_their_lease_files(self):
+        # Moved while their leases are held: a worker starting meanwhile waits, then finds its copy gone.
+        copy = self.cache / f"engine-{paths.ENGINE_VERSION}"
+        copy_lease.create(copy)
+        moved, real = [], os.replace
+
+        def record(source, target):
+            moved.append(Path(source).name)
+            return real(source, target)
+
+        with mock.patch.object(downloads.os, "replace", record):
+            self.assertTrue(downloads.remove_downloads()["ok"])
+        self.assertLess(moved.index(copy.name), moved.index(copy_lease.path_for(copy).name))
+
     def test_it_empties_the_download_folder_and_keeps_games_and_library(self):
         answer = downloads.remove_downloads()
         self.assertTrue(answer["ok"])

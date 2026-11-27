@@ -533,13 +533,11 @@ def prune_prepared_copies() -> int:
     """Remove every other engine's prepared copy that no worker runs in (its lease is free) and that holds the same CLI
     build as this engine's, with its receipt and lease, once this engine's copy verifies: it gives that CLI now. Returns how many went; none while another
     setup holds the lock or the engine on disk is not the one this process loaded (its copy may be the older one)."""
-    if not paths.verify_prepared_engine()["verified"]:
-        return 0  # an earlier copy may still have to give its CLI to this engine's
     removed = 0
     try:
-        with lock():
-            if paths.engine_identity() != paths.ENGINE_IDENTITY:
-                return 0
+        with lock():  # checked under it: a repair interrupted mid-swap leaves this engine's copy unverified
+            if paths.engine_identity() != paths.ENGINE_IDENTITY or not paths.verify_prepared_engine()["verified"]:
+                return 0  # an earlier copy may still have to give its CLI to this engine's
             cli = _cli_build(paths.DEVICE_CLI_RECEIPT)
             for receipt, copy in _earlier_copies():
                 if copy == paths.PREPARED_ENGINE or _cli_build(receipt) != cli:

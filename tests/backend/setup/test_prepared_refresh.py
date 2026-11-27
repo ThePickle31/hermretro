@@ -18,6 +18,7 @@ from backend.system import engine_tree, paths  # noqa: E402 - the repository roo
 from tests.support import throwaway_deps  # noqa: E402 - the repository root goes on sys.path first
 
 EXE, NOTICE = b"cli build", b"cli notice"
+RESOLVED = {"version": "1.2.1", "executable": "chromatic-cli"}  # what the engine's runtime says of an installed CLI
 TARGET = "linux-x64-gnu"
 
 
@@ -95,7 +96,7 @@ class ChoosingTheSource(Refresh):
         self.assertEqual(args, (TARGET, PINS, EXE, NOTICE))
         self.assertEqual(dates["node_path"], "/usr/bin/node")
         self.assertEqual(dates["installed_at"], "2026-01-01T00:00:00Z")
-        # A worker of the running broker may still read any of them: only a starting broker removes them.
+        # The refresh only makes the copy: pruning, which select_engine runs after it, removes the others.
         self.assertTrue(source.exists())
         self.assertTrue(oldest.exists())
         self.assertTrue((paths.DEPS_ROOT / "device-cli-1.0.33.json").exists())
@@ -157,7 +158,7 @@ class ChoosingTheSource(Refresh):
 
 
 class Pruning(Refresh):
-    """A starting broker removes the other engines' copies, once this engine's copy verifies."""
+    """The other engines' copies go (after a refresh, and as a broker starts) once this engine's copy verifies."""
 
     def setUp(self):
         super().setUp()
@@ -430,6 +431,55 @@ class TheRealBuild(Refresh):
             provision._prepare(TARGET, PINS, EXE, NOTICE)  # a repair of the same engine's copy
         self.assertEqual(raised.exception.code, "IN_USE")
         self.assertEqual((paths.PREPARED_ENGINE / "dist/server.js").read_text(), "edited")
+
+    @staticmethod
+    def cli_member(_archive, _name, pin):
+        """The pinned CLI file a downloaded archive holds."""
+        return EXE if pin is PINS["executable"] else NOTICE
+
+    def install(self, answers: list) -> dict:
+        """install_device_cli with the download stubbed; answers are the engine's checks' (_node), in turn. Whether the
+        provision lock was held at each check goes in self.locked."""
+        self.locked: list[bool] = []
+
+        def node(*_args, **_kwargs):
+            try:
+                with provision.lock():
+                    self.locked.append(False)
+            except provision.ProvisionError:  # BUSY: held by the install
+                self.locked.append(True)
+            answer = answers.pop(0)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with (
+            mock.patch.object(provision, "_node", side_effect=node),
+            mock.patch.object(provision, "_download", return_value=b"") as download,
+            mock.patch.object(provision.tarfile, "open", mock.MagicMock()),
+            mock.patch.object(provision, "_member", side_effect=self.cli_member),
+        ):
+            answer = provision.install_device_cli(True)
+        self.downloads = download.call_count
+        return answer
+
+    def test_an_install_keeps_a_verified_copy_a_worker_runs_in(self):
+        self.earlier_copy("1.0.33")
+        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        lease = copy_lease.hold(paths.PREPARED_ENGINE)
+        self.addCleanup(os.close, lease)
+        self.assertTrue(self.install([RESOLVED])["installed"])
+        self.assertEqual(self.downloads, 0, "nothing downloaded, nothing replaced")
+        self.assertEqual(self.locked, [True])
+
+    def test_a_copy_its_runtime_refuses_is_made_again(self):
+        self.earlier_copy("1.0.33")
+        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        refused = provision.ProvisionError("ENGINE_REFUSED", "group-writable package.json")
+        # The kept copy's check, the new copy's admission, then its final check.
+        self.assertTrue(self.install([refused, {}, RESOLVED])["installed"])
+        self.assertEqual(self.downloads, 1)
+        self.assertEqual(self.locked, [True, True, True], "the lock is held to the final check")
 
     def test_bytecode_beside_the_bundled_engine_stays_out_of_the_copy(self):
         self.earlier_copy("1.0.33")

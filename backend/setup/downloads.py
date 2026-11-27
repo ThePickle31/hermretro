@@ -33,14 +33,17 @@ def remove_downloads() -> dict:
     if not root.is_dir():
         return {"ok": True, "removed_bytes": 0, "left_bytes": 0, "root": str(root)}
     with provision.lock(), ExitStack() as leases:  # no device-CLI install meanwhile, and no worker in a copy
-        for copy in root.glob("engine-*"):
+        copies = [copy for copy in root.glob("engine-*") if copy.is_dir() and not copy.is_symlink()]
+        for copy in copies:
             # The caller stopped the broker: a copy from before leases, without a lease file, has no worker of it.
-            in_use = not leases.enter_context(copy_lease.unused(copy, unleased_is_unused=True))
-            if copy.is_dir() and not copy.is_symlink() and in_use:
+            if not leases.enter_context(copy_lease.unused(copy, unleased_is_unused=True)):
                 raise provision.ProvisionError("IN_USE", provision.IN_USE)
-        # Inside .cache, so every move is a rename on the same filesystem; the folder empties at once.
+        # Inside .cache, so every move is a rename on the same filesystem; the folder empties at once. The copies go
+        # first, while their leases are held: a worker that starts meanwhile waits on its lease, then finds its copy
+        # gone, where one starting after the lease files went could lock a new lease file in a copy still there.
         trash = Path(tempfile.mkdtemp(prefix=_TRASH_PREFIX, dir=root))
-        for child in list(root.iterdir()):
+        others = [child for child in root.iterdir() if child not in copies]
+        for child in [*copies, *others]:
             if child.name == ".provision.lock" or child.name.startswith(_TRASH_PREFIX):
                 continue
             os.replace(child, trash / child.name)
