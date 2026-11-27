@@ -33,13 +33,12 @@ def live_contracts(root: Path) -> dict:
     try:
         initialize = engine.start()
         tools, pages = engine.list_tools()
-        version = json.loads((root / "package.json").read_text(encoding="utf-8"))["version"]
         return {
             "initialize": initialize,
             "tools": tools,
             "pages": pages,
             "ready_seconds": engine.ready_seconds,
-            "package_version": version,
+            "package_version": paths.engine_version(root / "package.json"),
         }
     finally:
         engine.close()
@@ -66,7 +65,8 @@ def compare(pinned_doc: dict, live: dict, pinned_path: Path) -> dict:
         "live_tools_canonical_sha256": canonical_hash(live_tools),
         "live_server_info": {key: value for key, value in server_info.items() if key != "version"},
         "pinned_server_info": pinned_doc.get("initialize", {}).get("serverInfo"),
-        "live_version_is_package_version": server_info.get("version") == live["package_version"],
+        "live_version_is_package_version": live["package_version"] is not None
+        and server_info.get("version") == live["package_version"],
         "engine_ready_seconds": round(ready, 3) if ready else None,
         "pages": live["pages"],
         "pinned_count": len(pinned_names),

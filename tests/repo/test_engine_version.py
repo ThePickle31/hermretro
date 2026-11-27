@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -16,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 
 SCRIPT = ROOT / "tools" / "engine" / "version.py"
+PINNED = ROOT / "engine" / "contract" / "tools.json"
 # A throwaway repository: no identity, signing or hooks of whoever runs the tests.
 ISOLATED = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"]
 
@@ -48,10 +50,52 @@ class Headings(unittest.TestCase):
         self.assertEqual(paths.ENGINE_VERSION, json.loads((paths.ENGINE_ROOT / "package.json").read_text())["version"])
         with tempfile.TemporaryDirectory() as folder:
             unreadable = Path(folder) / "package.json"
-            self.assertIsNone(paths._engine_version(unreadable))
+            self.assertIsNone(paths.engine_version(unreadable))
             for text in ("{", '{"version": "2.0"}', '{"version": 2}', "[]"):
                 unreadable.write_text(text)
-                self.assertIsNone(paths._engine_version(unreadable), text)
+                self.assertIsNone(paths.engine_version(unreadable), text)
+
+    def test_an_engine_without_a_version_does_not_verify(self):
+        # Even when its manifest matches: a null or two-number version is no version at all.
+        for version in (None, "2.0"):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as folder:
+                root, manifest = Path(folder) / "engine", Path(folder) / "manifest.json"
+                (root / "scripts").mkdir(parents=True)
+                (root / "scripts" / "start-mcp.mjs").write_text("// the launcher\n")
+                (root / "package.json").write_text(json.dumps({"name": "hermretro-engine", "version": version}))
+                entries = [
+                    {"path": rel, "sha256": paths._file_sha256(root / rel)}
+                    for rel in ("package.json", "scripts/start-mcp.mjs")
+                ]
+                manifest.write_text(json.dumps({"entries": entries}))
+                with (
+                    mock.patch.object(paths, "ENGINE_ROOT", root),
+                    mock.patch.object(paths, "ENGINE_MANIFEST", manifest),
+                ):
+                    paths.verify_engine.cache_clear()
+                    try:
+                        check = paths.verify_engine()
+                    finally:
+                        paths.verify_engine.cache_clear()
+                self.assertEqual((check["verified"], check["version"]), (False, None))
+                self.assertEqual(check["detail"], "package.json has no x.y.z version")
+
+    def test_the_contract_check_needs_the_live_version_to_be_the_package_version(self):
+        sys.path.insert(0, str(ROOT / "tools" / "engine"))
+        import reconcile_schemas  # tools/engine goes on sys.path first
+
+        pinned = {"initialize": {"serverInfo": {"name": "hermretro-engine", "title": "hermretro engine"}}, "tools": []}
+        for live_version, package_version, passed in (
+            ("2.0.0", "2.0.0", True),
+            ("2.0.0", "2.0.1", False),
+            (None, None, False),
+        ):
+            with self.subTest(live=live_version, package=package_version):
+                server = {**pinned["initialize"]["serverInfo"], "version": live_version}
+                live = {"initialize": {"serverInfo": server}, "tools": [], "pages": 1, "ready_seconds": 0.1}
+                report = reconcile_schemas.compare(pinned, {**live, "package_version": package_version}, PINNED)
+                self.assertEqual(report["passed"], passed)
+                self.assertNotIn("version", report["live_server_info"], "a bump changes no recorded report")
 
 
 class Bump(unittest.TestCase):
@@ -115,6 +159,12 @@ class Bump(unittest.TestCase):
                 self.assertIn("is still 2.0.0", said)
                 self.assertIn('"version" in engine/package.json to 2.0.1', said)
 
+    def test_a_file_in_place_of_the_engine_or_an_odd_file_name_gets_its_fix(self):
+        self.git("rm", "--quiet", "-r", "engine")
+        self.assertIn("is gone", self.assert_fails({"engine": "not a folder\n"}))
+        self.setUp()
+        self.assertIn("is still 2.0.0", self.assert_fails({"engine/src/\udcff.js": "export {};\n"}))
+
     def test_a_lower_version_fails(self):
         said = self.assert_fails({"engine/package.json": package("1.9.9")})
         self.assertIn("went down from 2.0.0 to 1.9.9", said)
@@ -125,6 +175,11 @@ class Bump(unittest.TestCase):
             "moved": ({}, {"engine/package.json": "engine/scripts/package.json"}, "is gone"),
             "not JSON": ({"engine/package.json": "{"}, None, "holds no x.y.z version"),
             "an array": ({"engine/package.json": "[]\n"}, None, "holds no x.y.z version"),
+            "UTF-16": (
+                {"engine/package.json": "\udcff\udcfe" + package("2.0.1").encode("utf-16-le").decode("latin-1")},
+                None,
+                "holds no x.y.z version",
+            ),
             "not UTF-8": (
                 {"engine/package.json": '{"version": "2.0.1", "x": "\udcff"}'},
                 None,

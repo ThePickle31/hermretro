@@ -63,6 +63,7 @@ browsers already hold them: renaming one would break what was made before.
 | `.codex-setup-*`, `.codex-web-cache/` and the owner `codex-gb-studio-setup` | The setup root's receipts and its marker `.gb-studio-setup.json`, which names that owner (`scripts/setup.*`, `scripts/dependency-doctor.mjs`), and the toolchain's key for signing web exports | Setup would no longer recognise its own toolchain, and no export signed before would verify |
 | `codex-gb-studio` and the `codex-gb-studio-*` owners and formats | The labels in the engine's stored digests and signatures, its save-state format, and the owners of its journals, locks and saves | No stored revision, receipt, signature or save state would match again |
 | `~/.codex-gb-studio/chromatic/` | The device operations journal's default folder (`src/chromatic-journal.js`) | An unfinished device operation would be forgotten |
+| `modretro-preview-capture`, `modretro-physical-capture` | The format named in each capture's record, from the preview or a Chromatic (`src/web-preview-captures.js`) | Captures saved before would be refused |
 | `codex-captures/` | The preview's URL for recordings, kept in each recording's record; hermretro's player serves the same | Saved recordings would link to nothing |
 | `codex-gb-studio:device-color:v1`, `codex-preview-fresh:…`, `codex-preview-flash:…` | The browser's storage | The chosen finish and the preview's state would reset |
 | `codex` | The DevDay Edition finish (`player/skins/codex/`), kept as the chosen finish | The finish a player picked would be lost |

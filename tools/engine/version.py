@@ -16,6 +16,7 @@ Standard library only.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -26,11 +27,13 @@ from backend.system import paths  # noqa: E402 - the repository root goes on sys
 
 ENGINE = PurePosixPath(paths.ENGINE_ROOT.relative_to(paths.PLUGIN_ROOT).as_posix())
 PACKAGE = ENGINE / "package.json"
+RECORD = {(name,) for name in paths.ENGINE_RECORD}
 VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)")
 
 
-def git(*args: str, text: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=text)
+def git(*args: str) -> subprocess.CompletedProcess:
+    """git's answer as bytes: a path or a file may be in any encoding, so each caller decodes its own."""
+    return subprocess.run(["git", *args], capture_output=True)
 
 
 def engine_changes(old: str, new: str) -> list[str]:
@@ -38,11 +41,12 @@ def engine_changes(old: str, new: str) -> list[str]:
     done = git("diff", "--no-color", "--no-renames", "-z", "--name-only", old, new, "--", ENGINE.as_posix())
     if done.returncode:
         sys.exit(
-            f"git diff {old} {new} failed: {done.stderr.strip()}\n"
+            f"git diff {old} {new} failed: {os.fsdecode(done.stderr).strip()}\n"
             "FIX: the checkout needs both revisions (actions/checkout with fetch-depth: 2)"
         )
-    names = [PurePosixPath(name) for name in done.stdout.split("\0") if name]
-    return [name.as_posix() for name in names if name.relative_to(ENGINE).parts[0] not in paths.ENGINE_RECORD]
+    names = [PurePosixPath(os.fsdecode(name)) for name in done.stdout.split(b"\0") if name]
+    # A path's first part under engine/ says whether it is the record; engine itself (a file in its place) is not.
+    return [name.as_posix() for name in names if name.relative_to(ENGINE).parts[:1] not in RECORD]
 
 
 class Unreadable(Exception):
@@ -51,11 +55,11 @@ class Unreadable(Exception):
 
 def version_at(revision: str) -> tuple[int, int, int] | None:
     """The engine's version at a revision, or None when it has no engine/package.json there."""
-    done = git("show", f"{revision}:{PACKAGE.as_posix()}", text=False)  # bytes: the parser reports bad UTF-8
+    done = git("show", f"{revision}:{PACKAGE.as_posix()}")
     if done.returncode:
         return None
     try:
-        package = json.loads(done.stdout)
+        package = json.loads(done.stdout.decode("utf-8"))  # as the backend and the server read it, never UTF-16
     except ValueError:
         package = None
     version = package.get("version") if isinstance(package, dict) else None

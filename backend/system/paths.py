@@ -43,7 +43,7 @@ PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
 ENGINE_ROOT = PLUGIN_ROOT / "engine"
 
 
-def _engine_version(package: Path) -> str | None:
+def engine_version(package: Path) -> str | None:
     """The bundled engine's version, from its ``package.json`` (its only home: the engine's server reports the same
     one). None when it cannot be read: that engine fails its manifest check too, so nothing is prepared or started."""
     try:
@@ -53,7 +53,7 @@ def _engine_version(package: Path) -> str | None:
     return version if isinstance(version, str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) else None
 
 
-ENGINE_VERSION = _engine_version(ENGINE_ROOT / "package.json")
+ENGINE_VERSION = engine_version(ENGINE_ROOT / "package.json")
 # The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
 SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
 # What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is part
@@ -386,7 +386,9 @@ def verify_engine() -> dict:
         return {"present": False, "version": None, "verified": False, "detail": "Bundled engine is missing."}
     try:
         problems = _compare_tree(ENGINE_ROOT, _recorded(), optional=frozenset(VENDOR_ARCHIVES + CAPTURE_FFMPEG))
-        version = _engine_version(ENGINE_ROOT / "package.json")
+        version = engine_version(ENGINE_ROOT / "package.json")
+        if version is None:
+            problems.append("package.json has no x.y.z version")
         return {
             "present": True,
             "version": version,
