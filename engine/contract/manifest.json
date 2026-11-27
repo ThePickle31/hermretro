@@ -3,11 +3,11 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "engine",
- "file_count": 297,
+ "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32307862,
+ "total_bytes": 32308301,
  "suffix_counts": {
-  ".js": 111,
+  ".js": 112,
   ".md": 60,
   ".gbsres": 42,
   ".json": 21,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "627c8483b6dacb92785b6982b1a76d6708dd3162c08ec6a4133fee40a1be7535",
+ "aggregate_sha256": "a21d136360cd409dc0f567367e6f9700f9b2b6531085e285557ece23076b2f81",
  "entries": [
   {
    "path": "LICENSE",
@@ -115,9 +115,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2603210,
+   "size": 2603271,
    "mode": "0o644",
-   "sha256": "461d021ae6d91c10dd1d2a9ba3193b21d8445f5b07e752d85439c429c6e1f85a"
+   "sha256": "19a06f8226651da6c0dfbf574cbf760acb1f6c4a8770dd70a5fc1f789a5e490a"
   },
   {
    "path": "docs/agent-guide.md",
@@ -1884,6 +1884,13 @@
    "sha256": "320e779bd3b229058268b9fa48e24efbeaf9235da4b0a12972aae35d25df8264"
   },
   {
+   "path": "src/web-annotations/device-colors.js",
+   "type": "file",
+   "size": 1421,
+   "mode": "0o644",
+   "sha256": "c9a2ff3b71598ea3d7754de07348e158440cdffbdd1eace9dc3c5bece100894a"
+  },
+  {
    "path": "src/web-annotations/error-dialog.js",
    "type": "file",
    "size": 11117,
@@ -1984,9 +1991,9 @@
   {
    "path": "src/web-annotations/view.js",
    "type": "file",
-   "size": 62356,
+   "size": 61293,
    "mode": "0o644",
-   "sha256": "0b1baf6ee062875e118e3e78fa8ef504414767dbab4f92e60b21644035e25eb2"
+   "sha256": "0c4607327dea6c7a342e8d0842264a74866ce0ec3c8b6a63a38cf23e4ae08328"
   },
   {
    "path": "src/web-build.js",
@@ -2054,9 +2061,9 @@
   {
    "path": "src/web-preview.js",
    "type": "file",
-   "size": 70106,
+   "size": 70126,
    "mode": "0o644",
-   "sha256": "8046370db8463d7d4adedcfb4068416e74b6c11dc8bd62a501d5a382ab83e263"
+   "sha256": "45b429f6e751b37887b1e10df5a02e33fbb9a88d5c36040e46bbfaae4d583fc7"
   },
   {
    "path": "src/world-queries.js",

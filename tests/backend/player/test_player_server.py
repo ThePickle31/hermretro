@@ -186,13 +186,14 @@ class PlayerServer(unittest.TestCase):
         self.assertEqual((status, headers["Content-Type"]), (200, "text/javascript; charset=utf-8"))
         self.assert_common_headers(headers)
         status, _headers, body = fetch(self.url("codex-annotations/view.js"))
+        self.assertEqual((status, body), (200, (frame.annotations_dir() / "view.js").read_bytes()), "the engine's own")
+        status, _headers, body = fetch(self.url("codex-annotations/device-colors.js"))
         self.assertEqual(status, 200)
         text = body.decode()
-        # the skin folders are the finishes, in their order, and the rail keeps it over the engine's ordering rules
+        # the skin folders are the finishes, in their order, with none of the engine's rail places
         listed = text[text.index("DEVICE_COLORS = [") : text.index("];", text.index("DEVICE_COLORS = ["))]
         self.assertEqual(re.findall(r'id: "([a-z0-9-]+)"', listed), [skin["id"] for skin in skins.skins()])
-        rule = '.codex-game-view .cgv-color[data-device-color] { order: 0; }'
-        self.assertLess(text.index('[data-device-color="codex"] { order: -1; }'), text.index(rule))
+        self.assertIn("export const DEVICE_RAIL_ORDER = {};", text)
         for finish in (
             "Hermes Edition · Nous Black",
             "Hermes Edition · Nous Blue",
@@ -319,12 +320,10 @@ class Pieces(unittest.TestCase):
         )
         self.assertEqual(check.returncode, 0, check.stderr)
 
-    def test_view_without_its_anchor_is_served_unpatched(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            view = Path(tmp) / "view.js"
-            view.write_text("export const COLORS = [];\n")
-            with self.assertLogs(frame.logger, "WARNING"):
-                self.assertEqual(frame.patched_view(view), b"export const COLORS = [];\n")
+    def test_without_skins_the_engines_own_finishes_are_served(self):
+        source = frame.annotations_dir() / "device-colors.js"
+        with mock.patch.object(frame.skins, "rail_entries", lambda: ""):
+            self.assertEqual(frame.device_colors(source), source.read_bytes())
 
     def test_an_export_without_the_official_player_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:

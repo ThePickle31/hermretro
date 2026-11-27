@@ -42,7 +42,7 @@ from .frame import (
     is_demo,
     shell_config,
     shell_rom_path,
-    patched_view,
+    device_colors,
 )
 
 logger = logging.getLogger(__name__)
@@ -393,8 +393,8 @@ class _Handler(BaseHTTPRequestHandler):
             source = annotations_dir() / name
             if not source.is_file():
                 return self._text(404, "Not found.")
-            if name == "view.js":
-                return self._send(200, patched_view(source), MIME[".js"])
+            if name == "device-colors.js":
+                return self._send(200, device_colors(source), MIME[".js"])
             return self._file(source)
         return self._text(404, "Not found.")
 

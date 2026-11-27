@@ -15,10 +15,6 @@ from . import skins
 logger = logging.getLogger(__name__)
 
 ANNOTATION_MOUNT = "codex-annotations"
-VIEW_ANCHOR = "export const DEVICE_COLORS = [\n"
-# The engine's last rule ordering its colour rail (it puts two of its finishes first): the rail keeps the skins' order.
-RAIL_ANCHOR = '.codex-game-view .cgv-color[data-device-color="codex"] { order: -1; }\n'
-RAIL_ORDER = ".codex-game-view .cgv-color[data-device-color] { order: 0; }\n"
 COLOR_KEY = "codex-gb-studio:device-color:v1"
 
 # The built-in demo cartridge: GB Studio's own browser player bundled in ``player/web`` plus
@@ -40,23 +36,14 @@ def annotations_dir() -> Path:
     return paths.ENGINE_ROOT / "src" / "web-annotations"
 
 
-def patched_view(source: Path) -> bytes:
-    """``view.js`` with the plugin's skins (``player/skins/``) as its finishes, in their order."""
-    info = source.stat()
-    return _patched_view(source, info.st_size, info.st_mtime_ns, skins.rail_entries())
-
-
-@lru_cache(maxsize=1)
-def _patched_view(source: Path, size: int, modified: int, entries: str) -> bytes:
-    text = source.read_text()
-    start = text.find(VIEW_ANCHOR)
-    end = text.find("\n];", start) + 1
-    if start < 0 or end < 1:
-        logger.warning("hermretro: view.js has no DEVICE_COLORS list; serving it without the plugin's skins")
-    elif entries:
-        text = text[: start + len(VIEW_ANCHOR)] + entries + text[end:]
-        text = text.replace(RAIL_ANCHOR, RAIL_ANCHOR + RAIL_ORDER, 1)
-    return text.encode()
+def device_colors(source: Path) -> bytes:
+    """The engine's ``device-colors.js``, the finishes its player view lists, with the plugin's skins
+    (``player/skins/``) in their place, in their order, and no rail places of the engine's own. Without skins, the
+    engine's own module."""
+    entries = skins.rail_entries()
+    if not entries:
+        return source.read_bytes()
+    return f"export const DEVICE_COLORS = [\n{entries}];\nexport const DEVICE_RAIL_ORDER = {{}};\n".encode()
 
 
 # -- the frame page ------------------------------------------------------------------

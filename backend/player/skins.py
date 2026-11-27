@@ -121,7 +121,7 @@ def page_skins() -> list[dict]:
 
 
 def rail_entries() -> str:
-    """The skins as the lines of the engine's ``DEVICE_COLORS`` list, in order."""
+    """The skins as the lines of the engine's ``DEVICE_COLORS`` list (``device-colors.js``), in order."""
 
     def entry(skin: dict) -> str:
         label = f"{skin['edition']} · {skin['name']}" if skin["edition"] else skin["name"]

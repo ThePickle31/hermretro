@@ -403,3 +403,9 @@ one names `dist/server.js` and a module, the change is now in that module.
   `../../player/skins/`. The bundle's code is otherwise the same: only its module comments read `// src/...`. Earlier
   lines in this file name the old paths. `git diff -M engine-upstream-1.0.34 HEAD -- engine` still compares with
   ModRetro's release.
+- `src/web-annotations/device-colors.js` (new, from `src/web-annotations/view.js`), `src/web-preview.js`: the player's
+  finishes (`DEVICE_COLORS`) and the rail places that put the Supply Co. and DevDay editions first
+  (`DEVICE_RAIL_ORDER`, before two CSS rules in `view.js`, now set on the swatch) are their own module, which
+  `view.js` imports and re-exports and the engine's preview serves. hermretro's player serves its skins as that
+  module, instead of editing `view.js`'s text at a fixed anchor (`backend/player/frame.py`). The rail looks the same
+  in both players.
