@@ -53,9 +53,12 @@ class Handler(socketserver.StreamRequestHandler):
                             "broker_generation": broker.generation,
                             "pid": os.getpid(),
                             "code_fingerprint": broker.code_fingerprint,  # of the loaded code, never the disk
-                            # The same value, under the name clients trust: a broker that lacks it read its
-                            # fingerprint from disk at each hello and so cannot tell an update happened.
-                            "loaded_fingerprint": broker.code_fingerprint,
+                            # The same value, under the name this build's clients trust: a broker that lacks it
+                            # runs older code (client._retire_stale_broker).
+                            "loaded_code_fingerprint": broker.code_fingerprint,
+                            # The loaded code by the released clients' rule (paths.release_fingerprint), the name
+                            # they trust: a gateway of a release left running across an update keeps this broker.
+                            "loaded_fingerprint": broker.release_fingerprint,
                             "plugin_root": str(paths.PLUGIN_ROOT),
                             "engine": broker.engine_check,
                             # What every new worker inherits, so a client can replace an idle broker whose

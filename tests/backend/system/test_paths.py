@@ -355,6 +355,56 @@ class EngineEntries(unittest.TestCase):
             moved = paths.code_fingerprint()
         self.assertNotEqual(moved, before)
 
+    def test_without_plugin_yaml_only_the_full_fingerprint_answers(self):
+        # The releases could not fingerprint a backend without its plugin.yaml, so their rule gives none.
+        real_stamp = paths._file_stamp
+        gone = paths.PLUGIN_ROOT / "plugin.yaml"
+        with mock.patch.object(paths, "_file_stamp", lambda path: paths.GONE if path == gone else real_stamp(path)):
+            code, released = paths.loaded_fingerprints()
+        self.assertNotEqual(code, paths.code_fingerprint())
+        self.assertIsNone(released)
+        self.assertIsNotNone(paths.release_fingerprint())
+
+    def test_an_unreadable_file_only_the_full_rule_covers_keeps_the_release_fingerprint(self):
+        # A released client does not read __init__.py, so it still computes its digest: the broker must report it too.
+        unreadable, real_read = paths.PLUGIN_ROOT / "__init__.py", Path.read_bytes
+
+        def read(path):
+            if path.resolve() == unreadable:  # read as backend/../__init__.py
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_read(path)
+
+        paths._fingerprint_for.cache_clear()
+        self.addCleanup(paths._fingerprint_for.cache_clear)
+        with mock.patch.object(Path, "read_bytes", read):
+            code, released = paths.loaded_fingerprints()
+        paths._fingerprint_for.cache_clear()
+        self.assertEqual(released, paths.release_fingerprint())
+        self.assertNotEqual(code, paths.code_fingerprint())
+
+    def test_a_file_that_cannot_be_looked_at_only_takes_its_rules_answer(self):
+        # engine/contract/ without search permission: the releases do not read tools.json, so they still answer.
+        real_stamp, hidden = paths._file_stamp, paths.PLUGIN_ROOT / "engine" / "contract" / "tools.json"
+        with mock.patch.object(
+            paths, "_file_stamp", lambda path: paths.UNREADABLE if path.resolve() == hidden else real_stamp(path)
+        ):
+            code, released = paths.loaded_fingerprints()
+        self.assertEqual(released, paths.release_fingerprint())
+        self.assertNotEqual(code, paths.code_fingerprint())
+
+    def test_an_empty_file_and_an_unreadable_one_differ(self):
+        with tempfile.TemporaryDirectory() as folder:
+            backend = Path(folder) / "backend"
+            backend.mkdir()
+            (backend / "empty.py").write_bytes(b"")
+            stamp = (("empty.py", *paths._file_stamp(backend / "empty.py")),)
+            with mock.patch.object(paths, "BACKEND_ROOT", backend):
+                readable = paths._fingerprint_for.__wrapped__(stamp)
+                unreadable = paths._fingerprint_for.__wrapped__((("empty.py", *paths.UNREADABLE),))
+        self.assertNotEqual(readable[0], unreadable[0])
+        self.assertIsNotNone(readable[1])
+        self.assertIsNone(unreadable[1])
+
     def test_a_loaded_file_that_goes_between_its_stamp_and_its_read_is_stamped_again(self):
         gone = paths.PLUGIN_ROOT / "engine" / "contract" / "tools.json"
         real_stamp, real_read = paths._file_stamp, Path.read_bytes
@@ -364,7 +414,7 @@ class EngineEntries(unittest.TestCase):
             if path != gone:
                 return real_stamp(path)
             stamped.append(path)
-            return (1, 1) if len(stamped) == 1 else (-1, -1)  # there when first stamped, gone after
+            return (1, 1, 1) if len(stamped) == 1 else paths.GONE  # there when first stamped, gone after
 
         def read(path):
             if path.name == gone.name:

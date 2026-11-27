@@ -171,8 +171,11 @@ first). Idle workers do not keep it (a worker it started would run the new engin
 broker (`notices.json` in the run folder, kept until a call's answer has carried it). A plain shutdown (Setup's
 removal, another copy) is decided under the same lock and refused while anything runs or a worker lives. A broker
 from before `replace` answers it busy and is never dispatched to (`BrokerRestarting` that does not wait). The broker
-reads its fingerprint once, at start, and its handshake names it as `loaded_fingerprint`; the client compares
-that with the files on disk now, so a broker an update rewrote underneath is told apart from a new one.
+reads its fingerprint once, at start, and its handshake names it as `loaded_code_fingerprint`; the client compares
+that with the files on disk now, so a broker an update rewrote underneath is told apart from a new one. The
+handshake's `loaded_fingerprint` is the same code by the releases' rule (`paths.release_fingerprint`: `backend/` and
+`plugin.yaml` only), the field their clients compare: a gateway of a release, not yet restarted after an update, keeps
+the broker the new files start instead of shutting each one down.
 
 ## The page half
 

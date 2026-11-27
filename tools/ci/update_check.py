@@ -6,8 +6,9 @@ repository into a throwaway Hermes home and uses it the way the page does: the s
 install, a game in the library with a thumbnail, a New Game conversation, a running broker. Then it moves the
 copy's default branch to HEAD, runs `hermes plugins update hermretro` and checks: the update needed no prompt,
 the new code registers its agent side only in hermretro and still matches plugin.yaml, it reads the user's
-games and library back, the old broker is replaced on the first call, and nothing the old version left in the
-plugin folder gets in the way. The page calls run in Hermes's own Python (`inside`), through its plugin loader.
+games and library back, the old broker is replaced on the first call, a gateway of a published release still running
+(Hermes not yet restarted) keeps the broker the new version started, and nothing the old version left in the plugin
+folder gets in the way. The page calls run in Hermes's own Python (`inside`), through its plugin loader.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -36,6 +38,11 @@ def _git(*args: str, cwd: Path = ROOT) -> str:
             "FIX: the checkout needs its history and tags (CI: actions/checkout with fetch-depth: 0)"
         )
     return done.stdout.strip()
+
+
+def _stable_release(commit: str) -> bool:
+    """Whether a published stable release (a `v*` tag without a prerelease suffix) is this commit."""
+    return any("-" not in tag for tag in _git("tag", "--points-at", commit, "--list", "v*").split())
 
 
 def latest_release() -> str:
@@ -71,7 +78,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
     studio = root / "profiles" / "hermretro"
     plugin = root / "plugins" / "hermretro"
     brokers: list[int] = []
-    held = None
+    held = kept = None
     print(f"updating from {ref} ({old[:10]}) to HEAD ({new[:10]})", flush=True)
     try:
         # As a user does: install into their own profile; the page then creates the studio profile, which
@@ -84,6 +91,12 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         # the steps up to the new drive can outlast: a broker gone by itself proves no replacement. An open,
         # silent connection holds it (an idle exit waits for none) until the new drive has replaced it.
         held = hold_open(before["broker_socket"])
+        # A gateway of the old version that Hermes has not restarted. Only a published release's with the backend/
+        # layout: their handshake rule never changes (paths.release_fingerprint), while one between releases may not
+        # match the next, and one from before backend/ reads adapter/, which the update removes.
+        if _stable_release(old) and _git("ls-tree", old, "backend/system/paths.py"):
+            kept = OldGateway(args, tmp, root, fix)
+            kept.wait_ready()
         run(studio, "plugins", "enable", "hermretro")  # what the page's studio_profile RPC runs in the profile
         problems = []
         dirty = _git("status", "--porcelain", cwd=plugin)
@@ -120,9 +133,13 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         after = drive_holding(held, before["broker_pid"], _alive, lambda: _drive(args, tmp, root, "new"), fix)
         brokers.append(after.get("broker_pid") or 0)
         problems += _compare(before, after, fix)
+        if kept is not None:
+            problems += kept.problems(after)
     finally:
         if held is not None:
             held.close()
+        if kept is not None:
+            kept.stop()
         for pid in brokers:  # whatever happened, leave no broker of the throwaway home running
             if pid:
                 try:
@@ -210,18 +227,27 @@ def _compare(before: dict, after: dict, fix: str) -> list[str]:
     return problems
 
 
-def _drive(args, tmp: Path, root: Path, phase: str) -> dict:
-    """Run `inside` with Hermes's own Python in the throwaway home and return what it found."""
-    out = tmp / f"{phase}.json"
+def _inside(args, phase: str, out: Path) -> list[str]:
+    """The command that runs `inside` with Hermes's own Python."""
     script = str(Path(__file__).resolve().with_name("clean_install_check.py"))
     if args.hermes_python:
         command = [args.hermes_python, "-I", script]
     else:  # the `hermes` launcher runs only modules in its environment; cProfile is one that runs a script
         command = ["hermes", "--run-module", "cProfile", "-o", os.devnull, script]
+    return [*command, "--inside", phase, str(out)]
+
+
+def _inside_environment(tmp: Path, root: Path) -> dict:
+    # A broker this leaves behind (a failed run) stops by itself within a minute.
+    return environment(tmp, root, {"HERMRETRO_BROKER_IDLE_SECONDS": "60"})
+
+
+def _drive(args, tmp: Path, root: Path, phase: str) -> dict:
+    """Run `inside` with Hermes's own Python in the throwaway home and return what it found."""
+    out = tmp / f"{phase}.json"
     done = subprocess.run(
-        [*command, "--inside", phase, str(out)],
-        # A broker this leaves behind (a failed run) stops by itself within a minute.
-        env=environment(tmp, root, {"HERMRETRO_BROKER_IDLE_SECONDS": "60"}),
+        _inside(args, phase, out),
+        env=_inside_environment(tmp, root),
         cwd=tmp,
         stdin=subprocess.DEVNULL,
         capture_output=True,
@@ -255,7 +281,7 @@ PNG = (
 def inside(phase: str, out: str) -> int:
     # Every outcome goes into `out`: the cProfile launcher swallows SystemExit, and with it the exit code.
     try:
-        result = _use_the_plugin(phase, Path(out))
+        result = _keep_the_old_code() if phase == "kept" else _use_the_plugin(phase, Path(out))
     except BaseException as error:  # noqa: BLE001 - reported to the caller, whatever it was
         import traceback
 
@@ -273,29 +299,47 @@ LAYOUTS = {
 }
 
 
-def _use_the_plugin(phase: str, out: Path) -> dict:
+def rpc(name: str, params: dict | None = None) -> dict:
+    """A page RPC of the loaded plugin, through Hermes's plugin loader (the first one loads the plugin)."""
     from hermes_cli.plugin_rpc import plugin_rpc_handler  # type: ignore[import-not-found]
 
-    def rpc(name: str, params: dict | None = None) -> dict:
-        handler = plugin_rpc_handler(f"plugin.hermretro.{name}")
-        if handler is None:
-            raise SystemExit(f"the plugin registered no {name} RPC in this profile")
-        answer = handler(dict(params or {}), session_id=None)
-        if not isinstance(answer, dict) or not answer.get("ok"):
-            raise SystemExit(f"plugin.hermretro.{name} {params or ''} answered {answer}")
-        return answer
+    handler = plugin_rpc_handler(f"plugin.hermretro.{name}")
+    if handler is None:
+        raise SystemExit(f"the plugin registered no {name} RPC in this profile")
+    answer = handler(dict(params or {}), session_id=None)
+    if not isinstance(answer, dict) or not answer.get("ok"):
+        raise SystemExit(f"plugin.hermretro.{name} {params or ''} answered {answer}")
+    return answer
 
+
+def module(role: str):
+    """One of the loaded plugin's modules. Either version may be installed in either phase: a release from before the
+    reorganization keeps its code in adapter/, every later one in backend/. Found by what the loaded version has."""
+    for suffix in LAYOUTS[role]:
+        found = [m for name, m in list(sys.modules.items()) if name.endswith(suffix)]
+        if found:
+            return found[0]
+    raise SystemExit(f"the installed version has none of {LAYOUTS[role]}: add its layout to LAYOUTS")
+
+
+def _keep_the_old_code() -> dict:
+    """A gateway of the old version that Hermes has not restarted: its code loaded before the update, its first call
+    after it. It must keep the broker the new version's drive started, not shut it down for its own each time."""
     rpc("status")  # loads the plugin
+    rpc("doctor")  # what the page calls, with the old broker, so its code is loaded too
+    print(READY, flush=True)
+    if sys.stdin.readline().strip() != GO:  # the caller updates the plugin folder and runs the new drive first
+        raise SystemExit("the check ended before the old gateway's turn")
+    rpc("doctor")
+    client, error = module("client").try_connect(module("paths").runtime_dir())
+    if client is None:
+        raise SystemExit(f"no broker answers the old gateway after its doctor RPC: {error}")
+    with client:
+        return {"broker_pid": client.hello.get("pid")}
 
-    def module(role: str):
-        # Either version may be installed in either phase: a release from before the reorganization keeps its
-        # code in adapter/, every later one in backend/. Find the module by what the loaded version has.
-        for suffix in LAYOUTS[role]:
-            found = [m for name, m in list(sys.modules.items()) if name.endswith(suffix)]
-            if found:
-                return found[0]
-        raise SystemExit(f"the installed version has none of {LAYOUTS[role]}: add its layout to LAYOUTS")
 
+def _use_the_plugin(phase: str, out: Path) -> dict:
+    rpc("status")  # loads the plugin
     result: dict = {"problems": []}
     paths, client_module = module("paths"), module("client")
     if phase == "old":
@@ -347,6 +391,83 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
             result["problems"].append(f"the old version's broker (pid {old_pid}) is still running")
             result["fix"] = "a broker from another build must exit when asked to shut down while idle"
     return result
+
+
+READY, GO = "the old gateway is running", "go"
+
+
+class OldGateway:
+    """A gateway of the old version that Hermes has not restarted (`_keep_the_old_code`), run beside the check: started
+    before the update, it makes its next call after the new version's drive."""
+
+    def __init__(self, args, tmp: Path, root: Path, fix: str):
+        self.fix = fix
+        self.out = tmp / "kept.json"
+        self.process = subprocess.Popen(
+            _inside(args, "kept", self.out),
+            env=_inside_environment(tmp, root),
+            cwd=tmp,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        self.said: list[str] = []
+        self.ready = threading.Event()  # set when it says READY, or when it ends without saying it
+        self.ended = threading.Event()  # its output is read to the end by a thread, so no line waits in a buffer
+        self.reader = threading.Thread(target=self._read, daemon=True)
+        self.reader.start()
+
+    def _read(self) -> None:
+        for line in self.process.stdout:
+            self.said.append(line)
+            if line.strip() == READY:
+                self.ready.set()
+        self.ended.set()
+        self.ready.set()
+
+    def wait_ready(self) -> None:
+        """Wait until its code is loaded and it has used the old broker."""
+        if not self.ready.wait(300) or self.ended.is_set():
+            self.stop()
+            raise SystemExit(
+                f"the old version's gateway did not start: {self._failure()}\nFIX: reproduce with "
+                f"python tools/ci/clean_install_check.py{self.fix}"
+            )
+
+    def problems(self, after: dict) -> list[str]:
+        """Let it make its call after the update: it must have kept the broker the new version started."""
+        try:
+            self.process.stdin.write(GO + "\n")
+            self.process.stdin.close()
+            self.process.wait(timeout=300)
+        except (OSError, subprocess.TimeoutExpired):
+            self.stop()
+        self.reader.join(5)
+        found = json.loads(self.out.read_text()) if self.out.is_file() else {"fatal": self._failure()}
+        if "fatal" in found:
+            return [
+                found["fatal"] + "\nFIX: a gateway of the old version, still running after the update, must work "
+                "with the broker the new files start (paths.release_fingerprint); reproduce with "
+                f"python tools/ci/clean_install_check.py{self.fix}"
+            ]
+        if found.get("broker_pid") != after.get("broker_pid"):
+            return [
+                f"the old version's gateway replaced the new broker (pid {after.get('broker_pid')}) with pid "
+                f"{found.get('broker_pid')}: the two name the same code differently\nFIX: the broker's "
+                "loaded_fingerprint must follow the released clients' rule (paths.release_fingerprint); reproduce "
+                f"with python tools/ci/clean_install_check.py{self.fix}"
+            ]
+        return []
+
+    def stop(self) -> None:
+        if self.process.poll() is None:
+            self.process.kill()
+            self.process.wait()
+
+    def _failure(self) -> str:
+        found = json.loads(self.out.read_text()).get("fatal", "") if self.out.is_file() else ""
+        return ("".join(self.said)[-2000:] + found) or "(no output)"
 
 
 def hold_open(socket_path: str) -> socket.socket:

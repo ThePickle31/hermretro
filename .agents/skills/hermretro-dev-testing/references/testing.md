@@ -113,8 +113,9 @@ With `--update-from [REF]` it runs the update check (`tools/ci/update_check.py`)
 stable `v*` tag on `origin/main`, else local `main`) from a local bare copy of the repository, uses it as the page
 does (studio profile, a library game, a New Game chat, a running broker), moves the copy's `main` to HEAD and runs
 `hermes plugins update hermretro`: no prompt, the folder at HEAD, no leftover files that are not bytecode, the agent
-side only in `hermretro`, `hermes plugins validate` still matching `plugin.yaml`, the library read back and the old
-broker replaced when its code changed. Both need `hermes` on PATH (or `--hermes-python <a Python that imports
+side only in `hermretro`, `hermes plugins validate` still matching `plugin.yaml`, the library read back, the old
+broker replaced when its code changed, and a gateway of a published release that keeps running (Hermes not restarted)
+keeping the broker the new version started. Both need `hermes` on PATH (or `--hermes-python <a Python that imports
 hermes_cli>`) and no model; the update check also needs the history and tags (`git fetch --tags`) and a
 REF that HEAD contains. Run it locally after moving, renaming or deleting files a running process loads:
 

@@ -6,6 +6,7 @@ the old code went on serving every call. tools/ci/clean_install_check.py --updat
 """
 
 import fcntl
+import hashlib
 import os
 import shutil
 import socket
@@ -24,6 +25,12 @@ from backend.system import paths  # noqa: E402 - the repository root goes on sys
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 NEW_BUILD = "new-build-on-disk"
+# What paths reports once an update has rewritten the files: a broker started then loads the new build.
+REWRITTEN = {
+    "code_fingerprint": lambda: NEW_BUILD,
+    "release_fingerprint": lambda: NEW_BUILD,
+    "loaded_fingerprints": lambda: (NEW_BUILD, NEW_BUILD),
+}
 
 
 class Running:
@@ -90,6 +97,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
         self.loaded = paths.code_fingerprint()
+        self.released = paths.release_fingerprint()
 
     def start(self) -> Running:
         running = Running(self.state)
@@ -98,10 +106,11 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
 
     def test_the_handshake_names_the_loaded_build_after_the_files_change(self):
         self.start()
-        with mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD):  # the update rewrote the files
+        with mock.patch.multiple(paths, **REWRITTEN):  # the update rewrote the files
             with client.BrokerClient(self.state) as connection:
                 self.assertEqual(connection.hello["code_fingerprint"], self.loaded)
-                self.assertEqual(connection.hello["loaded_fingerprint"], self.loaded)
+                self.assertEqual(connection.hello["loaded_code_fingerprint"], self.loaded)
+                self.assertEqual(connection.hello["loaded_fingerprint"], self.released)
 
     def test_an_update_replaces_it_even_with_an_idle_connection_open(self):
         old = self.start()
@@ -113,23 +122,20 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
         def spawn(state, _node, *, deadline):  # what the update's first call starts: a broker of the new files
             return launched(self.start, started)
 
-        with (
-            mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD),
-            mock.patch.object(client, "spawn_broker", spawn),
-        ):
+        with mock.patch.multiple(paths, **REWRITTEN), mock.patch.object(client, "spawn_broker", spawn):
             with client.ensure_broker(self.state, wait=10) as connection:
                 self.assertEqual(len(started), 1, "the old broker was kept instead of replaced")
                 self.assertEqual(connection.hello["broker_generation"], started[0].broker.generation)
                 self.assertEqual(connection.hello["code_fingerprint"], NEW_BUILD)
         self.assertTrue(old.stopped.wait(5), "the old broker did not stop with an idle connection open")
         # A client that held the old one reconnects to the new one.
-        with mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD):
+        with mock.patch.multiple(paths, **REWRITTEN):
             with client.BrokerClient(self.state) as again:
                 self.assertEqual(again.hello["broker_generation"], started[0].broker.generation)
 
-    def test_a_broker_of_a_build_that_named_the_disk_is_replaced(self):
-        # Such a broker (no loaded_fingerprint) answers with the fingerprint of the files on disk, which after the
-        # update are the new build's: only the missing field shows it runs older code.
+    def test_a_broker_of_an_older_build_is_replaced(self):
+        # Such a broker (no loaded_code_fingerprint: a release's, or one that named the files on disk) may answer
+        # with a fingerprint that matches this build's: only the missing field shows it runs older code.
         old = self.start()
         real = server.Handler.handle
 
@@ -137,7 +143,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
             write = handler.wfile.write
 
             def drop_loaded(data):
-                return write(data.replace(b',"loaded_fingerprint":"' + self.loaded.encode() + b'"', b""))
+                return write(data.replace(b'"loaded_code_fingerprint":"' + self.loaded.encode() + b'",', b""))
 
             handler.wfile.write = drop_loaded
             return real(handler)
@@ -153,11 +159,24 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
         with mock.patch.object(client, "spawn_broker", spawn):
             with client.BrokerClient(self.state) as probe:
                 self.assertEqual(probe.hello["code_fingerprint"], self.loaded)
-                self.assertNotIn("loaded_fingerprint", probe.hello)
+                self.assertNotIn("loaded_code_fingerprint", probe.hello)
             with client.ensure_broker(self.state, wait=10) as connection:
-                self.assertEqual(len(started), 1, "a broker without loaded_fingerprint was kept")
+                self.assertEqual(len(started), 1, "a broker without loaded_code_fingerprint was kept")
                 self.assertEqual(connection.hello["broker_generation"], started[0].broker.generation)
         self.assertTrue(old.stopped.wait(5))
+
+    def test_loaded_fingerprint_follows_the_released_clients_rule(self):
+        # The releases' code_fingerprint, which their clients compare loaded_fingerprint with: the protocol, the name
+        # and bytes of each backend source and of ../plugin.yaml. A gateway of a release keeps this broker.
+        digest = hashlib.sha256(f"protocol:{paths.PROTOCOL}".encode())
+        released = [*paths.backend_sources(paths.BACKEND_ROOT), ("../plugin.yaml", paths.PLUGIN_ROOT / "plugin.yaml")]
+        for name, path in released:
+            digest.update(name.encode())
+            digest.update(path.read_bytes())
+        self.assertEqual(paths.release_fingerprint(), digest.hexdigest()[:24])
+        self.start()
+        with client.BrokerClient(self.state) as connection:
+            self.assertEqual(connection.hello["loaded_fingerprint"], digest.hexdigest()[:24])
 
     def test_the_same_build_is_kept(self):
         old = self.start()
