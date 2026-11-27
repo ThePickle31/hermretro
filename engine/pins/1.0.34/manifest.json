@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 297,
  "symlink_count": 0,
- "total_bytes": 32307441,
+ "total_bytes": 32307645,
  "suffix_counts": {
   ".js": 111,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "767d4b50d6dd35ccf6a61f6153afe4adda2694ca448d19221ba7dcfbb967bd50",
+ "aggregate_sha256": "9d9fd020883746399ec276cbb3403d5d700ab12f9ebfcf50712ee87578cbfeaa",
  "entries": [
   {
    "path": "LICENSE",
@@ -192,9 +192,9 @@
   {
    "path": "dist/custom-event-dependencies.js",
    "type": "file",
-   "size": 15975,
+   "size": 16072,
    "mode": "0o644",
-   "sha256": "d55e159b23b8dc0f21e590e2ded3156ec3bd1b8b25460edd00250cdf745d0a6f"
+   "sha256": "f61a12138fac7524b813d4283d605379d8cf1338f86048057b39b9f20babdadb"
   },
   {
    "path": "dist/debug-symbols.js",
@@ -591,9 +591,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2603232,
+   "size": 2603339,
    "mode": "0o644",
-   "sha256": "f2c1da5d135b32bad1219f4c6d6262e7424d9ef115fc3ac5c9cab0c67ad15ced"
+   "sha256": "7628da64f2fdaa11d285705e9edd885cea7fc6552c16816de7bb322d7ef9cbaf"
   },
   {
    "path": "dist/source-debug.js",

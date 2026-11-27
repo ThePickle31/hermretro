@@ -380,11 +380,12 @@ that module.
   answers as before (a root enclosing the examples falls back to the selected project, or is refused), and its
   refusal no longer names the removed template. `examples/wrecklight`, which the engine never shipped, is no longer a
   reserved name for a local project. Wrecklight's contracts also put a game's plugins, engine assets, settings,
-  variables and engine fields, its `project.gbsproj` and its `assets/ui/cursor.png` and `frame.png` into the
-  custom-event fingerprint of every game with a plugin event. That set is now the registry's own (`isEventInput`),
-  and the semantic generation advances on a fingerprint change with or without contracts, so it counts exactly as
-  before, including an edit that is later undone. Only files at Wrecklight's own paths (its plugins, sprites, sounds
-  and two actors) no longer count.
+  variables and engine fields (by type and at their standard paths), its `project.gbsproj` and its
+  `assets/ui/cursor.png` and `frame.png` into the custom-event fingerprint of every game with a plugin event. That
+  set is now the registry's own (`isEventInput`), and the semantic generation advances on a fingerprint change with
+  or without contracts, so it counts exactly as before, including an edit that is later undone. Only files at
+  Wrecklight's own asset and actor paths (its `wrecklight_*` sprites and sounds, its backgrounds and two actors) no
+  longer count.
   The runtime copy loses its Wrecklight source pins. The Wrecklight guides, `docs/native-title-atlas.md`, the
   sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
   published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in

@@ -15,7 +15,8 @@ const compilerResourcePath = (name) => /^(?:project|assets|plugins)\/.+\.gbsres$
 // text and menu events draw with. A change to any of them changes what its
 // events mean, whether or not a reviewed contract covers them.
 const EVENT_INPUT_PREFIXES = ["plugins/", "assets/engine/"];
-const EVENT_INPUT_PATHS = ["project.gbsproj", "assets/ui/cursor.png", "assets/ui/frame.png"];
+const EVENT_INPUT_PATHS = ["project.gbsproj", "project/settings.gbsres", "project/variables.gbsres",
+    "project/engine_field_values.gbsres", "assets/ui/cursor.png", "assets/ui/frame.png"];
 const EVENT_INPUT_RESOURCE_TYPES = ["settings", "variables", "engineFieldValues"];
 const isEventInput = (name, file) => EVENT_INPUT_PREFIXES.some((prefix) => name.startsWith(prefix))
     || EVENT_INPUT_PATHS.includes(name)
