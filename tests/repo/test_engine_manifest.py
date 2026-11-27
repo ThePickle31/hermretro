@@ -70,7 +70,7 @@ class EngineManifestTests(unittest.TestCase):
             listed = [
                 e["path"]
                 for e in json.loads(pin.read_text())["entries"]
-                if any(manifest.paths.is_bytecode(name) for name in e["path"].split("/"))
+                if any(manifest.paths.is_left_beside(name) for name in e["path"].split("/"))
             ]
             self.assertEqual(
                 listed,

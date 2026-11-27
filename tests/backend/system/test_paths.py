@@ -352,6 +352,26 @@ class EngineEntries(unittest.TestCase):
             moved = paths.code_fingerprint()
         self.assertNotEqual(moved, before)
 
+    def test_a_loaded_file_that_goes_between_its_stamp_and_its_read_is_stamped_again(self):
+        gone = paths.PLUGIN_ROOT / "engine" / "contract" / "tools.json"
+        real_stamp, real_read = paths._file_stamp, Path.read_bytes
+        stamped = []
+
+        def stamp(path):
+            if path != gone:
+                return real_stamp(path)
+            stamped.append(path)
+            return (1, 1) if len(stamped) == 1 else (-1, -1)  # there when first stamped, gone after
+
+        def read(path):
+            if path.name == gone.name:
+                raise FileNotFoundError(path)
+            return real_read(path)
+
+        with mock.patch.object(paths, "_file_stamp", stamp), mock.patch.object(Path, "read_bytes", read):
+            self.assertIsInstance(paths.code_fingerprint(), str)
+        self.assertEqual(len(stamped), 2)
+
     def test_a_link_is_listed_and_refused_whatever_its_name(self):
         (self.root / "scripts" / "gone.pyc").symlink_to(self.root / "nowhere.pyc")
         (self.root / "scripts" / "linked").symlink_to(self.root / "scripts", target_is_directory=True)

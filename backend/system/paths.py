@@ -291,9 +291,15 @@ def _file_sha256(path: Path) -> str:
 
 
 def is_bytecode(name: str) -> bool:
-    """Whether a file or folder name is Python's own bytecode, which running the engine's scripts writes: never part
-    of the engine, so neither recorded in its manifest, compared with it nor copied into the prepared engine."""
+    """Whether a file or folder name is Python's own bytecode, which running the engine's scripts writes."""
     return name == "__pycache__" or name.endswith(".pyc")
+
+
+def is_left_beside(name: str) -> bool:
+    """Whether a file or folder name is one the system writes beside the engine's files rather than part of it:
+    Python's bytecode, or the .DS_Store macOS Finder leaves in a folder it showed (git ignores both, so an update
+    keeps them). Never recorded in the manifest, compared with it nor copied into the prepared engine."""
+    return is_bytecode(name) or name == ".DS_Store"
 
 
 def is_engine_record(root: Path | str, path: Path | str) -> bool:
@@ -314,7 +320,7 @@ def engine_entries(root: Path, *, engine_folder: bool = True) -> list[Path]:
             for entry in listing:
                 if entry.is_symlink():
                     found.append(Path(entry.path))
-                elif is_bytecode(entry.name) or (engine_folder and is_engine_record(root, entry.path)):
+                elif is_left_beside(entry.name) or (engine_folder and is_engine_record(root, entry.path)):
                     continue
                 elif entry.is_dir():
                     folders.append(Path(entry.path))
@@ -430,8 +436,10 @@ def code_fingerprint() -> str:
     new files start, in a loop, until the plugin is reloaded."""
     folder = BACKEND_ROOT
     sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
-    stamp = tuple((rel, *_file_stamp(path)) for rel, path in sources)
-    return _fingerprint_for(stamp)
+    try:
+        return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
+    except FileNotFoundError:  # a loaded file went between its stamp and its read: stamp them again
+        return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
 
 
 def _file_stamp(path: Path) -> tuple[int, int]:

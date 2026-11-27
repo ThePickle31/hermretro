@@ -142,6 +142,16 @@ class ReportTest(Fixture):
             encoding="utf-8",
         )
 
+    def test_engine_source_counts_in_either_layout_and_from_its_folder(self):
+        for arguments in (
+            {"path": "engine/modretro-chromatic/dist/project-files.js"},  # sessions recorded before the move
+            {"path": "engine/src/project-files.js"},
+            {"command": "cat src/entry.js", "workdir": "/srv/hermes/plugins/hermretro/engine"},
+            {"command": "cat dist/entry.js", "workdir": "/srv/hermes/plugins/hermretro/engine/modretro-chromatic"},
+        ):
+            self.assertTrue(bench.reads_source(arguments), arguments)
+        self.assertFalse(bench.reads_source({"command": "ls", "workdir": "/srv/hermes/games/Test"}))
+
     def test_counts_what_the_session_did(self):
         found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]
         self.assertEqual(found.wall, 125.0)

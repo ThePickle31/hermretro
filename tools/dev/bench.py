@@ -40,6 +40,15 @@ REASONING = "high"
 # Before the move to engine/src/ (#230), the engine was under engine/modretro-chromatic/: recorded sessions name it.
 SOURCE_MARKERS = ("gb-studio", "modretro-chromatic", "engine/src/", "engine/dist/", "engine/scripts/", ".cache/engine-")
 SOURCE_READERS = {"read_file", "search_files"}
+
+
+def reads_source(arguments: dict) -> bool:
+    """Whether a tool call names GB Studio's or the engine's source, in its arguments or as the folder a terminal
+    command runs in (`cat src/entry.js` inside the engine)."""
+    workdir = str(arguments.get("workdir") or "").rstrip("/")
+    return any(marker in json.dumps(arguments) for marker in SOURCE_MARKERS) or workdir.endswith("/engine")
+
+
 NORMAL_ENDS = {"cli_close", "agent_close"}
 DUPLICATE_DROP = "Removed duplicate tool call"
 SESSION_LINE = re.compile(r"^session_id: (\S+)\s*$", re.MULTILINE)
@@ -355,7 +364,7 @@ def report(db: sqlite3.Connection, session: str, drops: Drops, exited: float | N
             found.failed_builds += bool(code)
     for (tool_calls,) in unique(db, session, "assistant", "tool_calls", "tool_calls IS NOT NULL"):
         for tool, arguments in calls(tool_calls):
-            source = any(marker in json.dumps(arguments) for marker in SOURCE_MARKERS)
+            source = reads_source(arguments)
             found.steps += tool == "chromatic_emulator_step"
             found.source_commands += tool == "terminal" and source
             found.source_reads += tool in SOURCE_READERS and source

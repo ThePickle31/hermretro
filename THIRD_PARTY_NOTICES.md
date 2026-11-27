@@ -9,7 +9,7 @@ engine 1.0.34, and is maintained by hermretro since. Every file in it is recorde
 `engine/contract/manifest.json`, and the plugin refuses to start an engine that does not match that record.
 
 **Changes made by hermretro** (allowed by the engine's MIT licence): every one is listed in `engine/CHANGES.md`, and
-`git diff engine-upstream-1.0.34 HEAD -- engine` shows them against ModRetro's 1.0.34 (the tag
+`git diff -M engine-upstream-1.0.34 HEAD -- engine` shows them against ModRetro's 1.0.34 (the tag
 holds that release as it was published, without the files left out below).
 
 **Left out by hermretro:** the engine's two FFmpeg builds for Linux hardware capture

@@ -322,7 +322,7 @@ def _prepare(
                 n
                 for n in names
                 if str(Path(folder) / n) in skipped
-                or paths.is_bytecode(n)
+                or paths.is_left_beside(n)
                 or paths.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
             ],
         )
