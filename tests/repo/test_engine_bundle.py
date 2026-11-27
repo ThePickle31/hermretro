@@ -56,8 +56,6 @@ class EngineBundleTests(unittest.TestCase):
             (self.engine / rel).write_text(text)
         self.entry = self.engine / "entry.js"
         self.entry.write_text(ENTRY)
-        # The engine's dist/ holds only the bundle.
-        (self.engine / "dist").mkdir()
         self.bundle = self.engine / "dist" / "server.js"
 
     def node(self, *args: str, env: dict | None = None, cwd: Path = ROOT) -> subprocess.CompletedProcess:
@@ -85,6 +83,7 @@ class EngineBundleTests(unittest.TestCase):
         # The modules are ES modules in Node's sense (package.json), so CommonJS imports use Node's interop.
         self.assertIn("__toESM(require_png(), 1)", text)
         self.assertEqual(self.run_bundle(), "b:function!")
+        # dist/ holds only the bundle, made by the build when the engine has none yet.
         self.assertEqual(sorted(os.listdir(self.bundle.parent)), ["server.js"])
 
     def test_the_entry_is_the_engines_src_entry_js_unless_named(self):

@@ -147,6 +147,8 @@ class ReportTest(Fixture):
             {"path": "engine/modretro-chromatic/dist/project-files.js"},  # sessions recorded before the move
             {"path": "engine/src/project-files.js"},
             {"command": "sed -n '1,80p' ./engine/src/entry.js"},
+            {"command": "cd ./engine && cat src/entry.js"},
+            {"command": "cd engine; cat src/entry.js"},
             {"path": "/srv/hermes/plugins/hermretro/engine/src/entry.js"},
             {"command": "cat src/entry.js", "workdir": "/srv/hermes/plugins/hermretro/engine"},
             {"command": "cd /srv/hermes/plugins/hermretro/engine && cat src/entry.js"},
@@ -159,6 +161,7 @@ class ReportTest(Fixture):
             {"command": "ls", "workdir": "/srv/hermes/games/Test/assets/engine"},
             {"path": "/srv/hermes/games/Test/assets/engine/src/core.c"},
             {"command": "cat ./assets/engine/src/core.c"},
+            {"command": "cd assets/engine && ls"},
         ):
             self.assertFalse(bench.reads_source(arguments), arguments)
 

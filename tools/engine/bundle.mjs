@@ -13,7 +13,7 @@
 // version, each with its licence file, whose text the engine's notices (licenses/bundled-javascript.txt) carry; the
 // engine's folders may hold no links (as its manifest requires). A stopped build leaves nothing behind.
 
-import { chmodSync, closeSync, cpSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -224,6 +224,8 @@ function parse(argv) {
 // Writes contents beside out, then moves them into its place: a stopped write never leaves half a bundle. The file
 // beside it is made new (never something already there), and only what was made is removed.
 function replace(out, contents) {
+  // dist/ holds only the bundle, so an engine checked out without it gets it here.
+  mkdirSync(path.dirname(out), { recursive: true });
   const partial = path.join(path.dirname(out), `.${path.basename(out)}.${process.pid}.tmp`);
   const handle = openSync(partial, "wx");
   made(partial);
