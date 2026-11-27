@@ -368,3 +368,26 @@ that module.
   bundled engine has no use for. `docs/store-launcher.md` and `docs/chromatic-preview-install-testing.md` (removed)
   described ModRetro's store ZIP and its own test fixtures, which hermretro does not ship. Names stored in games, setup
   folders or the browser, and the extension's event id, stay as they are.
+- `dist/wrecklight/` (33 review profiles), `dist/wrecklight-dependencies.js`, `dist/bundled-template.js` and
+  `dist/native-title-atlas.js` (removed), with `dist/project-session.js`, `dist/entry.js`, `dist/tilemaps.js`,
+  `dist/custom-event-dependencies.js`, `dist/tool-domains/register.js` and `schemas.js`, and `scripts/setup-runtime.mjs`:
+  the engine's support for ModRetro's Wrecklight sample goes. Its source was never shipped and is only in ModRetro's
+  private repository, so no remix of it could start. `project_create` keeps `template`, with `starter` as its only
+  value, and loses `templateSourcePath`. The `native_graphics_update` tool, which edited Wrecklight's title screen only,
+  is removed (84 tools; the pin and `plugin.yaml` follow). The reviewed custom-event registry keeps its machinery and
+  is now empty, and the tilemap ownership check loses its Wrecklight-only exception. Neither matched any other game.
+  The read-only guard on the bundled sample now guards the bundled `examples/` folder: for every shipped path it
+  answers as before (a root enclosing the examples falls back to the selected project, or is refused), and its
+  refusal no longer names the removed template. `examples/wrecklight`, which the engine never shipped, is no longer a
+  reserved name for a local project. Wrecklight's contracts also put a game's plugins, engine assets, settings,
+  variables and engine fields (by type and at their standard paths), its `project.gbsproj` and its
+  `assets/ui/cursor.png` and `frame.png` into the custom-event fingerprint of every game with a plugin event. That
+  set is now the registry's own (`isEventInput`), and the semantic generation advances on a fingerprint change with
+  or without contracts, so it counts exactly as before, including an edit that is later undone. Only files at
+  Wrecklight's own asset and actor paths (its `wrecklight_*` sprites and sounds, its backgrounds and two actors) no
+  longer count, and a handler at one of Wrecklight's own plugin paths no longer forces a full dependency refresh or a
+  compiler observation.
+  The runtime copy loses its Wrecklight source pins. The Wrecklight guides, `docs/native-title-atlas.md`, the
+  sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
+  published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in
+  hermretro's library (editing its copy, or keeping both on an update) is unchanged.

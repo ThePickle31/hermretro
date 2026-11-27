@@ -99,7 +99,6 @@ provides_tools:
   - chromatic_music_compose
   - chromatic_asset_update
   - chromatic_asset_delete
-  - chromatic_native_graphics_update
   - chromatic_sprite_inspect
   - chromatic_sprite_edit
   - chromatic_sprite_preview

@@ -146,13 +146,8 @@ the bundled starter directly additionally requires `allowStarter: true`.
 
 Within an authorized workspace, `project_create` remains confined to it;
 neither creation nor selection can broaden access to a sibling outside it.
-Relative creation requires an authorized workspace. Choose `template: "starter"`
-for a minimal `Start` scene. For the complete editable
-[Wrecklight sample](wrecklight-remix.md), use `template: "wrecklight"` and supply
-its matching local `templateSourcePath` when using the compact package.
-Wrecklight must be copied: direct
-selection of either bundled copy is rejected, even with `allowStarter: true`.
-Close an active emulator
+Relative creation requires an authorized workspace. `template: "starter"`, the
+only template, makes a minimal `Start` scene. Close an active emulator
 with `emulator_close` before selecting another project. `session_status` can report
 the selected project, authorized workspace, selection generation, and emulator
 state without granting further access. Selecting another project automatically
@@ -270,10 +265,6 @@ unknown fields, event branches, source assets, and neighboring authored files:
   existing background's exact palette assignments, including UI cells, into
   empty metadata of the same dimensions. Supply `expectedRevision`; preview
   with `dryRun`. Neither PNG is changed.
-- `native_graphics_update` applies a complete inert atlas contract to the
-  supported private-title renderer without accepting an arbitrary file path or
-  C source. See [native title atlas](native-title-atlas.md) for its revision,
-  preservation, and dependency-profile limits.
 - `sprite_inspect`, `sprite_edit`, `sprite_preview`, and
   `sprite_contact_sheet` support animation authoring and static visual review.
 - `palette_inspect`, `palette_create`, `palette_update`, `palette_assign`, and
@@ -675,7 +666,8 @@ missing compiler, optional emulator, or hardware evidence honestly.
   [pixel art](../../../skills/pixel-art/SKILL.md),
   [ROM debugging](../../../skills/rom-debugging/SKILL.md),
   [deployment](../../../skills/deployment/SKILL.md)
-- ModRetro's original skills, kept as published, in [`../skills/`](../skills/)
+- ModRetro's original skills, archived as published in [`../skills/`](../skills/): they describe
+  ModRetro's plugin, including parts this engine no longer has; follow hermretro's skills above
 - [Architecture and security boundaries](architecture.md)
 - [End-to-end runtime validation](runtime-validation.md)
 

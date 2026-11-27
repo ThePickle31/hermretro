@@ -10,7 +10,6 @@ import { inspectEngineFields, updateEngineFields } from "../engine-fields.js";
 import { describeEvents } from "../event-catalog.js";
 import { createSceneTransition, editScript, inspectScript, liftTargetEventId } from "../game-scripts.js";
 import { inspectVariables, updateVariable } from "../game-variables.js";
-import { updateNativeTitleAtlas } from "../native-title-atlas.js";
 import { assignScenePalette, createPalette, inspectPalettes, paintBackgroundPalette, updatePalette, } from "../palettes.js";
 import { GameStudioProjectError } from "../project.js";
 import { applySceneBatch, deleteScene, inspectScene } from "../scene-batch.js";
@@ -124,11 +123,6 @@ export function registerProjectDomains(server, context) {
         title: "Delete image asset", description: "Delete one unreferenced native image and its sidecar. Provide assetId or assetPath; if both are supplied, they must identify the same asset.",
         inputSchema: domainSchemas.assetDelete, annotations: updateExisting,
     }, async (input) => mutate((project, access) => deleteAsset(project.projectRoot, input, access), (result) => [result.assetPath, result.metadataPath]));
-    server.registerTool("native_graphics_update", {
-        title: "Update a supported native graphics atlas",
-        description: "Apply inert atlas data to the supported wrecklight-title-v1 renderer only. Requires a whole-project expectedRevision and the complete current-header digest in the contract; dryRun previews. Preserves animation, attributes, font and credits. The contract path is informational, not a destination. Plugin files are outside the public project revision, so use the returned headerSha256 for the next preimage. This does not update dependency profiles or prove rendered output.",
-        inputSchema: domainSchemas.nativeTitleAtlas, annotations: updateExisting,
-    }, async (input) => transact((project, access) => updateNativeTitleAtlas(project.projectPath, input, access)));
     server.registerTool("sprite_inspect", {
         title: "Inspect sprite animation", description: "Inspect genuine sprite states, animation slots, frame counts, object bounds, and optional bounded frame metadata.",
         inputSchema: domainSchemas.spriteInspect, annotations: readOnly,

@@ -30,8 +30,6 @@ const MAX_FILE_BYTES = 24 * 1024 * 1024;
 const AUTOMATIC_PACKAGE_FILES = new Set(["LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"]);
 const LOCAL_ONLY_FILES = new Set(["package.json", "package-lock.json", ".gitignore", ".npmignore"]);
 const PRIVATE_DIRECTORIES = new Set([".git", ".agents", ".codex", ".local", "node_modules", "vendor", "artifacts", ".cache", "__pycache__", "coverage", "save-states", "src", "tests", "test"]);
-const WRECKLIGHT_MANIFEST = "examples/wrecklight/MANIFEST.json";
-const WRECKLIGHT_MANIFEST_PIN = Object.freeze({ bytes: 228142, sha256: "239d182ec218f5bc4145f58dc3c4ed3ec5ad3fc1425356c63c79269b659f9cdc" });
 
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const jsonBytes = (value) => Buffer.from(JSON.stringify(value, null, 2) + "\n");
@@ -110,54 +108,17 @@ function runtimeMember(filename) {
   return !LOCAL_ONLY_FILES.has(filename) && !CHROMATIC_STORAGE_SOURCES.includes(filename);
 }
 
-function assertPublicMember(filename, enginePaths = new Set()) {
+function assertPublicMember(filename) {
   relativeFile(filename);
   const lower = filename.toLowerCase();
   const parts = lower.split("/");
   const basename = parts.at(-1);
-  if (parts.some((part) => PRIVATE_DIRECTORIES.has(part) && !(part === "src" && enginePaths.has(filename))) || basename === ".npmrc" || basename === ".ds_store" ||
+  if (parts.some((part) => PRIVATE_DIRECTORIES.has(part)) || basename === ".npmrc" || basename === ".ds_store" ||
     basename === ".env" || basename.startsWith(".env.") || /\.(?:sav|ram|rtc|state|pyc|pyo)$/u.test(basename) ||
     /\.test\.[cm]?[jt]sx?$/u.test(basename) || /\.(?:playtest|gbstate)\.json$/u.test(basename) ||
     /^dist\/playtest\.(?:js|js\.map|d\.ts)$/u.test(lower) || /^scripts\/dogfood-/u.test(lower) ||
     lower === "scripts/integration-smoke.mjs" || lower === "scripts/test-isolated.mjs") {
     throw new Error("Refusing private or test-only runtime package member: " + filename);
-  }
-}
-
-// Pin native game inputs independently of the preparation receipt. Only the
-// exact delivered manifest can authorize engine/src files and ancestors.
-async function bundledEngineSourcePolicy(root) {
-  const paths = new Set();
-  const members = new Map();
-  const pins = new Map();
-  if (!await metadata(path.join(root, WRECKLIGHT_MANIFEST))) return { paths, members, pins };
-  const manifest = await regularBytes(root, WRECKLIGHT_MANIFEST);
-  assertBundledSourceBytes(WRECKLIGHT_MANIFEST, manifest, WRECKLIGHT_MANIFEST_PIN);
-  const parsed = JSON.parse(manifest.bytes.toString("utf8"));
-  for (const member of parsed.files) {
-    const engineSource = /^plugins\/[^/]+\/engine\/src\//u.test(member.path);
-    if (!engineSource && !/^plugins\/[^/]+\/(?:engine\/include|events)\//u.test(member.path)) continue;
-    const filename = "examples/wrecklight/" + member.path;
-    relativeFile(filename);
-    pins.set(filename, member);
-    if (!engineSource) continue;
-    members.set(filename, member);
-    const components = filename.split("/");
-    for (let index = 1; index <= components.length; index++) paths.add(components.slice(0, index).join("/"));
-  }
-  return { paths, members, pins };
-}
-
-function assertBundledSourceBytes(filename, actual, expected) {
-  if (expected && (actual.bytes.length !== expected.bytes || digest(actual.bytes) !== expected.sha256 || actual.mode !== 0o644)) {
-    throw new Error("Bundled Wrecklight engine source or manifest differs from its pin: " + filename);
-  }
-}
-
-function requireBundledManifest(files, policy) {
-  const paths = new Set(files.map((file) => file.path));
-  if ([...paths].some((filename) => policy.pins.has(filename)) && !paths.has(WRECKLIGHT_MANIFEST)) {
-    throw new Error("Bundled Wrecklight engine source requires its pinned manifest in the distribution.");
   }
 }
 
@@ -238,19 +199,17 @@ async function distributionFiles(packageRoot, packageManifest) {
   const chromaticTarget = chromaticTargetFromManifest(packageManifest);
   const chromaticFormat = chromaticFormatFromManifest(packageManifest);
   requireChromaticHostTarget(chromaticTarget);
-  const enginePolicy = await bundledEngineSourcePolicy(packageRoot);
   const records = new Map();
   let visited = 0;
   let totalBytes = 0;
   const seen = new Set();
   async function add(relative) {
-    assertPublicMember(relative, enginePolicy.members);
+    assertPublicMember(relative);
     if (!runtimeMember(relative)) return;
     const identity = relative.toLowerCase();
     if (seen.has(identity)) throw new Error("Duplicate or case-aliased runtime member: " + relative);
     seen.add(identity);
     const file = await regularBytes(packageRoot, relative);
-    assertBundledSourceBytes(relative, file, relative === WRECKLIGHT_MANIFEST ? WRECKLIGHT_MANIFEST_PIN : enginePolicy.pins.get(relative));
     const sha256 = digest(file.bytes);
     totalBytes += file.bytes.length;
     if (seen.size > MAX_FILES || totalBytes > MAX_BYTES) throw new Error("Compiled runtime package exceeds its copy limits.");
@@ -273,7 +232,7 @@ async function distributionFiles(packageRoot, packageManifest) {
     if (!entry) return;
     await unlinked(filename);
     if (entry.isDirectory()) {
-      assertPublicMember(relative, enginePolicy.paths);
+      assertPublicMember(relative);
       for (const child of (await readdir(filename)).sort()) await visit(relative + "/" + child);
     } else if (!records.has(relative)) await add(relative);
   }
@@ -292,7 +251,6 @@ async function distributionFiles(packageRoot, packageManifest) {
     verifyChromaticBundle(packageRoot, { target: chromaticTarget, format: chromaticFormat });
     verifyChromaticRecords([...records.values()], { target: chromaticTarget, format: chromaticFormat });
   }
-  requireBundledManifest([...records.values()], enginePolicy);
   return [...records.values()].sort((left, right) => left.path.localeCompare(right.path, "en"));
 }
 
@@ -330,14 +288,13 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
     ![provenance.distributionSha256, provenance.manifestSha256, provenance.lockSha256].every((value) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value))) {
     throw new Error("Prepared runtime has no bounded complete distribution receipt.");
   }
-  const enginePolicy = await bundledEngineSourcePolicy(root);
   const expectedFiles = new Set(["package.json", "package-lock.json"]);
   const expectedDirectories = new Set([""]);
   const identities = new Set();
   let totalBytes = 0;
   for (const entry of provenance.files) {
     if (!isObject(entry)) throw new Error("Invalid prepared runtime file receipt.");
-    assertPublicMember(entry.path, enginePolicy.members);
+    assertPublicMember(entry.path);
     if (!runtimeMember(entry.path) || identities.has(entry.path.toLowerCase()) ||
       ![0o644, 0o755].includes(entry.mode) || !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_FILE_BYTES ||
       typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/u.test(entry.sha256)) throw new Error("Invalid or duplicate prepared runtime file receipt: " + entry.path);
@@ -348,7 +305,6 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
     for (let index = 1; index < pieces.length; index++) expectedDirectories.add(pieces.slice(0, index).join("/"));
   }
   if (digest(JSON.stringify(provenance.files)) !== provenance.distributionSha256) throw new Error("Prepared runtime inventory no longer matches its recorded digest.");
-  requireBundledManifest(provenance.files, enginePolicy);
   for (const required of ["dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
     if (!expectedFiles.has(required)) throw new Error("Prepared runtime inventory lacks a required member: " + required);
   }
@@ -372,7 +328,6 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
   await visit(root);
   for (const entry of provenance.files) {
     const actual = await regularBytes(root, entry.path);
-    assertBundledSourceBytes(entry.path, actual, entry.path === WRECKLIGHT_MANIFEST ? WRECKLIGHT_MANIFEST_PIN : enginePolicy.pins.get(entry.path));
     if (actual.bytes.length !== entry.size || actual.mode !== entry.mode || digest(actual.bytes) !== entry.sha256) {
       throw new Error("Prepared runtime distribution member changed: " + entry.path);
     }

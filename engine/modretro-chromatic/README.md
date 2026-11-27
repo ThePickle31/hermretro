@@ -27,7 +27,7 @@ holds that release as published.
 | `dist/` | The server's source: one module per file, and `entry.js`, the server's own module |
 | `dist/server.js` | The bundle, generated from `dist/` by `tools/engine/bundle.mjs`; never edited by hand |
 | `scripts/` | The launcher, setup and doctor, the emulator worker and the Chromatic CLI runtime, used as they are (the bundle imports some of them) |
-| `skills/` | ModRetro's original agent skills, kept as published; the ones hermretro gives its agent are adapted from them, in the repository's `skills/` |
+| `skills/` | ModRetro's original agent skills, archived as published: they describe ModRetro's plugin, including parts this engine no longer has (Wrecklight, `native_graphics_update`). The ones hermretro gives its agent are adapted from them, in the repository's `skills/` |
 | `docs/` | Guides to the tools, setup, playtesting and the device |
 | `examples/` | The starter every new game is made from, the `hello-color` demo ROM, and ModRetro's samples |
 | `assets/music/` | The bundled music tracks |

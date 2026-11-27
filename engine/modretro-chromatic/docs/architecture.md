@@ -212,8 +212,6 @@ Custom JavaScript events require a maintained, byte-bound dependency review;
 project declarations cannot grant complete coverage. See
 [Reviewed custom-event dependencies](reviewed-custom-events.md) for the resolver,
 extractor, invalidation and conservative deletion contract.
-Wrecklight's revision-specific data lives in [`src/wrecklight/profiles/`](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/blob/main/src/wrecklight/profiles/README.md);
-`src/wrecklight-dependencies.ts` retains the resolver and its existing exports.
 
 Native PNG import generates actual native game background or sprite metadata,
 retains native animation/state IDs, and never reads outside the selected project

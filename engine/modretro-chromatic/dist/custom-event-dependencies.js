@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { WRECKLIGHT_CONTRACTS } from "./wrecklight-dependencies.js";
 import { compilerDependenciesValid, compilerProfileValid } from "./reviewed-compiler.js";
 /** The reviewed loader reads core handlers first, then this project glob, keyed
  * by the exported ID. We refuse duplicates instead of guessing glob order.
@@ -11,6 +10,17 @@ const MAX_CONTRACTS = 714;
 const MAX_BINDINGS = 256;
 const MAX_EFFECTS = 4096;
 const compilerResourcePath = (name) => /^(?:project|assets|plugins)\/.+\.gbsres$/.test(name);
+// A project's own event handlers can read its plugins, engine assets, settings,
+// variables and engine fields, its descriptor, and the UI frame and cursor that
+// text and menu events draw with. A change to any of them changes what its
+// events mean, whether or not a reviewed contract covers them.
+const EVENT_INPUT_PREFIXES = ["plugins/", "assets/engine/"];
+const EVENT_INPUT_PATHS = ["project.gbsproj", "project/settings.gbsres", "project/variables.gbsres",
+    "project/engine_field_values.gbsres", "assets/ui/cursor.png", "assets/ui/frame.png"];
+const EVENT_INPUT_RESOURCE_TYPES = ["settings", "variables", "engineFieldValues"];
+const isEventInput = (name, file) => EVENT_INPUT_PREFIXES.some((prefix) => name.startsWith(prefix))
+    || EVENT_INPUT_PATHS.includes(name)
+    || (compilerResourcePath(name) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file?.json?._resourceType)));
 function digest(value) {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -104,6 +114,10 @@ export class ReviewedEventRegistry {
             return { fingerprint: this.fingerprint, byCommand: new Map(this.contracts.map((contract) => [contract.command, { reason: files ? "The reviewed handler is missing" : "A complete indexed plugin source snapshot is required" }])), unreviewedExports: [] };
         }
         const paths = new Set(candidates.map(([name]) => name));
+        for (const [name, file] of files ?? []) {
+            if (isEventInput(name, file))
+                paths.add(name);
+        }
         for (const contract of this.contracts) {
             paths.add(contract.handler.path);
             for (const binding of contract.dependencies)
@@ -222,4 +236,5 @@ export function extractReviewedEvent(contract, args, children, context) {
 }
 // Only reviewed maintained-source entries belong here. Project names, manifests
 // and `complete` flags cannot create authority or replace a current byte match.
-export const REVIEWED_CUSTOM_EVENTS = new ReviewedEventRegistry(WRECKLIGHT_CONTRACTS);
+// It holds none today: the engine's reviewed contracts were all Wrecklight's.
+export const REVIEWED_CUSTOM_EVENTS = new ReviewedEventRegistry([]);

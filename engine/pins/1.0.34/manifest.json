@@ -3,12 +3,12 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 337,
+ "file_count": 297,
  "symlink_count": 0,
- "total_bytes": 33371917,
+ "total_bytes": 32307645,
  "suffix_counts": {
-  ".js": 147,
-  ".md": 64,
+  ".js": 111,
+  ".md": 60,
   ".gbsres": 42,
   ".json": 21,
   ".png": 17,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "0657d478a51c1c757386b9050b60eec56402464f57587e8aa88e3d35f935ff5f",
+ "aggregate_sha256": "9d9fd020883746399ec276cbb3403d5d700ab12f9ebfcf50712ee87578cbfeaa",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,16 +38,16 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4418,
+   "size": 4537,
    "mode": "0o644",
-   "sha256": "d068df16c6d10f03554b73cbece36f34fa4eb2f9f4436568f28b611bdbdadfe7"
+   "sha256": "8daef7265f0ba65d2d3b940b8996be776bafcbb94c074b18739ec68781a5d94c"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
    "type": "file",
-   "size": 4871,
+   "size": 4170,
    "mode": "0o644",
-   "sha256": "679bd81da81b75b2229ac5e5e3edfb42f34aa52ad494f4e393fbddc75403004b"
+   "sha256": "4c38eb1f5581ed3a7e75a2ae76cb10711fdb40f2a352c0450fc38d13204fa936"
   },
   {
    "path": "assets/devices/README.md",
@@ -148,13 +148,6 @@
    "sha256": "c66d9df282374464d7cabdde63afe152c7b7353c4e395311cf0faea255db0abc"
   },
   {
-   "path": "dist/bundled-template.js",
-   "type": "file",
-   "size": 5259,
-   "mode": "0o644",
-   "sha256": "0420d1ee5c767d1c86bcd93d2a2f645795d2ffa2400a752c17edcd618ac8ecbc"
-  },
-  {
    "path": "dist/chromatic-failure-diagnostics.js",
    "type": "file",
    "size": 4190,
@@ -199,9 +192,9 @@
   {
    "path": "dist/custom-event-dependencies.js",
    "type": "file",
-   "size": 15057,
+   "size": 16072,
    "mode": "0o644",
-   "sha256": "f9b494479a8c30382e5b6d19c5a19ac4480f282b8bf3fe1e2f51fc5fbb224dad"
+   "sha256": "f61a12138fac7524b813d4283d605379d8cf1338f86048057b39b9f20babdadb"
   },
   {
    "path": "dist/debug-symbols.js",
@@ -360,9 +353,9 @@
   {
    "path": "dist/entry.js",
    "type": "file",
-   "size": 105246,
+   "size": 105053,
    "mode": "0o644",
-   "sha256": "3ed23f7cd91b295679e306cff548b0c905137f2f8cffb77fc395b9b7c0fb6c21"
+   "sha256": "50581b57892d9d1e2cadc4691b3ab05ef2ee4d449ae7ab0b627b4230b515116a"
   },
   {
    "path": "dist/event-catalog.js",
@@ -456,13 +449,6 @@
    "sha256": "f2be39b3b93862a1558d62151d17c693cc2f6544ac0680dd7ddd7bfe0cbf1d31"
   },
   {
-   "path": "dist/native-title-atlas.js",
-   "type": "file",
-   "size": 12085,
-   "mode": "0o644",
-   "sha256": "c88983d5b76e06676b681c1fafa1dd984302fdb4aa7a86bf1c2dcd1df1b5481d"
-  },
-  {
    "path": "dist/palettes.js",
    "type": "file",
    "size": 25232,
@@ -514,9 +500,9 @@
   {
    "path": "dist/project-session.js",
    "type": "file",
-   "size": 35259,
+   "size": 31634,
    "mode": "0o644",
-   "sha256": "ae07a97df48eff304c80d2cfb07791a0535cf964fe9bad8b5ddaccc8c215c900"
+   "sha256": "12b9d486d364d6d182981419ef30ddf05d3cb119a996a4fe1380a3a2b759eef3"
   },
   {
    "path": "dist/project-snapshot.js",
@@ -535,9 +521,9 @@
   {
    "path": "dist/project-world-index.js",
    "type": "file",
-   "size": 68904,
+   "size": 68841,
    "mode": "0o644",
-   "sha256": "0fa3a3797f0848916bc1da63c99275cd03d46ad2ee9f889ec0d887ddd50ad9d9"
+   "sha256": "f5d394118199390200dfc9d31aabda9bebd9e72ceed9cfa07cfc4ad85ca64b74"
   },
   {
    "path": "dist/project.js",
@@ -605,9 +591,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3071025,
+   "size": 2603339,
    "mode": "0o644",
-   "sha256": "6cc20c83684841d0102f047dab9959179543d7767eccc6deec73692d0debfbd1"
+   "sha256": "7628da64f2fdaa11d285705e9edd885cea7fc6552c16816de7bb322d7ef9cbaf"
   },
   {
    "path": "dist/source-debug.js",
@@ -640,9 +626,9 @@
   {
    "path": "dist/tilemaps.js",
    "type": "file",
-   "size": 40975,
+   "size": 40801,
    "mode": "0o644",
-   "sha256": "0c84cc03ea84159774ea03c6d608b62ce6509f5af7f142cac2004d0ee6a026ab"
+   "sha256": "9d93a501daea6fba9a8dd094378fea461b41f2883c1dd25d57ea7a5b1e63a9b6"
   },
   {
    "path": "dist/tool-domains/chromatic.js",
@@ -661,16 +647,16 @@
   {
    "path": "dist/tool-domains/register.js",
    "type": "file",
-   "size": 27211,
+   "size": 26338,
    "mode": "0o644",
-   "sha256": "018efa207f33cc2a53df166331bc5e5f0251ef3c082fae99a89826fd5dbc15b0"
+   "sha256": "367fdd56f24bcfc9d7118d70942701bd78473b23d473b6dedcf9871158a98fb4"
   },
   {
    "path": "dist/tool-domains/schemas.js",
    "type": "file",
-   "size": 29394,
+   "size": 29281,
    "mode": "0o644",
-   "sha256": "ba9ec42c7efdcc8c0a637b721217f2be7b6e33b9b58c88526240a5450016ca37"
+   "sha256": "a7c130dea1552e4aa2b20f90e4eab01bbf398e219a8f1d61c0821eb184ba86ad"
   },
   {
    "path": "dist/tool-domains/tilemap.js",
@@ -897,256 +883,18 @@
    "sha256": "1628d4bffcaf76e5bb8e6a4ac2555b6f1641170e39993d036640715255984077"
   },
   {
-   "path": "dist/wrecklight/profiles/base.js",
-   "type": "file",
-   "size": 105257,
-   "mode": "0o644",
-   "sha256": "6225d68cb06fb10cd715f188fe3440d3ce21b33838222a10f36ed7920ade73d9"
-  },
-  {
-   "path": "dist/wrecklight/profiles/boss-capture-prefix.js",
-   "type": "file",
-   "size": 6178,
-   "mode": "0o644",
-   "sha256": "cba630c573fbf810973f70949004ffe33a09c14fbfe16e9162ba0fb075890e2a"
-  },
-  {
-   "path": "dist/wrecklight/profiles/boss-cue.js",
-   "type": "file",
-   "size": 3950,
-   "mode": "0o644",
-   "sha256": "1bd8282621d791b9de55d107a478be6019641f7ea9a554419eedea697b7637b0"
-  },
-  {
-   "path": "dist/wrecklight/profiles/boss-loop.js",
-   "type": "file",
-   "size": 10419,
-   "mode": "0o644",
-   "sha256": "9ad17ae43c9e5d6329700d8bbda09b0048c1e0a78f1d4fc4e38519a3aeec2f44"
-  },
-  {
-   "path": "dist/wrecklight/profiles/boss-three-phase.js",
-   "type": "file",
-   "size": 8874,
-   "mode": "0o644",
-   "sha256": "dd9cc82b175d2f9fc2d7d33ace831498a7c94c6bd2e65fd5683634f8515217bd"
-  },
-  {
-   "path": "dist/wrecklight/profiles/brakemaw-capture-layout.js",
-   "type": "file",
-   "size": 711,
-   "mode": "0o644",
-   "sha256": "6e64771eb6697977a4b4a1d28a782314b7fefe4d4c585d3991ded9739bddb1d3"
-  },
-  {
-   "path": "dist/wrecklight/profiles/brakemaw-finish.js",
-   "type": "file",
-   "size": 1450,
-   "mode": "0o644",
-   "sha256": "95c5c70b98c6c26b5318720756e9e4974e6826ae734da5e5a8e7c74fdae338d1"
-  },
-  {
-   "path": "dist/wrecklight/profiles/brakemaw-timers.js",
-   "type": "file",
-   "size": 2200,
-   "mode": "0o644",
-   "sha256": "1a2e499f50ea66c4aa6155e13a98c2c4a0b0ea968d47c544465e468aca7ebb29"
-  },
-  {
-   "path": "dist/wrecklight/profiles/capture.js",
-   "type": "file",
-   "size": 2830,
-   "mode": "0o644",
-   "sha256": "e608702c4342de6477422e36f6cfd5072b8409cb94c2de41628fa1a1302f4268"
-  },
-  {
-   "path": "dist/wrecklight/profiles/cargo-contact.js",
-   "type": "file",
-   "size": 1605,
-   "mode": "0o644",
-   "sha256": "f64eacaceebed9ef9b9f42a0d8520ca74a2094c4876916274273af6656eedd44"
-  },
-  {
-   "path": "dist/wrecklight/profiles/chamber-cache.js",
-   "type": "file",
-   "size": 765,
-   "mode": "0o644",
-   "sha256": "09738037da0e41bfec6302de5c8f6b7f1caa99a206d5d6bcf525466e02b09b35"
-  },
-  {
-   "path": "dist/wrecklight/profiles/chambers.js",
-   "type": "file",
-   "size": 32131,
-   "mode": "0o644",
-   "sha256": "8b649ba5d993711545378a6dfc03ad7c58c6bc29e852db43bd372dd173171e72"
-  },
-  {
-   "path": "dist/wrecklight/profiles/combined-performance.js",
-   "type": "file",
-   "size": 2557,
-   "mode": "0o644",
-   "sha256": "fb209c72d311d99dfe748f64512f1f6ac4e6f8fac3e4f7c496c7315f6268dd78"
-  },
-  {
-   "path": "dist/wrecklight/profiles/combined.js",
-   "type": "file",
-   "size": 6356,
-   "mode": "0o644",
-   "sha256": "7e648ded58bdaf816e442a1d5a5c23651fcc0f6d9a146c8f3618817adf8e1bbb"
-  },
-  {
-   "path": "dist/wrecklight/profiles/composed-gameplay.js",
-   "type": "file",
-   "size": 19906,
-   "mode": "0o644",
-   "sha256": "5585a6cb6cc716ff850e5609a3bb0fd2a7f42df1df38db6d4b37276946811919"
-  },
-  {
-   "path": "dist/wrecklight/profiles/crown-motion.js",
-   "type": "file",
-   "size": 2665,
-   "mode": "0o644",
-   "sha256": "75717e4e42016d2d6d08527b5f481f03d3433ba2a04274a2b277cdda17c5b703"
-  },
-  {
-   "path": "dist/wrecklight/profiles/current.js",
-   "type": "file",
-   "size": 78490,
-   "mode": "0o644",
-   "sha256": "20debaabdd72afd350ba03bcee43d144b68de31c1bd0a1df0d39566895664658"
-  },
-  {
-   "path": "dist/wrecklight/profiles/drive-performance.js",
-   "type": "file",
-   "size": 4335,
-   "mode": "0o644",
-   "sha256": "16e57a6ea72689c02bc272c119b8ca4e1731a43a2d5b3938bd70acb883d9106d"
-  },
-  {
-   "path": "dist/wrecklight/profiles/flat-projectile.js",
-   "type": "file",
-   "size": 845,
-   "mode": "0o644",
-   "sha256": "2528dc9e7f02ed18785cb19a9f75d43c5e4e18e02b94eb14db013b8a127c0495"
-  },
-  {
-   "path": "dist/wrecklight/profiles/gameplay-polish.js",
-   "type": "file",
-   "size": 2729,
-   "mode": "0o644",
-   "sha256": "bc23c2be984558cadedf7535b341bf28a18caf73c902e98447842552c9a3cd70"
-  },
-  {
-   "path": "dist/wrecklight/profiles/keep-view-map.js",
-   "type": "file",
-   "size": 853,
-   "mode": "0o644",
-   "sha256": "60e183d14458e5c5e2587304b300577daceca918a34af0770263c907e88bfd4e"
-  },
-  {
-   "path": "dist/wrecklight/profiles/opening-correction.js",
-   "type": "file",
-   "size": 1004,
-   "mode": "0o644",
-   "sha256": "2e0dbd3ed68330e0f4e9f6d4754724597d44fe8a3fcb3eff39a09dfa6404f4c0"
-  },
-  {
-   "path": "dist/wrecklight/profiles/opening-direction.js",
-   "type": "file",
-   "size": 29694,
-   "mode": "0o644",
-   "sha256": "fcacfe3119d0ab7c16157a6a0e48670ef43c4862654a2ab72b25ec7ca7b2dcc0"
-  },
-  {
-   "path": "dist/wrecklight/profiles/overlay.js",
-   "type": "file",
-   "size": 2103,
-   "mode": "0o644",
-   "sha256": "d3c3bc01c673533e8502263b5f46c0180e7388c1f3bff71646a3a435e69f7a5a"
-  },
-  {
-   "path": "dist/wrecklight/profiles/payoff.js",
-   "type": "file",
-   "size": 2398,
-   "mode": "0o644",
-   "sha256": "2fae84a9dbc71990fcc47be31673ed494ddc7b57d3662cd450a5ec33a13fc827"
-  },
-  {
-   "path": "dist/wrecklight/profiles/projectile-spawn-contact.js",
-   "type": "file",
-   "size": 484,
-   "mode": "0o644",
-   "sha256": "e84e69125140129c657a8a18027c481daf80aadae122fa3a05da9df80922d303"
-  },
-  {
-   "path": "dist/wrecklight/profiles/render.js",
-   "type": "file",
-   "size": 1007,
-   "mode": "0o644",
-   "sha256": "f7f593415383f16e514e3a1ff4fd4b8f6c2657c420b39708907e4456a561cf53"
-  },
-  {
-   "path": "dist/wrecklight/profiles/sampling.js",
-   "type": "file",
-   "size": 1429,
-   "mode": "0o644",
-   "sha256": "77148662699db14d3e1a1d00f47e375de4dfc46d6948cbbc085edb2f1a702b58"
-  },
-  {
-   "path": "dist/wrecklight/profiles/scheduler-countdown.js",
-   "type": "file",
-   "size": 29059,
-   "mode": "0o644",
-   "sha256": "03da42271dd70002cb833cacaf3b46797df480f36897bb911823d46225cd1c51"
-  },
-  {
-   "path": "dist/wrecklight/profiles/scroll.js",
-   "type": "file",
-   "size": 1673,
-   "mode": "0o644",
-   "sha256": "590385bdf61da23a59429323450ee9bbcd36147e7f407d8b194330e2c0c1d634"
-  },
-  {
-   "path": "dist/wrecklight/profiles/sep17.js",
-   "type": "file",
-   "size": 11783,
-   "mode": "0o644",
-   "sha256": "59b65e1a4bed41ce9756fed250d26c29d97936a551ec7a98402a475b6364198d"
-  },
-  {
-   "path": "dist/wrecklight/profiles/warden-row.js",
-   "type": "file",
-   "size": 2533,
-   "mode": "0o644",
-   "sha256": "42482e6eeab329dc01eeacdf8f779cbb616dea1d08d72f201b6f6a004e453cc3"
-  },
-  {
-   "path": "dist/wrecklight/profiles/warden.js",
-   "type": "file",
-   "size": 18890,
-   "mode": "0o644",
-   "sha256": "50217825d108728758c004026c8f924b87a0b27cad85118cc72f952694cf320f"
-  },
-  {
-   "path": "dist/wrecklight-dependencies.js",
-   "type": "file",
-   "size": 139282,
-   "mode": "0o644",
-   "sha256": "1d63a9984deec7289c4f447a526051a5ac71b16a4f3feeb1035411ba7971b49e"
-  },
-  {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 45157,
+   "size": 44716,
    "mode": "0o644",
-   "sha256": "760fe702e752751b4a097912bc4862dc3d82b811f5dda68a7cef53f8827d337a"
+   "sha256": "70f651babe669fefd6884753b88212dfb4cea7675fe0e421d7df73953c11a510"
   },
   {
    "path": "docs/architecture.md",
    "type": "file",
-   "size": 23529,
+   "size": 23258,
    "mode": "0o644",
-   "sha256": "1a9c12b3c1e1aeb9a56f324623cce27d4156aa5534f1afa2743d31ed54127d8d"
+   "sha256": "8d22752450b2987a852bdeabc119e90070291d70f0bd00cdd6287789f29a9c2b"
   },
   {
    "path": "docs/chromatic-device-testing.md",
@@ -1170,13 +918,6 @@
    "sha256": "4c7d462dc6208f1739f5ab4f42a3d7d4a3cd7c4b24a25cf22dd71be426504458"
   },
   {
-   "path": "docs/native-title-atlas.md",
-   "type": "file",
-   "size": 2232,
-   "mode": "0o644",
-   "sha256": "f1475b0b09f6bcf3c26dba2bc608b4b433e5a8c31c7a2301009414abdd9fd3fe"
-  },
-  {
    "path": "docs/recorded-playtesting.md",
    "type": "file",
    "size": 15836,
@@ -1186,9 +927,9 @@
   {
    "path": "docs/reviewed-custom-events.md",
    "type": "file",
-   "size": 26387,
+   "size": 7831,
    "mode": "0o644",
-   "sha256": "a5d29014a902593a48c5c84da3110af6e89638514cb00d9d0d5ed44cef34aaa7"
+   "sha256": "cff58b33ffc013246d26e5102807a164f19607b63ca9a5be53118f69f2f19478"
   },
   {
    "path": "docs/runtime-validation.md",
@@ -1224,27 +965,6 @@
    "size": 4654,
    "mode": "0o644",
    "sha256": "917480cc1bf2ea49ff2949ed6ad103c0ab54fbef47e51a1cc4209e9c072adca3"
-  },
-  {
-   "path": "docs/wrecklight-authoring.md",
-   "type": "file",
-   "size": 3628,
-   "mode": "0o644",
-   "sha256": "3e15c2166011cd1b2fbec660a0c4c9352c4ad37c06ee5b2830a80edd7b18465f"
-  },
-  {
-   "path": "docs/wrecklight-design.md",
-   "type": "file",
-   "size": 5753,
-   "mode": "0o644",
-   "sha256": "80d5395923afcb478f30e2a3898a6b312f3a17c1cce10de5ef34f3e3f506edbb"
-  },
-  {
-   "path": "docs/wrecklight-remix.md",
-   "type": "file",
-   "size": 4604,
-   "mode": "0o644",
-   "sha256": "171bc8922b8b027414d8bef15d84594f4d298ebb9c08f20549cb9c0d3b19fef3"
   },
   {
    "path": "examples/SAMPLE-PROVENANCE.json",
@@ -2173,9 +1893,9 @@
   {
    "path": "scripts/setup-runtime.mjs",
    "type": "file",
-   "size": 34618,
+   "size": 31914,
    "mode": "0o644",
-   "sha256": "91fd049a886c2d4c38c0faf7e8d50bde6c268f2d9b9b1df5ebfe804780c305be"
+   "sha256": "52196c371359e515cb96b1ea01ed5330931642fb72fb81d8c5ba746b0efd1c7d"
   },
   {
    "path": "scripts/setup.mjs",
