@@ -77,11 +77,13 @@ Hermes installs and updates the plugin; that is separate from dependency setup.
 The setup scripts are in the engine's `scripts/` folder inside the installed
 plugin. Do not run `npm install` or `npm run setup` in the plugin folder.
 
-On macOS/Linux, start with the POSIX-shell entrypoint:
+Name the root hermretro actually uses: `toolchain_doctor` reports it as
+`roots.setupRoot`. On macOS/Linux, start with the POSIX-shell entrypoint:
 
 ```sh
-sh "/absolute/path/to/engine/scripts/setup.sh" doctor --components build
-sh "/absolute/path/to/engine/scripts/setup.sh" plan --root "$HOME/chromatic-tools" --components build
+root="<roots.setupRoot from toolchain_doctor>"
+sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$root" --components build
+sh "/absolute/path/to/engine/scripts/setup.sh" plan --root "$root" --components build
 ```
 
 On Windows x64, use PowerShell 5.1+; see [Windows setup](windows-setup.md):
@@ -105,8 +107,8 @@ doctor and plan passive, then apply the authorized plan. For example, on
 macOS/Linux:
 
 ```sh
-sh "/absolute/path/to/engine/scripts/setup.sh" apply --root "$HOME/chromatic-tools" --components build --yes
-sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$HOME/chromatic-tools" --components build --json
+sh "/absolute/path/to/engine/scripts/setup.sh" apply --root "$root" --components build --yes
+sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$root" --components build --json
 ```
 
 PowerShell accepts the same positional commands and `--options`. `--yes` records
@@ -182,7 +184,7 @@ optional editor and installer-only uv do not block tasks that do not need them.
 When executable checks are wanted, name them explicitly:
 
 ```sh
-sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$HOME/chromatic-tools" --components build,emulator --probes cli-version,gbdk-version,emulator-import
+sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$root" --components build,emulator --probes cli-version,gbdk-version,emulator-import
 ```
 
 Or, once MCP is running:

@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33371149,
+ "total_bytes": 33371538,
  "suffix_counts": {
   ".js": 147,
   ".md": 64,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "54d594327fcb35f0cf0b10aa8d32a3b7cef62a23de8497d3472c07d1083f7d1b",
+ "aggregate_sha256": "7c1bdd117807cd29c62269c1be1d27fa8010beaba7eb8a681f71998801f7e47f",
  "entries": [
   {
    "path": "LICENSE",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44705,
+   "size": 45005,
    "mode": "0o644",
-   "sha256": "7f82f54208da47be642bfc724c7c671f474a5fbdb39fa7204e6392a3166fba01"
+   "sha256": "58fc076804f25dd2c9cd5211186348bc81643c285b57dd642bd3d3861c7c1395"
   },
   {
    "path": "docs/architecture.md",
@@ -1200,9 +1200,9 @@
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15554,
+   "size": 15643,
    "mode": "0o644",
-   "sha256": "8440275f012970bcf6ce6a2b01f849c3c77053871ed1808afaecbe8681b526db"
+   "sha256": "e4c1803bf5604c569ef2abe2ea2f2f40eedd87998f16cc7e395ff7489b02e65c"
   },
   {
    "path": "docs/stepped-playtesting.md",

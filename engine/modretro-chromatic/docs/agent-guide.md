@@ -2,10 +2,11 @@
 
 Use [hermretro's engine](../README.md) to author, compile,
 and playtest the user's actual native game project. The engine runs inside
-hermretro; running it on its own is not supported. hermretro's skills share the
-local MCP server and the operating contract in this guide. Use
-[hermretro's setup skill](../../../skills/setup/SKILL.md) for first installation, updates, or missing
-dependencies.
+hermretro; running it on its own is not supported. hermretro's agent does not
+read this guide: it follows hermretro's own skills (the repository's `skills/`),
+which were adapted from it. This guide documents the engine's tools and contracts
+as a maintainer's reference. For first installation, updates, or missing
+dependencies, see [hermretro's setup skill](../../../skills/setup/SKILL.md).
 
 ## Operating contract
 
@@ -51,11 +52,12 @@ artifact accordingly and report only the platforms actually qualified.
 
 Prepare dependencies with [hermretro's setup skill](../../../skills/setup/SKILL.md) or the
 hermretro page, into hermretro's own root. The shell entrypoints below are a
-maintainer's way into the setup manager ([setup reference](setup.md)). Do not
-loop on unavailable MCP calls.
+maintainer's way into the setup manager ([setup reference](setup.md)); when the
+setup tool is unavailable, the agent follows the setup skill's recovery instead.
+Do not loop on unavailable MCP calls.
 The bundled `setup.sh`/`setup.ps1` can report or explicitly bootstrap Node from a
-trusted compiled package. The agent runs those entrypoints; do not shift runnable
-setup commands to the user or assume a global Node/Python installation. Never
+trusted compiled package. Do not shift runnable setup commands to the user or
+assume a global Node/Python installation. Never
 run npm setup inside an immutable cache. A launcher Node `--version` check is
 disclosed separately from the full passive dependency report.
 
@@ -491,7 +493,9 @@ States require the exact ROM, WebAssembly runtime, and source revision that
 created them. A new build uses a separate history. Older build histories remain
 on disk; states are not migrated between builds.
 
-The agent uses the existing `web_preview` tool for state operations:
+These act on an engine preview opened with `web_preview`, not on the hermretro
+emulator that `chromatic_present_game` shows. The `web_preview` tool's state
+operations:
 
 | Action | Result |
 | --- | --- |
@@ -664,17 +668,18 @@ missing compiler, optional emulator, or hardware evidence honestly.
 
 ## Domain references
 
-- [Plugin setup skill](../skills/modretro-chromatic-setup/SKILL.md)
-- [ModRetro project authoring skill](../skills/modretro-chromatic-authoring/SKILL.md)
-- [Game Boy pixel art skill](../skills/modretro-chromatic-pixel-art/SKILL.md)
-- [ROM build and debugging skill](../skills/modretro-chromatic-rom-debugging/SKILL.md)
-- [Chromatic device and deployment skill](../skills/chromatic-deployment/SKILL.md)
+- hermretro's skills: [setup](../../../skills/setup/SKILL.md),
+  [authoring](../../../skills/authoring/SKILL.md),
+  [pixel art](../../../skills/pixel-art/SKILL.md),
+  [ROM debugging](../../../skills/rom-debugging/SKILL.md),
+  [deployment](../../../skills/deployment/SKILL.md)
+- ModRetro's original skills, kept as published, in [`../skills/`](../skills/)
 - [Architecture and security boundaries](architecture.md)
 - [End-to-end runtime validation](runtime-validation.md)
 
 ### Watch browser play for a fixed duration
 
-Use the existing `web_preview` tool for the browser emulator. `device_capture` is only for physical hardware. Keep the preview where it is open and preserve a person's active play.
+This records an engine preview opened with `web_preview`, not the hermretro emulator that `chromatic_present_game` shows. `device_capture` is only for physical hardware. Keep the preview where it is open and preserve a person's active play.
 
 1. Read `web_preview` with `action: "status"`. Select a visible, running, idle player and copy its listener ID, view ID, ROM/runtime hashes, source revision, and recording generation into `recordingBinding`.
 2. Call `action: "start_recording"` with that binding and optional `recordingDurationMs` (1,000–600,000; default 180,000). The immediate receipt is a queued job, not proof that recording began. Save its `recordingId`.
