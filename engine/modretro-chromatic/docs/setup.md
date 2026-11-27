@@ -55,10 +55,11 @@ The agent uses these tools in order (hermretro names each `chromatic_<name>`):
    dependencies with `toolchain_prepare {"components":["build"]}` or from the
    hermretro page, never with the standalone commands below; metadata readiness
    alone does not prove a successful build.
-5. `rom_build {}` to build the ROM (`make:rom`). The playable web copy is a
-   separate `make:web` export. To show the game to the user, follow
-   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro): it names what
-   `chromatic_present_game` needs first.
+5. `rom_build {}` to build the ROM (`make:rom`), then `web_preview {}` to build
+   or reuse the official browser export (`make:web`) and open its URL. In
+   hermretro, the agent shows the game with `chromatic_present_game` instead, as
+   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
+   describes.
 
 The web copy uses the official GB Studio `make:web` compiler and the engine's
 player controls. It does not run your npm scripts or import behavior from a

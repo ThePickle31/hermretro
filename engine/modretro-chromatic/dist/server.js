@@ -46607,7 +46607,7 @@ var ChromaticService = class {
       return read();
     } catch (error2) {
       if (error2 instanceof Error && "code" in error2 && (error2.code === "EPERM" || error2.code === "EACCES")) {
-        throw new ChromaticDeviceError("CHROMATIC_JOURNAL_ACCESS_DENIED", "Chromatic installation needs access to its local status files. Allow this process to read and write the reported journal folder, then reopen the preview.", { journalRoot: this.#journal.root, diagnostic: { code: error2.code, message: error2.message } });
+        throw new ChromaticDeviceError("CHROMATIC_JOURNAL_ACCESS_DENIED", "Chromatic installation needs access to its local status files. Restore this process's access to the reported journal folder, then check the device or operation status again.", { journalRoot: this.#journal.root, diagnostic: { code: error2.code, message: error2.message } });
       }
       throw error2;
     }

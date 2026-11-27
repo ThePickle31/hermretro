@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33370998,
+ "total_bytes": 33371368,
  "suffix_counts": {
   ".js": 147,
   ".md": 64,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "2e5b638265719f8e7dbe7ad63fe8b61d0808ad25cef550dabacdc47aa826f016",
+ "aggregate_sha256": "aea3c52823c8a552771044f74a877ef7f5e089a945b5b3805cdad82bab0fbff5",
  "entries": [
   {
    "path": "LICENSE",
@@ -171,9 +171,9 @@
   {
    "path": "dist/chromatic.js",
    "type": "file",
-   "size": 55716,
+   "size": 55736,
    "mode": "0o644",
-   "sha256": "5b878ae6135b9ef5f6c9f6688b700b9d95f09bccc48af5a8f58b1019de0271a1"
+   "sha256": "89e90e9a2bdf66a4c47121923200691f5e63635ec21b0c0b67f933dd859e7235"
   },
   {
    "path": "dist/collisions.js",
@@ -262,9 +262,9 @@
   {
    "path": "dist/device-capture/native-client.js",
    "type": "file",
-   "size": 75093,
+   "size": 75086,
    "mode": "0o644",
-   "sha256": "adfe09db962d648161745ce9ac41983b7bdf7c3fd4f43410e71b8160fe87abb3"
+   "sha256": "2c4b63ffb265bd4ef60cac1d56b2bea161a8fe0c2da1ff5ce3b0b44346a360fb"
   },
   {
    "path": "dist/device-capture/native-entry.js",
@@ -605,9 +605,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3071005,
+   "size": 3071025,
    "mode": "0o644",
-   "sha256": "7d1a1d228ca796760e6b262dbe9fed399e6e8022dbee6016530cd90b4c0db397"
+   "sha256": "6cc20c83684841d0102f047dab9959179543d7767eccc6deec73692d0debfbd1"
   },
   {
    "path": "dist/source-debug.js",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44743,
+   "size": 44958,
    "mode": "0o644",
-   "sha256": "f3fa3b71abc5ca76623dc7d50f42656f59c53aa26e3433467205478d03f4f275"
+   "sha256": "e4c4eb398d8573298e4f6edd2a4bfd993c79acb717bbb54307475582c1e72137"
   },
   {
    "path": "docs/architecture.md",
@@ -1151,9 +1151,9 @@
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 27853,
+   "size": 27926,
    "mode": "0o644",
-   "sha256": "aedd237e524bc8c75819aad5684141a2547bf4592cf1764064915f5c5a02f849"
+   "sha256": "68d06c45560e91b7670978dad68ae9e7bab80752bb2141f7de3eb234cbe98064"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1200,9 +1200,9 @@
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15407,
+   "size": 15456,
    "mode": "0o644",
-   "sha256": "4ccfe1a34a8686ae870a9fd7ff634bde5971bbf88ccab43e30ca5e3e653f3c72"
+   "sha256": "00335c4c4d56ae2b40cae5f56238aaabd7f6751cd055fa976de76e8531ed0bf6"
   },
   {
    "path": "docs/stepped-playtesting.md",

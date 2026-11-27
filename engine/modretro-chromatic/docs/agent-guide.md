@@ -48,8 +48,12 @@ do not impose that vendor libc gate on non-hardware authoring startup;
 Chromatic device operations still require a supported target. Choose the
 artifact accordingly and report only the platforms actually qualified.
 
-If MCP cannot start, follow the [setup skill](../skills/modretro-chromatic-setup/SKILL.md)
-and [packaged setup reference](setup.md). Do not loop on unavailable MCP calls.
+In hermretro, prepare dependencies with
+[hermretro's setup skill](../../../skills/setup/SKILL.md) or the hermretro page,
+into hermretro's own root; the shell entrypoints below are for the engine on its
+own. If MCP cannot start there, follow ModRetro's
+[setup skill](../skills/modretro-chromatic-setup/SKILL.md) and the
+[setup reference](setup.md). Do not loop on unavailable MCP calls.
 The bundled `setup.sh`/`setup.ps1` can report or explicitly bootstrap Node from a
 trusted compiled package. The agent runs those entrypoints; do not shift runnable
 setup commands to the user or assume a global Node/Python installation. Never

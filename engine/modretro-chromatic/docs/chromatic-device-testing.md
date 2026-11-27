@@ -18,7 +18,9 @@ Start with a request like:
 
 This is the engine's own preview page (a `web_preview` URL). The hermretro
 emulator does not install to a device: its **Install** puts the flash prompt into
-the game's chat, and the agent then uses `flash` as described below.
+the game's chat, and the agent then flashes it as
+[hermretro's deployment skill](../../../skills/deployment/SKILL.md#in-hermretro)
+describes.
 
 Open your game with `web_preview`. **Install on Chromatic** appears beneath the
 player and keyboard controls. Device checks start when you open that panel,
