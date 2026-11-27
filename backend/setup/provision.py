@@ -533,6 +533,8 @@ def prune_prepared_copies() -> int:
     """Remove every other engine's prepared copy that no worker runs in (its lease is free) and that holds the same CLI
     build as this engine's, with its receipt and lease, once this engine's copy verifies: it gives that CLI now. Returns how many went; none while another
     setup holds the lock or the engine on disk is not the one this process loaded (its copy may be the older one)."""
+    if not paths.DEVICE_CLI_RECEIPT.is_file():  # no copy of this engine: nothing to keep, and no folder made for it
+        return 0
     removed = 0
     try:
         with lock():  # checked under it: a repair interrupted mid-swap leaves this engine's copy unverified
@@ -542,9 +544,12 @@ def prune_prepared_copies() -> int:
             for receipt, copy in _earlier_copies():
                 if copy == paths.PREPARED_ENGINE or _cli_build(receipt) != cli:
                     continue  # another checkout pinning another CLI build may still need its copy's
-                with copy_lease.unused(copy) as unused:
-                    if unused:
-                        remove_tree(copy)
+                try:
+                    with copy_lease.unused(copy) as unused:
+                        if unused:
+                            remove_tree(copy)
+                except OSError:  # its lease cannot be opened or locked (another user's, read-only): left as it is
+                    continue
                 if not copy.exists():  # all of it went: the receipt lists it for the next try until then
                     receipt.unlink(missing_ok=True)
                     copy_lease.path_for(copy).unlink(missing_ok=True)
@@ -554,7 +559,7 @@ def prune_prepared_copies() -> int:
                 _drop_without_copy(receipt, "engine-" + receipt.name.removeprefix("device-cli-").removesuffix(".json"))
             for lease in paths.DEPS_ROOT.glob("engine-*.lease"):
                 _drop_without_copy(lease, lease.name.removesuffix(".lease"))
-    except ProvisionError:  # BUSY: the next refresh or broker to start tries again
+    except (ProvisionError, OSError):  # BUSY, or the folder cannot be read: the next refresh or broker tries again
         pass
     return removed
 

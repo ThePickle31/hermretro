@@ -131,10 +131,6 @@ def main() -> int:
         return 3  # before any worker, socket or token is touched
 
     broker = Broker(state_dir, args.node)
-    # Earlier engines' copies no worker runs in (their leases are free) can go, beside the start, which it would slow.
-    # Not by a broker started across an engine change (no fingerprint): it is replaced at once.
-    if broker.code_fingerprint is not None:
-        threading.Thread(target=setup.prune_prepared_copies, name="prune-copies", daemon=True).start()
     socket_path = state_dir / "broker.sock"
     socket_path.unlink(missing_ok=True)  # safe: we hold the election lock
     old_umask = os.umask(0o177)
@@ -145,6 +141,11 @@ def main() -> int:
         token_path.write_text(broker.token)
     finally:
         os.umask(old_umask)
+    # Earlier engines' copies no worker runs in (their leases are free) can go, beside the start, which it would slow;
+    # only now, as files it makes must not get the socket's umask. Not by a broker started across an engine change (no
+    # fingerprint): it is replaced at once.
+    if broker.code_fingerprint is not None:
+        threading.Thread(target=setup.prune_prepared_copies, name="prune-copies", daemon=True).start()
     server.broker = broker  # type: ignore[attr-defined]
     broker.trace(event="broker_started", pid=os.getpid(), engine_verified=broker.engine_check.get("verified"))
     # Stop cleanly on any polite signal, so workers close their emulators and release their leases.

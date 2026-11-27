@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import stat
 import sys
 import tempfile
@@ -221,6 +222,29 @@ class Pruning(Refresh):
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
             provision.prune_prepared_copies()
         self.assertFalse((paths.DEPS_ROOT / "engine-1.0.34.lease").exists())
+
+    def test_without_this_engines_copy_nothing_is_touched(self):
+        # A fresh install: no receipt, so no download folder is made either (the broker starts this beside its own).
+        paths.DEVICE_CLI_RECEIPT.unlink()
+        shutil.rmtree(paths.DEPS_ROOT)
+        self.assertEqual(provision.prune_prepared_copies(), 0)
+        self.assertFalse(paths.DEPS_ROOT.exists())
+
+    def test_a_copy_whose_lease_cannot_be_opened_is_left(self):
+        older = self.earlier_copy("1.0.34")
+        real = copy_lease.unused
+
+        def unreadable(copy, **kwargs):
+            if copy == older:
+                raise PermissionError(13, "Permission denied", str(copy_lease.path_for(copy)))
+            return real(copy, **kwargs)
+
+        with (
+            mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
+            mock.patch.object(copy_lease, "unused", unreadable),
+        ):
+            self.assertEqual(provision.prune_prepared_copies(), 0)  # and no error reaches the worker starting
+        self.assertTrue(older.exists())
 
     def test_nothing_goes_while_this_engines_copy_does_not_verify(self):
         older = self.earlier_copy("1.0.34")  # it still has to give its CLI

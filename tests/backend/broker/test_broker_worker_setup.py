@@ -15,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.broker import client, lifecycle, server  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker import client, lane, lifecycle, server  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.lane import Denied  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.broker.test_broker_fingerprint import Running, launched  # noqa: E402 - the repository root goes on sys.path first
@@ -134,6 +134,31 @@ class StaleWorkerSetup(unittest.TestCase):
             with self.connect() as connection:
                 self.assertEqual(self.started, [])
                 self.assertEqual(connection.hello["broker_generation"], old.broker.generation)
+
+
+class ChoosingTheEngine(unittest.TestCase):
+    """The engine a worker starts from (lane._chosen_engine): every choice is verified, a retry's included."""
+
+    def test_a_copy_removed_as_it_was_chosen_is_chosen_again_and_verified(self):
+        copy = {"root": Path("/x/engine-2.0.2-a"), "prepared": True, "check": {"verified": True}}
+        unverified = {"root": paths.ENGINE_ROOT, "prepared": False, "check": {"verified": False, "detail": "changed x"}}
+        with (
+            mock.patch.object(lane.setup, "select_engine", side_effect=[copy, unverified]),
+            mock.patch.object(lane.setup, "hold_copy", side_effect=FileNotFoundError("gone")),
+        ):
+            with self.assertRaises(Denied) as raised:
+                lane._chosen_engine(sys.executable)
+        self.assertEqual(raised.exception.code, "ENGINE_NOT_VERIFIED")
+
+    def test_a_copy_that_keeps_going_says_so(self):
+        copy = {"root": Path("/x/engine-2.0.2-a"), "prepared": True, "check": {"verified": True}}
+        with (
+            mock.patch.object(lane.setup, "select_engine", return_value=copy),
+            mock.patch.object(lane.setup, "hold_copy", side_effect=FileNotFoundError("gone")),
+        ):
+            with self.assertRaises(Denied) as raised:
+                lane._chosen_engine(sys.executable)
+        self.assertEqual(raised.exception.code, "ENGINE_COPY_GONE")
 
 
 if __name__ == "__main__":
