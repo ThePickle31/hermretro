@@ -98,11 +98,14 @@ DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".c
 def engine_identity() -> str:
     """The bundled engine's identity as its files say now: its version and the start of its manifest's digest, so an
     edited engine is a new identity. ENGINE_IDENTITY is the one this process loaded."""
+    return _identity(engine_version(ENGINE_ROOT / "package.json"), _read_manifest())
+
+
+def _read_manifest():
     try:
-        manifest = json.loads(ENGINE_MANIFEST.read_text())
+        return json.loads(ENGINE_MANIFEST.read_text())
     except (OSError, ValueError):
-        manifest = None
-    return _identity(engine_version(ENGINE_ROOT / "package.json"), manifest)
+        return None
 
 
 def _identity(version: str | None, manifest) -> str:
@@ -114,9 +117,15 @@ def _identity(version: str | None, manifest) -> str:
         return version
 
 
+def manifest_digest(entries: list[dict]) -> str:
+    """The digest of a manifest's entries, its ``aggregate_sha256`` (tools/engine/manifest.py writes it)."""
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 # Named by the engine it was made from, and never changed once made (backend/setup/provision.py): two plugin copies
 # (an installed one and a dev checkout) share this folder, and a running worker keeps reading the copy it started in.
-ENGINE_IDENTITY = engine_identity()
+# The version it names is ENGINE_VERSION, from the same reading of package.json.
+ENGINE_IDENTITY = _identity(ENGINE_VERSION, _read_manifest())
 PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_IDENTITY}"  # bundled engine + ModRetro's CLI for this computer
 DEVICE_CLI_RECEIPT = DEPS_ROOT / f"device-cli-{ENGINE_IDENTITY}.json"
 # ModRetro's proprietary CLI, packed for all platforms. A distributable build of the plugin leaves
@@ -426,6 +435,8 @@ def staged_engine_problems(stage: Path) -> list[str]:
         manifest = json.loads(ENGINE_MANIFEST.read_text())
         if _identity(ENGINE_VERSION, manifest) != ENGINE_IDENTITY:
             return ["the engine's manifest changed since this process loaded it"]
+        if manifest_digest(manifest["entries"]) != manifest["aggregate_sha256"]:
+            return ["the engine's manifest entries do not match its digest"]
         expected = {e["path"]: e["sha256"] for e in manifest["entries"] if e["path"] not in VENDOR_ARCHIVES}
     except (OSError, ValueError, KeyError, TypeError) as error:
         return [f"the engine's manifest cannot be read: {error}"]

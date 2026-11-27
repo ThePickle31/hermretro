@@ -50,11 +50,6 @@ def scan(root: Path) -> list[dict]:
     return entries
 
 
-def aggregate(entries: list[dict]) -> str:
-    canonical = json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(canonical).hexdigest()
-
-
 def build(root: Path, recorded: dict | None = None) -> dict:
     """The manifest of root; a left-out file absent from root keeps its entry from the recorded manifest."""
     entries = scan(root)
@@ -76,7 +71,7 @@ def build(root: Path, recorded: dict | None = None) -> dict:
         "symlink_count": len(entries) - len(files),
         "total_bytes": sum(e["size"] for e in files),
         "suffix_counts": dict(sorted(suffixes.items(), key=lambda kv: (-kv[1], kv[0]))),
-        "aggregate_sha256": aggregate(entries),
+        "aggregate_sha256": paths.manifest_digest(entries),
         "entries": entries,
     }
 

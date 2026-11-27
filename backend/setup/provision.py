@@ -273,6 +273,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
 
     selection = paths.select_engine()
     if not selection["prepared"]:
+        _require_loaded_engine()  # it changed after the copy was made: the copy is right, this process is not
         raise ProvisionError(
             "VERIFY_FAILED",
             "The prepared engine did not verify after install: " + str(selection.get("prepared_problem")),
@@ -361,6 +362,7 @@ def _prepare(
             _RESOLVE % {"runtime": runtime}, cwd=stage, node_path=node_path
         )  # the engine's admission, before the swap
 
+        _require_loaded_engine()  # Node's admission ran meanwhile: still the engine this copy is named for
         previous = None
         if paths.PREPARED_ENGINE.exists():
             previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
@@ -492,7 +494,8 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
                 _NOT_REUSABLE.add(key)
                 return False
             if not paths.verify_prepared_engine()["verified"]:
-                _NOT_REUSABLE.add(key)
+                if paths.engine_identity() == paths.ENGINE_IDENTITY:  # not because the engine changed since
+                    _NOT_REUSABLE.add(key)
                 return False
             for receipt_path, copy in _earlier_copies():  # the one just read may still serve a running worker
                 if copy not in (paths.PREPARED_ENGINE, source):

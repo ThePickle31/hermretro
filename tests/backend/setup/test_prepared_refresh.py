@@ -192,8 +192,7 @@ class TheRealBuild(Refresh):
     def record_manifest(self, bundled: Path, files) -> None:
         """The bundled engine's manifest, as tools/engine/manifest.py writes one: its entries and their digest."""
         entries = [{"path": rel, "sha256": hashlib.sha256((bundled / rel).read_bytes()).hexdigest()} for rel in files]
-        digest = hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()
-        self.manifest.write_text(json.dumps({"entries": entries, "aggregate_sha256": digest}))
+        self.manifest.write_text(json.dumps({"entries": entries, "aggregate_sha256": paths.manifest_digest(entries)}))
 
     def assert_waits_for_the_restart(self):
         self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
@@ -216,6 +215,31 @@ class TheRealBuild(Refresh):
         (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
         self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
         self.assert_waits_for_the_restart()
+
+    def test_entries_rewritten_under_the_old_digest_publish_nothing(self):
+        # A manifest merged by hand: new entries, the digest (and so the identity) of the old ones.
+        self.earlier_copy("1.0.33")
+        old = json.loads(self.manifest.read_text())["aggregate_sha256"]
+        (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
+        self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
+        manifest = json.loads(self.manifest.read_text())
+        self.manifest.write_text(json.dumps({**manifest, "aggregate_sha256": old}))
+        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(paths.PREPARED_ENGINE.exists())
+
+    def test_a_version_read_before_an_update_and_its_manifest_after_publish_nothing(self):
+        # Loaded across an update: the old package.json, then the new manifest. The identity names the old version.
+        self.earlier_copy("1.0.33")
+        manifest = json.loads(self.manifest.read_text())
+        with (
+            mock.patch.object(paths, "ENGINE_VERSION", "1.9.9"),
+            mock.patch.object(paths, "ENGINE_IDENTITY", paths._identity("1.9.9", manifest)),
+        ):
+            self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+            with self.assertRaises(provision.ProvisionError) as raised:
+                provision._prepare(TARGET, PINS, EXE, NOTICE)
+        self.assertEqual(raised.exception.code, "ENGINE_CHANGED")
+        self.assertEqual(provision._NOT_REUSABLE, set())
 
     def test_an_engine_rebuilt_before_its_manifest_publishes_nothing(self):
         # tools/engine/bundle.mjs ran, manifest.py not yet: the identity is the same, the files are not.
