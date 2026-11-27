@@ -398,7 +398,7 @@ export class ChromaticService {
         }
         catch (error) {
             if (error instanceof Error && "code" in error && (error.code === "EPERM" || error.code === "EACCES")) {
-                throw new ChromaticDeviceError("CHROMATIC_JOURNAL_ACCESS_DENIED", "Chromatic installation needs access to its local status files. Ask Codex to enable local device access, then reopen the preview.", { journalRoot: this.#journal.root, diagnostic: { code: error.code, message: error.message } });
+                throw new ChromaticDeviceError("CHROMATIC_JOURNAL_ACCESS_DENIED", "Chromatic installation needs access to its local status files. Enable local device access, then reopen the preview.", { journalRoot: this.#journal.root, diagnostic: { code: error.code, message: error.message } });
             }
             throw error;
         }

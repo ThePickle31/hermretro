@@ -358,3 +358,13 @@ that module.
   `package.json` keeps the npm scripts whose files exist and drops its build-only devDependencies; the docs and
   hermretro's setup and deployment skills no longer describe the removed files. Windows code paths and
   `scripts/setup.ps1` stay.
+- `dist/web-annotations/error-dialog.js`, `dist/web-annotations/flash.js`, `dist/device-capture/native-client.js`,
+  `dist/native-device-capture.js`, `dist/chromatic.js`, `scripts/setup.mjs` (and comments in
+  `dist/web-annotations/recording.js` and `native.js`): the player's messages say "ask Hermes" instead of "ask
+  Codex", and errors to the agent no longer tell it to ask Codex. The capture-gate message changes in both places
+  that use it (`error-dialog.js` matches it exactly to choose its guidance). The docs, the README, the hardware-profile
+  extension's display name and author, the Linux capture notes and `package.json`'s description and links describe
+  hermretro's engine instead of ModRetro's Codex plugin; setup's examples use `build` instead of `runtime`, which the
+  bundled engine has no use for. `docs/store-launcher.md` and `docs/chromatic-preview-install-testing.md` (removed)
+  described ModRetro's store ZIP and its own test fixtures, which hermretro does not ship. Names stored in games, setup
+  folders or the browser, and the extension's event id, stay as they are.

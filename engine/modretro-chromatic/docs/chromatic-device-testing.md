@@ -1,15 +1,13 @@
 # Play your game on a Chromatic
 
-For a compact package, the plugin verifies the bundled executable bytes and
-writes only the selected platform's CLI to its private cache at
-`~/.modretro-chromatic-runtime`. Reused entries are verified before
-execution. An unsafe or damaged entry stops the command; the plugin does not
-silently replace it or modify its installed package.
+hermretro installs ModRetro's CLI for this computer into a prepared copy of the
+engine (`~/.hermes/hermretro/.cache/engine-<version>-<digest>/` by default) with
+`chromatic_studio_device_cli`, verified against the engine's pinned hashes. An
+unsafe or damaged entry stops the command; the plugin does not silently replace it.
 
-Use the [ModRetro Chromatic plugin](../README.md) to find your device,
-set up required drivers, stream a live demo, or flash a selected homebrew ROM. The official vendor
-backend is pinned to version 1.2.1 and bundled inside the plugin; you don't need
-a separate CLI installation.
+Use [the engine](../README.md) to find your device, set up required drivers,
+stream a live demo, or flash a selected homebrew ROM. The official vendor
+backend is pinned to version 1.2.1; install it once before the first device task.
 
 Start with a request like:
 
@@ -30,7 +28,7 @@ drivers, detect a cartridge, or write a game.
 
 Run the plugin on the computer connected to the Chromatic. A forwarded preview
 does not give a remote server access to your local USB devices. Set up any
-[required drivers](#driver-setup-depends-on-the-platform) with Codex first.
+[required drivers](#driver-setup-depends-on-the-platform) with Hermes first.
 
 1. Connect your Chromatic with a compatible homebrew cartridge, then choose
    **Install on Chromatic**. Opening the panel refreshes its device list.
@@ -52,7 +50,7 @@ original operation IDs. Unresolved operations keep their reservation.
 **Preview connection lost** means the local preview server could not be reached,
 not that a USB device was detected. If **Chromatic installation unavailable**
 reports inaccessible local status files, browser play remains available. Ask
-Codex to diagnose the required access to `~/.codex-gb-studio/chromatic`; do not
+Hermes to diagnose the required access to `~/.codex-gb-studio/chromatic`; do not
 delete, move, or replace the journal to work around a pending operation.
 
 This writes the cartridge, unlike the `play` tool’s host-streamed demo. For a
@@ -60,7 +58,7 @@ lost or in-progress write result, use **Check status**, never another Install.
 Status recovery controls apply to unresolved operations, failed status reads,
 or discovery recovery. A finished installation failure shows its cause separately
 from whether cartridge data changed; it does not offer **Refresh status**.
-Use **Copy error** and paste its report into Codex. The report retains the original
+Use **Copy error** and paste its report into Hermes. The report retains the original
 operation ID and bounded structured diagnostics for reading that same operation;
 it does not copy raw vendor output. If clipboard access fails, the selectable
 report expands for manual copying. Copying does not retry the write or
@@ -76,9 +74,7 @@ Through MCP, call `web_preview` with `action:"install_status"`, then use
 `action:"dismiss_install_failure"` with its exact `installationBinding`
 (`generation`, `requestId`, `operationId`). Dismissal itself does not discover
 devices or write a ROM. The browser can then reopen fresh device selection.
-Vendor success still needs a separate manual boot/gameplay check. See
-[local preview testing](chromatic-preview-install-testing.md) for fixture and
-hardware verification boundaries.
+Vendor success still needs a separate manual boot/gameplay check.
 
 ## Public tools
 
@@ -97,10 +93,8 @@ The existing `modretro-chromatic` MCP server exposes these short local names:
 Chromatic exposes a USB video feed. `device_capture` supports macOS and Linux
 (x64/ARM64), using a native backend and an authenticated local page. Windows
 device capture is unavailable; Emulation and supported Install/flashing remain
-available. Open the capture URL only in
-Codex's built-in browser. The browser never requests camera or microphone access.
-If the built-in browser is unavailable, retain the URL and report the limitation;
-never switch to an external browser.
+available. In hermretro, give the capture URL to the user. The browser never
+requests camera or microphone access.
 
 The page reuses the emulator preview's eight device colors, compact toolbar,
 tooltips, and side capture controls. Settings is a fixed dialog with Connection
@@ -108,7 +102,7 @@ and Recording tabs. Live mode supports annotations, fullscreen, screenshots and
 recording; it does not pretend to pause, reset or control physical game input.
 macOS can record matching USB audio; Linux capture is video-only. Live audio
 playback is not implemented.
-The Emulator tab offers a user-sent Codex annotation for opening a project preview
+The Emulator tab offers a user-sent annotation for opening a project preview
 or creating a blank project. It does not replace or close an existing session.
 
 1. Call `device_capture {"action":"open"}`. On macOS, use `open_settings` with
@@ -329,7 +323,7 @@ A standalone ROM does not need a dummy native game project. Configure
 For GB Studio authoring, use `project_select` with the intended `.gbsproj` path.
 `session_status` shows the current authorization; all paths must remain inside it.
 
-A ROM Codex compiled from game project source counts as homebrew; an extra emulator
+A ROM the agent compiled from game project source counts as homebrew; an extra emulator
 check is not needed for provenance. That does not make a known third-party
 commercial game eligible: wrapping, patching, or rebuilding it from leaked or
 decompiled source does not qualify. For a supplied ROM of unknown origin, try to
@@ -375,7 +369,7 @@ A repeated request ID retrieves that same attempt; it never starts a new one.
 
 ## Stream a live demo
 
-Ask Codex to live-play an inspected ROM on your selected Chromatic for a stated
+Ask Hermes to live-play an inspected ROM on your selected Chromatic for a stated
 duration. The plugin calls the bundled vendor's `live-demo`: emulation runs on
 the computer, with video and audio streamed to the Chromatic. This does not write
 the cartridge and is not evidence of native cartridge performance.

@@ -1,13 +1,13 @@
 # Build, play, fix, and retest
 
 The model editing the game can play it through the
-[ModRetro Chromatic plugin](../README.md). Build the native
+[the engine](../README.md). Build the native
 project, choose a short controller input, inspect real frames, and decide what
 to do next. The emulator does not advance while the model is thinking.
 
 ## When browser play is unavailable
 
-If Codex's built-in browser is unavailable, locked or unreachable, retain its
+If the browser preview is unavailable, locked or unreachable, retain its
 URL and state, report that browser limitation, and continue **gameplay** checks
 with the public headless PyBoy tools. Browser access is not a prerequisite.
 Use `emulator_run` on the intended exact ROM, `emulator_step` for bounded inputs,

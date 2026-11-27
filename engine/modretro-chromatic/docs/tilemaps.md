@@ -1,6 +1,6 @@
 # Reusable native tilemaps
 
-The [ModRetro Chromatic plugin](../README.md) tilemap tools compose
+[The engine's](../README.md) tilemap tools compose
 ordinary native game background PNGs and native `.gbsres` resources.
 GB Studio remains the editor and compiler. This is a
 fixed-size, manual-color authoring slice, not a new game engine or a Tiled

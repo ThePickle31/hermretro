@@ -1,9 +1,7 @@
-# ModRetro Chromatic: Windows setup
+# Windows setup
 
-> hermretro does not run on Windows yet. This is ModRetro's guide to setting the
-> engine up on its own there.
-
-This guide covers the [ModRetro Chromatic plugin](../README.md).
+hermretro does not run on Windows yet. This guide covers setting
+[the engine](../README.md) up on its own there.
 
 Windows x64 support is experimental. The plugin has portable setup and test
 coverage, but a complete native Windows installation, official game build,
@@ -13,11 +11,10 @@ workflow. Windows ARM64 is unsupported; Git Bash and WSL are not required.
 
 ## Use the packaged PowerShell entrypoint
 
-Ask Codex to use the [setup skill](../skills/modretro-chromatic-setup/SKILL.md) and
-[shared setup flow](setup.md). The commands here are agent-run or advanced
-reference examples, not terminal work required of every user.
+Follow the [shared setup flow](setup.md). The commands here are agent-run or
+advanced reference examples, not terminal work required of every user.
 
-Start with a trusted, readable compiled package and PowerShell 5.1+. The new
+Start with the engine folder and PowerShell 5.1+. The
 `scripts/setup.ps1` entrypoint works before MCP starts; it does not require Git
 Bash, WSL, preinstalled Python/uv, or the optional GB Studio desktop editor.
 Git and Corepack are not prerequisites for its pinned-source CLI build.
@@ -59,7 +56,7 @@ readiness meanings, and `--probes cli-version,gbdk-version,emulator-import`.
 Setup prepares an external runtime, verified official CLI/GBDK, and isolated
 Python environment in a new or setup-owned root. It never adopts a nonempty
 unowned directory, edits `PATH` or profiles, registers an OS application, or
-invokes Codex. Use local drive paths, not UNC paths or network shares; prefer a
+starts an agent. Use local drive paths, not UNC paths or network shares; prefer a
 short `C:` path because upstream GBDK documents failures with spaces on other
 drives. Existing shared toolchains and immutable caches are not repair targets.
 

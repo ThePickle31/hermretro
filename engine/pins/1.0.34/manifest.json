@@ -3,12 +3,12 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 339,
+ "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33379001,
+ "total_bytes": 33370365,
  "suffix_counts": {
   ".js": 147,
-  ".md": 66,
+  ".md": 64,
   ".gbsres": 42,
   ".json": 21,
   ".png": 17,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "eda8a37bb55c8006d590b51ba9a447b3cb4829faa8e891e69060baf3fe14b319",
+ "aggregate_sha256": "0b7beb9ac8a8e4ed77020d396bcee9236b3002341c0399166c1c6164fa38741d",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4338,
+   "size": 4406,
    "mode": "0o644",
-   "sha256": "9e6524d0f596a346fb81c0a8da90de6e57a4b2133bed87654ba1d1553ee88e96"
+   "sha256": "b1bb34cb2aecb166f60fcd7915a495e5c566229162f0b06bf902d1d0dac71f91"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -171,9 +171,9 @@
   {
    "path": "dist/chromatic.js",
    "type": "file",
-   "size": 55691,
+   "size": 55678,
    "mode": "0o644",
-   "sha256": "76d0cf73eb5e5e00cd7eb5c07e27c87e78043483e639fe4e8d5dc8c8cfc10df2"
+   "sha256": "8d460aedd7415562a6e425896affa1d62d5ffef16cd2f09efb5f4bc49d4ae81d"
   },
   {
    "path": "dist/collisions.js",
@@ -262,9 +262,9 @@
   {
    "path": "dist/device-capture/native-client.js",
    "type": "file",
-   "size": 75108,
+   "size": 75110,
    "mode": "0o644",
-   "sha256": "647f24f7ee17beef434f583664949519ba0d949d8251d6a795527fdef89e3e0e"
+   "sha256": "7ad277d168be54d573f4db58f38b7f2213e888d9832188a3d463f2e7c3f5ce60"
   },
   {
    "path": "dist/device-capture/native-entry.js",
@@ -430,9 +430,9 @@
   {
    "path": "dist/native-device-capture.js",
    "type": "file",
-   "size": 76654,
+   "size": 76599,
    "mode": "0o644",
-   "sha256": "8eacdacb95fffcb0b5cc831d8ad9ef89104278dd8733bfe6c6caf94b08c4d062"
+   "sha256": "f83bc7ebe9184c1baf23e0ce305375d869e5d2c6777b07cab203d418c701329c"
   },
   {
    "path": "dist/native-import-files.js",
@@ -605,9 +605,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 3071035,
+   "size": 3070967,
    "mode": "0o644",
-   "sha256": "5dbcf186698c78cf7511bcca24e170148aa013471c7990efcfb276fdca3a14ec"
+   "sha256": "d6f57669d33b32f5403b0babcbac9118c575ea049a6800de198a57e1c68b74ef"
   },
   {
    "path": "dist/source-debug.js",
@@ -710,9 +710,9 @@
   {
    "path": "dist/web-annotations/error-dialog.js",
    "type": "file",
-   "size": 11156,
+   "size": 11117,
    "mode": "0o644",
-   "sha256": "7825145434b2736d6c0f9ce0925428fa848cb76203b94d628022ccf1fbb6a538"
+   "sha256": "f0b48b7f1540e8d93f8939f968313d1afc363e01429044915649fd64e6681ee7"
   },
   {
    "path": "dist/web-annotations/flash-diagnostics.js",
@@ -724,9 +724,9 @@
   {
    "path": "dist/web-annotations/flash.js",
    "type": "file",
-   "size": 49214,
+   "size": 49215,
    "mode": "0o644",
-   "sha256": "27399a66faa871c7b6d338a6d0243bc106b435c17815e9917d4f523bba9e2e51"
+   "sha256": "3d9f0c1ea535647f6d709f91fff62db9fdd58635f0dc236265b80d39f31cab8d"
   },
   {
    "path": "dist/web-annotations/input-owner.js",
@@ -752,9 +752,9 @@
   {
    "path": "dist/web-annotations/native.js",
    "type": "file",
-   "size": 15113,
+   "size": 15092,
    "mode": "0o644",
-   "sha256": "1ade34f7bd51716f7a0257fd27c1310a468e80e21191e670c36a777b461f3dc1"
+   "sha256": "2ffcc79649882a512d5f17d979a7f3d889d900fd6456714f3d98edd34391b9ff"
   },
   {
    "path": "dist/web-annotations/player.js",
@@ -780,9 +780,9 @@
   {
    "path": "dist/web-annotations/recording.js",
    "type": "file",
-   "size": 35122,
+   "size": 35116,
    "mode": "0o644",
-   "sha256": "1bd0e57d222fd7e3d6f05c4e928603e3598b38db52aff1b45c929ccc666aedbd"
+   "sha256": "5c0c3ecf67360ca369efd9f0b87759d95029840d635d21ce3452d80b5d614da4"
   },
   {
    "path": "dist/web-annotations/remote.js",
@@ -1137,30 +1137,23 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44604,
+   "size": 44575,
    "mode": "0o644",
-   "sha256": "3b35191a37b0332d4aad11bf30c6e4cf41c2f468fa6e3dd2793a69006e152f77"
+   "sha256": "7e8825750399ff6fb6658820b3ad3c4fe4bd7c4bcca89ae26dce9cda649d7e2c"
   },
   {
    "path": "docs/architecture.md",
    "type": "file",
-   "size": 23688,
+   "size": 23529,
    "mode": "0o644",
-   "sha256": "5d9edbeb2c9de5f15b1146481e5d7fd0d6d93c5ec70178fe6abb61afe8eb0a6f"
+   "sha256": "1a9c12b3c1e1aeb9a56f324623cce27d4156aa5534f1afa2743d31ed54127d8d"
   },
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 27725,
+   "size": 27424,
    "mode": "0o644",
-   "sha256": "d36ec4900ddc27313b7ff498c5f55f18b2bd6b2f7fdc324c5bf102b83d79b377"
-  },
-  {
-   "path": "docs/chromatic-preview-install-testing.md",
-   "type": "file",
-   "size": 4868,
-   "mode": "0o644",
-   "sha256": "a6f454d9836c8091edd7df108cec922f9924e3f7e48d6f30654f1d9862a77058"
+   "sha256": "7c2d9f98a9f162557e183c81ddcf77c2ce5729d4bd2abfb679974c831430dbf0"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1186,9 +1179,9 @@
   {
    "path": "docs/recorded-playtesting.md",
    "type": "file",
-   "size": 15855,
+   "size": 15836,
    "mode": "0o644",
-   "sha256": "7bbe02ecb82e41f25552231716ae9793faf157ae819049918ce3646c711c6ee7"
+   "sha256": "39d4bfb37d3a1746df74c31fce3893121dcf370eef6031a6c303f4627f8ea7a2"
   },
   {
    "path": "docs/reviewed-custom-events.md",
@@ -1200,44 +1193,37 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 13041,
+   "size": 12951,
    "mode": "0o644",
-   "sha256": "b7fe8d3261655d5dcea1e3fd7d2c554273a117cf8ac41c5074bcd39497acd332"
+   "sha256": "677a26c1813d76f2a7582372762ed00c06b4e5ab85d5c3efd8274c76186c8f0c"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15645,
+   "size": 14989,
    "mode": "0o644",
-   "sha256": "8c9837782c363c4b2c753546480f1573536682a78dd4e16fcf75696ed783e6a6"
+   "sha256": "f34d38d2e9b100b63dcce780dc273ad988f0c958965518c9e09f4739fc490904"
   },
   {
    "path": "docs/stepped-playtesting.md",
    "type": "file",
-   "size": 9749,
+   "size": 9729,
    "mode": "0o644",
-   "sha256": "1476bf3b20f9a0d3e8ae705ec857280a93b3b5fdcf46d00dcb0f315d1bb1c68e"
-  },
-  {
-   "path": "docs/store-launcher.md",
-   "type": "file",
-   "size": 1295,
-   "mode": "0o644",
-   "sha256": "59bd5ef708395d1a7989038531244518af20200ecaccd18d3268b0723d96278e"
+   "sha256": "6d5d6f688f69959fccf6279875939260bdcd27b8579c3fc3b0e59ccd0e07f310"
   },
   {
    "path": "docs/tilemaps.md",
    "type": "file",
-   "size": 19524,
+   "size": 19507,
    "mode": "0o644",
-   "sha256": "25b0f5c04d4df0730b0f5b87fac85fbbd0e756a7d6d2577079d51bf5bb5214fb"
+   "sha256": "18a8ba6cd8acae6ecc5f056e3f624ceb4bb2bfffe8c0801b125ea2e2fcc1d02a"
   },
   {
    "path": "docs/windows-setup.md",
    "type": "file",
-   "size": 4785,
+   "size": 4607,
    "mode": "0o644",
-   "sha256": "5323cd3b192d7b92d6df7905f7b759e40897615550dcb38a3eba5295b6afbb44"
+   "sha256": "8ab0356a2fdb8aac7341232d02eeee545e3d90209ab1ee5e620b0d3ec7a935ec"
   },
   {
    "path": "docs/wrecklight-authoring.md",
@@ -2005,9 +1991,9 @@
   {
    "path": "native/capture/README.md",
    "type": "file",
-   "size": 5332,
+   "size": 5153,
    "mode": "0o644",
-   "sha256": "80d4e6f5cd8787abcb68963d866d013b76288da4e47df273ea4802707ab3f7ef"
+   "sha256": "325902c1ddc5cd564299ba0f19710b5a52dc1a3a896f95d149a2f18a3fb65f3a"
   },
   {
    "path": "native/capture/linux/arm64/ffmpeg",
@@ -2054,30 +2040,30 @@
   {
    "path": "native-game-plugin/README.md",
    "type": "file",
-   "size": 2811,
+   "size": 2181,
    "mode": "0o644",
-   "sha256": "9b49e83d9c468cb896c91e69f10a0a62cbd960b507af958e0a8181e89f42cd73"
+   "sha256": "397c4285cc9708a397ab5e6fc2a1d2e3c6a53542bf549fddd6bee071c8f07041"
   },
   {
    "path": "native-game-plugin/plugins/modretro-chromatic/events/eventCodexHardwareProfile.js",
    "type": "file",
-   "size": 1551,
+   "size": 1544,
    "mode": "0o644",
-   "sha256": "a125ee40ac4d3eafda5d27824bb6c94bcab0871654bc60cd3eb5294b11973a21"
+   "sha256": "3ea709cc81638161cd7435c5c069a24ce1883b719cfaa2c3cae4e1e09857e201"
   },
   {
    "path": "native-game-plugin/plugins/modretro-chromatic/plugin.json",
    "type": "file",
-   "size": 293,
+   "size": 280,
    "mode": "0o644",
-   "sha256": "a06859b8911b0901a2463bce67ba9c7177eb32c258938492baf73e74e3a8f575"
+   "sha256": "3dee6a9976682ddd582181a19b608828aa680002cae1f617adcbf08cd257181d"
   },
   {
    "path": "package.json",
    "type": "file",
-   "size": 2919,
+   "size": 2875,
    "mode": "0o644",
-   "sha256": "da68e926f3aabb24c89d1e1435d9fa71f17c136d6842a93750b8a18b57112a91"
+   "sha256": "c4a3b558c715e8220b3991becfca6a482cb2580d6460e8149f8777b33226c69f"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",
@@ -2196,7 +2182,7 @@
    "type": "file",
    "size": 39187,
    "mode": "0o644",
-   "sha256": "784c48adae43de3d4fdf65ecf127052e3277a8528cd255bc2f8f896b6a3501c3"
+   "sha256": "8d16526f615de6775ba9dedc9a00f9250640f976ff7cfcaa8db15469e5544a8c"
   },
   {
    "path": "scripts/setup.ps1",

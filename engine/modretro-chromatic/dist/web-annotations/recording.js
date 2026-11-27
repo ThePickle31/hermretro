@@ -442,7 +442,7 @@ export function mountRecordingControl(canvas, audio, host, identity, saveCapture
         anchor.textContent = label;
         if (filename)
             anchor.download = filename;
-        // The containing Codex built-in browser manages this link; never invoke an OS opener.
+        // The page that frames the player manages this link; never invoke an OS opener.
         else {
             anchor.target = "_blank";
             anchor.rel = "noopener";

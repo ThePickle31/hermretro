@@ -1,6 +1,6 @@
 # Agent workflow and MCP guide
 
-Use the [ModRetro Chromatic plugin](../README.md) to author, compile,
+Use [hermretro's engine](../README.md) to author, compile,
 and playtest the user's actual native game project. Its authoring, pixel-art, and
 ROM-debugging skills share the local MCP server and the operating contract in
 this guide. Use the [setup skill](../skills/modretro-chromatic-setup/SKILL.md) for first
@@ -51,7 +51,7 @@ artifact accordingly and report only the platforms actually qualified.
 If MCP cannot start, follow the [setup skill](../skills/modretro-chromatic-setup/SKILL.md)
 and [packaged setup reference](setup.md). Do not loop on unavailable MCP calls.
 The bundled `setup.sh`/`setup.ps1` can report or explicitly bootstrap Node from a
-trusted compiled package. Codex runs those entrypoints; do not shift runnable
+trusted compiled package. The agent runs those entrypoints; do not shift runnable
 setup commands to the user or assume a global Node/Python installation. Never
 run npm setup inside an immutable cache. A launcher Node `--version` check is
 disclosed separately from the full passive dependency report.
@@ -372,7 +372,7 @@ for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview
 
-Open every `web_preview` or `device_capture` URL, including screenshot Open links, only in **Codex's built-in browser**. If it is unavailable or blocked, retain the URL and report the concrete limitation. Never launch or fall back to an external browser.
+In hermretro, show the game in the hermretro emulator with `chromatic_present_game`; do not open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
 
 Browser availability is not a prerequisite for gameplay testing. If the browser
 is missing, locked or unreachable, retain its state and continue with public
@@ -489,7 +489,7 @@ States require the exact ROM, WebAssembly runtime, and source revision that
 created them. A new build uses a separate history. Older build histories remain
 on disk; states are not migrated between builds.
 
-Codex uses the existing `web_preview` tool for state operations:
+The agent uses the existing `web_preview` tool for state operations:
 
 | Action | Result |
 | --- | --- |
@@ -544,7 +544,7 @@ interaction in the actual browser before claiming those user-visible outcomes.
 
 ### Annotate a game preview
 
-In a supporting Codex/ChatGPT browser, **Annotate game** opens native annotation
+In a supporting host browser, **Annotate game** opens native annotation
 mode on the existing player. Selecting the canvas freezes a frame. The picker
 offers visible hardware sprites, small adjacent sprite groups, background/window
 tiles, and a whole-frame fallback. Sprite grouping is an inference from OAM
@@ -672,7 +672,7 @@ missing compiler, optional emulator, or hardware evidence honestly.
 
 ### Watch browser play for a fixed duration
 
-Use the existing `web_preview` tool for the browser emulator. `device_capture` is only for physical hardware. Keep the preview in Codex's built-in browser and preserve a person's active play.
+Use the existing `web_preview` tool for the browser emulator. `device_capture` is only for physical hardware. Keep the preview where it is open and preserve a person's active play.
 
 1. Read `web_preview` with `action: "status"`. Select a visible, running, idle player and copy its listener ID, view ID, ROM/runtime hashes, source revision, and recording generation into `recordingBinding`.
 2. Call `action: "start_recording"` with that binding and optional `recordingDurationMs` (1,000–600,000; default 180,000). The immediate receipt is a queued job, not proof that recording began. Save its `recordingId`.
@@ -685,4 +685,4 @@ Closing a preview uses a fresh acknowledgment from every recording-capable view,
 
 ### Open a ready view
 
-Codex manages project selection and preparation before opening a view. For game preview, select or create the requested project, prepare missing build dependencies, and wait for a successful preview result before opening its URL. Never open an empty setup placeholder or ask the user to repeat the same request through an in-view Codex button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.
+The agent manages project selection and preparation before opening a view. For game preview, select or create the requested project, prepare missing build dependencies, and wait for a successful preview result before opening its URL. Never open an empty setup placeholder or ask the user to repeat the same request through an in-view button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.

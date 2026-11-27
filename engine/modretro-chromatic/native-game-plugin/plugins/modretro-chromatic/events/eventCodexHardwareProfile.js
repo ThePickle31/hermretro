@@ -50,7 +50,7 @@ const compile = (input, helpers) => {
 
 module.exports = {
   id,
-  name: "Codex: Detect Hardware Profile",
+  name: "Detect Hardware Profile",
   description:
     "Store the current Game Boy hardware profile and branch into color or monochrome-safe behavior.",
   groups: ["EVENT_GROUP_CONTROL_FLOW", "EVENT_GROUP_COLOR"],

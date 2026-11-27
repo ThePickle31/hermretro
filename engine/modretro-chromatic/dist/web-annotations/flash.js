@@ -517,7 +517,7 @@ export function mountFlashControl(root, generation, current, verifyGame, sourceR
                 : "The device operation could not finish. Copy the error for help.");
         }
         else if (!reply.available)
-            say("Device installation is unavailable in this session. Ask Codex to check the plugin setup.");
+            say("Device installation is unavailable in this session. Ask Hermes to check the plugin setup.");
         else if (reply.detecting)
             say("Looking for connected Chromatic devices…");
         else if (reply.blocked)

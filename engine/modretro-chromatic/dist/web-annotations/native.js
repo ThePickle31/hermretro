@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 /**
  * Native annotation bridge adapted from Dominik Kundel's Chromatic simulator
- * (OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex, PR #5). The existing
+ * (in ModRetro's Chromatic plugin, PR #5). The existing
  * Binjgb player owns capture, playback, and temporary color previews.
  */
 import { frameTarget, metadata, toGamePoint, viewportRect, } from "./targets.js";

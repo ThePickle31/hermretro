@@ -519,7 +519,7 @@ export async function applySetup(options = {}) {
   return run;
 }
 
-export const SETUP_USAGE = `ModRetro Chromatic packaged setup (does not install or refresh the Codex plugin)
+export const SETUP_USAGE = `ModRetro Chromatic packaged setup (installs dependencies only, never the plugin)
 Usage: setup.sh|setup.ps1 [doctor|plan|apply] [--root ABSOLUTE_PATH]
   --components runtime,build,emulator,desktop  Default: runtime,build,emulator
   --probes cli-version,gbdk-version,emulator-import  Doctor only; explicitly executes these checks

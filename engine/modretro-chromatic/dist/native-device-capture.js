@@ -20,7 +20,7 @@ const SESSION_BYTES = 256 * 1024 * 1024, MAX_REQUEST = 16 * 1024;
 const NEXT_FRAME_WAIT_MS = 250, MAX_FRAME_WAITERS = 4;
 const ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js"];
 class CaptureDisabledError extends Error {
-    constructor() { super("Enable device capture in Settings → Connection first. Codex can open that settings tab for you."); }
+    constructor() { super("Enable device capture in Settings → Connection first."); }
 }
 class HttpError extends Error {
     status;
@@ -865,7 +865,7 @@ export class NativeDeviceCaptureService {
                 const retained = await a.files.verifiedFile(result);
                 recording.retainedPath = retained.path;
                 await retained.handle.close();
-                throw new Error(result.error?.message ?? "Native recording is partial. Its original file is retained; ask Codex to inspect the recording status.");
+                throw new Error(result.error?.message ?? "Native recording is partial. Its original file is retained; inspect the recording status.");
             }
             if (a.totalBytes + result.bytes > SESSION_BYTES)
                 throw new Error("Session publication quota exceeded.");

@@ -1,14 +1,15 @@
 {
   "name": "modretro-chromatic",
   "version": "1.0.34",
-  "description": "ModRetro Chromatic: author, build, and playtest native Game Boy and Game Boy Color games.",
-  "homepage": "https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex",
+  "description": "hermretro's engine: author, build, and playtest native Game Boy and Game Boy Color games.",
+  "homepage": "https://github.com/ThePickle31/hermretro",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex.git"
+    "url": "git+https://github.com/ThePickle31/hermretro.git",
+    "directory": "engine/modretro-chromatic"
   },
   "bugs": {
-    "url": "https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/issues"
+    "url": "https://github.com/ThePickle31/hermretro/issues"
   },
   "private": true,
   "type": "module",

@@ -1,17 +1,14 @@
 # Runtime validation
 
-> This is ModRetro's guide to setting the engine up on its own. In hermretro,
-> setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
-> and `chromatic_toolchain_doctor`, into hermretro's own folder
-> (`~/.hermes/hermretro/.cache/` by default), and a game is shown with `chromatic_present_game`.
-
-Verify the [ModRetro Chromatic plugin](../README.md) against a real
-native game project. Each layer establishes a different fact: TypeScript
-checks validate plugin
-source; project inspection validates editable resources; official compilation
-produces an authentic cartridge; an official browser export provides a genuine
-interactive Binjgb player; and PyBoy frames establish observed deterministic
-runtime behavior. None substitutes for another.
+Verify [the engine](../README.md) against a real native game project. In
+hermretro, setup runs from the hermretro page, or the agent's
+`chromatic_toolchain_prepare` and `chromatic_toolchain_doctor`, into hermretro's
+own folder (`~/.hermes/hermretro/.cache/` by default), and a game is shown with
+`chromatic_present_game`. Each layer establishes a different fact: source
+checks validate the engine's code; project inspection validates editable
+resources; official compilation produces an authentic cartridge; an official
+browser export provides a genuine interactive Binjgb player; and PyBoy frames
+establish observed deterministic runtime behavior. None substitutes for another.
 
 Windows x64 support remains experimental. Portable tests or validation performed
 on macOS/Linux do not establish that a Windows installation, native compiler,
