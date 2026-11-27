@@ -1046,7 +1046,7 @@ export function mountNativeCapture(root, options = {}) {
             void chooseColor(stored);
     }
     catch { /* Optional preference only. */ }
-    element("annotate").addEventListener("click", () => { const result = requestDiagnosticAnnotation(frame, { Source: "Native Chromatic live feed", Request: "Help review this device view. Native video does not authenticate the installed ROM." }); element("view-feedback").textContent = result.accepted ? "Ready to send. Send the annotation to ask Hermes about this view." : "Use the browser's annotation button to share this view with Codex."; });
+    element("annotate").addEventListener("click", () => { const result = requestDiagnosticAnnotation(frame, { Source: "Native Chromatic live feed", Request: "Help review this device view. Native video does not authenticate the installed ROM." }); element("view-feedback").textContent = result.accepted ? "Ready to send. Send the annotation to ask Hermes about this view." : "Take a screenshot to share this view with Hermes."; });
     element("settings-open").addEventListener("click", () => openSettings());
     element("settings-close").addEventListener("click", () => settings.close());
     settings.addEventListener("close", () => { picker.close(); element("settings-open").focus({ preventScroll: true }); });

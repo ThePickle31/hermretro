@@ -14,10 +14,10 @@ iteration. Express gameplay, story, progression, interactions, and other
 game-specific behavior through native project resources, visual-script events,
 or project-owned extensions; do not invent game-specific MCP capabilities.
 
-The host supplies the `modretro-chromatic` MCP namespace. Local tool names stay short:
-`project_select`, `scene_apply`, and `emulator_observe` for project work;
-`device`, `setup`, `play`, and `flash` for physical Chromatic use. Do not add a
-redundant product prefix. See the [device workflow](chromatic-device-testing.md)
+The engine's tool names stay short: `project_select`, `scene_apply`, and
+`emulator_observe` for project work; `device`, `setup`, `play`, and `flash` for
+physical Chromatic use. This guide uses those names; hermretro gives each one to
+its agent as `chromatic_<name>`. See the [device workflow](chromatic-device-testing.md)
 for explicit selection, driver setup, timed live demos, exact-ROM writes, and operation recovery.
 
 Treat these as separate kinds of evidence:
@@ -67,10 +67,11 @@ toolchain_doctor {"tasks":["authoring","projectBuild","play"]}
 toolchain_doctor {"tasks":["play"],"probes":["cli-version","gbdk-version","emulator-import"]}
 ```
 
-Doctor and plan never install. New or iterated playable games require
-`runtime,build`, including browser previews. Use `runtime` alone for source
-inspection, edits without a build, or device tools with an existing ROM; add
-`emulator` for local stepped play and `desktop` only when requested. Use the same
+Doctor and plan never install. New or iterated playable games require `build`,
+including browser previews. The bundled engine needs no `runtime` component:
+source inspection, edits without a build, and device tools with an existing ROM
+need no build dependencies. Add `emulator` for local stepped play and `desktop`
+only when requested. Use the same
 root and selection for plan, `apply --yes`, and doctor. Carry necessary setup
 through for the authorized game workflow unless the user limits downloads or
 changes; ask only for missing scope or required platform approval. Preserve existing
@@ -372,7 +373,7 @@ for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview
 
-In hermretro, show the game in the hermretro emulator with `chromatic_present_game`; do not open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
+In hermretro, show the game to the user as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes (`chromatic_present_game`); never open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
 
 Browser availability is not a prerequisite for gameplay testing. If the browser
 is missing, locked or unreachable, retain its state and continue with public
@@ -685,4 +686,4 @@ Closing a preview uses a fresh acknowledgment from every recording-capable view,
 
 ### Open a ready view
 
-The agent manages project selection and preparation before opening a view. For game preview, select or create the requested project, prepare missing build dependencies, and wait for a successful preview result before opening its URL. Never open an empty setup placeholder or ask the user to repeat the same request through an in-view button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.
+The agent manages project selection and preparation before showing anything. In hermretro, the game handoff is `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes; the agent never opens a `web_preview` URL itself. Never ask the user to repeat the same request through an in-view button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device, and the capture URL goes to the user. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.

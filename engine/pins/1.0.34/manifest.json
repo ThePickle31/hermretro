@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 337,
  "symlink_count": 0,
- "total_bytes": 33370365,
+ "total_bytes": 33370341,
  "suffix_counts": {
   ".js": 147,
   ".md": 64,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "0b7beb9ac8a8e4ed77020d396bcee9236b3002341c0399166c1c6164fa38741d",
+ "aggregate_sha256": "4f1dffdb0dec893de9bcaa52fb513a220308b0dfbe8189bb6b459898857271f9",
  "entries": [
   {
    "path": "LICENSE",
@@ -262,9 +262,9 @@
   {
    "path": "dist/device-capture/native-client.js",
    "type": "file",
-   "size": 75110,
+   "size": 75093,
    "mode": "0o644",
-   "sha256": "7ad277d168be54d573f4db58f38b7f2213e888d9832188a3d463f2e7c3f5ce60"
+   "sha256": "adfe09db962d648161745ce9ac41983b7bdf7c3fd4f43410e71b8160fe87abb3"
   },
   {
    "path": "dist/device-capture/native-entry.js",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44575,
+   "size": 44743,
    "mode": "0o644",
-   "sha256": "7e8825750399ff6fb6658820b3ad3c4fe4bd7c4bcca89ae26dce9cda649d7e2c"
+   "sha256": "f3fa3b71abc5ca76623dc7d50f42656f59c53aa26e3433467205478d03f4f275"
   },
   {
    "path": "docs/architecture.md",
@@ -1151,9 +1151,9 @@
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 27424,
+   "size": 27626,
    "mode": "0o644",
-   "sha256": "7c2d9f98a9f162557e183c81ddcf77c2ce5729d4bd2abfb679974c831430dbf0"
+   "sha256": "5768e40dd47239e86463528fb93ef12edd924cf8d6eac8ee0ade154a5e89b40a"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1193,16 +1193,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12951,
+   "size": 12514,
    "mode": "0o644",
-   "sha256": "677a26c1813d76f2a7582372762ed00c06b4e5ab85d5c3efd8274c76186c8f0c"
+   "sha256": "af1a3d4a6e2e357813c9d4cbc50e0018235bd384ddf59f3747b5b447045c6add"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 14989,
+   "size": 15049,
    "mode": "0o644",
-   "sha256": "f34d38d2e9b100b63dcce780dc273ad988f0c958965518c9e09f4739fc490904"
+   "sha256": "ccf9b50d10670dd33f2a0ecadfb9cebc5a4040de3c1535bae0fbb4daec30ac5a"
   },
   {
    "path": "docs/stepped-playtesting.md",

@@ -90,10 +90,13 @@ The existing `modretro-chromatic` MCP server exposes these short local names:
 
 ## Capture the physical device
 
-Chromatic exposes a USB video feed. `device_capture` supports macOS and Linux
-(x64/ARM64), using a native backend and an authenticated local page. Windows
-device capture is unavailable; Emulation and supported Install/flashing remain
-available. In hermretro, give the capture URL to the user. The browser never
+Chromatic exposes a USB video feed. `device_capture` supports macOS, using a
+native backend and an authenticated local page. Linux (x64/ARM64) capture needs
+the engine's verified FFmpeg helper, which hermretro does not ship (see the
+[capture notes](../native/capture/README.md)); without it, Linux capture reports
+that it is unavailable. Windows device capture is unavailable. Emulation and
+supported Install/flashing remain available everywhere. In hermretro, give the
+capture URL to the user. The browser never
 requests camera or microphone access.
 
 The page reuses the emulator preview's eight device colors, compact toolbar,

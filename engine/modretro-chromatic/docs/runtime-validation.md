@@ -187,17 +187,9 @@ official build through its MCP request and check descendant-process cleanup
 alongside `cancelled:true` / `BUILD_CANCELLED`; report any cleanup warning
 rather than claiming an unconfirmed process exit.
 
-The normal test suite can skip unavailable native prerequisites or compiled
-launcher checks. Build first, then explicitly require the authentic suite:
-
-```sh
-GB_STUDIO_AUTHENTIC_MCP_ENTRYPOINT=compiled GB_STUDIO_REQUIRE_AUTHENTIC_INTEGRATION=1 node --import tsx --test --test-concurrency=1 tests/authentic-project-runtime.test.ts tests/recorded-mcp-runtime.test.ts
-```
-
-Configure the intended toolchain/interpreter through documented environment
-variables when they live outside this checkout. The command above is POSIX shell
-syntax, not evidence of native Windows execution; use the equivalent environment
-configuration on the actual target host.
+hermretro's real-engine run builds and plays real games against the engine:
+from the repository root, run `python tools/check.py full`. It runs on Linux and
+macOS; it is not evidence of native Windows execution.
 
 Record OS/architecture, dependency versions, packaged launcher identity, tool
 calls, before/after ROMs, observed functional results, and remaining gaps.

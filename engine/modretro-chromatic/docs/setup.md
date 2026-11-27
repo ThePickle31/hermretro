@@ -53,10 +53,9 @@ The agent uses these tools in order (hermretro names each `chromatic_<name>`):
 4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
    Omit `probes` for this passive check. Missing dependencies need the setup
    flow below; metadata readiness alone does not prove a successful build.
-5. `rom_build {}` to build it. hermretro's own `chromatic_present_game` then
-   shows the playable copy in the hermretro emulator, as
-   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
-   describes.
+5. `rom_build {}` to build it. To show it to the user, follow
+   [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro): it names what
+   `chromatic_present_game` needs first.
 
 This path uses the official GB Studio `make:web` compiler and the engine's
 player controls. It does not run your npm scripts or import behavior from a
@@ -112,7 +111,8 @@ hook, a connected MCP server, or whether a shell approval prompt appears.
 Pass `--components` explicitly rather than relying on the broader
 `runtime,build,emulator` default. hermretro's engine is bundled, so it needs no
 `runtime` component: source inspection, edits without a build, and Chromatic
-device tools with an existing ROM need no setup. Use `build` to create or
+device tools with an existing ROM need no build dependencies (device tools need
+the [Chromatic CLI](chromatic-device-testing.md) instead). Use `build` to create or
 iterate a playable game, compile it, or show an official browser preview;
 `emulator` to playtest an existing ROM; and `build,emulator` for the
 edit/build/play loop. Add `desktop` only when the user wants the visual editor. Use the same selection and `--root`
