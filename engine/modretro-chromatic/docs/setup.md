@@ -26,7 +26,7 @@ Ask Codex for the work you want to do:
 > folder.
 
 The [setup skill](../skills/modretro-chromatic-setup/SKILL.md) runs the existing setup
-entrypoints and carries the result through supported activation. It can start
+entrypoints, prepares the dependencies and checks readiness. It can start
 without a working MCP server. The commands below are reference instructions
 for Codex and maintainers; users do not need to copy them into a terminal.
 No manual Node/npm installation is required: the OS-shell setup entrypoint can

@@ -55,7 +55,8 @@ Maintainers check the engine from hermretro's repository root with
 `python tools/check.py full` (it includes a real-engine run that builds and
 plays games). In hermretro, the agent's `chromatic_toolchain_doctor` reports the
 dependencies without changing anything; for the engine on its own,
-`node scripts/setup.mjs doctor --root <setup root>` does. Then build the selected
+`sh scripts/setup.sh doctor --root <setup root> --components build` does (name
+the components the apply step prepared). Then build the selected
 project: `chromatic_rom_build` in hermretro, `rom_build` for the engine on its own.
 
 For experimental Windows x64, follow [Windows setup](windows-setup.md) to

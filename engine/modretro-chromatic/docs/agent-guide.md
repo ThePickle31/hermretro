@@ -81,8 +81,8 @@ not dependency installation.
 
 After preparation, check readiness with the [supported checks](setup.md#preparation-is-not-activation-or-gameplay-acceptance):
 in hermretro, `chromatic_session_status` and `chromatic_toolchain_doctor`; for
-the engine on its own, `node scripts/setup.mjs doctor` with the same root and
-components. Then complete the requested real build or browser export. Do not
+the engine on its own, `scripts/setup.sh doctor` (`scripts/setup.ps1` on Windows)
+with the same root and components. Then complete the requested real build or browser export. Do not
 stop at a passive readiness report or give the user manual Node/npm installation
 work. Do not infer local Git credentials from a connected GitHub app, or treat a
 lifecycle hook/approval UI as installation consent. On Windows use local paths, preferably short paths on `C:`; UNC/network

@@ -45,13 +45,13 @@ holds that release as published.
 
 ## Setup and doctor directly
 
-The commands the page's setup runs, for checking or repairing a setup root by hand (`scripts/setup.sh` and
-`scripts/setup.ps1` wrap them):
+The commands the page's setup runs, for checking or repairing a setup root by hand. `scripts/setup.sh`
+(`scripts/setup.ps1` on Windows) runs `scripts/setup.mjs` with the setup root's own Node, or one on the `PATH`:
 
 ```sh
-node scripts/setup.mjs doctor --root <setup root> --components build,emulator --json
-node scripts/setup.mjs plan --root <setup root> --components build,emulator
-node scripts/setup.mjs apply --root <setup root> --components build,emulator --yes
+sh scripts/setup.sh doctor --root <setup root> --components build,emulator --json
+sh scripts/setup.sh plan --root <setup root> --components build,emulator
+sh scripts/setup.sh apply --root <setup root> --components build,emulator --yes
 ```
 
 `doctor` and `plan` change nothing. [docs/setup.md](docs/setup.md) explains the components, their pins, readiness and

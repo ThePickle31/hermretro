@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 33378688,
+ "total_bytes": 33378840,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "3ac007fe87b6ff4e47ba77cecaf87b2328d88fc99cdc069e9d3083c39974c928",
+ "aggregate_sha256": "02c294162a116b5b1085b69024cbe44241bacce16f94ee358fb3d2065a3ff85e",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4458,
+   "size": 4525,
    "mode": "0o644",
-   "sha256": "cbe5aed10feaa07ad3257c32f9798859da244fcfef615d4c636f30a388b790ca"
+   "sha256": "568e189c31f7a1308ab6aeeba600dd775897389f78b911d48ad74e3c76efc201"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -1137,9 +1137,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44577,
+   "size": 44604,
    "mode": "0o644",
-   "sha256": "4c96893eaf85dd51e4763c8ec990cb2680d651ab1dd42887e8a43722bf7becbc"
+   "sha256": "3b35191a37b0332d4aad11bf30c6e4cf41c2f468fa6e3dd2793a69006e152f77"
   },
   {
    "path": "docs/architecture.md",
@@ -1200,16 +1200,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12968,
+   "size": 13030,
    "mode": "0o644",
-   "sha256": "55021b1281490f3e3b4754ce5d9fb049da01cc9d62418b6d79bcc85f519048b1"
+   "sha256": "4e8dcac418f220c8d9605bb1872cfdf5b64c9340fee6d499896e6ec70ef7e382"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15312,
+   "size": 15308,
    "mode": "0o644",
-   "sha256": "97305ce7d6914b7ceccc85ae3b6f7ded4e97f9e88d5f9ff5f7989a1ab99e8e59"
+   "sha256": "73ceb6410c863cea38c46477d61376ebb4564507dd04b11530674ced86db75f6"
   },
   {
    "path": "docs/stepped-playtesting.md",
