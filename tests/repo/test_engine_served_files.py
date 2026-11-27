@@ -6,7 +6,12 @@ from one folder URL; a listed module importing anything else fails in the browse
 comment never counts, and resolves each request as the browser does (WHATWG URL), against the importing file's URL in
 each place its page is served from, under a capability segment no import can name: only a relative request that
 lands on a listed file passes. Each page's entry scripts, read with an HTML parser from the HTML the engine sends (the
-capture page's built export, the preview's template), are resolved the same way from the page's URL. A listed name must be one the routers serve."""
+capture page's built export, the preview's template), are resolved the same way from the page's URL. A listed name
+must be one the routers serve.
+
+Its limit: the preview's page is assembled at run time from a game's web export (`prepareAnnotations`), so its entry
+script is read from the template in `web-preview.js`, not from a served page. Requesting the assembled page from a
+running preview with a fixture export belongs to the engine's own tests."""
 
 from __future__ import annotations
 
