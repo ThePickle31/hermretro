@@ -40,6 +40,11 @@ def _git(*args: str, cwd: Path = ROOT) -> str:
     return done.stdout.strip()
 
 
+def _stable_release(commit: str) -> bool:
+    """Whether a published stable release (a `v*` tag without a prerelease suffix) is this commit."""
+    return any("-" not in tag for tag in _git("tag", "--points-at", commit, "--list", "v*").split())
+
+
 def latest_release() -> str:
     """The newest stable `v*` tag on origin/main (local main without an origin): the version users have now."""
     base = "origin/main"
@@ -89,7 +94,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         # A gateway of the old version that Hermes has not restarted. Only a published release's with the backend/
         # layout: their handshake rule never changes (paths.release_fingerprint), while one between releases may not
         # match the next, and one from before backend/ reads adapter/, which the update removes.
-        if _git("tag", "--points-at", old, "--list", "v*") and _git("ls-tree", old, "backend/system/paths.py"):
+        if _stable_release(old) and _git("ls-tree", old, "backend/system/paths.py"):
             kept = OldGateway(args, tmp, root, fix)
             kept.wait_ready()
         run(studio, "plugins", "enable", "hermretro")  # what the page's studio_profile RPC runs in the profile

@@ -452,22 +452,33 @@ def release_fingerprint() -> str | None:
 def loaded_fingerprints() -> tuple[str, str | None]:
     """``(code_fingerprint(), release_fingerprint())`` from one reading of the files: a broker names the code it loaded
     with both, and read apart, an update between the two readings could give each a different build."""
-    folder = BACKEND_ROOT
-    sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
+
+    def stamped() -> tuple:
+        folder = BACKEND_ROOT
+        sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
+        return tuple((rel, *_file_stamp(path)) for rel, path in sources)
+
     try:
-        return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
-    except FileNotFoundError:  # a loaded file went between its stamp and its read: stamp them again
-        return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
+        return _fingerprint_for(stamped())
+    except FileNotFoundError:  # a file went between its stamp and its read: list and stamp them again
+        return _fingerprint_for(stamped())
 
 
-def _file_stamp(path: Path) -> tuple[int, int]:
-    """A file's modification time and size, or (-1, -1) once it is gone: an update can move a file this process
-    loaded, and the fingerprint must still answer (as changed) so the page can offer the reload."""
+# A file's stamp when it is gone (an update can move a file this process loaded, and the fingerprint must still answer,
+# as changed, so the page can offer the reload), and when it is there but cannot be looked at.
+GONE, UNREADABLE = ("gone",), ("unreadable",)
+
+
+def _file_stamp(path: Path) -> tuple:
+    """What a file's fingerprint is cached by: its modification and change times (a permission change moves the
+    second) and its size, or GONE or UNREADABLE."""
     try:
         info = path.stat()
     except FileNotFoundError:
-        return -1, -1
-    return info.st_mtime_ns, info.st_size
+        return GONE
+    except OSError:
+        return UNREADABLE
+    return info.st_mtime_ns, info.st_ctime_ns, info.st_size
 
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
@@ -505,12 +516,13 @@ def _fingerprint_for(stamp: tuple) -> tuple[str, str | None]:
     released = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
     complete = True
     folder = BACKEND_ROOT
-    for name, _mtime, size in stamp:
-        data = b"(missing)" if size < 0 else _readable(folder / name)
+    for name, *state in stamp:
+        state = tuple(state)
+        data = b"(missing)" if state == GONE else None if state == UNREADABLE else _readable(folder / name)
         code.update(name.encode())
-        code.update(data or b"(unreadable)")
-        if not name.startswith("../") or name in RELEASED_FILES:
-            complete = complete and size >= 0 and data is not None
+        code.update(b"(unreadable)" if data is None else data)
+        if not name.startswith("../") or name in RELEASED_FILES:  # a file the releases' rule covers
+            complete = complete and state != GONE and data is not None
             released.update(name.encode())
-            released.update(data or b"")
+            released.update(b"" if data is None else data)
     return code.hexdigest()[:24], released.hexdigest()[:24] if complete else None
