@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 297,
  "symlink_count": 0,
- "total_bytes": 32305631,
+ "total_bytes": 32305864,
  "suffix_counts": {
   ".js": 111,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "09fd9d2aff66645c7e9dc792205ac5cd8299080ef146cd70add497bb437101fc",
+ "aggregate_sha256": "e38f834f6fa60f5a07e5907c46f0784949fae041ffa26d3caebe6d07f736b399",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4418,
+   "size": 4537,
    "mode": "0o644",
-   "sha256": "d068df16c6d10f03554b73cbece36f34fa4eb2f9f4436568f28b611bdbdadfe7"
+   "sha256": "8daef7265f0ba65d2d3b940b8996be776bafcbb94c074b18739ec68781a5d94c"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -885,9 +885,9 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44602,
+   "size": 44716,
    "mode": "0o644",
-   "sha256": "0b48dfe2fe2f9d3e0e18b6419a6658c4955eb17b853816ce5e604abbe77f17e0"
+   "sha256": "70f651babe669fefd6884753b88212dfb4cea7675fe0e421d7df73953c11a510"
   },
   {
    "path": "docs/architecture.md",

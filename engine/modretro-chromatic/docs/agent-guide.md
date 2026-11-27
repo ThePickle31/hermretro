@@ -666,7 +666,8 @@ missing compiler, optional emulator, or hardware evidence honestly.
   [pixel art](../../../skills/pixel-art/SKILL.md),
   [ROM debugging](../../../skills/rom-debugging/SKILL.md),
   [deployment](../../../skills/deployment/SKILL.md)
-- ModRetro's original skills, kept as published, in [`../skills/`](../skills/)
+- ModRetro's original skills, archived as published in [`../skills/`](../skills/): they describe
+  ModRetro's plugin, including parts this engine no longer has; follow hermretro's skills above
 - [Architecture and security boundaries](architecture.md)
 - [End-to-end runtime validation](runtime-validation.md)
 

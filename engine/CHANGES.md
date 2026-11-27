@@ -376,9 +376,14 @@ that module.
   value, and loses `templateSourcePath`. The `native_graphics_update` tool, which edited Wrecklight's title screen only,
   is removed (84 tools; the pin and `plugin.yaml` follow). The reviewed custom-event registry keeps its machinery and
   is now empty, and the tilemap ownership check loses its Wrecklight-only exception. Neither matched any other game.
-  The read-only guard on the bundled sample now guards the bundled `examples/` folder: for every path that exists it
+  The read-only guard on the bundled sample now guards the bundled `examples/` folder: for every shipped path it
   answers as before (a root enclosing the examples falls back to the selected project, or is refused), and its
-  refusal no longer names the removed template.
+  refusal no longer names the removed template. `examples/wrecklight`, which the engine never shipped, is no longer a
+  reserved name for a local project. With no reviewed contracts, `semanticGeneration` no longer advances when a game
+  with a plugin event edits its settings, variables, engine fields or `assets/engine/`: Wrecklight's contracts had
+  pulled those files into every such game's custom-event fingerprint. Those edits change the project revision, which
+  every consumer of the generation (semantic cursors, the pre-write freshness check) also requires, and plugin edits
+  still advance the generation, so no outcome changes; only the reported count.
   The runtime copy loses its Wrecklight source pins. The Wrecklight guides, `docs/native-title-atlas.md`, the
   sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
   published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in
