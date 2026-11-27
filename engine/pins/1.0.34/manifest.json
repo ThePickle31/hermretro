@@ -3,59 +3,31 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "modretro-chromatic",
- "file_count": 351,
+ "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 34135064,
+ "total_bytes": 33379001,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
   ".gbsres": 42,
-  ".json": 23,
-  ".mjs": 20,
-  ".png": 19,
+  ".json": 21,
+  ".png": 17,
+  ".mjs": 14,
   ".txt": 8,
   "(none)": 7,
   ".yaml": 4,
   ".sh": 3,
   ".br": 2,
   ".gbsproj": 2,
-  ".ps1": 2,
-  ".py": 2,
   ".RUNTIME": 1,
   ".c": 1,
   ".gbc": 1,
+  ".ps1": 1,
+  ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "bdb74f273bdc55a15e621399b5f7fe398d1ab67d9fb5397cdd57e183af3fe417",
+ "aggregate_sha256": "eda8a37bb55c8006d590b51ba9a447b3cb4829faa8e891e69060baf3fe14b319",
  "entries": [
-  {
-   "path": ".codex-plugin/assets/composer-icon.png",
-   "type": "file",
-   "size": 478,
-   "mode": "0o644",
-   "sha256": "08e01db8065472d55a28f3928c09b6d2d5d6556879207ebc3b46e129edf1105a"
-  },
-  {
-   "path": ".codex-plugin/assets/logo.png",
-   "type": "file",
-   "size": 478,
-   "mode": "0o644",
-   "sha256": "08e01db8065472d55a28f3928c09b6d2d5d6556879207ebc3b46e129edf1105a"
-  },
-  {
-   "path": ".codex-plugin/plugin.json",
-   "type": "file",
-   "size": 2366,
-   "mode": "0o644",
-   "sha256": "4c94358c91f20b4bc4a8e9b3a5fd9d95df485b2a1c793cb1014dbea39e3e278d"
-  },
-  {
-   "path": ".mcp.json",
-   "type": "file",
-   "size": 277,
-   "mode": "0o644",
-   "sha256": "4bd33e9bc05f4759e32c5a342797ab5b79968974e317930cecafcd3d373e516e"
-  },
   {
    "path": "LICENSE",
    "type": "file",
@@ -66,16 +38,16 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 27362,
+   "size": 4338,
    "mode": "0o644",
-   "sha256": "0881c0f659fc2d96ea12beb52b6e147a5ad0073858832b739b32ad3773283215"
+   "sha256": "9e6524d0f596a346fb81c0a8da90de6e57a4b2133bed87654ba1d1553ee88e96"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
    "type": "file",
-   "size": 4968,
+   "size": 4871,
    "mode": "0o644",
-   "sha256": "eff847ef8af7bc321f64c5dc543ee8f42b9da0093166c13fe4f84ac5277be07e"
+   "sha256": "679bd81da81b75b2229ac5e5e3edfb42f34aa52ad494f4e393fbddc75403004b"
   },
   {
    "path": "assets/devices/README.md",
@@ -1165,30 +1137,30 @@
   {
    "path": "docs/agent-guide.md",
    "type": "file",
-   "size": 44728,
+   "size": 44604,
    "mode": "0o644",
-   "sha256": "6d1128218ab8d3008bb65730e2cddcd758e9ec59a263d0d927db746ea13db136"
+   "sha256": "3b35191a37b0332d4aad11bf30c6e4cf41c2f468fa6e3dd2793a69006e152f77"
   },
   {
    "path": "docs/architecture.md",
    "type": "file",
-   "size": 25387,
+   "size": 23688,
    "mode": "0o644",
-   "sha256": "a0a96f1344e7c265c102942cd05c287246d2535e3b6846e8302c437815bd5062"
+   "sha256": "5d9edbeb2c9de5f15b1146481e5d7fd0d6d93c5ec70178fe6abb61afe8eb0a6f"
   },
   {
    "path": "docs/chromatic-device-testing.md",
    "type": "file",
-   "size": 29267,
+   "size": 27725,
    "mode": "0o644",
-   "sha256": "502263f570a925e9d022084da4588476f109a18cdf0ccd130f6e3b5a2d58d375"
+   "sha256": "d36ec4900ddc27313b7ff498c5f55f18b2bd6b2f7fdc324c5bf102b83d79b377"
   },
   {
    "path": "docs/chromatic-preview-install-testing.md",
    "type": "file",
-   "size": 4802,
+   "size": 4868,
    "mode": "0o644",
-   "sha256": "2e32a09a2032b791b0bae78a5ba7f462cdcb6c81e6d759028b9c4f993ab680b9"
+   "sha256": "a6f454d9836c8091edd7df108cec922f9924e3f7e48d6f30654f1d9862a77058"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1228,16 +1200,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12764,
+   "size": 13041,
    "mode": "0o644",
-   "sha256": "9c217591ff3814d87757668f4a6fd5c3b57ab8616a7287c18bb0d933ad5dae8c"
+   "sha256": "b7fe8d3261655d5dcea1e3fd7d2c554273a117cf8ac41c5074bcd39497acd332"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 26190,
+   "size": 15645,
    "mode": "0o644",
-   "sha256": "79b813be4d7929be8a20d1f9884f290db5275b1a8c779e13d61aa45ecc8d8699"
+   "sha256": "8c9837782c363c4b2c753546480f1573536682a78dd4e16fcf75696ed783e6a6"
   },
   {
    "path": "docs/stepped-playtesting.md",
@@ -1263,16 +1235,16 @@
   {
    "path": "docs/windows-setup.md",
    "type": "file",
-   "size": 9494,
+   "size": 4785,
    "mode": "0o644",
-   "sha256": "07a1d478c084b219df22316fed4175827760aeeda713d1ecd66cd246b4e95e11"
+   "sha256": "5323cd3b192d7b92d6df7905f7b759e40897615550dcb38a3eba5295b6afbb44"
   },
   {
    "path": "docs/wrecklight-authoring.md",
    "type": "file",
-   "size": 3559,
+   "size": 3628,
    "mode": "0o644",
-   "sha256": "1ce8031b3367d9d0981a6a7ad2bc1c9c59e76b46989c5a8f22d3c0fbf48962b0"
+   "sha256": "3e15c2166011cd1b2fbec660a0c4c9352c4ad37c06ee5b2830a80edd7b18465f"
   },
   {
    "path": "docs/wrecklight-design.md",
@@ -1305,9 +1277,9 @@
   {
    "path": "examples/dogfood-signal-lost/README.md",
    "type": "file",
-   "size": 3097,
+   "size": 3130,
    "mode": "0o644",
-   "sha256": "2550aefe57456323a616faccf856709de1288c176a867cb74af26f0b130501b8"
+   "sha256": "cf6dcf77c360a7ad51d8732e847d3d1a5527bdefc4f8c25773eb8f3eb625ada0"
   },
   {
    "path": "examples/dogfood-signal-lost/assets/avatars/README.md",
@@ -2103,16 +2075,9 @@
   {
    "path": "package.json",
    "type": "file",
-   "size": 4542,
+   "size": 2919,
    "mode": "0o644",
-   "sha256": "70406d4f97e96b9b2e17f1f72c429d2b1235bdfc7c1168bc62fa768f90caf918"
-  },
-  {
-   "path": "scripts/bundle-mcp.mjs",
-   "type": "file",
-   "size": 3338,
-   "mode": "0o644",
-   "sha256": "80325dc3f40d01d66c11211f8558c6ccfbee65aed5a15a3123a78cf7c040268d"
+   "sha256": "da68e926f3aabb24c89d1e1435d9fa71f17c136d6842a93750b8a18b57112a91"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",
@@ -2138,23 +2103,9 @@
   {
    "path": "scripts/dependency-doctor.mjs",
    "type": "file",
-   "size": 39741,
+   "size": 38555,
    "mode": "0o644",
-   "sha256": "26f09f6e7c985cb2f3a1d3e2045419a48efce4f38687e169b030653745caad64"
-  },
-  {
-   "path": "scripts/device-client-deps.mjs",
-   "type": "file",
-   "size": 535044,
-   "mode": "0o644",
-   "sha256": "62d169c947d33e2332ca110672413b24e65ab4554bd0fefb010bd80913458785"
-  },
-  {
-   "path": "scripts/device-mcp.mjs",
-   "type": "file",
-   "size": 18044,
-   "mode": "0o644",
-   "sha256": "e3c2f47a34563501c87bebd0f0d8df37a4aac5c732b135266919adae3a80c526"
+   "sha256": "0b2806cd2b26b7c8f5ddbe1ea3d737f47c17a0933611c8cf95e0f309c8b332c0"
   },
   {
    "path": "scripts/doctor.mjs",
@@ -2178,27 +2129,6 @@
    "sha256": "641fb559ce6f3c90b5b54ffaacfd9a1b74a3f59db26bb5f377b09f14913620ba"
   },
   {
-   "path": "scripts/prepare-plugin-payload.mjs",
-   "type": "file",
-   "size": 55576,
-   "mode": "0o644",
-   "sha256": "c06a16b5d0b24d5826ca40a86308cef91e27572b2bb98d352910f69a55d1111d"
-  },
-  {
-   "path": "scripts/prepare.mjs",
-   "type": "file",
-   "size": 2796,
-   "mode": "0o644",
-   "sha256": "6b7da5883eff9c2aff1dbbc6e2c458b9a9eeb981c08ab05f692520b471920b6d"
-  },
-  {
-   "path": "scripts/register-personal-plugin.py",
-   "type": "file",
-   "size": 30375,
-   "mode": "0o644",
-   "sha256": "a3ac1fbaa338657e38285465fce13235a06f36b13fe8359752e2814a9501c4ea"
-  },
-  {
    "path": "scripts/runtime-package-lock.json",
    "type": "file",
    "size": 42019,
@@ -2215,16 +2145,16 @@
   {
    "path": "scripts/setup-compiler.mjs",
    "type": "file",
-   "size": 68205,
+   "size": 66826,
    "mode": "0o644",
-   "sha256": "aa8338bb26b4d73f8ff7ec27f6b070c7c1e2a92070507f6701ed102cb137ccb8"
+   "sha256": "34677d927eaf763fb0b1509e8950429e1569633db968fe207fd2f8cf49dab933"
   },
   {
    "path": "scripts/setup-compiler.sh",
    "type": "file",
-   "size": 22348,
+   "size": 21498,
    "mode": "0o755",
-   "sha256": "97913b4dfb22e61562c49cfeb969b27f72e6be2967acd9bdfc81f9605799f86b"
+   "sha256": "720d90af517bffa57288b970521c62e4f57b72cccd73b395c155ba6784f14c8b"
   },
   {
    "path": "scripts/setup-components.mjs",
@@ -2236,16 +2166,16 @@
   {
    "path": "scripts/setup-emulator.mjs",
    "type": "file",
-   "size": 19262,
+   "size": 18010,
    "mode": "0o644",
-   "sha256": "fe78da4f75ccc8afa1105d0ca3ad1e26470aa1bf5c4c9cd6ba41624c9af58d8e"
+   "sha256": "2061b6c7abf94fb9ace9425d2c8e02a760bed0df2a628fd3900bc37f530c2376"
   },
   {
    "path": "scripts/setup-emulator.sh",
    "type": "file",
-   "size": 7864,
+   "size": 7111,
    "mode": "0o755",
-   "sha256": "7d12b6a0840b97f13fedc1b03d6cbc4a6c448f1e4242fda703280f77e79c7979"
+   "sha256": "8be95b748f93c33c244578cb0ddbb9ddb21914a5152df270c84fb50d51f5e002"
   },
   {
    "path": "scripts/setup-io.mjs",
@@ -2257,30 +2187,16 @@
   {
    "path": "scripts/setup-runtime.mjs",
    "type": "file",
-   "size": 37999,
+   "size": 34618,
    "mode": "0o644",
-   "sha256": "70e30e424fd611484132d70c6125e3a2676f97ba0e5decd52cdaa2626a377754"
-  },
-  {
-   "path": "scripts/setup-windows.mjs",
-   "type": "file",
-   "size": 30467,
-   "mode": "0o644",
-   "sha256": "7d24c4c28ec4f4d6faff5cf6761a8d076f9bd2b8c2fd70e22f9fe306d407cc3e"
-  },
-  {
-   "path": "scripts/setup-windows.ps1",
-   "type": "file",
-   "size": 8279,
-   "mode": "0o644",
-   "sha256": "a89acf72251b3532237d00022d7b574d2a0fe7ea336277cecfa53bb31f96bd25"
+   "sha256": "91fd049a886c2d4c38c0faf7e8d50bde6c268f2d9b9b1df5ebfe804780c305be"
   },
   {
    "path": "scripts/setup.mjs",
    "type": "file",
-   "size": 41610,
+   "size": 39187,
    "mode": "0o644",
-   "sha256": "d32bd3ae628b01c4875ab2ffa07468d44a374d30217c942567ae1c441e9f246f"
+   "sha256": "784c48adae43de3d4fdf65ecf127052e3277a8528cd255bc2f8f896b6a3501c3"
   },
   {
    "path": "scripts/setup.ps1",
@@ -2299,9 +2215,9 @@
   {
    "path": "scripts/start-mcp.mjs",
    "type": "file",
-   "size": 28519,
+   "size": 14116,
    "mode": "0o644",
-   "sha256": "b6cbcd4b810e72bcc227906520264a1678902ce78d63dd647794ec8b7b27529e"
+   "sha256": "2fa3cc248a0934a6b9921006dcba77b51194f5dd39c7443941be0d19379afb53"
   },
   {
    "path": "skills/chromatic-deployment/SKILL.md",

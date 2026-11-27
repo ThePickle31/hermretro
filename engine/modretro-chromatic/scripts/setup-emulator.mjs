@@ -55,30 +55,6 @@ function emulatorSetupPlan(options) {
   return { dryRun: true, verified: false, platform, architecture, toolchainRoot, runtimeDirectory, installed: false };
 }
 
-function assertMutableToolchain(filesystem, toolchainRoot) {
-  let candidate = path.resolve(toolchainRoot);
-  for (;;) {
-    const receipt = path.join(candidate, ".codex-plugin", "local-payload.json");
-    const manifest = path.join(candidate, ".codex-plugin", "plugin.json");
-    let immutable = tryInspect(filesystem, receipt) !== undefined;
-    const metadata = tryInspect(filesystem, manifest);
-    if (!immutable && metadata?.isSymbolicLink()) {
-      throw new Error("Legacy setup cannot establish a mutable root through a linked plugin manifest. Use packaged setup.mjs with an external dependency root.");
-    }
-    if (!immutable && metadata?.isFile() && !metadata.isSymbolicLink()) {
-      const version = JSON.parse(filesystem.readFileSync(manifest, "utf8")).version;
-      immutable = typeof version === "string" && version.includes("+codex.payload.");
-    }
-    if (immutable) {
-      throw new Error("Legacy setup cannot write into an immutable plugin payload or cache. " +
-        "Use packaged setup.mjs (or setup.sh/setup.ps1) with an external dependency root.");
-    }
-    const parent = path.dirname(candidate);
-    if (parent === candidate) return;
-    candidate = parent;
-  }
-}
-
 /** Preserve enterprise registry/proxy configuration without inheriting interpreter redirects. */
 export function sanitizeEmulatorSetupEnvironment(environment = process.env, platform = process.platform) {
   const sanitized = {};
@@ -313,7 +289,6 @@ export function setupEmulator(options = {}) {
   } catch {
     throw new Error(`The selected game toolchain root must be an existing directory: ${configuredToolchain ?? path.dirname(trustedDirectory)}`);
   }
-  assertMutableToolchain(filesystem, toolchainRoot);
 
   const pythonVersion = options.pythonVersion ?? environmentValue(parentEnvironment, "GB_STUDIO_PYTHON_VERSION", platform) ?? "3.13";
   if (!/^\d+\.\d+(?:\.\d+)?$/.test(pythonVersion)) {

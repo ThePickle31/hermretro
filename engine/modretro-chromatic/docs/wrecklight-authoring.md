@@ -16,7 +16,7 @@ outputs keep the ordinary game build independent of the authoring tools.
 
 ## One maintenance command
 
-From the repository root:
+In ModRetro's source checkout (hermretro's engine does not ship the sample's authoring tools):
 
 ```sh
 # Stage only intended new source paths so they can enter the sample inventory.

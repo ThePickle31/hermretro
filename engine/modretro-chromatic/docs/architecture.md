@@ -56,11 +56,11 @@ probe results, official builds, and actual gameplay are distinct evidence.
 Overall readiness requires all requested tasks, not a CLI-or-GBDK shortcut.
 
 Plan/apply select a dedicated external setup root containing separate Node,
-runtime, and toolchain destinations. Detection may inspect old configured or
-receipt-bound roots, but that does not authorize setup to repair them. A new or
+runtime, and toolchain destinations. Detection may inspect old configured
+roots, but that does not authorize setup to repair them. A new or
 empty target can be owned explicitly; nonempty unowned roots and redirected
-setup paths fail closed. Downloads, npm/uv storage, staging, receipts, and
-payloads stay in that root, outside immutable packages and game projects.
+setup paths fail closed. Downloads, npm/uv storage, staging, and receipts stay
+in that root, outside immutable packages and game projects.
 
 Apply checks/reuses healthy tools, serializes changes with a per-root lock, and
 records per-component outcomes. It preserves successes and known-owned partial
@@ -72,9 +72,8 @@ npm dependencies use a separate reviewed public-registry lock with lifecycle
 scripts disabled. Optional desktop extraction can require a documented manual
 step and is not then reported as installed.
 
-A successful runtime-enabled preparation creates a new immutable future payload
-and `prepared-mcp.json`. It does not edit profiles/PATH, register a marketplace,
-install or refresh a Codex plugin, or rebind active MCP processes. No lifecycle
+A successful runtime-enabled preparation does not edit profiles/PATH, install or
+refresh a Codex plugin, or rebind active MCP processes. No lifecycle
 hook is treated as installation consent. See [Packaged setup and doctor](setup.md)
 for the user entrypoints, root selection, and recovery contract.
 
@@ -112,30 +111,6 @@ For sibling projects, configure their common `GB_STUDIO_WORKSPACE_ROOT` before
 startup; create and select calls never expand an existing boundary. Never infer
 authority from the plugin cache, runtime checkout, toolchain installation,
 user home directory, or starter.
-
-Registration prepares an immutable, content-addressed payload from the npm
-package allowlist. Its generated MCP configuration points to validated local
-Node, stable runtime, and canonical toolchain paths; dependencies, compilers,
-and emulator environments are not copied into the Codex plugin cache. Keep
-those runtime/toolchain locations available after installing. A generated local
-payload version can differ from the shipped manifest version because its
-content identity also includes these machine-specific launch paths.
-The local payload receipt binds its canonical runtime root, package release,
-and runtime-critical file hashes. Its launcher rejects a changed backing
-runtime with preparation/registration guidance instead of combining stale
-cached skills with new executable code. Standalone packages without that local
-receipt retain the existing launcher path.
-
-Personal registration targets the current user's home/profile. An explicit
-workspace marketplace instead uses `<root>/.agents/plugins/marketplace.json`
-and `<root>/plugins/modretro-chromatic`. macOS/Linux use a directory symbolic link;
-Windows uses a user-level directory junction without requiring administrator
-permissions or Developer Mode. Windows personal registration requires explicit
-confirmation of the current OS-user profile; preparing a workspace marketplace
-does not install anything into another desktop user's Codex profile. Preserve
-unrelated entries and never replace a real user-owned directory. See
-[Windows setup](windows-setup.md) for the verified-user handoff and installation
-checks.
 
 `project_discover` is read-only and never changes selection. Selecting the
 bundled starter requires `allowStarter: true`; switching during an active build

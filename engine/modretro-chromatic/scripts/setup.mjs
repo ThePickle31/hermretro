@@ -230,9 +230,9 @@ export async function planSetup(options = {}) {
     schemaVersion: 1, mode: "plan", passive: true, platform: target, supported,
     root, bundledRuntime: bundled, roots: report.roots, components, requestedComponents: [...groups], report,
     canApply: supported && !rootIssue, ...(rootIssue ? { rootIssue } : {}), ...(lock ? { lock } : {}),
-    writes: [bundled ? "Only the selected owned dependency root: downloads, caches, staging, component receipts and toolchain. The installed plugin is unchanged." : "Only the selected owned root: downloads, caches, staging, component receipts, runtime, toolchain and a separately prepared plugin payload"],
+    writes: [bundled ? "Only the selected owned dependency root: downloads, caches, staging, component receipts and toolchain. The installed plugin is unchanged." : "Only the selected owned root: downloads, caches, staging, component receipts, runtime and toolchain"],
     consentRequired: true, activation: "not-selected",
-    nextSteps: [rootIssue || (!supported ? "This platform has no packaged installer; no changes will be attempted." : "Review versions, sources and destinations, then run apply with --yes for these components."), "Doctor metadata checks do not execute a compiler or import emulator packages. Explicit apply verifies tools and may download/build dependencies.", "Installation into Codex, plugin refresh, PATH/profile edits, desktop launch and access changes are separate actions."],
+    nextSteps: [rootIssue || (!supported ? "This platform has no packaged installer; no changes will be attempted." : "Review versions, sources and destinations, then run apply with --yes for these components."), "Doctor metadata checks do not execute a compiler or import emulator packages. Explicit apply verifies tools and may download/build dependencies.", "PATH/profile edits, desktop launch and access changes are separate actions."],
   };
 }
 
@@ -491,25 +491,11 @@ export async function applySetup(options = {}) {
       components: notReady,
     };
     run.status = cancelled() ? "cancelled" : errors.length || notReady.length ? "partial" : "complete";
-    if (run.status === "complete" && plan.requestedComponents.includes("runtime") && metadataReady(run.report, "runtime")) {
-      try {
-        const preparation = { source: targets.runtime, runtimeRoot: targets.runtime, toolchainRoot: path.join(root, "toolchain"), outputRoot: path.join(root, "payloads"), environment: options.environment ?? process.env };
-        if (options.preparePayload) run.preparedPlugin = await options.preparePayload(preparation);
-        else {
-          const { setupEnvironment, runSetupCommand } = await import("./setup-io.mjs");
-          const env = await setupEnvironment({ setupRoot: root, nodeExecutable: process.execPath, environment: preparation.environment, platform, arch });
-          const completed = await runSetupCommand(process.execPath, [path.join(packageRoot, "scripts", "prepare-plugin-payload.mjs"), "--source", targets.runtime, "--runtime-root", targets.runtime, "--toolchain-root", preparation.toolchainRoot, "--output-root", preparation.outputRoot, "--json"], { cwd: targets.runtime, env, signal, onProgress, timeoutMs: 120_000 });
-          run.preparedPlugin = JSON.parse(completed.stdout.trim());
-        }
-        run.launchConfiguration = { mcpServers: { "modretro-chromatic": { type: "stdio", command: process.execPath, args: [path.join(run.preparedPlugin.payloadPath, "scripts", "start-mcp.mjs")], env: { GB_STUDIO_RUNTIME_ROOT: targets.runtime, GB_STUDIO_TOOLCHAIN_ROOT: path.join(root, "toolchain") } } } };
-        await atomicJson(path.join(root, "prepared-mcp.json"), run.launchConfiguration);
-      } catch (error) { run.status = "partial"; run.preparationError = serializedError(error); if (run.preparationError.execution?.exitObserved === false) run.unsafeToRetry = true; }
-    }
     run.completedAt = new Date().toISOString();
     run.nextSteps = run.status === "complete"
-      ? [run.preparedPlugin ? "Dependencies and future launch configuration are prepared. This did not install or refresh the plugin in Codex." : "The selected dependency components are prepared; no new plugin payload or launch configuration was requested.",
+      ? ["The selected dependency components are prepared.",
         ...(!plan.requestedComponents.includes("build") ? ["Game builds and official browser previews were not selected. A new playable game needs build dependencies; add emulator for local stepped play."] : []),
-        run.preparedPlugin ? "Use doctor with named probes to recheck this root. Install or refresh the prepared plugin in Codex, then verify its tools in a new task." : "Dependencies are ready. Continue the requested build or playtest with the existing installed plugin; do not recreate or reinstall it."]
+        "Dependencies are ready. Continue the requested build or playtest with the existing installed plugin; do not recreate or reinstall it."]
       : ["Inspect retained component errors and paths; successful components are preserved.", "Retry the same explicit apply command after resolving the reported cause. Known-owned partial components are preserved under quarantine before retry.", "A stale setup lock is never stolen or used to kill a process. Verify its recorded owner has ended before preserving/moving that lock."];
     await persist();
   } catch (error) {
@@ -564,9 +550,7 @@ function printResult(result, json) {
   } else {
     process.stdout.write(`Setup ${result.status}; activation: ${result.activation}\nRoot: ${result.root}\n`);
     for (const entry of result.components ?? []) process.stdout.write(`[${entry.status}] ${entry.id}${entry.error ? `: ${entry.error.message}` : ""}\n`);
-    if (result.preparedPlugin) process.stdout.write(`Prepared future plugin: ${result.preparedPlugin.payloadPath}\n`);
     if (result.readinessError) process.stdout.write(`Final readiness: ${result.readinessError.message}\n`);
-    if (result.preparationError) process.stdout.write(`Payload preparation: ${result.preparationError.message}\n`);
     if (result.cleanupError) process.stdout.write(`Cleanup failure: ${result.cleanupError.message}\n`);
     for (const next of result.nextSteps ?? []) process.stdout.write(`${next}\n`);
   }

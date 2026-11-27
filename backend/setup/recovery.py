@@ -163,7 +163,7 @@ def _errors(structured: dict) -> list[dict]:
         for component in run.get("components") or []
         if isinstance(component, dict) and component.get("status") in ("failed", "blocked", "cancelled")
     ]
-    found += [run.get(name) for name in ("error", "preparationError", "readinessError", "cleanupError")]
+    found += [run.get(name) for name in ("error", "readinessError", "cleanupError")]
     return [error for error in found if isinstance(error, dict)]
 
 

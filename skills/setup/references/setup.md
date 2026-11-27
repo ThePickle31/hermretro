@@ -112,9 +112,9 @@ probe; `--dry-run` selects the passive plan even when supplied with `apply`.
 
 ## Roots and immutable packages
 
-Without `--root`, doctor inspects configured runtime/toolchain bindings or the
-package's local-payload receipt. That is inspection, not permission to repair
-those locations. With `--root`, doctor inspects that managed target instead.
+Without `--root`, doctor inspects configured runtime/toolchain bindings. That is
+inspection, not permission to repair those locations. With `--root`, doctor
+inspects that managed target instead.
 Plan/apply always target the owned setup root, not an existing bound toolchain.
 
 The passive shell doctor can also run from `<root>/runtime` with the enclosing
@@ -130,8 +130,8 @@ directory or select an existing shared toolchain for
 adoption. `GB_STUDIO_SETUP_ROOT` selects the managed root; hermretro sets it to
 `~/.hermes/hermretro/.cache/toolchain` for every engine worker.
 
-The root contains separate `node`, `runtime`, `toolchain`, staging/cache,
-receipt, and payload locations. Yarn uses one archive cache inside this root;
+The root contains separate `node`, `runtime`, `toolchain`, staging/cache, and
+receipt locations. Yarn uses one archive cache inside this root;
 separate setup roots remain isolated. Each toolchain still needs its own
 `node_modules`. Setup does not migrate or delete older caches.
 
@@ -185,8 +185,7 @@ dependency root on a prepared host, and a clean-machine native installation are
 different evidence. A doctor probe is not an official build, and a build is not
 direct gameplay acceptance. Report the actual platform and checks performed.
 
-Existing checkout-oriented `setup:compiler`, `setup:emulator`, and Windows
-front-door scripts remain advanced compatibility paths, not the primary
-installed-payload workflow. Their `--dry-run` is detection/planning only;
-`--use-existing` on a legacy sub-installer does not make every surrounding
-preparation or registration step read-only.
+Existing checkout-oriented `setup:compiler` and `setup:emulator` scripts remain
+advanced compatibility paths, not the primary setup workflow. Their `--dry-run`
+is detection/planning only; `--use-existing` on a legacy sub-installer does not
+make every surrounding preparation step read-only.

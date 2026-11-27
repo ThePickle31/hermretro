@@ -440,41 +440,5 @@ The Chromatic device tools do not inject buttons, capture cartridge gameplay,
 or measure hardware FPS.
 Write verification and the user's boot/play/audio observations remain separate.
 
-## Developer MCP client
-
-`scripts/device-mcp.mjs` is a thin client for testing a compiled or installed
-package. It launches that package's configured MCP server and calls these public
-tools; it does not import the device service or invoke the vendor directly.
-
-```sh
-node scripts/device-mcp.mjs --package /absolute/compiled/plugin --schema
-node scripts/device-mcp.mjs --package /absolute/compiled/plugin --tool device --arguments '{"command":"status"}'
-```
-
-Those one-shot commands are passive. For a complete workflow, keep one server
-and its device tokens alive with the foreground JSONL mode:
-
-```sh
-node scripts/device-mcp.mjs --package /absolute/compiled/plugin --workspace /absolute/project --jsonl
-```
-
-Submit one request per line, for example:
-
-```json
-{"id":"status","tool":"device","arguments":{"command":"status"}}
-{"id":"scan","tool":"device","arguments":{"command":"list_devices"}}
-```
-
-Read the results, explicitly choose a returned token, then submit the approved
-`setup`, `flash`, or `play` arguments in that same session. The client neither chooses a
-device nor adds confirmation for you. Tokens from a closed server cannot be
-carried into another invocation.
-
-Send `{"id":"done","close":true}` or EOF when finished. If an action is still
-uncertain, the client stays in the foreground and reads only its original status;
-it does not force-close the server, repeat the action, or launch a replacement.
-A broken transport remains an unknown outcome. Programmatic tests can use the
-same session through `openDeviceMcpSession`.
-
 Discovery, setup, flashing, and live play still require their normal explicit scope. A mocked
 test or a schema listing is not hardware qualification.

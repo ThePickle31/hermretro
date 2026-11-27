@@ -1,6 +1,6 @@
-// Build the engine's server bundle (dist/server.js) from its modules, the way ModRetro built it
-// (scripts/bundle-mcp.mjs): one ESM file for Node 22 holding every dist/ module and the packages they import, with
-// scripts/ left as imports beside it, built by the esbuild and packages pinned in tools/engine/npm.
+// Build the engine's server bundle (dist/server.js) from its modules, the way ModRetro's own build made it: one ESM
+// file for Node 22 holding every dist/ module and the packages they import, with scripts/ left as imports beside it,
+// built by the esbuild and packages pinned in tools/engine/npm.
 //
 //   node tools/engine/bundle.mjs [--entry <file>] [--engine <folder>] [--out <file>]   build (writes when bytes change)
 //   node tools/engine/bundle.mjs [--entry <file>] [--engine <folder>] --check          verify the bundle; writes nothing

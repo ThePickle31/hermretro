@@ -134,30 +134,6 @@ async function metadataIfPresent(candidate) {
   }
 }
 
-/** Legacy developer installers must never add files to a prepared immutable payload. */
-export async function assertLegacySetupMutableRoot(root) {
-  let candidate = path.resolve(root);
-  for (;;) {
-    let immutable = await metadataIfPresent(path.join(candidate, ".codex-plugin", "local-payload.json")) !== undefined;
-    const manifest = path.join(candidate, ".codex-plugin", "plugin.json");
-    const metadata = await metadataIfPresent(manifest);
-    if (!immutable && metadata?.isSymbolicLink()) {
-      throw new Error("Legacy setup cannot establish a mutable root through a linked plugin manifest. Use packaged setup.mjs with an external dependency root.");
-    }
-    if (!immutable && metadata?.isFile() && !metadata.isSymbolicLink()) {
-      const version = JSON.parse(await readFile(manifest, "utf8")).version;
-      immutable = typeof version === "string" && version.includes("+codex.payload.");
-    }
-    if (immutable) {
-      throw new Error("Legacy setup cannot write into an immutable plugin payload or cache. " +
-        "Use packaged setup.mjs (or setup.sh/setup.ps1) with an external dependency root.");
-    }
-    const parent = path.dirname(candidate);
-    if (parent === candidate) return;
-    candidate = parent;
-  }
-}
-
 async function requireRealDirectory(candidate, label, platform) {
   const metadata = await metadataIfPresent(candidate);
   if (!metadata || metadata.isSymbolicLink() || !metadata.isDirectory()) {
@@ -1253,11 +1229,6 @@ async function prepareWindowsSetup(options, selected, platform, logger) {
   if (existingLocal) {
     local = await requireRealDirectory(local, "The game toolchain .local directory", platform);
   }
-  if (!selected.useExisting) {
-    await assertLegacySetupMutableRoot(toolchainRoot);
-    await assertLegacySetupMutableRoot(local);
-  }
-
   const paths = {
     downloads: path.join(local, "downloads"),
     apps: path.join(local, "apps"),

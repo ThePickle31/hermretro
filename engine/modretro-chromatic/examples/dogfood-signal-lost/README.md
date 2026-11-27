@@ -42,11 +42,11 @@ The game remains a normal editable distributed native game project:
 
 ## Maintain the sample
 
-The source checkout includes a
-[maintenance script](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/blob/main/scripts/dogfood-game.mjs)
-for this checked-in sample. After the repository's
-[development setup](../../README.md#development) and compiler setup, run commands
-from the repository root:
+In hermretro, build the sample like any game: open its `project.gbsproj` and
+build it with `chromatic_rom_build`. ModRetro's source checkout, which is not
+public, includes a maintenance script, `scripts/dogfood-game.mjs`, that
+hermretro's engine does not ship. In such a checkout, after its development
+and compiler setup, run commands from its root:
 
 ```sh
 node scripts/dogfood-game.mjs build

@@ -48,10 +48,9 @@ Every target includes its complete unchanged supplier `THIRD_PARTY_NOTICES.txt`,
 with dependency license texts, upstream notices, and applicable source-access
 information. Source checkouts and raw distributions keep the target paths listed
 in the vendor notice and provenance. Compact distributions store the same notice
-bytes in an authenticated Brotli stream. Read any target offline with
-`node scripts/chromatic-runtime.mjs --notices <target>`; the
-[packaging guide](README.md#packaging) lists the target names and usage.
-The target notice is also restored beside a materialized CLI executable.
+bytes in an authenticated Brotli stream. hermretro ships no CLI target or
+notice: setup downloads the package for the computer, and its notice is placed
+beside the CLI executable.
 Preserve those files alongside the binaries. The included
 streaming FPGA image is loaded into volatile SRAM, as described by the supplier.
 

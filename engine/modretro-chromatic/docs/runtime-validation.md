@@ -1,5 +1,10 @@
 # Runtime validation
 
+> This is ModRetro's guide to setting the engine up on its own. In hermretro,
+> setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
+> and `chromatic_toolchain_doctor`, into hermretro's own folder
+> (`~/.hermes/hermretro/.cache/` by default), and a game is shown with `chromatic_present_game`.
+
 Verify the [ModRetro Chromatic plugin](../README.md) against a real
 native game project. Each layer establishes a different fact: TypeScript
 checks validate plugin
@@ -10,8 +15,7 @@ runtime behavior. None substitutes for another.
 
 Windows x64 support remains experimental. Portable tests or validation performed
 on macOS/Linux do not establish that a Windows installation, native compiler,
-local plugin registration, authenticated preview, NTFS path boundaries, or PyBoy
-worker actually runs. Windows ARM64 is unsupported. Execute the complete
+authenticated preview, NTFS path boundaries, or PyBoy worker actually runs. Windows ARM64 is unsupported. Execute the complete
 equivalent workflow on a real Windows host before claiming Windows end-to-end
 compatibility.
 
@@ -47,37 +51,28 @@ resolving symlinks, and the bundled starter additionally requires
 
 ## Check setup and compile a real ROM
 
-The npm commands below are for maintainers in a trusted development checkout
-with its locked dependencies installed. Do not run them inside an installed
-plugin cache. Packaged users should follow [setup](setup.md), then use
-`toolchain_doctor` and `rom_build` in their selected project.
+Maintainers check the engine from hermretro's repository root with
+`python tools/check.py full` (it includes a real-engine run that builds and
+plays games). In hermretro, the agent's `chromatic_toolchain_doctor` reports the
+dependencies without changing anything; for the engine on its own,
+`sh scripts/setup.sh doctor --root <setup root> --components build` does (name
+the components the apply step prepared). Then build the selected
+project: `chromatic_rom_build` in hermretro, `rom_build` for the engine on its own.
 
-```sh
-npm run check
-npm test
-npm run build
-npm run doctor
-npm run test:native-project
-```
-
-For experimental Windows x64, follow [Windows setup](windows-setup.md), then
-prepare the native runtime from PowerShell without Git Bash or WSL:
+For experimental Windows x64, follow [Windows setup](windows-setup.md) to
+prepare the native runtime from PowerShell without Git Bash or WSL, then run
+doctor with the same root and components as the apply step:
 
 ```powershell
-npm.cmd run setup:windows -- --dry-run
-npm.cmd run setup:windows
-npm.cmd run doctor
+powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --root $gbStudioSetupRoot --components build --json
 ```
 
 Verify that the diagnosed GBDK compiler is `lcc.exe`, the optional PyBoy
 interpreter is `.local/pyboy-venv/Scripts/python.exe`, the intended desktop
 application is detected only when installed, and Windows project paths remain
-inside their explicitly authorized drive-qualified roots. Separately opt into a
-workspace marketplace and run the emitted installation commands as the intended
-desktop user. Verify its marketplace root, effective local payload version,
-installed MCP launcher, and actual tool calls; payload preparation alone is not
-installation. Prefer a short `C:` location without spaces. Record these checks
-as unverified until they run on actual Windows.
+inside their explicitly authorized drive-qualified roots. Prefer a short `C:`
+location without spaces. Record these checks as unverified until they run on
+actual Windows.
 
 `toolchain_doctor {}` reports compatible metadata and task readiness for the
 selected CLI, GBDK, and optional emulator. It does not execute them unless named

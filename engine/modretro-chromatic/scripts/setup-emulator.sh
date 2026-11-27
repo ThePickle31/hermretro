@@ -43,26 +43,12 @@ unset BASH_ENV ENV UV_PROJECT UV_WORKING_DIR UV_CONFIG_FILE UV_ENV_FILE VIRTUAL_
 script_directory="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 plugin_directory="$(cd -P -- "${script_directory}/.." && pwd -P)"
 
-assert_mutable_toolchain() {
-  local setup_candidate="$1"
-  while [[ -n "$setup_candidate" ]]; do
-    if [[ -e "$setup_candidate/.codex-plugin/local-payload.json" || -L "$setup_candidate/.codex-plugin/local-payload.json" ]] ||
-      [[ -f "$setup_candidate/.codex-plugin/plugin.json" && "$(<"$setup_candidate/.codex-plugin/plugin.json")" == *+codex.payload.* ]]; then
-      printf '%s\n' 'Legacy setup cannot write into an immutable plugin payload or cache. Use packaged setup.mjs (or setup.sh/setup.ps1) with an external dependency root.' >&2
-      exit 1
-    fi
-    [[ "$setup_candidate" != / ]] || break
-    setup_candidate="${setup_candidate%/*}"
-  done
-}
-
 toolchain_directory="${GB_STUDIO_TOOLCHAIN_ROOT:-${plugin_directory}}"
 if [[ ! -d "${toolchain_directory}" ]]; then
   echo "The selected game toolchain root must be an existing directory: ${toolchain_directory}" >&2
   exit 1
 fi
 toolchain_directory="$(cd -P -- "${toolchain_directory}" && pwd -P)"
-assert_mutable_toolchain "$toolchain_directory"
 local_directory="${toolchain_directory}/.local"
 runtime_directory="${local_directory}/pyboy-venv"
 
@@ -78,7 +64,6 @@ elif [[ -e "${local_directory}" && ! -d "${local_directory}" ]]; then
   echo "The game toolchain .local path is not a directory: ${local_directory}" >&2
   exit 1
 fi
-assert_mutable_toolchain "$local_directory"
 
 if [[ -L "${runtime_directory}" ]]; then
   echo "The existing PyBoy environment must be a real directory, not a symbolic link: ${runtime_directory}" >&2
