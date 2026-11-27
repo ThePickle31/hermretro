@@ -98,12 +98,19 @@ DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".c
 def engine_identity() -> str:
     """The bundled engine's identity as its files say now: its version and the start of its manifest's digest, so an
     edited engine is a new identity. ENGINE_IDENTITY is the one this process loaded."""
-    version = engine_version(ENGINE_ROOT / "package.json")
+    try:
+        manifest = json.loads(ENGINE_MANIFEST.read_text())
+    except (OSError, ValueError):
+        manifest = None
+    return _identity(engine_version(ENGINE_ROOT / "package.json"), manifest)
+
+
+def _identity(version: str | None, manifest) -> str:
     if version is None:
         return "unknown"
     try:
-        return f"{version}-{json.loads(ENGINE_MANIFEST.read_text())['aggregate_sha256'][:12]}"
-    except (OSError, ValueError, KeyError, TypeError):
+        return f"{version}-{manifest['aggregate_sha256'][:12]}"
+    except (KeyError, TypeError):
         return version
 
 
@@ -402,12 +409,30 @@ def verify_engine() -> dict:
         return {"present": True, "version": None, "verified": False, "detail": f"Could not verify: {error}"}
 
 
-def prepared_package_json(target: str) -> bytes:
-    """The prepared copy's package.json: the bundled one, naming the CLI build it holds for this computer."""
-    package = json.loads((ENGINE_ROOT / "package.json").read_text())
+def prepared_package_json(target: str, source: Path | None = None) -> bytes:
+    """The prepared copy's package.json: the bundled one (or ``source``, a staged copy of it), naming the CLI build it
+    holds for this computer."""
+    package = json.loads((source or ENGINE_ROOT / "package.json").read_text())
     package.pop("bundledChromaticFormat", None)
     package["bundledChromaticTarget"] = target
     return (json.dumps(package, indent=2) + "\n").encode()
+
+
+def staged_engine_problems(stage: Path) -> list[str]:
+    """Why a staged copy of the bundled engine (provision._prepare, before the CLI goes in) is not exactly the engine
+    this process loaded, ENGINE_IDENTITY: its files against the manifest that identity names (read once, so an edit
+    meanwhile cannot pass), and its package's version. Empty when it is that engine."""
+    try:
+        manifest = json.loads(ENGINE_MANIFEST.read_text())
+        if _identity(ENGINE_VERSION, manifest) != ENGINE_IDENTITY:
+            return ["the engine's manifest changed since this process loaded it"]
+        expected = {e["path"]: e["sha256"] for e in manifest["entries"] if e["path"] not in VENDOR_ARCHIVES}
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return [f"the engine's manifest cannot be read: {error}"]
+    problems = _compare_tree(stage, expected, optional=frozenset(CAPTURE_FFMPEG), engine_folder=False)
+    if engine_version(stage / "package.json") != ENGINE_VERSION:
+        problems.append(f"its package.json is not version {ENGINE_VERSION}")
+    return problems
 
 
 def verify_prepared_engine() -> dict:

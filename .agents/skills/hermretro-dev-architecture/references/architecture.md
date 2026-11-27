@@ -156,9 +156,10 @@ imports; there are no exceptions).
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the
 gateway talks to it over a private Unix socket with a token. A client replaces it when the backend's code on disk
-changes (the fingerprint covers every file under `backend/`, `__init__.py`, `plugin.yaml`, the engine's
+changes (the fingerprint covers every Python file under `backend/`, `__init__.py`, `plugin.yaml`, the engine's
 `package.json` and manifest, and the pinned `tools.json`: what the plugin reads as it loads, so an engine change
-retires it too), and likewise when
+retires it too; a prepared engine copy holds exactly the engine its process loaded, checked before it is published),
+and likewise when
 its handshake shows its new workers cannot start (its `node` was removed, or `temp_ok` is false while the
 client's TMPDIR would work): it asks `{"op": "shutdown", "replace": true}`. The broker's life is one state under its
 table lock (`backend/broker/lifecycle.py`): serving, retiring, stopping. Work (a call, the page's install start,

@@ -165,32 +165,80 @@ class TheRealBuild(Refresh):
             (bundled / rel).parent.mkdir(parents=True, exist_ok=True)
             (bundled / rel).write_text(text)
         (bundled / "assets" / "devices").mkdir(parents=True)
-        manifest = self.base / "manifest.json"
-        entries = [{"path": rel, "sha256": hashlib.sha256((bundled / rel).read_bytes()).hexdigest()} for rel in files]
-        manifest.write_text(json.dumps({"entries": entries}))
+        self.manifest = self.base / "manifest.json"
+        self.record_manifest(bundled, files)
         for patcher in (
             mock.patch.object(paths, "ENGINE_ROOT", bundled),
-            mock.patch.object(paths, "ENGINE_MANIFEST", manifest),
+            mock.patch.object(paths, "ENGINE_MANIFEST", self.manifest),
             mock.patch.object(provision, "_node", return_value={}),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
-        # This process loaded the engine above, as one started after it was bundled.
-        patcher = mock.patch.object(paths, "ENGINE_IDENTITY", paths.engine_identity())
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        # This process loaded the engine above, as one started after it was bundled: its version, its identity and the
+        # names of its copy and receipt.
+        identity = paths.engine_identity()
+        for name, value in (
+            ("ENGINE_VERSION", "2.0.0"),
+            ("ENGINE_IDENTITY", identity),
+            ("PREPARED_ENGINE", paths.DEPS_ROOT / f"engine-{identity}"),
+            ("DEVICE_CLI_RECEIPT", paths.DEPS_ROOT / f"device-cli-{identity}.json"),
+        ):
+            patcher = mock.patch.object(paths, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         paths.verify_engine.cache_clear()
         self.addCleanup(paths.verify_engine.cache_clear)
 
-    def test_an_engine_changed_since_the_process_loaded_it_waits_for_the_restart(self):
-        self.earlier_copy("1.0.33")
-        (paths.ENGINE_ROOT / "package.json").write_text('{"name": "hermretro-engine", "version": "2.0.1"}')
+    def record_manifest(self, bundled: Path, files) -> None:
+        """The bundled engine's manifest, as tools/engine/manifest.py writes one: its entries and their digest."""
+        entries = [{"path": rel, "sha256": hashlib.sha256((bundled / rel).read_bytes()).hexdigest()} for rel in files]
+        digest = hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()
+        self.manifest.write_text(json.dumps({"entries": entries, "aggregate_sha256": digest}))
+
+    def assert_waits_for_the_restart(self):
         self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists(), "a copy named for the loaded engine, made from another")
+        self.assertEqual(list(paths.DEPS_ROOT.glob("engine.*")), [], "no staging left")
         with self.assertRaises(provision.ProvisionError) as raised:
             provision._prepare(TARGET, PINS, EXE, NOTICE)
         self.assertEqual(raised.exception.code, "ENGINE_CHANGED")
         # Nothing was marked unusable: once Hermes restarts, the same earlier copy gives its CLI.
+        self.assertEqual(provision._NOT_REUSABLE, set())
+
+    def test_a_new_engine_version_waits_for_the_restart(self):
+        self.earlier_copy("1.0.33")
+        (paths.ENGINE_ROOT / "package.json").write_text('{"name": "hermretro-engine", "version": "2.0.1"}')
+        self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
+        self.assert_waits_for_the_restart()
+
+    def test_a_rewritten_manifest_alone_waits_for_the_restart(self):
+        self.earlier_copy("1.0.33")
+        (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
+        self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
+        self.assert_waits_for_the_restart()
+
+    def test_an_engine_rebuilt_before_its_manifest_publishes_nothing(self):
+        # tools/engine/bundle.mjs ran, manifest.py not yet: the identity is the same, the files are not.
+        self.earlier_copy("1.0.33")
+        paths.verify_engine()  # verified before the rebuild, and cached
+        (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
+        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(paths.PREPARED_ENGINE.exists())
+
+    def test_an_edit_while_the_copy_is_made_publishes_nothing(self):
+        self.earlier_copy("1.0.33")
+        real = provision.shutil.copytree
+
+        def copy_then_edit(source, stage, *args, **kwargs):
+            done = real(source, stage, *args, **kwargs)
+            if Path(source) == paths.ENGINE_ROOT:  # the whole engine, not one of the folders it copies on the way
+                (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
+                (Path(stage) / "dist" / "server.js").write_text("rebuilt")  # copied mid-edit
+            return done
+
+        with mock.patch.object(provision.shutil, "copytree", copy_then_edit):
+            self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(paths.PREPARED_ENGINE.exists())
         self.assertEqual(provision._NOT_REUSABLE, set())
 
     def test_the_new_copy_verifies_and_is_chosen(self):

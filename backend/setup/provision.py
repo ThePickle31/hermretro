@@ -262,6 +262,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
         raise ProvisionError("UNSUPPORTED_HOST", host["reason"])
     target = host["target"]
     _require_bundled_engine()
+    _require_loaded_engine()  # before the download: a gateway an engine change left stale says so at once
     pins = _pins(target)
     with _lock():
         archive_bytes = _download(pins["package"], opener)
@@ -304,22 +305,23 @@ def _require_bundled_engine() -> None:
         )
 
 
-def _engine_unchanged() -> bool:
-    """Whether the bundled engine is still the one this process loaded. A copy is named by that engine
-    (paths.PREPARED_ENGINE), so one made from a changed engine would carry another engine's name: after an engine-only
-    change, the process waits for Hermes's restart (the page asks for it) before it makes one."""
-    return paths.engine_identity() == paths.ENGINE_IDENTITY
+# A copy is named by the engine this process loaded (paths.PREPARED_ENGINE), so it holds that engine or none: after an
+# engine-only change, the process waits for Hermes's restart (the page asks for it) before it makes one.
+ENGINE_CHANGED = "hermretro's engine changed after Hermes started. Restart Hermes, then try again."
+
+
+def _require_loaded_engine() -> None:
+    if paths.engine_identity() != paths.ENGINE_IDENTITY:
+        raise ProvisionError("ENGINE_CHANGED", ENGINE_CHANGED)
 
 
 def _prepare(
     target: str, pins: dict, executable: bytes, notice: bytes, node_path: str | None = None, **dates: str | None
 ) -> None:
     """Build the prepared copy from the bundled engine and the verified CLI files, swap it in and write its receipt.
-    The caller holds the provision lock."""
-    if not _engine_unchanged():
-        raise ProvisionError(
-            "ENGINE_CHANGED", "hermretro's engine changed after Hermes started. Restart Hermes, then try again."
-        )
+    The caller holds the provision lock. The staged copy must be exactly the engine this process loaded, checked
+    after copying, so an edit made meanwhile publishes nothing."""
+    _require_loaded_engine()
     exe_rel, notice_rel = pins["executable"]["path"], pins["notice"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
     stage = paths.DEPS_ROOT / f"engine.staging-{os.getpid()}"
     shutil.rmtree(stage, ignore_errors=True)
@@ -337,6 +339,8 @@ def _prepare(
                 or paths.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
             ],
         )
+        if paths.staged_engine_problems(stage):
+            raise ProvisionError("ENGINE_CHANGED", ENGINE_CHANGED)
         for rel, data, mode in (
             (exe_rel, executable, int(pins["executable"]["mode"], 8)),
             (notice_rel, notice, int(pins["notice"]["mode"], 8)),
@@ -347,7 +351,7 @@ def _prepare(
                 handle.write(data)
             os.chmod(destination, mode)
 
-        package_json = paths.prepared_package_json(target)
+        package_json = paths.prepared_package_json(target, stage / "package.json")  # the copied, checked one
         (stage / "package.json").write_bytes(package_json)
         os.chmod(stage / "package.json", 0o644)
 
@@ -463,7 +467,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
     """Make the prepared copy for the bundled engine from an earlier copy's CLI files, then remove the copies older
     than that earlier one. False when there is none to reuse, another setup holds the lock, or the new copy does not
     verify (setup then offers the install)."""
-    if not any(paths.DEPS_ROOT.glob("device-cli-*.json")) or not _engine_unchanged():  # nothing to reuse yet
+    if not any(paths.DEPS_ROOT.glob("device-cli-*.json")):  # never installed: nothing to reuse
         return False
     target = host_target(node_path)["target"]
     if target is None:
@@ -480,7 +484,11 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
             dates = {"installed_at": receipt.get("installed_at"), "refreshed_at": _now()}
             try:
                 _prepare(target, pins, executable, notice, node_path=node_path, **dates)
-            except (ProvisionError, OSError, ValueError, KeyError):
+            except ProvisionError as error:
+                if error.code != "ENGINE_CHANGED":  # the earlier copy is fine: this process must restart first
+                    _NOT_REUSABLE.add(key)
+                return False
+            except (OSError, ValueError, KeyError):
                 _NOT_REUSABLE.add(key)
                 return False
             if not paths.verify_prepared_engine()["verified"]:
