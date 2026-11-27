@@ -1,16 +1,15 @@
-# ModRetro Chromatic architecture
+# The engine's architecture
 
-The [ModRetro Chromatic plugin](../README.md) provides a local Game Boy
-development environment for authoring, building, and playtesting genuine native
-game projects. Its repository home is
-[OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex).
+[hermretro's engine](../README.md) provides a local Game Boy development
+environment for authoring, building, and playtesting genuine native game
+projects. hermretro runs it as a local MCP server behind its `chromatic_*` tools.
 
 ## Ownership boundaries
 
 - GB Studio remains the visual editor and owns its normal project format.
 - Game projects remain ordinary user-owned directories containing `.gbsproj`,
   `.gbsres`, PNG, music, and engine-plugin files.
-- The Codex plugin provides focused skills and an auditable local MCP server.
+- hermretro provides focused skills and runs the engine as an auditable local MCP server.
 - GBDK and the official GB Studio CLI compile real Game Boy and Game Boy Color
   ROMs. A filename or mock web preview is not evidence of hardware compatibility.
 - The official GB Studio `make:web` export provides a separate genuine Binjgb
@@ -22,7 +21,7 @@ game projects. Its repository home is
 - The optional native project extension provides project-local engine
   configuration without replacing the editor or engine.
 
-The emulator is not bundled into the MIT-licensed plugin: PyBoy is separately
+The emulator is not bundled into the MIT-licensed engine: PyBoy is separately
 licensed and remains in a local virtual environment. Likewise, a user-installed
 GB Studio application and GBDK distribution are local development dependencies,
 not checked-in redistributable source.
@@ -73,14 +72,14 @@ scripts disabled. Optional desktop extraction can require a documented manual
 step and is not then reported as installed.
 
 A successful runtime-enabled preparation does not edit profiles/PATH, install or
-refresh a Codex plugin, or rebind active MCP processes. No lifecycle
+refresh the plugin, or rebind active MCP processes. No lifecycle
 hook is treated as installation consent. See [Packaged setup and doctor](setup.md)
 for the user entrypoints, root selection, and recovery contract.
 
 ## Trust and verification
 
-Every raw MCP tool uses an unprefixed `<domain>_<operation>` name; the MCP host
-already adds its server namespace. The server exposes focused tools, including
+Every raw MCP tool uses an unprefixed `<domain>_<operation>` name; hermretro
+gives each one to its agent as `chromatic_<name>`. The server exposes focused tools, including
 `toolchain_doctor`, `project_select`, `script_edit`, `engine_field_inspect`,
 `engine_field_update`, `web_build`, `web_preview`, `web_preview_close`,
 `emulator_step`, `emulator_observe`, `emulator_recording`, and
@@ -378,4 +377,3 @@ existing authored project resources and tracked cartridges. See
 - Pan Docs: https://gbdev.io/pandocs/
 - GBDK: https://gbdk.org/docs/api/
 - PyBoy: https://docs.pyboy.dk/
-- OpenAI plugin architecture: https://developers.openai.com/plugins/concepts/plugins

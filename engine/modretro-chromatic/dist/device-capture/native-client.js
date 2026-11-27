@@ -336,7 +336,7 @@ export function mountNativeCapture(root, options = {}) {
             dismissedRecoveryPath = "";
         }
         recovery.hidden = !recoveryPath || recoveryPath === dismissedRecoveryPath;
-        recovery.textContent = "A partial recording was saved. Ask Codex to recover it.";
+        recovery.textContent = "A partial recording was saved. Ask Hermes to recover it.";
         element("device-empty").hidden = connected;
         element("device-empty-message").textContent = discovering ? "Finding your Chromatic…" : !state.enabled ? "Device capture is off." : "Connect your Chromatic to see its live view.";
         element("empty-settings").textContent = !permissionRequired ? "Connect" : !state.enabled ? "Enable capture…" : "Connection settings";
@@ -1046,7 +1046,7 @@ export function mountNativeCapture(root, options = {}) {
             void chooseColor(stored);
     }
     catch { /* Optional preference only. */ }
-    element("annotate").addEventListener("click", () => { const result = requestDiagnosticAnnotation(frame, { Source: "Native Chromatic live feed", Request: "Help review this device view. Native video does not authenticate the installed ROM." }); element("view-feedback").textContent = result.accepted ? "Ready to send. Send the annotation to ask Codex about this view." : "Use the browser's annotation button to share this view with Codex."; });
+    element("annotate").addEventListener("click", () => { const result = requestDiagnosticAnnotation(frame, { Source: "Native Chromatic live feed", Request: "Help review this device view. Native video does not authenticate the installed ROM." }); element("view-feedback").textContent = result.accepted ? "Ready to send. Send the annotation to ask about this view." : "Take a screenshot to share this view with Hermes."; });
     element("settings-open").addEventListener("click", () => openSettings());
     element("settings-close").addEventListener("click", () => settings.close());
     settings.addEventListener("close", () => { picker.close(); element("settings-open").focus({ preventScroll: true }); });

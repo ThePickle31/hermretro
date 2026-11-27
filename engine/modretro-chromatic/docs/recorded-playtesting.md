@@ -1,6 +1,6 @@
 # Recordings, checkpoints, and clips
 
-The [ModRetro Chromatic plugin](../README.md) can retain recordings,
+[The engine](../README.md) can retain recordings,
 checkpoints, and clips from real play. Use [stepped playtesting](stepped-playtesting.md)
 for the edit → build → play → diagnose → fix → retest loop. This reference covers
 optional retained evidence and same-build checkpoints; it does not introduce

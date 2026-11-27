@@ -1,10 +1,12 @@
 # Agent workflow and MCP guide
 
-Use the [ModRetro Chromatic plugin](../README.md) to author, compile,
-and playtest the user's actual native game project. Its authoring, pixel-art, and
-ROM-debugging skills share the local MCP server and the operating contract in
-this guide. Use the [setup skill](../skills/modretro-chromatic-setup/SKILL.md) for first
-installation, updates, or missing dependencies, including before MCP can start.
+Use [hermretro's engine](../README.md) to author, compile,
+and playtest the user's actual native game project. The engine runs inside
+hermretro; running it on its own is not supported. hermretro's agent does not
+read this guide: it follows hermretro's own skills (the repository's `skills/`),
+which were adapted from it. This guide documents the engine's tools and contracts
+as a maintainer's reference. For first installation, updates, or missing
+dependencies, see [hermretro's setup skill](../../../skills/setup/SKILL.md).
 
 ## Operating contract
 
@@ -14,10 +16,10 @@ iteration. Express gameplay, story, progression, interactions, and other
 game-specific behavior through native project resources, visual-script events,
 or project-owned extensions; do not invent game-specific MCP capabilities.
 
-The host supplies the `modretro-chromatic` MCP namespace. Local tool names stay short:
-`project_select`, `scene_apply`, and `emulator_observe` for project work;
-`device`, `setup`, `play`, and `flash` for physical Chromatic use. Do not add a
-redundant product prefix. See the [device workflow](chromatic-device-testing.md)
+The engine's tool names stay short: `project_select`, `scene_apply`, and
+`emulator_observe` for project work; `device`, `setup`, `play`, and `flash` for
+physical Chromatic use. This guide uses those names; hermretro gives each one to
+its agent as `chromatic_<name>`. See the [device workflow](chromatic-device-testing.md)
 for explicit selection, driver setup, timed live demos, exact-ROM writes, and operation recovery.
 
 Treat these as separate kinds of evidence:
@@ -48,11 +50,14 @@ do not impose that vendor libc gate on non-hardware authoring startup;
 Chromatic device operations still require a supported target. Choose the
 artifact accordingly and report only the platforms actually qualified.
 
-If MCP cannot start, follow the [setup skill](../skills/modretro-chromatic-setup/SKILL.md)
-and [packaged setup reference](setup.md). Do not loop on unavailable MCP calls.
+Prepare dependencies with [hermretro's setup skill](../../../skills/setup/SKILL.md) or the
+hermretro page, into hermretro's own root. The shell entrypoints below are a
+maintainer's way into the setup manager ([setup reference](setup.md)); when the
+setup tool is unavailable, the agent follows the setup skill's recovery instead.
+Do not loop on unavailable MCP calls.
 The bundled `setup.sh`/`setup.ps1` can report or explicitly bootstrap Node from a
-trusted compiled package. Codex runs those entrypoints; do not shift runnable
-setup commands to the user or assume a global Node/Python installation. Never
+trusted compiled package. Do not shift runnable setup commands to the user or
+assume a global Node/Python installation. Never
 run npm setup inside an immutable cache. A launcher Node `--version` check is
 disclosed separately from the full passive dependency report.
 
@@ -67,10 +72,11 @@ toolchain_doctor {"tasks":["authoring","projectBuild","play"]}
 toolchain_doctor {"tasks":["play"],"probes":["cli-version","gbdk-version","emulator-import"]}
 ```
 
-Doctor and plan never install. New or iterated playable games require
-`runtime,build`, including browser previews. Use `runtime` alone for source
-inspection, edits without a build, or device tools with an existing ROM; add
-`emulator` for local stepped play and `desktop` only when requested. Use the same
+Doctor and plan never install. New or iterated playable games require `build`,
+including browser previews. The bundled engine needs no `runtime` component:
+source inspection, edits without a build, and device tools with an existing ROM
+need no build dependencies. Add `emulator` for local stepped play and `desktop`
+only when requested. Use the same
 root and selection for plan, `apply --yes`, and doctor. Carry necessary setup
 through for the authorized game workflow unless the user limits downloads or
 changes; ask only for missing scope or required platform approval. Preserve existing
@@ -80,9 +86,7 @@ door is read-only. The public Chromatic `setup` tool handles device operations,
 not dependency installation.
 
 After preparation, check readiness with the [supported checks](setup.md#preparation-is-not-activation-or-gameplay-acceptance):
-in hermretro, `chromatic_session_status` and `chromatic_toolchain_doctor`; for
-the engine on its own, `scripts/setup.sh doctor` (`scripts/setup.ps1` on Windows)
-with the same root and components. Then complete the requested real build or browser export. Do not
+`chromatic_session_status` and `chromatic_toolchain_doctor`. Then complete the requested real build or browser export. Do not
 stop at a passive readiness report or give the user manual Node/npm installation
 work. Do not infer local Git credentials from a connected GitHub app, or treat a
 lifecycle hook/approval UI as installation consent. On Windows use local paths, preferably short paths on `C:`; UNC/network
@@ -177,7 +181,7 @@ The plugin does not manage activation or collect codes. Do not infer an invalid
 code or a seat limit from a generic failure. After the updater workflow, use
 fresh device discovery and selection and the normal flash confirmation; preserve
 any previous write's uncertain outcome. See the
-[deployment skill](../skills/chromatic-deployment/SKILL.md#prepare-a-first-write-on-a-new-computer).
+[hermretro's deployment skill](../../../skills/deployment/SKILL.md#prepare-a-first-write-on-a-new-computer).
 
 After a targeted correction, check its result before proceeding. If the same
 failure persists without new evidence, retain the concrete blocker and choose
@@ -367,12 +371,12 @@ or mismatched debugging artifacts are never successful verification.
 Use additive `diagnostics`, including any source path, line, and suggested
 action, to choose the next focused resource inspection. Preserve the actual
 compiler error when no specific diagnosis is supported. The official desktop
-editor can [run a selected scene](../skills/modretro-chromatic-authoring/references/extensions-and-build.md)
+editor can [run a selected scene](../../../skills/authoring/references/extensions-and-build.md)
 for a quicker local check; normal CLI builds retain the authored starting point.
 
 ## Open the official playable browser preview
 
-Open every `web_preview` or `device_capture` URL, including screenshot Open links, only in **Codex's built-in browser**. If it is unavailable or blocked, retain the URL and report the concrete limitation. Never launch or fall back to an external browser.
+Show the game to the user as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes (`chromatic_present_game`); never open `web_preview` URLs, including screenshot Open links, yourself. Give a `device_capture` URL to the user. Never launch or fall back to an external browser.
 
 Browser availability is not a prerequisite for gameplay testing. If the browser
 is missing, locked or unreachable, retain its state and continue with public
@@ -381,8 +385,10 @@ ROM. Follow [headless fallback](stepped-playtesting.md#when-browser-play-is-unav
 for setup and retained evidence; browser UI/annotation and physical capture
 still require their own checks.
 
-For new or iterated projects, use `web_preview` to show a successful playable
-build early. Keep the appropriate owned preview tab visible and open while
+This describes the engine's own preview; hermretro shows a game as
+[hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
+describes. For new or iterated projects, use `web_preview` to show a successful
+playable build early. Keep the appropriate owned preview tab visible and open while
 working so the user can follow. After meaningful successful builds, update that
 preview at a safe point. Do not interrupt human play, saves or recordings;
 resolve unknown outcomes before updating. Do not arbitrarily reload or autoplay.
@@ -489,7 +495,9 @@ States require the exact ROM, WebAssembly runtime, and source revision that
 created them. A new build uses a separate history. Older build histories remain
 on disk; states are not migrated between builds.
 
-Codex uses the existing `web_preview` tool for state operations:
+These act on an engine preview opened with `web_preview`, not on the hermretro
+emulator that `chromatic_present_game` shows. The `web_preview` tool's state
+operations:
 
 | Action | Result |
 | --- | --- |
@@ -544,7 +552,7 @@ interaction in the actual browser before claiming those user-visible outcomes.
 
 ### Annotate a game preview
 
-In a supporting Codex/ChatGPT browser, **Annotate game** opens native annotation
+In a supporting host browser, **Annotate game** opens native annotation
 mode on the existing player. Selecting the canvas freezes a frame. The picker
 offers visible hardware sprites, small adjacent sprite groups, background/window
 tiles, and a whole-frame fallback. Sprite grouping is an inference from OAM
@@ -662,17 +670,18 @@ missing compiler, optional emulator, or hardware evidence honestly.
 
 ## Domain references
 
-- [Plugin setup skill](../skills/modretro-chromatic-setup/SKILL.md)
-- [ModRetro project authoring skill](../skills/modretro-chromatic-authoring/SKILL.md)
-- [Game Boy pixel art skill](../skills/modretro-chromatic-pixel-art/SKILL.md)
-- [ROM build and debugging skill](../skills/modretro-chromatic-rom-debugging/SKILL.md)
-- [Chromatic device and deployment skill](../skills/chromatic-deployment/SKILL.md)
+- hermretro's skills: [setup](../../../skills/setup/SKILL.md),
+  [authoring](../../../skills/authoring/SKILL.md),
+  [pixel art](../../../skills/pixel-art/SKILL.md),
+  [ROM debugging](../../../skills/rom-debugging/SKILL.md),
+  [deployment](../../../skills/deployment/SKILL.md)
+- ModRetro's original skills, kept as published, in [`../skills/`](../skills/)
 - [Architecture and security boundaries](architecture.md)
 - [End-to-end runtime validation](runtime-validation.md)
 
 ### Watch browser play for a fixed duration
 
-Use the existing `web_preview` tool for the browser emulator. `device_capture` is only for physical hardware. Keep the preview in Codex's built-in browser and preserve a person's active play.
+This records an engine preview opened with `web_preview`, not the hermretro emulator that `chromatic_present_game` shows. `device_capture` is only for physical hardware. Keep the preview where it is open and preserve a person's active play.
 
 1. Read `web_preview` with `action: "status"`. Select a visible, running, idle player and copy its listener ID, view ID, ROM/runtime hashes, source revision, and recording generation into `recordingBinding`.
 2. Call `action: "start_recording"` with that binding and optional `recordingDurationMs` (1,000–600,000; default 180,000). The immediate receipt is a queued job, not proof that recording began. Save its `recordingId`.
@@ -685,4 +694,4 @@ Closing a preview uses a fresh acknowledgment from every recording-capable view,
 
 ### Open a ready view
 
-Codex manages project selection and preparation before opening a view. For game preview, select or create the requested project, prepare missing build dependencies, and wait for a successful preview result before opening its URL. Never open an empty setup placeholder or ask the user to repeat the same request through an in-view Codex button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.
+The agent manages project selection and preparation before showing anything. In hermretro, the game handoff is `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro) describes; the agent never opens a `web_preview` URL itself. Never ask the user to repeat the same request through an in-view button. For physical capture, select the project used to store its captures first; a compiled game is not required to watch the connected device, and the capture URL goes to the user. Keep the current working view if a replacement cannot open. Real access failures and unresolved operations remain explicit and must not be silently retried.

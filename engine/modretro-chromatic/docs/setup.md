@@ -1,99 +1,98 @@
-# ModRetro Chromatic: setup
+# Engine setup
 
-> This is ModRetro's guide to setting the engine up on its own. In hermretro,
-> setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
-> and `chromatic_toolchain_doctor`, into hermretro's own folder
-> (`~/.hermes/hermretro/.cache/` by default), and a game is shown with `chromatic_present_game`.
+In hermretro, setup runs from the hermretro page, or the agent's
+`chromatic_toolchain_prepare` and `chromatic_toolchain_doctor`, into hermretro's
+own folder (`~/.hermes/hermretro/.cache/` by default). The engine runs inside
+hermretro; running it on its own is not supported. This guide covers the setup
+manager underneath: its components, pins, readiness and recovery, and the
+commands a maintainer can use to inspect or repair a setup root by hand.
 
-The [ModRetro Chromatic plugin](../README.md) can author, build, and
-directly playtest games without the GB Studio desktop editor. The plugin ships
-installers and a shared dependency catalog, not every third-party binary.
-Necessary dependency preparation is part of an authorized request to create,
-build, or preview a game, unless the user limits downloads or changes. Codex
-performs that setup in a separate owned dependency directory and asks only for
-missing scope or required platform permission.
+The engine can author, build, and directly playtest games without the GB Studio
+desktop editor. It ships installers and a shared dependency catalog, not every
+third-party binary. Necessary dependency preparation is part of an authorized
+request to create, build, or preview a game, unless the user limits downloads or
+changes. The agent performs that setup in a separate owned dependency directory
+and asks only for missing scope or required platform permission.
 
-The plugin ZIP does not include the standalone GB Studio compiler or PyBoy
+The plugin does not include the standalone GB Studio compiler or PyBoy
 emulator. Setup installs the pinned GB Studio 4.3.2 compiler and PyBoy 2.7.0
-separately when the requested components need them. The bundled Chromatic
-device CLI is a separate supplier component; its embedded Binjgb runtime and
-required third-party notices remain intact.
+separately when the requested components need them. The Chromatic device CLI
+is a separate supplier component, installed only for hardware; its embedded
+Binjgb runtime and required third-party notices remain intact.
 
-Ask Codex for the work you want to do:
+Ask Hermes for the work you want to do:
 
-> Use the ModRetro Chromatic plugin to make a small playable game and show me
-> its browser preview. Prepare any missing dependencies in a dedicated tools
-> folder.
+> Make a small playable game and show it to me. Prepare any missing
+> dependencies.
 
-The [setup skill](../skills/modretro-chromatic-setup/SKILL.md) runs the existing setup
-entrypoints, prepares the dependencies and checks readiness. It can start
-without a working MCP server. The commands below are reference instructions
-for Codex and maintainers; users do not need to copy them into a terminal.
-No manual Node/npm installation is required: the OS-shell setup entrypoint can
-prepare the pinned runtime.
+[hermretro's setup skill](../../../skills/setup/SKILL.md) prepares the
+dependencies and checks readiness. The commands below are reference
+instructions for the agent and maintainers; users do not need to copy them into
+a terminal. No manual Node/npm installation is required: the OS-shell setup
+entrypoint can prepare the pinned runtime.
 
-## Obtain and add the compiled release
+## Where the engine comes from
 
 hermretro ships this engine inside the plugin and runs it from there; installing
 the Chromatic CLI for hardware prepares a copy of it in hermretro's own folder
-(see the [engine's README](../README.md)). There is no separate compiled release to obtain
-or add.
+(see the [engine's README](../README.md)). There is no separate compiled release
+to obtain or add.
 
 ## Preview an existing project
 
-Ask the agent to open your existing `.gbsproj` with the current plugin. Keep custom launchers such as `tools/preview.mjs` and project scripts
-intact; the plugin does not need to rewrite them to preview your game.
+In hermretro, each game is opened and edited in its own conversation, from the
+Build page. Selecting, building and showing it follow
+[hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project).
+Keep custom launchers such as `tools/preview.mjs` and project scripts intact;
+the engine does not need to rewrite them to preview your game.
 
-In ModRetro's Codex plugin, the agent uses these tools in order. In hermretro, the agent
-selects the project, builds it with `chromatic_rom_build`, then shows the playable copy
-with `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
-describes.
+The engine tools involved (hermretro names each `chromatic_<name>`):
 
-1. `session_status {}` to check the current session. Finish any active operation
-   through its original session before switching projects.
-2. `project_select {"projectPath":"/absolute/path/to/game.gbsproj"}` to select
-   the existing project within the authorized workspace.
-3. `project_inspect {}` to confirm the selected project and source.
-4. `toolchain_doctor {"tasks":["projectBuild"]}` to check build dependencies.
-   Omit `probes` for this passive check. Missing dependencies need the setup
-   flow below; metadata readiness alone does not prove a successful build.
-5. `web_preview {"outputPath":"build/current-preview"}` to build or reuse an
-   authenticated official browser export, then open its returned URL in
-   Codex's built-in browser.
+| Tool | Role |
+| --- | --- |
+| `session_status`, `project_select`, `project_inspect` | The current selection, selecting a project, and its resources |
+| `toolchain_doctor {"tasks":["projectBuild"]}` | A passive check of the build dependencies; `toolchain_prepare {"components":["build"]}` or the hermretro page prepares missing ones, never the shell commands below |
+| `rom_build` | The ROM (`make:rom`) |
+| `web_build` | Builds or reuses the web export (`make:web`) |
+| `web_preview` | Serves that export as the engine's own preview; hermretro shows the game with its own `chromatic_present_game` instead |
 
-This path uses the official GB Studio `make:web` compiler and the current
-plugin's player controls. It does not run your npm scripts or import behavior
-from a custom preview launcher. Keep the launcher and game source unchanged;
-any custom behavior still needs a separate review. For a physical Chromatic
-feed, use `device_capture {"action":"open_settings"}` instead of modifying a
-browser launcher.
+The web copy uses the official GB Studio `make:web` compiler and the engine's
+player controls. It does not run your npm scripts or import behavior from a
+custom preview launcher. Keep the launcher and game source unchanged; any
+custom behavior still needs a separate review. For a physical Chromatic feed,
+follow the [capture steps](chromatic-device-testing.md#capture-the-physical-device)
+instead of modifying a browser launcher.
 
-## Start before MCP is available
+## The setup manager by hand
 
-Obtain a trusted, readable compiled plugin package through an authorized
-distribution path. Repository access and Codex plugin installation are separate
-from dependency setup; a private repository does not become public through this
-installer. A source checkout must first be built by its maintainer.
+These commands are a maintainer's way into the setup manager, for inspecting or
+repairing a setup root. They work on the root you name; hermretro reads only its
+own (`GB_STUDIO_SETUP_ROOT`, `~/.hermes/hermretro/.cache/toolchain` by default).
+Hermes installs and updates the plugin; that is separate from dependency setup.
+The setup scripts are in the engine's `scripts/` folder inside the installed
+plugin. Do not run `npm install` or `npm run setup` in the plugin folder.
 
-Use the scripts in that package. Do not run `npm install` or `npm run setup` in
-the plugin cache.
-
-On macOS/Linux, start with the packaged POSIX-shell entrypoint:
+Name the root hermretro actually uses: `toolchain_doctor` reports it as
+`roots.setupRoot`. The shell launcher finds Node in that root or on `PATH`, not
+in Hermes's own tool store; when the only Node is Hermes's, put the folder of
+the Node executable the doctor reports first on `PATH`. On macOS/Linux, start
+with the POSIX-shell entrypoint:
 
 ```sh
-sh "/absolute/path/to/plugin/scripts/setup.sh" doctor --components runtime,build
-sh "/absolute/path/to/plugin/scripts/setup.sh" plan --root "$HOME/chromatic-tools" --components runtime,build
+root="<roots.setupRoot from toolchain_doctor>"
+sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$root" --components build
+sh "/absolute/path/to/engine/scripts/setup.sh" plan --root "$root" --components build
 ```
 
 On Windows x64, use PowerShell 5.1+; see [Windows setup](windows-setup.md):
 
 ```powershell
-powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --components runtime,build
-powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" plan --root "C:\chromatic-tools" --components runtime,build
+powershell.exe -NoProfile -File "C:\path\to\engine\scripts\setup.ps1" doctor --components build
+powershell.exe -NoProfile -File "C:\path\to\engine\scripts\setup.ps1" plan --root "C:\chromatic-tools" --components build
 ```
 
 The OS shell and its download/archive facilities must be available. The launchers
-do not assume a Node runtime bundled with Codex or inherited by MCP. They check
+do not assume a Node runtime inherited by MCP. They check
 an available Node with `--version`; this bootstrap-prerequisite check is disclosed
 separately from component probes. If no compatible Node is available, the result
 is **bootstrap-only**, showing the pinned official Node download and destination,
@@ -106,8 +105,8 @@ doctor and plan passive, then apply the authorized plan. For example, on
 macOS/Linux:
 
 ```sh
-sh "/absolute/path/to/plugin/scripts/setup.sh" apply --root "$HOME/chromatic-tools" --components runtime,build --yes
-sh "/absolute/path/to/plugin/scripts/setup.sh" doctor --root "$HOME/chromatic-tools" --components runtime,build --json
+sh "/absolute/path/to/engine/scripts/setup.sh" apply --root "$root" --components build --yes
+sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$root" --components build --json
 ```
 
 PowerShell accepts the same positional commands and `--options`. `--yes` records
@@ -117,17 +116,18 @@ hook, a connected MCP server, or whether a shell approval prompt appears.
 ## Choose capabilities, not a desktop application
 
 Pass `--components` explicitly rather than relying on the broader
-`runtime,build,emulator` default. Use `runtime` for source inspection or edits
-without a build, or Chromatic device tools with an existing ROM;
-`runtime,build` to create or iterate a playable game, compile it, or show an
-official browser preview; `runtime,emulator` to playtest an existing ROM;
-and `runtime,build,emulator` for the edit/build/play loop. Add `desktop` only
-when the user wants the visual editor. Use the same selection and `--root`
+`runtime,build,emulator` default. hermretro's engine is bundled, so it needs no
+`runtime` component: source inspection, edits without a build, and Chromatic
+device tools with an existing ROM need no build dependencies (device tools need
+the [Chromatic CLI](chromatic-device-testing.md) instead). Use `build` to create or
+iterate a playable game, compile it, or show an official browser preview;
+`emulator` to playtest an existing ROM; and `build,emulator` for the
+edit/build/play loop. Add `desktop` only when the user wants the visual editor. Use the same selection and `--root`
 for plan, apply, and the follow-up doctor.
 
 | Component group | What setup prepares | Required for |
 | --- | --- | --- |
-| `runtime` | Compiled plugin and locked production npm dependencies | Project inspection/authoring, ROM inspection, and Chromatic device tools through MCP |
+| `runtime` | Compiled engine and locked production npm dependencies (an unbundled engine only) | Nothing in hermretro: its engine is bundled |
 | `build` | Official GB Studio CLI and GBDK | Native game project builds and official browser exports |
 | `emulator` | Isolated Python, PyBoy, and Pillow; managed uv when needed | Direct stepped play and real-frame observation |
 | `desktop` | Optional official GB Studio editor distribution | Visual editing in the desktop application |
@@ -182,7 +182,7 @@ optional editor and installer-only uv do not block tasks that do not need them.
 When executable checks are wanted, name them explicitly:
 
 ```sh
-sh "/absolute/path/to/plugin/scripts/setup.sh" doctor --root "$HOME/chromatic-tools" --components runtime,build,emulator --probes cli-version,gbdk-version,emulator-import
+sh "/absolute/path/to/engine/scripts/setup.sh" doctor --root "$root" --components build,emulator --probes cli-version,gbdk-version,emulator-import
 ```
 
 Or, once MCP is running:
@@ -210,8 +210,8 @@ The passive shell doctor can also run from `<root>/runtime` with the enclosing
 root. Use the original compiled package outside the managed root for plan,
 apply, or doctor with executable `--probes`.
 
-Choose an absolute, dedicated `--root` outside the plugin package and immutable
-cache. It must not enclose the plugin either, except for passive doctor above.
+Choose an absolute, dedicated `--root` outside the plugin. It must not enclose
+the plugin either, except for passive doctor above.
 Setup accepts a new/empty directory or one carrying its ownership marker.
 It refuses nonempty unowned roots and redirected setup paths; do not use a game
 directory or select an existing shared toolchain for
@@ -229,8 +229,8 @@ separate setup roots remain isolated. Each toolchain still needs its own
 `node_modules`. Setup does not migrate or delete older caches.
 
 Setup does not change global Python, shell
-profiles, `PATH`, OS application registration, marketplaces, installed plugin
-bindings, or active MCP sessions. Keep prepared dependency paths available if
+profiles, `PATH`, OS application registration, the installed plugin, or active
+MCP sessions. Keep prepared dependency paths available if
 a later installation binds to them.
 
 ## Failure, retry, and cancellation

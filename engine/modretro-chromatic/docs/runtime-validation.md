@@ -1,17 +1,14 @@
 # Runtime validation
 
-> This is ModRetro's guide to setting the engine up on its own. In hermretro,
-> setup runs from the hermretro page, or the agent's `chromatic_toolchain_prepare`
-> and `chromatic_toolchain_doctor`, into hermretro's own folder
-> (`~/.hermes/hermretro/.cache/` by default), and a game is shown with `chromatic_present_game`.
-
-Verify the [ModRetro Chromatic plugin](../README.md) against a real
-native game project. Each layer establishes a different fact: TypeScript
-checks validate plugin
-source; project inspection validates editable resources; official compilation
-produces an authentic cartridge; an official browser export provides a genuine
-interactive Binjgb player; and PyBoy frames establish observed deterministic
-runtime behavior. None substitutes for another.
+Verify [the engine](../README.md) against a real native game project. In
+hermretro, setup runs from the hermretro page, or the agent's
+`chromatic_toolchain_prepare` and `chromatic_toolchain_doctor`, into hermretro's
+own folder (`~/.hermes/hermretro/.cache/` by default), and a game is shown with
+`chromatic_present_game`. Each layer establishes a different fact: source
+checks validate the engine's code; project inspection validates editable
+resources; official compilation produces an authentic cartridge; an official
+browser export provides a genuine interactive Binjgb player; and PyBoy frames
+establish observed deterministic runtime behavior. None substitutes for another.
 
 Windows x64 support remains experimental. Portable tests or validation performed
 on macOS/Linux do not establish that a Windows installation, native compiler,
@@ -52,16 +49,15 @@ resolving symlinks, and the bundled starter additionally requires
 ## Check setup and compile a real ROM
 
 Maintainers check the engine from hermretro's repository root with
-`python tools/check.py full` (it includes a real-engine run that builds and
-plays games). In hermretro, the agent's `chromatic_toolchain_doctor` reports the
-dependencies without changing anything; for the engine on its own,
-`sh scripts/setup.sh doctor --root <setup root> --components build` does (name
-the components the apply step prepared). Then build the selected
-project: `chromatic_rom_build` in hermretro, `rom_build` for the engine on its own.
+`python tools/check.py full --strict` (it includes a real-engine run that builds and
+plays games). The agent's `chromatic_toolchain_doctor` reports the dependencies
+without changing anything; then build the selected project with
+`chromatic_rom_build`.
 
-For experimental Windows x64, follow [Windows setup](windows-setup.md) to
-prepare the native runtime from PowerShell without Git Bash or WSL, then run
-doctor with the same root and components as the apply step:
+hermretro does not run on Windows yet. When it does, follow
+[Windows setup](windows-setup.md) to prepare the native runtime from PowerShell
+without Git Bash or WSL, then run doctor with the same root and components as
+the apply step:
 
 ```powershell
 powershell.exe -NoProfile -File "C:\path\to\plugin\scripts\setup.ps1" doctor --root $gbStudioSetupRoot --components build --json
@@ -190,17 +186,12 @@ official build through its MCP request and check descendant-process cleanup
 alongside `cancelled:true` / `BUILD_CANCELLED`; report any cleanup warning
 rather than claiming an unconfirmed process exit.
 
-The normal test suite can skip unavailable native prerequisites or compiled
-launcher checks. Build first, then explicitly require the authentic suite:
-
-```sh
-GB_STUDIO_AUTHENTIC_MCP_ENTRYPOINT=compiled GB_STUDIO_REQUIRE_AUTHENTIC_INTEGRATION=1 node --import tsx --test --test-concurrency=1 tests/authentic-project-runtime.test.ts tests/recorded-mcp-runtime.test.ts
-```
-
-Configure the intended toolchain/interpreter through documented environment
-variables when they live outside this checkout. The command above is POSIX shell
-syntax, not evidence of native Windows execution; use the equivalent environment
-configuration on the actual target host.
+hermretro's real-engine run builds and plays real games against the engine:
+from the repository root, run `python tools/check.py full --strict` (without
+`--strict`, a missing toolchain skips the run instead of failing; the
+[testing guide](../../../.agents/skills/hermretro-dev-testing/references/testing.md)
+says how to prepare it). It runs on Linux and macOS; it is not evidence of
+native Windows execution.
 
 Record OS/architecture, dependency versions, packaged launcher identity, tool
 calls, before/after ROMs, observed functional results, and remaining gaps.

@@ -18,6 +18,7 @@ holds that release as published.
   and `emulator` components: the pinned GB Studio CLI and GBDK, and an isolated Python with PyBoy, under hermretro's
   own folder. The Chromatic CLI is a separate install, for hardware only.
 - **The manifest.** The plugin starts only an engine whose files match `engine/pins/<version>/manifest.json`.
+- **Tool names.** The guides use the engine's own tool names; hermretro's agent calls each one `chromatic_<name>`.
 
 ## Layout
 
@@ -27,7 +28,7 @@ holds that release as published.
 | `dist/server.js` | The bundle, generated from `dist/` by `tools/engine/bundle.mjs`; never edited by hand |
 | `scripts/` | The launcher, setup and doctor, the emulator worker and the Chromatic CLI runtime, used as they are (the bundle imports some of them) |
 | `skills/` | ModRetro's original agent skills, kept as published; the ones hermretro gives its agent are adapted from them, in the repository's `skills/` |
-| `docs/` | ModRetro's guides to the tools, setup and the device (written for its Codex plugin) |
+| `docs/` | Guides to the tools, setup, playtesting and the device |
 | `examples/` | The starter every new game is made from, the `hello-color` demo ROM, and ModRetro's samples |
 | `assets/music/` | The bundled music tracks |
 | `native/capture/` | The macOS and Linux helpers that capture a Chromatic's video |
@@ -48,8 +49,8 @@ The commands run from the hermretro repository root.
 ## Checking setup
 
 In hermretro, the agent's `chromatic_toolchain_doctor` reports the toolchain without changing anything, and the page or
-`chromatic_toolchain_prepare` repairs it. [docs/setup.md](docs/setup.md), ModRetro's guide to setting the engine up on
-its own, explains the components, their pins, readiness and recovery, and the setup manager's own commands.
+`chromatic_toolchain_prepare` repairs it. [docs/setup.md](docs/setup.md) explains the components, their pins, readiness
+and recovery, and the setup manager's own commands for inspecting or repairing a setup root by hand.
 
 ## Developer Mode activation
 

@@ -46607,7 +46607,7 @@ var ChromaticService = class {
       return read();
     } catch (error2) {
       if (error2 instanceof Error && "code" in error2 && (error2.code === "EPERM" || error2.code === "EACCES")) {
-        throw new ChromaticDeviceError("CHROMATIC_JOURNAL_ACCESS_DENIED", "Chromatic installation needs access to its local status files. Ask Codex to enable local device access, then reopen the preview.", { journalRoot: this.#journal.root, diagnostic: { code: error2.code, message: error2.message } });
+        throw new ChromaticDeviceError("CHROMATIC_JOURNAL_ACCESS_DENIED", "Chromatic installation needs access to its local status files. Restore this process's access to the reported journal folder, then check the device or operation status again.", { journalRoot: this.#journal.root, diagnostic: { code: error2.code, message: error2.message } });
       }
       throw error2;
     }
@@ -68361,7 +68361,7 @@ var MAX_FRAME_WAITERS = 4;
 var ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js"];
 var CaptureDisabledError = class extends Error {
   constructor() {
-    super("Enable device capture in Settings \u2192 Connection first. Codex can open that settings tab for you.");
+    super("Enable device capture in Settings \u2192 Connection first.");
   }
 };
 var HttpError = class extends Error {
@@ -69256,7 +69256,7 @@ var NativeDeviceCaptureService = class {
         const retained = await a.files.verifiedFile(result);
         recording.retainedPath = retained.path;
         await retained.handle.close();
-        throw new Error(result.error?.message ?? "Native recording is partial. Its original file is retained; ask Codex to inspect the recording status.");
+        throw new Error(result.error?.message ?? "Native recording is partial. Its original file is retained; inspect the recording status.");
       }
       if (a.totalBytes + result.bytes > SESSION_BYTES)
         throw new Error("Session publication quota exceeded.");
