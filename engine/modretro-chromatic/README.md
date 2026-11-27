@@ -37,28 +37,19 @@ holds that release as published.
 
 ## Changing it
 
+The commands run from the hermretro repository root.
+
 1. Change the module in `dist/` (or a file in `scripts/`, `skills/` or `docs/` in place).
 2. Rebuild the bundle with `node tools/engine/bundle.mjs`; `python tools/check.py engine` fails when it is stale.
 3. Add the change's line to [`../CHANGES.md`](../CHANGES.md) and write a fresh manifest with
    `python tools/engine/manifest.py write`.
 4. Run `python tools/check.py full`, which includes the real-engine acceptance run.
 
-## Setup and doctor directly
+## Checking setup
 
-A manual way into the same setup manager the page uses, `scripts/setup.mjs`, for checking or repairing hermretro's
-toolchain by hand. From this folder:
-
-```sh
-root="$HOME/.hermes/hermretro/.cache/toolchain"   # or "$GB_STUDIO_SETUP_ROOT" when that is set
-sh scripts/setup.sh doctor --root "$root" --components build,emulator --json
-sh scripts/setup.sh plan --root "$root" --components build,emulator
-sh scripts/setup.sh apply --root "$root" --components build,emulator --yes
-```
-
-`scripts/setup.sh` (`scripts/setup.ps1` on Windows) uses the setup root's own Node, or one on the `PATH`. When the only
-Node is Hermes's own, run the manager with it instead: `~/.hermes/tools/node-<version>/bin/node scripts/setup.mjs doctor
---root "$root" --components build,emulator --json`. `doctor` and `plan` change nothing. [docs/setup.md](docs/setup.md) explains the components, their pins, readiness and
-recovery.
+In hermretro, the agent's `chromatic_toolchain_doctor` reports the toolchain without changing anything, and the page or
+`chromatic_toolchain_prepare` repairs it. [docs/setup.md](docs/setup.md), ModRetro's guide to setting the engine up on
+its own, explains the components, their pins, readiness and recovery, and the setup manager's own commands.
 
 ## Developer Mode activation
 

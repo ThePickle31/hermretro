@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 33379151,
+ "total_bytes": 33378747,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "63dc73fb32065f2f4eaa18983cd0f191a17ff43bb1d578e303e831132f197037",
+ "aggregate_sha256": "1bbcc2795676eab0ea64d83de257539cfa5f55bdee6310cd417c87d2b84df931",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4836,
+   "size": 4325,
    "mode": "0o644",
-   "sha256": "bb1aab98a590b430604b14e92becb38f416713021e3a8a6cc1249d868f4d567b"
+   "sha256": "483105f50d43d9396154b427d04b7d390a1216538089658914a5c16298d314fd"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -1207,9 +1207,9 @@
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15308,
+   "size": 15415,
    "mode": "0o644",
-   "sha256": "73ceb6410c863cea38c46477d61376ebb4564507dd04b11530674ced86db75f6"
+   "sha256": "adb027c098ae74575c06821d1520c9df563aaaba17236da064b884a2a807fb3d"
   },
   {
    "path": "docs/stepped-playtesting.md",

@@ -43,7 +43,8 @@ compiled release to obtain or add.
 Ask the agent to open your existing `.gbsproj` with the current plugin. Keep custom launchers such as `tools/preview.mjs` and project scripts
 intact; the plugin does not need to rewrite them to preview your game.
 
-Codex should use these public tools in order:
+In ModRetro's Codex plugin, the agent uses these tools in order. In hermretro, the agent
+selects the project and shows it with `chromatic_present_game`.
 
 1. `session_status {}` to check the current session. Finish any active operation
    through its original session before switching projects.
