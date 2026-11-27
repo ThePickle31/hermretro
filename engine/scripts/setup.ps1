@@ -88,7 +88,7 @@ function Read-GbSetupArguments {
 
 function Write-GbSetupHelp {
     @'
-ModRetro Chromatic dependency setup (Windows x64, PowerShell 5.1+)
+hermretro engine dependency setup (Windows x64, PowerShell 5.1+)
 
   powershell.exe -NoProfile -File scripts/setup.ps1 [doctor|plan|apply] [options]
 
@@ -543,7 +543,7 @@ function Install-GbSetupNode {
         $gbPublish = [System.IO.Path]::Combine($script:gbSetupStage, 'publish')
         $gbStem = [System.IO.Path]::GetFileNameWithoutExtension($Release.archive)
         $gbStagePhase = 'download'
-        [Console]::Error.WriteLine("ModRetro Chromatic setup: installing authenticated Node $($Release.version) into $PlatformDirectory")
+        [Console]::Error.WriteLine("hermretro engine setup: installing authenticated Node $($Release.version) into $PlatformDirectory")
         # No redirects or unbounded body writes. Each retry uses a new partial
         # path, so a failed/cancelled download never becomes a reused cache hit.
         Save-GbSetupDownload -Url $Release.url -Destination $gbPartial
@@ -618,7 +618,7 @@ function Install-GbSetupNode {
             $script:gbSetupLockAcquired = $false
         }
         if ($null -ne $script:gbSetupStage -and (-not $script:gbSetupBootstrapInstalled -or $null -ne $gbFailure -or $null -ne $script:gbSetupCleanupError)) {
-            [Console]::Error.WriteLine("ModRetro Chromatic setup: failed/cancelled staging retained at $($script:gbSetupStage). Retry uses a new path, never a cached partial.")
+            [Console]::Error.WriteLine("hermretro engine setup: failed/cancelled staging retained at $($script:gbSetupStage). Retry uses a new path, never a cached partial.")
         }
     }
     if ($null -ne $gbFailure) { throw $gbFailure }
@@ -753,7 +753,7 @@ try {
     }
     if ($script:gbSetupJson) { $gbSetupFailure | ConvertTo-Json -Depth 12 }
     else {
-        [Console]::Error.WriteLine("ModRetro Chromatic setup: $($_.Exception.Message)")
+        [Console]::Error.WriteLine("hermretro engine setup: $($_.Exception.Message)")
         if ($null -ne $script:gbSetupCleanupError) { [Console]::Error.WriteLine("Cleanup: $($script:gbSetupCleanupError)") }
     }
     exit 1

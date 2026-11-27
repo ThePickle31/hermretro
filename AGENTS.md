@@ -50,8 +50,10 @@ Read CI with `gh pr checks <n>` and `gh run view <run> --log-failed`.
 2. **Engine changes are recorded.** `engine/` is hermretro's engine, started from ModRetro's
    Chromatic engine 1.0.34 (MIT; its licence and notices stay). Changes to the server are made in its `src/`
    modules (the bundle is built from them); its other files (`scripts/`, `skills/`, `docs/`) are edited in place.
-   Every engine change comes with its line in `engine/CHANGES.md`, the rebuilt bundle when a module changed, and a
-   fresh manifest (`python tools/engine/manifest.py write`): the plugin starts only an engine that matches it.
+   Every engine change raises the engine's version (`version` in `engine/package.json`, its only home), usually
+   by one patch (2.0.0 to 2.0.1; CI fails a change that does not raise it), and comes with its line under that
+   version's heading in `engine/CHANGES.md`, the rebuilt bundle when a module changed, and a fresh manifest
+   (`python tools/engine/manifest.py write`): the plugin starts only an engine that matches it.
 3. **Install scanner.** `python tools/check.py scan` must say `safe`: one line rated high makes every install ask,
    one rated critical blocks installs. What trips it: `.agents/skills/hermretro-dev-testing/references/install-scanner.md` (instruction verbs aimed at
    agent configuration file names: write "this guide" instead).

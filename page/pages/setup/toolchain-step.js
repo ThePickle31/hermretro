@@ -97,7 +97,7 @@ export function ToolchainBody({ ctx, step, status, doctor, install, steps }) {
               jsx(ComponentRow, {
                 component: {
                   id: 'engine',
-                  label: 'Chromatic engine',
+                  label: 'hermretro engine',
                   status: engine.present ? (engine.verified === false ? 'incompatible' : 'ready') : 'missing',
                   detected: engine.present ? engine.version : '',
                   detail: engine.detail || (engine.present && engine.verified === false ? 'Engine could not be verified.' : '')

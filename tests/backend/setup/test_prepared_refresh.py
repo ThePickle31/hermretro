@@ -157,7 +157,7 @@ class TheRealBuild(Refresh):
         super().setUp()
         bundled = self.base / "bundled"
         files = {
-            "package.json": '{"name": "modretro-chromatic"}',
+            "package.json": '{"name": "hermretro-engine", "version": "2.0.0"}',
             "dist/server.js": "edited",
             "scripts/start-mcp.mjs": "",
         }

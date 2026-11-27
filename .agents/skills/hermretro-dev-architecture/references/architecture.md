@@ -2,7 +2,7 @@
 
 hermretro is one Hermes plugin with two halves. The **agent half** (Python, `__init__.py` + `backend/`) gives
 the agent the game-making tools; the **page half** (`desktop/plugin.js`, built from `page/`) is the
-hermretro page in Hermes Desktop. Underneath both is the **engine**, hermretro's own Chromatic MCP server under
+hermretro page in Hermes Desktop. Underneath both is the **engine**, hermretro's own MCP server, `hermretro-engine`, under
 `engine/`, started from ModRetro's 1.0.34 (its changes: `engine/CHANGES.md`; what was left out:
 `THIRD_PARTY_NOTICES.md`; the files: `engine/contract/manifest.json`).
 
@@ -42,7 +42,7 @@ Every folder in the repository.
 | `player/web/` | ModRetro's web player (vendored) |
 | `player/skins/` | The emulator's device skins, one folder each (`skin.webp`, `skin.json`) (`hermretro-dev-skins`) |
 | `engine/` | hermretro's engine, started from ModRetro's; changed in its `src/` modules (`src/entry.js` is the server's own), each change in `engine/CHANGES.md`; `dist/server.js` is built from them (`node tools/engine/bundle.mjs`) |
-| `engine/CHANGES.md` | hermretro's changes to the engine, one line each |
+| `engine/CHANGES.md` | hermretro's changes to the engine, one line each, under the engine version that has it (`version` in `engine/package.json`, raised by every change) |
 | `engine/contract/` | The engine's tool contracts and file manifest; with `engine/CHANGES.md`, the record of the engine, outside its manifest and copies |
 | `skills/` | Skills the plugin gives the agent |
 | `skills/authoring/` | Making a game project |

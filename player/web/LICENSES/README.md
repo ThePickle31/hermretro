@@ -10,5 +10,5 @@ Emulator page can run ModRetro's player before the user has a game of their own.
 
 `index.html` is the template with its placeholders filled the way GB Studio's web export fills them
 (title, author, background colour); `gbstudio.json` holds GB Studio's default controls. The demo ROM
-(`hello-color.gbc`) is not copied here: the server reads it from the bundled ModRetro engine's
-`examples/hello-color/`.
+(`hello-color.gbc`) is not copied here: the server reads it from the bundled engine's
+`examples/hello-color/` (ModRetro's example).

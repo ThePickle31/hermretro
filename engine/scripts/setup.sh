@@ -55,7 +55,7 @@ failure_json() {
 emit_error() {
   if [ "$setup_json_requested" = true ]; then failure_json
   else
-    printf 'ModRetro Chromatic setup: %s\n' "$setup_error" >&2
+    printf 'hermretro engine setup: %s\n' "$setup_error" >&2
     [ -z "$setup_cleanup_error" ] || printf 'Cleanup: %s\n' "$setup_cleanup_error" >&2
   fi
 }
@@ -533,7 +533,7 @@ on_exit() {
     if [ ! -e "$setup_stage/failure.json" ] && [ ! -L "$setup_stage/failure.json" ]; then
       (set -C; failure_json > "$setup_stage/failure.json") 2>/dev/null || :
     fi
-    printf 'ModRetro Chromatic setup: failed or cancelled Node staging retained at %s. A retry uses a new staging path; no cached partial archive is reused.\n' "$setup_stage" >&2
+    printf 'hermretro engine setup: failed or cancelled Node staging retained at %s. A retry uses a new staging path; no cached partial archive is reused.\n' "$setup_stage" >&2
   fi
   exit "$setup_exit_status"
 }
@@ -578,7 +578,7 @@ assert_directory_path "$setup_node_directory"
 mkdir -p "$setup_root/.setup-staging" "$setup_root/node"
 setup_stage=$(mktemp -d "$setup_root/.setup-staging/node-$setup_platform.XXXXXXXX")
 setup_phase=download
-printf 'ModRetro Chromatic setup: installing authenticated Node %s into %s\n' "$setup_node_version" "$setup_node_directory" >&2
+printf 'hermretro engine setup: installing authenticated Node %s into %s\n' "$setup_node_version" "$setup_node_directory" >&2
 run_child curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
   --connect-timeout 30 --max-time 900 --max-filesize 268435456 --retry 2 --retry-delay 1 \
   --output "$setup_stage/$setup_node_archive.partial" "$setup_node_url" || fail 'Node download failed. The partial file is retained, not reused on retry.'

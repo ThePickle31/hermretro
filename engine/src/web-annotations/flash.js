@@ -42,7 +42,7 @@ function errorReport(snapshot, readFailed, sourceRevision, statusErrorCode, pend
         };
     });
     return {
-        schemaVersion: 1, source: "modretro-chromatic", statusReadFailed: readFailed && !rejectedBeforeDispatch && statusErrorCode !== "PREVIEW_RECOVERY_UNAVAILABLE", statusErrorCode: code(statusErrorCode),
+        schemaVersion: 1, source: "hermretro-engine", statusReadFailed: readFailed && !rejectedBeforeDispatch && statusErrorCode !== "PREVIEW_RECOVERY_UNAVAILABLE", statusErrorCode: code(statusErrorCode),
         subject: previewConnection ? "preview-connection" : rejectedBeforeDispatch ? "request-not-dispatched" : discovery ? "discovery" : "operation",
         operationId: code(operation?.operationId), requestId: code(pending?.requestId ?? (!discovery ? latestOperation?.requestId : undefined)),
         requestScope: discovery || previewConnection ? undefined : "preview",

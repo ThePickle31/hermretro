@@ -13,6 +13,13 @@ The changes are made in the engine's `src/` modules (the server's own is `src/en
 under `dist/`. The entries before "the bundle is built from its modules" below were made in the bundle itself; where
 one names `dist/server.js` and a module, the change is now in that module.
 
+Every change to the engine raises its version, `version` in `package.json` (2.0.0, then 2.0.1, 2.0.2 and so on;
+`tools/engine/version.py` fails a change that does not), and its line goes under that version's heading, newest
+version first. A note in this file is not a change to the engine. 2.0.0, the first version named `hermretro-engine`,
+holds every change since ModRetro's 1.0.34.
+
+## 2.0.0
+
 - `dist/server.js`, `dist/device-capture/linux-helper.js`: the path ffmpeg reads the Chromatic's video from during
   Linux hardware capture is `/dev/fd/6` instead of the equivalent per-process path under the proc filesystem (two
   places in each file). On Linux `/dev/fd` links to that same directory, so ffmpeg opens the same file; the
@@ -409,3 +416,13 @@ one names `dist/server.js` and a module, the change is now in that module.
   `view.js` imports (it re-exports `DEVICE_COLORS` for the capture page) and the engine's preview and capture page
   serve (`ANNOTATION_FILES`, `ASSETS`). hermretro's player serves its skins as that module, instead of editing
   `view.js`'s text at a fixed anchor (`backend/player/frame.py`). The rail looks the same in both players.
+- The name and the version: the package is `hermretro-engine` (it was `modretro-chromatic`) at 2.0.0, and the server
+  names itself `hermretro-engine`, titled "hermretro engine" (`serverInfo`, and before its messages on standard
+  error), as do the launcher's and setup's messages (`scripts/start-mcp.mjs`, `scripts/setup.*`,
+  `scripts/setup-compiler.*`) and the device guide (`docs/chromatic-device-testing.md`). The version has one home, `package.json`: the server reads it there (`src/entry.js`), as hermretro's
+  backend does, and `contract/tools.json` pins the server's name and title but not its version. The runtime manifest
+  and lock (`scripts/runtime-package.json`, `scripts/runtime-package-lock.json`) carry no version (setup writes the
+  package's into the runtime it installs, as before). Setup's runtime checks (`scripts/setup-runtime.mjs`,
+  `scripts/dependency-doctor.mjs`) and the flash report's `source` (`src/web-annotations/flash.js`) name the new
+  package. Names stored in games, setup folders or the browser stay as they were: the README lists them ("Names
+  kept").

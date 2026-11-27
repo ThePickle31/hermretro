@@ -1,4 +1,4 @@
-"""Lossless stdio MCP client for one private Chromatic engine worker.
+"""Lossless stdio MCP client for one private hermretro engine worker.
 
 Keeps the complete raw JSON-RPC result (`content[]`, `structuredContent`,
 `isError`, `_meta`) instead of normalising it to text. Stdlib only, and no

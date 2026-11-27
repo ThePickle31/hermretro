@@ -519,7 +519,7 @@ export async function applySetup(options = {}) {
   return run;
 }
 
-export const SETUP_USAGE = `ModRetro Chromatic packaged setup (installs dependencies only, never the plugin)
+export const SETUP_USAGE = `hermretro engine packaged setup (installs dependencies only, never the plugin)
 Usage: setup.sh|setup.ps1 [doctor|plan|apply] [--root ABSOLUTE_PATH]
   --components runtime,build,emulator,desktop  Default: runtime,build,emulator
   --probes cli-version,gbdk-version,emulator-import  Doctor only; explicitly executes these checks
@@ -582,7 +582,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (result.cleanupError) process.exitCode = 1;
   } catch (error) {
     if (process.argv.includes("--json")) process.stdout.write(`${JSON.stringify({ status: "rejected", error: serializedError(error), ...(error.lockOwner ? { lockOwner: error.lockOwner } : {}), ...(error.plan ? { plan: error.plan } : {}) })}\n`);
-    else process.stderr.write(`ModRetro Chromatic setup: ${error.message}\n`);
+    else process.stderr.write(`hermretro engine setup: ${error.message}\n`);
     process.exitCode = error.exitCode ?? 1;
   } finally {
     process.off("SIGINT", cancel);

@@ -89,7 +89,7 @@ fails when it is stale); the agent tool names it reacts to are in
   "platform": { "system": "linux | darwin", "machine": "x64 | arm64", "rosetta": false, "supported": true,
                 "qualified": true },
   "node": { "found": true, "version": "26.13.0", "required": "22" },
-  "engine": { "present": true, "version": "1.0.34", "verified": true, "detail": "" },
+  "engine": { "present": true, "version": "2.0.0", "verified": true, "detail": "" },
   "hardware_enabled": false,
   "flags": [],
   "broker": { "running": true },

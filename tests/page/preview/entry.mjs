@@ -13,7 +13,7 @@ const status = (extra = {}) => ({
   ok: true,
   platform: { system: 'linux', machine: 'x86_64', qualified: true },
   node: { found: true, version: '26.12.1', required: '22', ok: true },
-  engine: { present: true, version: '1.0.34', verified: true },
+  engine: { present: true, version: '2.0.0', verified: true },
   hardware_enabled: false,
   project: null,
   profile: { name: 'hermretro', is_studio: true, studio: { installed: true } },

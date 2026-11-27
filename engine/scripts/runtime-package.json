@@ -1,7 +1,6 @@
 {
-  "name": "modretro-chromatic",
-  "version": "1.0.34",
-  "description": "ModRetro Chromatic: author, build, and playtest native Game Boy and Game Boy Color games.",
+  "name": "hermretro-engine",
+  "description": "hermretro's engine: author, build, and playtest native Game Boy and Game Boy Color games.",
   "private": true,
   "type": "module",
   "main": "./dist/server.js",

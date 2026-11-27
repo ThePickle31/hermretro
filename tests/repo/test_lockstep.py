@@ -33,6 +33,8 @@ from backend.hermes import contracts, declare  # noqa: E402 - the repository roo
 from backend.system import flags, paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.hermes.test_registration import Recorder, load_plugin, plugin_storage  # noqa: E402 - the repository root goes on sys.path first
 
+# The ModRetro release the engine started from (the tag engine-upstream-1.0.34); the engine's own version moves on.
+MODRETRO_RELEASE = "1.0.34"
 # Hermes's own tools that the Build page names in its step list (not plugin tools).
 HERMES_TOOLS_WITH_WORDS = {
     "browser_exec",
@@ -254,25 +256,29 @@ class LockStep(unittest.TestCase):
                     outside.append(f"{source.relative_to(ROOT)}:{number}")
         self.assertEqual(outside, [], "import Hermes only in backend/hermes/api.py (and list the name in USED)")
 
-    def test_the_engine_version_agrees_everywhere(self):
-        version = paths.ENGINE_VERSION
-        self.assertEqual(json.loads(read("engine/package.json"))["version"], version)
+    def test_the_engine_version_has_one_home(self):
+        # engine/package.json; the manifest records it from there, and the pinned serverInfo leaves it out.
+        package = json.loads(read("engine/package.json"))
+        self.assertEqual((package["name"], package["version"]), ("hermretro-engine", paths.ENGINE_VERSION))
         self.assertEqual(
             sorted(p.name for p in paths.ENGINE_PINS.iterdir()),
             ["manifest.json", "schema-reconcile.json", "tools.json"],
         )
-        self.assertEqual(json.loads((paths.ENGINE_PINS / "manifest.json").read_text())["package_version"], version)
-        self.assertEqual(json.loads(paths.PINNED_TOOLS.read_text())["initialize"]["serverInfo"]["version"], version)
-        for skill in sorted(
-            re.sub(r"^(modretro-)?chromatic-", "", path.name)
-            for path in (paths.ENGINE_ROOT / "skills").iterdir()
-            if path.is_dir()
-        ):  # every skill adapted from the engine's, read from the engine's own folders
-            self.assertRegex(read(f"skills/{skill}/SKILL.md"), rf"(?m)^version: {re.escape(version)}$", skill)
+        manifest = json.loads((paths.ENGINE_PINS / "manifest.json").read_text())
+        self.assertEqual((manifest["package_name"], manifest["package_version"]), (package["name"], package["version"]))
+        server = json.loads(paths.PINNED_TOOLS.read_text())["initialize"]["serverInfo"]
+        self.assertEqual(server, {"name": package["name"], "title": "hermretro engine"})
+        runtime = json.loads(read("engine/scripts/runtime-package.json"))
+        lock = json.loads(read("engine/scripts/runtime-package-lock.json"))
+        self.assertEqual((runtime["name"], lock["name"], lock["packages"][""]["name"]), (package["name"],) * 3)
+        self.assertNotIn("version", runtime | lock | lock["packages"][""], "setup writes the package's version")
+
+    def test_the_notices_name_the_release_the_engine_started_from(self):
+        # ModRetro's 1.0.34 (the tag engine-upstream-1.0.34), whatever the engine's own version is now.
         notices = read("THIRD_PARTY_NOTICES.md")
-        self.assertIn(f"## ModRetro Chromatic Plugin engine {version}", notices)
+        self.assertIn(f"## ModRetro Chromatic Plugin engine {MODRETRO_RELEASE}", notices)
         mentioned = set(re.findall(r"ModRetro's ([0-9]+\.[0-9]+\.[0-9]+)", notices))
-        self.assertEqual(mentioned, {version}, "engine versions named in THIRD_PARTY_NOTICES.md")
+        self.assertEqual(mentioned, {MODRETRO_RELEASE}, "engine versions named in THIRD_PARTY_NOTICES.md")
 
 
 if __name__ == "__main__":

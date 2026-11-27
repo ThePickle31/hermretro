@@ -265,7 +265,7 @@ async function detectRuntime(result, context) {
     if (!version(required)) throw new Error("Source runtime package version is not known.");
     result.requiredVersion = required;
     const installed = await object(path.join(runtimeRoot, "package.json"), runtimeRoot);
-    if (installed.name !== "modretro-chromatic") throw new Error("Runtime package identity is not modretro-chromatic.");
+    if (installed.name !== "hermretro-engine") throw new Error("Runtime package identity is not hermretro-engine.");
     await regular(path.join(runtimeRoot, "dist", "server.js"), runtimeRoot);
     for (const name of ["emulator_worker.py", "dependency-doctor.mjs", "dependency-catalog.mjs", "node-releases.tsv", "setup-io.mjs"]) {
       await regular(path.join(runtimeRoot, "scripts", name), runtimeRoot);
