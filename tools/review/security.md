@@ -11,16 +11,20 @@ What was approved is in {{decisions}}: a finding that would change it goes under
 Hermes plugin that runs on the user's own computer: a gateway process, a broker it starts, engine workers,
 and loopback servers for the player. Look only for security defects the change introduces, holding it to the
 rules in {{rules}} that cover its paths, above all those on the broker, the prepared engine copy, setup and
-removal, the hardware approvals and the player's server. Also look for:
+removal, the hardware approvals and the player's server. Read:
+
+{{reading}}
+
+Also look for:
 
 - paths that escape their folder, links followed out of one, and files made with modes wider than they need;
 - shell commands or arguments built from untrusted text (a game's files, a project's names, a request);
-- a loopback endpoint that answers without its token or host check, or serves more than it should;
+- a loopback route that serves data or acts on a game without its token and host check, or serves more than its
+  route names; a tokenized URL reaching anyone but the page it was made for;
 - the hardware tools (`flash`, `play`, `setup`, capture) reached without the user's `hardware_enabled`
   setting and Hermes's approval prompt;
 - downloaded or unpacked code trusted without its pinned SHA-256;
-- tokens, credentials or a person's files reaching logs, errors, the page or another profile;
-- something the install scanner rates high or critical, which makes every install ask or blocks it.
+- tokens, credentials or a person's files reaching logs, errors, the page or another profile.
 {{earlier}}
 Write the findings, most important first, each a heading with the evidence beneath it:
 

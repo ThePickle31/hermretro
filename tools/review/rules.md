@@ -46,7 +46,8 @@ applies only where its paths cover the file. Don't report:
 - A test that touches state uses `isolated_home(self)` from `tests/support.py`: never the real Hermes home.
   Tests never run the hardware tools.
 - No real people, accounts, email addresses or home folders in fixtures.
-- Every failure a check or tool reports ends with a `FIX:` line.
+- Every failure a development check or tool reports (`tools/`, the tests) ends with a `FIX:` line. A plugin
+  tool's error is the JSON `tool_error` gives (`backend/hermes/tool_args.py`).
 
 ## `__init__.py`, `plugin.yaml`, `backend/**`
 
@@ -58,14 +59,15 @@ applies only where its paths cover the file. Don't report:
   (`python tools/ci/clean_install_check.py --update-from`).
 - Features reach each other only through their front doors and events, and Hermes only through
   `backend/hermes/api.py`.
-- The plugin's tools, skills, hooks and prompt register only in the `hermretro` profile.
+- The plugin's tools, skills, hooks and prompt register only in the `hermretro` profile, unless
+  `HERMRETRO_EVERY_PROFILE=1` is in the gateway's environment (development).
 - The hardware tools stay behind the user's `hardware_enabled` setting and Hermes's approval prompt
   (`pre_tool_call` in `backend/hermes/hooks.py`).
 
 ## `backend/broker/**`
 
-- Nothing creates a file or folder while the socket's umask is set; work started beside the broker's start
-  begins after it is restored.
+- While the socket's umask is set, the broker makes its socket and token alone; work started beside its start
+  begins after the umask is restored.
 - A broker's handshake names the code it loaded, read once at its start, never the files on disk now.
 - A broker of other code is replaced: at once when idle, after its running work otherwise. Never two brokers
   for one run folder.
@@ -76,15 +78,17 @@ applies only where its paths cover the file. Don't report:
   exactly that engine: it is checked against that engine's manifest before it is published.
 - No copy is removed or replaced while a worker holds its lease (`copy_lease.py`). A copy without a lease file
   was made before leases and counts as in use, except for Setup's removal with the broker stopped.
-- Anything that changes the download folder holds the provision lock (`provision.lock`).
+- Making, replacing or removing a prepared copy, installing the device CLI, and moving the download folder's
+  contents away for removal hold the provision lock (`provision.lock()`, the file `.provision.lock`).
 - The device CLI is downloaded only after the user accepts ModRetro's terms, and checked against its pinned
   SHA-256 before anything uses it.
 
 ## `backend/player/**`
 
-- The loopback server answers only `127.0.0.1` or `localhost` with its token in the path, and serves only
-  what its routes name: the game's web export and captures, the engine's player files and the demo cartridge.
-  No path escapes its folder.
+- A route that serves data or acts on a game answers only `127.0.0.1` or `localhost` with the token in its path
+  (a browser's preflight gets its empty answer), and serves only what it names: the game's web export, its
+  verified ROM and captures, the engine's player files, the skins and the demo cartridge. No path escapes its
+  folder. A tokenized URL goes only to the page it was made for.
 
 ## `engine/**`
 
