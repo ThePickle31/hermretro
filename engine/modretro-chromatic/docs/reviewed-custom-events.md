@@ -25,7 +25,7 @@ inspection remains available, but does not grant room-edit coverage.
 
 ## What a review must establish
 
-A `ReviewedEventContract` in `src/custom-event-dependencies.ts` records:
+A reviewed contract in `dist/custom-event-dependencies.js` records:
 
 - A review ID and version, the reviewed loader profile, and the exported command.
 - The complete handler's project-relative path, byte count and SHA256.
@@ -90,7 +90,7 @@ is not promoted to executable behavior. Authored structural preservation still
 retains the underlying data, including opaque and commented content.
 
 Results are bounded to 4096 effects, 256 child branches, 256-character target and
-scene IDs, and 128-character relation names. The registry admits at most 697
+scene IDs, and 128-character relation names. The registry admits at most 714
 contracts and 256 dependency/field rows per contract. These are ceilings, not
 permission to omit a required dependency or truncate an effect set into success.
 

@@ -44871,13 +44871,21 @@ var ProjectSession = class {
   get workspaceRoot() {
     return this.#workspaceRoot;
   }
-  /** The root a build or recording may write under: the workspace, or else the selected project. */
+  /** A build/recording root must not enclose the bundled examples. */
   authorizedOperationRoot(projectRoot = this.selectedProject?.projectRoot) {
     const root = this.#workspaceRoot ?? projectRoot;
     if (root === void 0) {
       throw new GameStudioProjectError("PROJECT_SELECTION_REQUIRED", "No project or workspace is authorized. For a native game project, call project_select with its absolute .gbsproj path. For a standalone ROM or C source, configure GB_STUDIO_WORKSPACE_ROOT to its containing workspace before starting this server. session_status shows the current authorization.");
     }
-    return canonicalDirectory(root, "The operation root");
+    const canonical2 = canonicalDirectory(root, "The operation root");
+    if (!this.#enclosesBundledExamples(canonical2))
+      return canonical2;
+    if (projectRoot !== void 0) {
+      const project = canonicalDirectory(projectRoot, "The selected project root");
+      if (isWithin(canonical2, project) && !this.#enclosesBundledExamples(project))
+        return project;
+    }
+    throw this.#bundledExamplesError(canonical2);
   }
   async initialize() {
     if (this.selectedProject !== void 0)
@@ -45063,6 +45071,8 @@ var ProjectSession = class {
     }
   }
   async #assertStarterAllowed(projectRoot, allowed) {
+    if (this.#enclosesBundledExamples(projectRoot))
+      throw this.#bundledExamplesError(projectRoot);
     if (allowed)
       return;
     try {
@@ -45074,6 +45084,12 @@ var ProjectSession = class {
       if (!isMissing(error2))
         throw error2;
     }
+  }
+  #enclosesBundledExamples(candidate) {
+    return this.#bundleRoots.some((root) => isWithin(candidate, path33.join(root, "examples")));
+  }
+  #bundledExamplesError(candidate) {
+    return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "The bundled examples are read-only. Create a project from the starter with project_create, then select the editable copy.", candidate);
   }
   async #discoverExactProject(candidate) {
     const requested = path33.resolve(candidate);
