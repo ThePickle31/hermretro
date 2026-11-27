@@ -30,7 +30,7 @@ logger = host.logger  # one logger for the Hermes side of the backend,
 
 _COMPONENT_LABELS = {
     "node": "Node.js",
-    "runtime": "Chromatic engine",
+    "runtime": "hermretro engine",
     "cli": "GB Studio CLI",
     "gbdk": "GBDK compiler",
     "python": "Python (emulator)",

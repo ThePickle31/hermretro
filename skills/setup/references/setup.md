@@ -1,4 +1,4 @@
-# ModRetro Chromatic: setup
+# Set up the toolchain
 
 hermretro can author, build, and
 directly playtest games without the GB Studio desktop editor. The plugin ships

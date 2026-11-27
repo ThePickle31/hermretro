@@ -5,8 +5,8 @@
  * Embeds provider logos (page/shared/art/providers/): each belongs to its company, is used only to name its
  * provider and is not covered by the MIT licence; its source is beside it in page/shared/art/providers/index.js.
  * build: esbuild 0.28.2
- * sources: sha256 814f13e3840cece4dccff2e75dbddff4a26f334753f623cd9fc25f90bdf75e63
- * body: sha256 6b303fc424113527182409c5117c6b1165035868038fbc819b371aff7f2bea51
+ * sources: sha256 c541d65cbbce2f49229230c0a9afd6771ed41a09ea0b65e1ea3e93cf4677c0f3
+ * body: sha256 6ef1c87cdf6d291122b8e0225526c2215a8ad9ea3e8fbf7cc9fbd88c937d3214
  */
 import{atom,Button,Codicon,CopyButton,Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,host,Input,ListRow,MessageTextContent,PALETTE_AREA,randomUuid,ROUTES_AREA,SandboxedFrame,ScrollArea,SegmentedControl,
 SIDEBAR_NAV_AREA,Tip,useQuery,useQueryClient,useTheme,useValue}from"@hermes/plugin-sdk";import{createContext,memo,useCallback,useContext,useEffect,useId,useLayoutEffect,useMemo,useRef,useState}from"react";
@@ -2246,7 +2246,7 @@ size:14,spinning:doctor.isFetching}),"Check again"]})})]}):null,platform&&platfo
 node_arch}, but this computer is ${platform.machine}. It works, but slower: install the ${platform.machine==="arm64"?"Apple Silicon":platform.machine} version of Node.js (for example with Homebrew in \
 /opt/homebrew).`:`${platform.system??"This system"} ${platform.machine??""} has not been tested yet; some steps may not work.`}):null,(step.state==="todo"||step.state==="blocked")&&install?jsx(InstallPanel,
 {ctx,doctor,install,profileStep:steps?.find(item=>item.id==="profile"),status,step}):null,step.state==="done"||step.state==="error"?jsx("div",{className:"cs-comps",children:[jsx(ComponentRow,{component:{
-id:"engine",label:"Chromatic engine",status:engine.present?engine.verified===false?"incompatible":"ready":"missing",detected:engine.present?engine.version:"",detail:engine.detail||(engine.present&&engine.
+id:"engine",label:"hermretro engine",status:engine.present?engine.verified===false?"incompatible":"ready":"missing",detected:engine.present?engine.version:"",detail:engine.detail||(engine.present&&engine.
 verified===false?"Engine could not be verified.":"")}},"engine"),...rows]}):null,!report&&step.state==="checking"?jsx(Working,{quiet:true,children:"Checking installed tools…"}):null,deps.toolchain_root&&
 step.state==="done"?jsxs("span",{className:"cs-faint",children:["Install folder: ",jsx("span",{className:"cs-mono",children:deps.toolchain_root}),deps.toolchain_cache_reused_from?". Downloads were reu\
 sed from an existing ModRetro install on this computer.":""]}):null,step.state==="done"?jsx(RemoveTools,{doctor,status}):null]})}function stepBody(step,props){switch(step.id){case"profile":return jsx(ProfileBody,props);case"toolchain":return jsx(ToolchainBody,{...props,step});case"firmware":return jsx(FirmwareBody,{...props,step});case"\

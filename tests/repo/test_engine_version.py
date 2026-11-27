@@ -120,7 +120,8 @@ class Bump(unittest.TestCase):
         for name, text in files.items():
             (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
             (self.repo / name).write_text(text, encoding="utf-8", errors="surrogateescape")  # \udcff: byte 0xff
-        self.git("add", "-A")
+        if files:  # only these: an entry staged in the index directly stays as it is
+            self.git("add", "--", *files)
         self.git("commit", "--quiet", "--allow-empty", "-m", "change")
 
     def check(self, files: dict, moves: dict | None = None) -> subprocess.CompletedProcess:
@@ -159,11 +160,23 @@ class Bump(unittest.TestCase):
                 self.assertIn("is still 2.0.0", said)
                 self.assertIn('"version" in engine/package.json to 2.0.1', said)
 
-    def test_a_file_in_place_of_the_engine_or_an_odd_file_name_gets_its_fix(self):
+    def test_a_file_in_place_of_the_engine_gets_its_fix(self):
         self.git("rm", "--quiet", "-r", "engine")
         self.assertIn("is gone", self.assert_fails({"engine": "not a folder\n"}))
-        self.setUp()
-        self.assertIn("is still 2.0.0", self.assert_fails({"engine/src/\udcff.js": "export {};\n"}))
+
+    def test_a_file_name_that_is_not_utf8_gets_its_fix(self):
+        # Staged in git's index directly: macOS's file system refuses such a name for a file.
+        git = ["git", *ISOLATED]
+        written = subprocess.run(
+            [*git, "hash-object", "-w", "--stdin"], cwd=self.repo, input=b"export {};\n", capture_output=True
+        )
+        self.assertEqual(written.returncode, 0, written.stderr)
+        entry = f"100644,{written.stdout.decode().strip()},".encode() + b"engine/src/\xff.js"
+        staged = subprocess.run(
+            [*git, "update-index", "--add", "--cacheinfo", entry], cwd=self.repo, capture_output=True
+        )
+        self.assertEqual(staged.returncode, 0, staged.stderr)
+        self.assertIn("is still 2.0.0", self.assert_fails({}))
 
     def test_a_lower_version_fails(self):
         said = self.assert_fails({"engine/package.json": package("1.9.9")})
