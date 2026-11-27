@@ -34,9 +34,10 @@ prepare the pinned runtime.
 
 ## Obtain and add the compiled release
 
-hermretro ships this engine inside the plugin and prepares a copy of it on each
-computer (see the [engine's README](../README.md)); there is no separate
-compiled release to obtain or add.
+hermretro ships this engine inside the plugin and runs it from there; installing
+the Chromatic CLI for hardware prepares a copy of it in hermretro's own folder
+(see the [engine's README](../README.md)). There is no separate compiled release to obtain
+or add.
 
 ## Preview an existing project
 
@@ -44,7 +45,9 @@ Ask the agent to open your existing `.gbsproj` with the current plugin. Keep cus
 intact; the plugin does not need to rewrite them to preview your game.
 
 In ModRetro's Codex plugin, the agent uses these tools in order. In hermretro, the agent
-selects the project and shows it with `chromatic_present_game`.
+selects the project, builds it with `chromatic_rom_build`, then shows the playable copy
+with `chromatic_present_game`, as [hermretro's authoring skill](../../../skills/authoring/SKILL.md#in-hermretro)
+describes.
 
 1. `session_status {}` to check the current session. Finish any active operation
    through its original session before switching projects.

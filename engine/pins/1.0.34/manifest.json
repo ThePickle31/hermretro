@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 339,
  "symlink_count": 0,
- "total_bytes": 33378747,
+ "total_bytes": 33378966,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "1bbcc2795676eab0ea64d83de257539cfa5f55bdee6310cd417c87d2b84df931",
+ "aggregate_sha256": "018570f1530bf0e11545b7c6b23614deaf5f0b62e8b1afdd6bba30efafe19526",
  "entries": [
   {
    "path": "LICENSE",
@@ -1207,9 +1207,9 @@
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 15415,
+   "size": 15634,
    "mode": "0o644",
-   "sha256": "adb027c098ae74575c06821d1520c9df563aaaba17236da064b884a2a807fb3d"
+   "sha256": "3bf38ec6da6db2f4b9ceecd3ae42262263876bd6c2c290e6daeaf24c88d4d62b"
   },
   {
    "path": "docs/stepped-playtesting.md",
