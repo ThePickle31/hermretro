@@ -276,7 +276,15 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
                 )
                 notice = _member(archive, "package/" + pins["notice"]["path"].split("/", 1)[1], pins["notice"])
             _prepare(target, pins, executable, notice, installed_at=_now())
+        lease = copy_lease.hold(paths.PREPARED_ENGINE)  # nothing removes it before the check below has run in it
+    try:
+        return _installed(target, pins)
+    finally:
+        os.close(lease)
 
+
+def _installed(target: str, pins: dict) -> dict:
+    """What install_device_cli answers, once the copy verifies and its runtime resolves the CLI."""
     selection = paths.select_engine()
     if not selection["prepared"]:
         _require_loaded_engine()  # it changed after the copy was made: the copy is right, this process is not
@@ -384,6 +392,7 @@ def _prepare(
             if paths.PREPARED_ENGINE.exists():
                 previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
                 os.replace(paths.PREPARED_ENGINE, previous)
+            copy_lease.create(paths.PREPARED_ENGINE)  # published with its lease file: its workers' leases count
             os.replace(stage, paths.PREPARED_ENGINE)
         if previous is not None:
             shutil.rmtree(previous, ignore_errors=True)
@@ -505,7 +514,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
             try:
                 _prepare(target, pins, executable, notice, node_path=node_path, **dates)
             except ProvisionError as error:
-                if error.code not in ("ENGINE_CHANGED", "ENGINE_NOT_VERIFIED"):  # the bundled engine's, not the CLI's
+                if error.code not in ("ENGINE_CHANGED", "ENGINE_NOT_VERIFIED", "IN_USE"):  # not the CLI's fault
                     _NOT_REUSABLE.add(key)
                 return False
             except (OSError, ValueError, KeyError):
@@ -541,14 +550,20 @@ def prune_prepared_copies() -> int:
                     receipt.unlink(missing_ok=True)
                     copy_lease.path_for(copy).unlink(missing_ok=True)
                     removed += 1
-            for receipt in paths.DEPS_ROOT.glob("device-cli-*.json"):  # a removal stopped between copy and receipt
-                copy = paths.DEPS_ROOT / f"engine-{receipt.name.removeprefix('device-cli-').removesuffix('.json')}"
-                if receipt != paths.DEVICE_CLI_RECEIPT and not copy.exists() and not copy.is_symlink():
-                    receipt.unlink(missing_ok=True)
-                    copy_lease.path_for(copy).unlink(missing_ok=True)
+            # A removal stopped before its receipt or lease file went leaves one without its copy.
+            for receipt in paths.DEPS_ROOT.glob("device-cli-*.json"):
+                _drop_without_copy(receipt, "engine-" + receipt.name.removeprefix("device-cli-").removesuffix(".json"))
+            for lease in paths.DEPS_ROOT.glob("engine-*.lease"):
+                _drop_without_copy(lease, lease.name.removesuffix(".lease"))
     except ProvisionError:  # BUSY: the next refresh or broker to start tries again
         pass
     return removed
+
+
+def _drop_without_copy(leftover: Path, copy_name: str) -> None:
+    copy = paths.DEPS_ROOT / copy_name
+    if copy != paths.PREPARED_ENGINE and not copy.exists() and not copy.is_symlink():
+        leftover.unlink(missing_ok=True)
 
 
 def summary() -> dict:

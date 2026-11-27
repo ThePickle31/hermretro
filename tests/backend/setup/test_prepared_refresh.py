@@ -51,7 +51,8 @@ class Refresh(unittest.TestCase):
         provision._NOT_REUSABLE.clear()
         self.addCleanup(provision._NOT_REUSABLE.clear)
 
-    def earlier_copy(self, name: str, executable: bytes = EXE, **receipt) -> Path:
+    def earlier_copy(self, name: str, executable: bytes = EXE, *, leased: bool = True, **receipt) -> Path:
+        """A copy an earlier engine published: with its lease file, or (``leased=False``) as one from before leases."""
         copy = paths.DEPS_ROOT / f"engine-{name}"
         for entry, data in ((PINS["executable"], executable), (PINS["notice"], NOTICE)):
             (copy / provision.CLI_DIR / entry["path"]).parent.mkdir(parents=True, exist_ok=True)
@@ -65,6 +66,8 @@ class Refresh(unittest.TestCase):
             **receipt,
         }
         (paths.DEPS_ROOT / f"device-cli-{name}.json").write_text(json.dumps(fields))
+        if leased:
+            copy_lease.create(copy)
         return copy
 
 
@@ -193,6 +196,20 @@ class Pruning(Refresh):
         ):
             self.assertEqual(provision.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
+
+    def test_a_copy_from_before_leases_stays(self):
+        # Its workers, if any still run, hold no lease: only Setup's removal, with the broker stopped, takes it.
+        older = self.earlier_copy("1.0.34", leased=False)
+        with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
+            self.assertEqual(provision.prune_prepared_copies(), 0)
+        self.assertTrue(older.exists())
+        self.assertFalse(copy_lease.path_for(older).exists(), "no lease file made for it either")
+
+    def test_a_lease_file_left_without_its_copy_goes(self):
+        (paths.DEPS_ROOT / "engine-1.0.34.lease").write_text("")
+        with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
+            provision.prune_prepared_copies()
+        self.assertFalse((paths.DEPS_ROOT / "engine-1.0.34.lease").exists())
 
     def test_nothing_goes_while_this_engines_copy_does_not_verify(self):
         older = self.earlier_copy("1.0.34")  # it still has to give its CLI

@@ -175,7 +175,13 @@ class LaneMixin:
                 "no game is running, then try again.",
             )
         # A worker in a prepared copy holds its lease for as long as it runs, so the copy is never removed under it.
-        lease = setup.hold_copy(selection["root"]) if selection["prepared"] else None
+        lease = None
+        if selection["prepared"]:
+            try:
+                lease = setup.hold_copy(selection["root"])
+            except FileNotFoundError:  # another broker removed it as this one chose it: choose again
+                selection = setup.select_engine(self.node if paths.node_usable(self.node) else None)
+                lease = setup.hold_copy(selection["root"]) if selection["prepared"] else None
         try:
             engine = EngineProcess(
                 selection["root"],
@@ -187,6 +193,8 @@ class LaneMixin:
                         "GB_STUDIO_SETUP_ROOT": str(paths.setup_root()),
                         # A game installed without its source: its folder is the worker's whole authorization.
                         **({"GB_STUDIO_WORKSPACE_ROOT": workspace} if workspace else {}),
+                        # The launcher passes the lease on to the server it starts (engine/scripts/start-mcp.mjs).
+                        **({setup.COPY_LEASE_VARIABLE: str(lease)} if lease is not None else {}),
                     }
                 ),
                 keep_fds=() if lease is None else (lease,),
