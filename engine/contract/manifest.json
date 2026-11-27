@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32308301,
+ "total_bytes": 32308374,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "a21d136360cd409dc0f567367e6f9700f9b2b6531085e285557ece23076b2f81",
+ "aggregate_sha256": "424dedcdf6aebbffe5d70d9067336f821a0b5b4ffd91fcfafaad7ca37cbf53b8",
  "entries": [
   {
    "path": "LICENSE",
@@ -115,9 +115,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2603271,
+   "size": 2603307,
    "mode": "0o644",
-   "sha256": "19a06f8226651da6c0dfbf574cbf760acb1f6c4a8770dd70a5fc1f789a5e490a"
+   "sha256": "e3986c0c3ec77fe611c9532747ae277d107a159584f2ce00c65ff125ffc9120a"
   },
   {
    "path": "docs/agent-guide.md",
@@ -1620,9 +1620,9 @@
   {
    "path": "src/native-device-capture.js",
    "type": "file",
-   "size": 76599,
+   "size": 76635,
    "mode": "0o644",
-   "sha256": "f83bc7ebe9184c1baf23e0ce305375d869e5d2c6777b07cab203d418c701329c"
+   "sha256": "4bbbf388f03376b70d1fbbc4737d679aee8854226928a45b9c994a3867db28c8"
   },
   {
    "path": "src/native-import-files.js",
@@ -1991,9 +1991,9 @@
   {
    "path": "src/web-annotations/view.js",
    "type": "file",
-   "size": 61293,
+   "size": 61294,
    "mode": "0o644",
-   "sha256": "0c4607327dea6c7a342e8d0842264a74866ce0ec3c8b6a63a38cf23e4ae08328"
+   "sha256": "ffb6c49654d2c0f250a970ad84478851d601724a7edfeac895d15d0ddb9c0097"
   },
   {
    "path": "src/web-build.js",

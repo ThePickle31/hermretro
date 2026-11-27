@@ -884,7 +884,7 @@ export function createPlayerView(canvas, title) {
     for (const color of DEVICE_COLORS) {
         const swatch = button("device-color", (color.id === "codex" || color.id === "supply-co") ? color.name : `${color.name} device`, "cgv-color");
         swatch.dataset.deviceColor = color.id;
-        if (DEVICE_RAIL_ORDER[color.id] !== undefined)
+        if (Object.hasOwn(DEVICE_RAIL_ORDER, color.id))
             swatch.style.order = String(DEVICE_RAIL_ORDER[color.id]);
         swatch.dataset.tooltip = color.name;
         const chip = element("span", "cgv-color-chip");

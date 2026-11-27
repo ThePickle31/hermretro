@@ -55998,7 +55998,7 @@ var SESSION_BYTES = 256 * 1024 * 1024;
 var MAX_REQUEST2 = 16 * 1024;
 var NEXT_FRAME_WAIT_MS = 250;
 var MAX_FRAME_WAITERS = 4;
-var ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js"];
+var ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js", "web-annotations/device-colors.js"];
 var CaptureDisabledError = class extends Error {
   constructor() {
     super("Enable device capture in Settings \u2192 Connection first.");
