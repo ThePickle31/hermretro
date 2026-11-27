@@ -6,7 +6,7 @@ registry. Local `$ref`s are inlined and `$schema` is dropped, because provider
 tool-schema validators differ in what they accept. A few tools then get hermretro's
 own adjustments (`hermes_schema`): the project creators' destination is optional,
 `rom_build`'s output path is explained, `script_inspect` gets its one-of, and
-`scene_apply` takes an operations file.
+`scene_apply` accepts `operationsPath` instead of inline `operations`.
 """
 
 from __future__ import annotations
