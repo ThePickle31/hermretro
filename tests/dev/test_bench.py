@@ -146,11 +146,19 @@ class ReportTest(Fixture):
         for arguments in (
             {"path": "engine/modretro-chromatic/dist/project-files.js"},  # sessions recorded before the move
             {"path": "engine/src/project-files.js"},
+            {"path": "/srv/hermes/plugins/hermretro/engine/src/entry.js"},
             {"command": "cat src/entry.js", "workdir": "/srv/hermes/plugins/hermretro/engine"},
-            {"command": "cat dist/entry.js", "workdir": "/srv/hermes/plugins/hermretro/engine/modretro-chromatic"},
+            {"command": "cd /srv/hermes/plugins/hermretro/engine && cat src/entry.js"},
+            {"command": "cat src/entry.js", "workdir": "/srv/code/hermretro-wt/engine-layout/engine"},
+            {"command": "ls", "workdir": "/srv/hermes/hermretro/.cache/engine-2.0.0-abc"},
         ):
             self.assertTrue(bench.reads_source(arguments), arguments)
-        self.assertFalse(bench.reads_source({"command": "ls", "workdir": "/srv/hermes/games/Test"}))
+        for arguments in (
+            {"command": "ls", "workdir": "/srv/hermes/games/Test"},
+            {"command": "ls", "workdir": "/srv/hermes/games/Test/assets/engine"},
+            {"path": "/srv/hermes/games/Test/assets/engine/src/core.c"},
+        ):
+            self.assertFalse(bench.reads_source(arguments), arguments)
 
     def test_counts_what_the_session_did(self):
         found = bench.reports(self.home, ids=[SESSION])[SESSION[:14]]

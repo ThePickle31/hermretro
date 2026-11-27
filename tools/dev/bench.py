@@ -37,16 +37,22 @@ RUNS = Path(__file__).resolve().parents[2] / "notes" / "bench"
 REASONING = "high"
 # Where the agent reads GB Studio's or the engine's source instead of a tool or skill telling it: with a terminal
 # command, or with the file tools.
-# Before the move to engine/src/ (#230), the engine was under engine/modretro-chromatic/: recorded sessions name it.
-SOURCE_MARKERS = ("gb-studio", "modretro-chromatic", "engine/src/", "engine/dist/", "engine/scripts/", ".cache/engine-")
+# Before the move to engine/src/ (#230) the engine was under engine/modretro-chromatic/, which recorded sessions
+# name; the prepared copy is <hermretro home>/.cache/engine-<identity>/.
+SOURCE_MARKERS = ("gb-studio", "modretro-chromatic", ".cache/engine-")
+# The engine itself: hermretro's folder (an install, a checkout or a worktree) followed by engine, or a path relative
+# to that folder. A game's own assets/engine/ is neither.
+ENGINE_PATH = re.compile(
+    r"(?:/hermretro(?:-wt/[^/\s\"']+)?/engine|(?<![\w./-])engine/(?:src|dist|scripts))(?=$|[/\s\"'&;|)])"
+)
 SOURCE_READERS = {"read_file", "search_files"}
 
 
 def reads_source(arguments: dict) -> bool:
-    """Whether a tool call names GB Studio's or the engine's source, in its arguments or as the folder a terminal
+    """Whether a tool call names GB Studio's or the engine's source: in a path, a terminal command, or the folder the
     command runs in (`cat src/entry.js` inside the engine)."""
-    workdir = str(arguments.get("workdir") or "").rstrip("/")
-    return any(marker in json.dumps(arguments) for marker in SOURCE_MARKERS) or workdir.endswith("/engine")
+    text = json.dumps(arguments)
+    return any(marker in text for marker in SOURCE_MARKERS) or bool(ENGINE_PATH.search(text))
 
 
 NORMAL_ENDS = {"cli_close", "agent_close"}
