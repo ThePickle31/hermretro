@@ -52488,7 +52488,7 @@ var ACTIVATION_MOUNT = "codex-activation";
 var CAPTURE_MOUNT = "codex-captures";
 var MAX_CAPTURE_METADATA_BYTES = 2 * 1024 * 1024;
 var MAX_CAPTURE_UPLOAD_BYTES = 128 * 1024 * 1024 + MAX_CAPTURE_METADATA_BYTES + 16 * 1024;
-var ANNOTATION_FILES = ["bridge.js", "native.js", "targets.js", "player.js", "view.js", "save-state.js", "input.js", "remote.js", "audio.js", "flash.js", "flash-diagnostics.js", "recording.js", "recording-protocol.js", "recording-controller.js", "error-dialog.js", "input-protocol.js", "input-owner.js"];
+var ANNOTATION_FILES = ["bridge.js", "native.js", "targets.js", "player.js", "view.js", "device-colors.js", "save-state.js", "input.js", "remote.js", "audio.js", "flash.js", "flash-diagnostics.js", "recording.js", "recording-protocol.js", "recording-controller.js", "error-dialog.js", "input-protocol.js", "input-owner.js"];
 var DEVICE_IMAGES = ["codex", "cloud", "midnight", "wave", "leaf", "inferno", "volt", "bubblegum", "transparent-green", "transparent-red", "transparent-smoke", "transparent-purple", "supply-co"].map((color) => `chromatic-${color}.${color === "supply-co" ? "png" : "webp"}`);
 var deviceArtworkFile = (filename) => filename.replace(/^chromatic-([a-z0-9-]+)\.(webp|png)$/, "$1/skin.$2");
 var MAX_DEVICE_IMAGE_BYTES = 3 * 1024 * 1024;
@@ -53943,7 +53943,7 @@ import { readFile as readFile15 } from "node:fs/promises";
 import path45 from "node:path";
 import { pipeline as pipeline2 } from "node:stream/promises";
 
-// src/web-annotations/view.js
+// src/web-annotations/device-colors.js
 var DEVICE_COLORS = [
   { id: "codex", name: "DevDay Edition", background: "#ffffff", ink: "#27272b" },
   { id: "transparent-green", name: "Transparent Green", background: "#bedc63", ink: "#27272b" },
@@ -53959,6 +53959,8 @@ var DEVICE_COLORS = [
   { id: "volt", name: "Volt", background: "#efbf22", ink: "#27272b" },
   { id: "bubblegum", name: "Bubblegum", background: "#ecafc6", ink: "#27272b" }
 ];
+
+// src/web-annotations/view.js
 var DIALOG_STYLES = `
 .cgv-dialog { box-sizing: border-box; position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); height: fit-content; max-height: calc(100svh - 32px); overflow: auto; overscroll-behavior: contain; padding: 20px; border: 0; border-radius: 16px; background: #fff; color: #27272b; box-shadow: 0 18px 60px #0003; font: 14px/21px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: left; }
 .cgv-dialog[open] { display: flex; flex-direction: column; gap: 16px; }
@@ -55996,7 +55998,7 @@ var SESSION_BYTES = 256 * 1024 * 1024;
 var MAX_REQUEST2 = 16 * 1024;
 var NEXT_FRAME_WAIT_MS = 250;
 var MAX_FRAME_WAITERS = 4;
-var ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js"];
+var ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js", "web-annotations/device-colors.js"];
 var CaptureDisabledError = class extends Error {
   constructor() {
     super("Enable device capture in Settings \u2192 Connection first.");

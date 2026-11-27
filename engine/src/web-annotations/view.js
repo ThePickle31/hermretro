@@ -1,4 +1,6 @@
 /// <reference lib="dom" />
+import { DEVICE_COLORS, DEVICE_RAIL_ORDER } from "./device-colors.js";
+export { DEVICE_COLORS };
 export const DEVICE_COLOR_KEY = "codex-gb-studio:device-color:v1";
 export const SOURCE_MODE_STYLES = `
 .cgv-source-modes{display:flex;flex:none;justify-content:center;gap:3px;width:max-content;max-width:100%;height:36px;margin:0 auto 16px;padding:3px;border-radius:10px;background:#f1f1f3}
@@ -8,21 +10,6 @@ export const SOURCE_MODE_STYLES = `
 .cgv-source-modes .cgv-device-choice{display:inline-flex;border-radius:7px}
 .cgv-source-modes .cgv-device-choice[data-unavailable] button{pointer-events:none}
 `;
-export const DEVICE_COLORS = [
-    { id: "codex", name: "DevDay Edition", background: "#ffffff", ink: "#27272b" },
-    { id: "transparent-green", name: "Transparent Green", background: "#bedc63", ink: "#27272b" },
-    { id: "transparent-red", name: "Transparent Red", background: "#e65c62", ink: "#27272b" },
-    { id: "transparent-smoke", name: "Transparent Smoke", background: "#85838a", ink: "#27272b" },
-    { id: "transparent-purple", name: "Transparent Purple", background: "#a17bb5", ink: "#27272b" },
-    { id: "supply-co", name: "Supply Co. Edition", background: "#bbb0c9", ink: "#27272b" },
-    { id: "cloud", name: "Cloud", background: "#e5e6e3", ink: "#27272b" },
-    { id: "midnight", name: "Midnight", background: "#4e4f55", ink: "#f5f5f3" },
-    { id: "wave", name: "Wave", background: "#6dd6de", ink: "#27272b" },
-    { id: "leaf", name: "Leaf", background: "#61c55a", ink: "#27272b" },
-    { id: "inferno", name: "Inferno", background: "#ff6d1f", ink: "#27272b" },
-    { id: "volt", name: "Volt", background: "#efbf22", ink: "#27272b" },
-    { id: "bubblegum", name: "Bubblegum", background: "#ecafc6", ink: "#27272b" },
-];
 /** Neutral overlay styling shared with the compact capture settings. */
 export const DIALOG_STYLES = `
 .cgv-dialog { box-sizing: border-box; position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); height: fit-content; max-height: calc(100svh - 32px); overflow: auto; overscroll-behavior: contain; padding: 20px; border: 0; border-radius: 16px; background: #fff; color: #27272b; box-shadow: 0 18px 60px #0003; font: 14px/21px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: left; }
@@ -521,8 +508,6 @@ body.codex-game-view-mounted .codex-game-view #game canvas {
 .codex-game-view [data-game-button="start"] { left: 51.18%; }
 .codex-game-view [data-game-button="select"]::before,
 .codex-game-view [data-game-button="start"]::before { content: ""; position: absolute; inset: -14px -2px; }
-.codex-game-view .cgv-color[data-device-color="supply-co"] { order: -2; }
-.codex-game-view .cgv-color[data-device-color="codex"] { order: -1; }
 .codex-game-view .cgv-colors {
   position: absolute;
   right: calc(100% + 4px);
@@ -899,6 +884,8 @@ export function createPlayerView(canvas, title) {
     for (const color of DEVICE_COLORS) {
         const swatch = button("device-color", (color.id === "codex" || color.id === "supply-co") ? color.name : `${color.name} device`, "cgv-color");
         swatch.dataset.deviceColor = color.id;
+        if (Object.prototype.hasOwnProperty.call(DEVICE_RAIL_ORDER, color.id))
+            swatch.style.order = String(DEVICE_RAIL_ORDER[color.id]);
         swatch.dataset.tooltip = color.name;
         const chip = element("span", "cgv-color-chip");
         chip.style.backgroundColor = (color.id === "codex" || color.id === "supply-co") ? "transparent" : color.background;

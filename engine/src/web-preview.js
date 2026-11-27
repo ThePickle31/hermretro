@@ -30,7 +30,7 @@ const ACTIVATION_MOUNT = "codex-activation";
 const CAPTURE_MOUNT = "codex-captures";
 const MAX_CAPTURE_METADATA_BYTES = 2 * 1024 * 1024;
 const MAX_CAPTURE_UPLOAD_BYTES = 128 * 1024 * 1024 + MAX_CAPTURE_METADATA_BYTES + 16 * 1024;
-const ANNOTATION_FILES = ["bridge.js", "native.js", "targets.js", "player.js", "view.js", "save-state.js", "input.js", "remote.js", "audio.js", "flash.js", "flash-diagnostics.js", "recording.js", "recording-protocol.js", "recording-controller.js", "error-dialog.js", "input-protocol.js", "input-owner.js"];
+const ANNOTATION_FILES = ["bridge.js", "native.js", "targets.js", "player.js", "view.js", "device-colors.js", "save-state.js", "input.js", "remote.js", "audio.js", "flash.js", "flash-diagnostics.js", "recording.js", "recording-protocol.js", "recording-controller.js", "error-dialog.js", "input-protocol.js", "input-owner.js"];
 const DEVICE_IMAGES = ["codex", "cloud", "midnight", "wave", "leaf", "inferno", "volt", "bubblegum", "transparent-green", "transparent-red", "transparent-smoke", "transparent-purple", "supply-co"].map(color => `chromatic-${color}.${color === "supply-co" ? "png" : "webp"}`);
 export const deviceArtworkFile = (filename) => filename.replace(/^chromatic-([a-z0-9-]+)\.(webp|png)$/, "$1/skin.$2");
 const MAX_DEVICE_IMAGE_BYTES = 3 * 1024 * 1024;

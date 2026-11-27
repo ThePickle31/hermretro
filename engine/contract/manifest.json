@@ -3,11 +3,11 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "engine",
- "file_count": 297,
+ "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32307862,
+ "total_bytes": 32308397,
  "suffix_counts": {
-  ".js": 111,
+  ".js": 112,
   ".md": 60,
   ".gbsres": 42,
   ".json": 21,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "627c8483b6dacb92785b6982b1a76d6708dd3162c08ec6a4133fee40a1be7535",
+ "aggregate_sha256": "ec9552913b81524af1ac0bcfa4d23e9c03b15d91014f2952752888681e0fe9a0",
  "entries": [
   {
    "path": "LICENSE",
@@ -115,9 +115,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2603210,
+   "size": 2603307,
    "mode": "0o644",
-   "sha256": "461d021ae6d91c10dd1d2a9ba3193b21d8445f5b07e752d85439c429c6e1f85a"
+   "sha256": "e3986c0c3ec77fe611c9532747ae277d107a159584f2ce00c65ff125ffc9120a"
   },
   {
    "path": "docs/agent-guide.md",
@@ -1620,9 +1620,9 @@
   {
    "path": "src/native-device-capture.js",
    "type": "file",
-   "size": 76599,
+   "size": 76635,
    "mode": "0o644",
-   "sha256": "f83bc7ebe9184c1baf23e0ce305375d869e5d2c6777b07cab203d418c701329c"
+   "sha256": "4bbbf388f03376b70d1fbbc4737d679aee8854226928a45b9c994a3867db28c8"
   },
   {
    "path": "src/native-import-files.js",
@@ -1884,6 +1884,13 @@
    "sha256": "320e779bd3b229058268b9fa48e24efbeaf9235da4b0a12972aae35d25df8264"
   },
   {
+   "path": "src/web-annotations/device-colors.js",
+   "type": "file",
+   "size": 1421,
+   "mode": "0o644",
+   "sha256": "c9a2ff3b71598ea3d7754de07348e158440cdffbdd1eace9dc3c5bece100894a"
+  },
+  {
    "path": "src/web-annotations/error-dialog.js",
    "type": "file",
    "size": 11117,
@@ -1984,9 +1991,9 @@
   {
    "path": "src/web-annotations/view.js",
    "type": "file",
-   "size": 62356,
+   "size": 61317,
    "mode": "0o644",
-   "sha256": "0b1baf6ee062875e118e3e78fa8ef504414767dbab4f92e60b21644035e25eb2"
+   "sha256": "d5eb5c9e9dcaf8261e519cdd3d11e0f3b1d0a51eab98b432e82c1c8e15dcfb56"
   },
   {
    "path": "src/web-build.js",
@@ -2054,9 +2061,9 @@
   {
    "path": "src/web-preview.js",
    "type": "file",
-   "size": 70106,
+   "size": 70126,
    "mode": "0o644",
-   "sha256": "8046370db8463d7d4adedcfb4068416e74b6c11dc8bd62a501d5a382ab83e263"
+   "sha256": "45b429f6e751b37887b1e10df5a02e33fbb9a88d5c36040e46bbfaae4d583fc7"
   },
   {
    "path": "src/world-queries.js",

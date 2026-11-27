@@ -18,7 +18,7 @@ import { nativeInventorySchema, nativeStatusSchema, nativeImageSchema, nativeFra
 export { nativeSelectionSchema as deviceSelectionSchema } from "./device-capture/native-protocol.js";
 const SESSION_BYTES = 256 * 1024 * 1024, MAX_REQUEST = 16 * 1024;
 const NEXT_FRAME_WAIT_MS = 250, MAX_FRAME_WAITERS = 4;
-const ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js"];
+const ASSETS = ["device-capture/native-client.js", "device-capture/native-timing-diagnostics.js", "device-capture/device-picker.js", "device-capture/native-entry.js", "device-capture/native-page.js", "device-capture/page.js", "web-annotations/error-dialog.js", "web-annotations/recording-protocol.js", "web-annotations/native.js", "web-annotations/targets.js", "web-annotations/view.js", "web-annotations/device-colors.js"];
 class CaptureDisabledError extends Error {
     constructor() { super("Enable device capture in Settings → Connection first."); }
 }
