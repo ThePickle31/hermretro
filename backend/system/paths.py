@@ -438,8 +438,19 @@ def code_fingerprint() -> str:
     Read fresh (cached per file stamp) rather than once per process: a gateway that loaded the plugin
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
+    return _fingerprint_of(LOADED_FILES)
+
+
+def release_fingerprint() -> str:
+    """The fingerprint by the published releases' rule: backend/ and plugin.yaml only. Their clients compare
+    a broker's ``loaded_fingerprint`` with it, so a broker reports this one there (backend/broker/server.py): a
+    gateway of such a release, still running after an update to this one, keeps the broker the new files start."""
+    return _fingerprint_of(("plugin.yaml",))
+
+
+def _fingerprint_of(loaded: tuple[str, ...]) -> str:
     folder = BACKEND_ROOT
-    sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
+    sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in loaded)]
     try:
         return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
     except FileNotFoundError:  # a loaded file went between its stamp and its read: stamp them again

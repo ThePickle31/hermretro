@@ -426,10 +426,10 @@ def _retire_stale_broker(client: BrokerClient, node: str, deadline: float) -> bo
     """Close a broker that agreed to retire, or return it to the caller with the startup budget cleared."""
     try:
         # Compare real paths now: a plugin folder swapped for a link while this process ran must not look
-        # like another install. Only loaded_fingerprint identifies the running code of an updated broker.
+        # like another install. Only loaded_code_fingerprint identifies the running code of an updated broker.
         theirs = client.hello.get("plugin_root")
         other_install = theirs is not None and os.path.realpath(theirs) != os.path.realpath(paths.PLUGIN_ROOT)
-        loaded = client.hello.get("loaded_fingerprint")
+        loaded = client.hello.get("loaded_code_fingerprint")
         current = loaded is not None and loaded == paths.code_fingerprint() and not other_install
         if not current or _workers_cannot_start(client.hello, node):
             # This install's broker makes way (its idle workers close; its running work is waited for). Another
