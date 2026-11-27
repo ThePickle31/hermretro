@@ -7,7 +7,6 @@
  */
 
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync,
   realpathSync, statSync, readFileSync,
@@ -217,8 +216,8 @@ function sameFile(left, right) {
     left.mtimeMs === right.mtimeMs && left.ctimeMs === right.ctimeMs;
 }
 
-/** Hash a bounded regular file without following a replaced leaf or allocating its full size. */
-function inspectPackageFile(root, relative, { limit = packageLimits.fileBytes, retainBytes = false } = {}) {
+/** Read a bounded regular file without following a link or a replaced leaf, or allocating past its limit. */
+function readPackageFile(root, relative, limit = packageLimits.fileBytes) {
   const { selected, metadata: before } = unlinkedPackageMember(root, relative);
   if (!before.isFile() || before.size > limit) {
     throw new Error(`The package member is not a bounded regular file: ${relative}`);
@@ -229,7 +228,6 @@ function inspectPackageFile(root, relative, { limit = packageLimits.fileBytes, r
     if (!opened.isFile() || !sameFile(before, opened)) {
       throw new Error(`The package member changed while opening it: ${relative}`);
     }
-    const hash = createHash("sha256");
     const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, Math.max(1, before.size + 1)));
     const chunks = [];
     let size = 0;
@@ -240,21 +238,14 @@ function inspectPackageFile(root, relative, { limit = packageLimits.fileBytes, r
       if (size > limit || size > before.size) {
         throw new Error(`The package member grew while reading it: ${relative}`);
       }
-      const chunk = buffer.subarray(0, count);
-      hash.update(chunk);
-      if (retainBytes) chunks.push(Buffer.from(chunk));
+      chunks.push(Buffer.from(buffer.subarray(0, count)));
     }
     const after = fstatSync(descriptor);
     const current = unlinkedPackageMember(root, relative).metadata;
     if (size !== before.size || !sameFile(opened, after) || !sameFile(after, current)) {
       throw new Error(`The package member changed while reading it: ${relative}`);
     }
-    return {
-      size,
-      mode: before.mode & 0o111 ? 0o755 : 0o644,
-      sha256: hash.digest("hex"),
-      ...(retainBytes ? { contents: Buffer.concat(chunks, size) } : {}),
-    };
+    return Buffer.concat(chunks, size);
   } finally {
     closeSync(descriptor);
   }
@@ -276,9 +267,7 @@ function verifyLauncherPlatform(root) {
     if (error.code === "ENOENT") return;
     throw error;
   }
-  const manifest = packageJson(inspectPackageFile(selected, "package.json", {
-    limit: packageLimits.manifestBytes, retainBytes: true,
-  }).contents, "launcher package manifest");
+  const manifest = packageJson(readPackageFile(selected, "package.json", packageLimits.manifestBytes), "launcher package manifest");
   requireChromaticHostTarget(chromaticTargetFromManifest(manifest));
   chromaticFormatFromManifest(manifest);
 }

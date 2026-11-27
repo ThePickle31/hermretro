@@ -1,8 +1,3 @@
-> **Store-installed self-contained packages (1.0.29+):** use the
-> [dependency setup skill](../skills/modretro-chromatic-setup/SKILL.md).
-> Codex owns installation and updates. Run setup with `build` and/or `emulator`
-> only; the launcher automatically uses the stable per-user toolchain directory.
-
 # ModRetro Chromatic: setup
 
 The [ModRetro Chromatic plugin](../README.md) can author, build, and
@@ -34,51 +29,13 @@ prepare the pinned runtime.
 
 ## Obtain and add the compiled release
 
-The distributor must provide a compiled bundle for the recipient's platform,
-its version, source commit, and a checksum. Get the actual release asset or
-reviewed local bundle from the project maintainer. Do not invent a download URL
-or treat a Git clone/source archive as a compiled release: this repository does not commit
-`dist`. Publication of a downloadable release is a separate delivery step.
+hermretro ships this engine inside the plugin and prepares a copy of it on each
+computer (see the [engine's README](../README.md)); there is no separate
+compiled release to obtain or add.
 
-## Upgrade from codex-gb-studio
+## Preview an existing project
 
-Version 0.5.6 uses **ModRetro Chromatic**, plugin/package ID `modretro-chromatic`,
-and MCP server key `modretro-chromatic`. Older versions use `codex-gb-studio`
-and `gb-studio`. Codex treats these as separate plugins, not an in-place rename.
-
-1. Finish active games, previews, setup runs, and device operations through their
-   original sessions. Resolve uncertain device writes before starting another.
-2. Disable or uninstall the old plugin through Codex's supported controls.
-   Removing an entry alone does not confirm that its old processes have closed.
-3. Prepare and install the new package, then start a fresh task and verify its
-   identity and callable tools. Do not enable both identities together.
-
-New installations default to a `modretro-chromatic` dependency directory.
-Nothing automatically moves, deletes, or adopts an older `codex-gb-studio`
-directory. To reuse one that setup already owns, explicitly select it with
-`--root` or `GB_STUDIO_SETUP_ROOT` and review the plan. Compatible dependencies
-can be reused; the old plugin runtime is not the new package and must be
-prepared for this release. Keep any old runtime needed by an active session.
-
-Some names deliberately remain compatible: `GB_STUDIO_*` configuration,
-`.gb-studio-setup.json` and its ownership schema, project locks/revision hashes,
-and `~/.codex-gb-studio/chromatic` device-operation records. Do not rename or
-clear them. Actual upstream `gb-studio` compiler names, application paths and
-third-party credits also remain accurate.
-
-Version 1.0.2 names the skills `modretro-chromatic-authoring`,
-`modretro-chromatic-pixel-art`, and `modretro-chromatic-rom-debugging`, alongside
-`modretro-chromatic-setup`. The first-party extension now lives in
-`native-game-plugin/plugins/modretro-chromatic/`; its event IDs are unchanged.
-Compiler installer entrypoints are `scripts/setup-compiler.mjs` and
-`scripts/setup-compiler.sh`, with the `npm run setup:compiler` shortcut. Use these
-new package paths; existing project copies and upstream compiler files are not
-automatically moved.
-
-### Preview an existing project
-
-After upgrading, ask Codex to open your existing `.gbsproj` with the current
-plugin. Keep custom launchers such as `tools/preview.mjs` and project scripts
+Ask the agent to open your existing `.gbsproj` with the current plugin. Keep custom launchers such as `tools/preview.mjs` and project scripts
 intact; the plugin does not need to rewrite them to preview your game.
 
 Codex should use these public tools in order:
@@ -295,30 +252,10 @@ editor. Setup never launches the desktop application.
 
 ## Preparation is not activation or gameplay acceptance
 
-A completed apply with a ready runtime does not install, replace, enable, or
-refresh the plugin in Codex. Continue authorized installation needed for the
-requested game workflow; a request only to prepare dependencies is not
-activation authority.
-
-Use existing authorization for the selected installation; ask only when scope
-is missing or the platform requires approval. Do not switch an active game's
-runtime underneath it. Verify the exact installed/enabled plugin identity, then
-check read-only `session_status` and the relevant `toolchain_doctor` tasks in a
-**fresh Codex task**. Starting a new task alone does not install or activate a
-plugin, and an on-disk receipt does not prove tools were loaded. Keep
-preparation, installation, and callable verification as separate results.
-
-### Keep distributions distinct
-
-The compact universal package includes all six Chromatic CLI builds in a
-compressed offline bundle. This does not change the supported setup platforms.
-Build and emulator dependencies still use the explicit setup flow above.
-
-A **portable compiled distribution** carries the compiled plugin,
-skills, setup entrypoints, and distribution manifest. It does not bind the
-producer's absolute runtime or toolchain paths. Prepare dependencies on the
-recipient host before expecting working MCP tools; installing the bundle does
-not promise that Node or the MCP server will start automatically there.
+Setup prepares dependencies; it does not change the engine hermretro runs. Check
+read-only `session_status` and the relevant `toolchain_doctor` tasks in the
+conversation, then make a real build and play it: metadata readiness, probe
+results, an official build and actual gameplay are separate evidence.
 
 Packaged targets are macOS and Linux x64/arm64, plus experimental Windows x64.
 Windows ARM64 is unsupported. A targeted `linux-*-gnu` distribution requires

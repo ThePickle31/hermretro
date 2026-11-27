@@ -56,8 +56,8 @@ probe results, official builds, and actual gameplay are distinct evidence.
 Overall readiness requires all requested tasks, not a CLI-or-GBDK shortcut.
 
 Plan/apply select a dedicated external setup root containing separate Node,
-runtime, and toolchain destinations. Detection may inspect old configured or
-receipt-bound roots, but that does not authorize setup to repair them. A new or
+runtime, and toolchain destinations. Detection may inspect old configured
+roots, but that does not authorize setup to repair them. A new or
 empty target can be owned explicitly; nonempty unowned roots and redirected
 setup paths fail closed. Downloads, npm/uv storage, staging, and receipts stay
 in that root, outside immutable packages and game projects.

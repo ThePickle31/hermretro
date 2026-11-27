@@ -5,7 +5,7 @@
  "distribution_directory_name": "modretro-chromatic",
  "file_count": 340,
  "symlink_count": 0,
- "total_bytes": 33936754,
+ "total_bytes": 33912988,
  "suffix_counts": {
   ".js": 147,
   ".md": 66,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "4c2534fa2ba3d8ab675c90ba0f70a51d8185391b112f5e71f29f4a2bca36ebd3",
+ "aggregate_sha256": "f9a7b178f4e9732a11ebb01872d8c184addcf2e162792eb61d7cd3051d4c9e18",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,16 +38,16 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 23931,
+   "size": 4327,
    "mode": "0o644",
-   "sha256": "83aa6f6a2f4d09ecf1d0d60d20e6da88d5992be4b05e09811ec87d6eda729ede"
+   "sha256": "0f62bdfe2d38ff5bbcfdb39868b29d43a8c32a136e52473540bd0ab4b53e897a"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
    "type": "file",
-   "size": 4968,
+   "size": 4871,
    "mode": "0o644",
-   "sha256": "eff847ef8af7bc321f64c5dc543ee8f42b9da0093166c13fe4f84ac5277be07e"
+   "sha256": "679bd81da81b75b2229ac5e5e3edfb42f34aa52ad494f4e393fbddc75403004b"
   },
   {
    "path": "assets/devices/README.md",
@@ -1144,9 +1144,9 @@
   {
    "path": "docs/architecture.md",
    "type": "file",
-   "size": 23705,
+   "size": 23688,
    "mode": "0o644",
-   "sha256": "edaf53f8e51d17b23a9a481643172b6d68a783c2e348d12e70072a7ab3534402"
+   "sha256": "5d9edbeb2c9de5f15b1146481e5d7fd0d6d93c5ec70178fe6abb61afe8eb0a6f"
   },
   {
    "path": "docs/chromatic-device-testing.md",
@@ -1158,9 +1158,9 @@
   {
    "path": "docs/chromatic-preview-install-testing.md",
    "type": "file",
-   "size": 4802,
+   "size": 4868,
    "mode": "0o644",
-   "sha256": "2e32a09a2032b791b0bae78a5ba7f462cdcb6c81e6d759028b9c4f993ab680b9"
+   "sha256": "a6f454d9836c8091edd7df108cec922f9924e3f7e48d6f30654f1d9862a77058"
   },
   {
    "path": "docs/native-device-capture.md",
@@ -1200,16 +1200,16 @@
   {
    "path": "docs/runtime-validation.md",
    "type": "file",
-   "size": 12407,
+   "size": 12383,
    "mode": "0o644",
-   "sha256": "e8911f0d8135a06fd741cf3f92eeca4aeff1ddd5526315960a11c35a456f7fe1"
+   "sha256": "9676c5d77b456ff4cfa66c23890a3c5f57c97082ec2fdbcda9dbbd13b057a280"
   },
   {
    "path": "docs/setup.md",
    "type": "file",
-   "size": 18668,
+   "size": 14939,
    "mode": "0o644",
-   "sha256": "08893274b6acddb437f1038dd3cc36561e36f572b834d27f75ca2b5e0eb8623c"
+   "sha256": "157e4561bf0a0e135e53b711ab305caedfde763435a8bd70cd6bd2387612370c"
   },
   {
    "path": "docs/stepped-playtesting.md",
@@ -1242,9 +1242,9 @@
   {
    "path": "docs/wrecklight-authoring.md",
    "type": "file",
-   "size": 3559,
+   "size": 3628,
    "mode": "0o644",
-   "sha256": "1ce8031b3367d9d0981a6a7ad2bc1c9c59e76b46989c5a8f22d3c0fbf48962b0"
+   "sha256": "3e15c2166011cd1b2fbec660a0c4c9352c4ad37c06ee5b2830a80edd7b18465f"
   },
   {
    "path": "docs/wrecklight-design.md",
@@ -2201,9 +2201,9 @@
   {
    "path": "scripts/setup.mjs",
    "type": "file",
-   "size": 39289,
+   "size": 39228,
    "mode": "0o644",
-   "sha256": "0478ec8b6f90b5347e625e2fa0e1fffa857039f7e6ccf7dc78c75fdfdc4aaf6c"
+   "sha256": "12c62bcb3fc05e82b8b268e5ef4d90029758a3c014cbb5a61bdfa45d6ac00b8a"
   },
   {
    "path": "scripts/setup.ps1",
@@ -2222,9 +2222,9 @@
   {
    "path": "scripts/start-mcp.mjs",
    "type": "file",
-   "size": 14607,
+   "size": 14238,
    "mode": "0o644",
-   "sha256": "9d01e8e4291bae99f0c7774b892e20fbaafe3b8830574fa88d56ca0ca5f83e55"
+   "sha256": "72d064beb10e747b2336d599377ea59afb302fc0e743f5aca6f339a27769ab52"
   },
   {
    "path": "skills/chromatic-deployment/SKILL.md",

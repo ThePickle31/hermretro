@@ -46,18 +46,11 @@ resolving symlinks, and the bundled starter additionally requires
 
 ## Check setup and compile a real ROM
 
-The npm commands below are for maintainers in a trusted development checkout
-with its locked dependencies installed. Do not run them inside an installed
-plugin cache. Packaged users should follow [setup](setup.md), then use
-`toolchain_doctor` and `rom_build` in their selected project.
-
-```sh
-npm run check
-npm test
-npm run build
-npm run doctor
-npm run test:native-project
-```
+Maintainers check the engine from hermretro's repository root with
+`python tools/check.py full` (it includes a real-engine run that builds and
+plays games). On a prepared engine, `npm run doctor` reports the dependencies
+without changing anything. Otherwise follow [setup](setup.md), then use
+`toolchain_doctor` and `rom_build` in the selected project.
 
 For experimental Windows x64, follow [Windows setup](windows-setup.md) to
 prepare the native runtime from PowerShell without Git Bash or WSL, then run:

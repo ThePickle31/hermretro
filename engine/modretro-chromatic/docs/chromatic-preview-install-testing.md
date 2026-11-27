@@ -6,7 +6,8 @@ Use a separate source checkout; preserve any live preview and installed runtime.
 
 ## Check the UI without hardware
 
-From a trusted checkout with its locked dependencies prepared:
+In ModRetro's source checkout, with its locked dependencies prepared (hermretro's engine does not ship
+these tests or fixtures):
 
 ```sh
 npm run check

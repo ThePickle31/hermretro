@@ -493,7 +493,7 @@ export async function applySetup(options = {}) {
     run.status = cancelled() ? "cancelled" : errors.length || notReady.length ? "partial" : "complete";
     run.completedAt = new Date().toISOString();
     run.nextSteps = run.status === "complete"
-      ? ["The selected dependency components are prepared; no new plugin payload or launch configuration was requested.",
+      ? ["The selected dependency components are prepared.",
         ...(!plan.requestedComponents.includes("build") ? ["Game builds and official browser previews were not selected. A new playable game needs build dependencies; add emulator for local stepped play."] : []),
         "Dependencies are ready. Continue the requested build or playtest with the existing installed plugin; do not recreate or reinstall it."]
       : ["Inspect retained component errors and paths; successful components are preserved.", "Retry the same explicit apply command after resolving the reported cause. Known-owned partial components are preserved under quarantine before retry.", "A stale setup lock is never stolen or used to kill a process. Verify its recorded owner has ended before preserving/moving that lock."];
