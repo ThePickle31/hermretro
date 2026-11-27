@@ -115,6 +115,9 @@ playback is not implemented.
 The Emulator tab offers a user-sent annotation for opening a project preview
 or creating a blank project. It does not replace or close an existing session.
 
+These steps are for macOS. On Linux they need the FFmpeg helper hermretro does
+not ship, and listing devices fails without it.
+
 1. Call `device_capture {"action":"open"}`. On macOS, use `open_settings` with
    `tab: "connection"`; the user turns on **Enable device capture** and grants
    normal camera access. Optional USB audio requests microphone access separately.
