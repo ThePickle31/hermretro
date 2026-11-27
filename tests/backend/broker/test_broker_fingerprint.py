@@ -25,6 +25,12 @@ from backend.system import paths  # noqa: E402 - the repository root goes on sys
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 NEW_BUILD = "new-build-on-disk"
+# What paths reports once an update has rewritten the files: a broker started then loads the new build.
+REWRITTEN = {
+    "code_fingerprint": lambda: NEW_BUILD,
+    "release_fingerprint": lambda: NEW_BUILD,
+    "loaded_fingerprints": lambda: (NEW_BUILD, NEW_BUILD),
+}
 
 
 class Running:
@@ -100,8 +106,7 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
 
     def test_the_handshake_names_the_loaded_build_after_the_files_change(self):
         self.start()
-        rewritten = {"code_fingerprint": lambda: NEW_BUILD, "release_fingerprint": lambda: NEW_BUILD}
-        with mock.patch.multiple(paths, **rewritten):  # the update rewrote the files
+        with mock.patch.multiple(paths, **REWRITTEN):  # the update rewrote the files
             with client.BrokerClient(self.state) as connection:
                 self.assertEqual(connection.hello["code_fingerprint"], self.loaded)
                 self.assertEqual(connection.hello["loaded_code_fingerprint"], self.loaded)
@@ -117,17 +122,14 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
         def spawn(state, _node, *, deadline):  # what the update's first call starts: a broker of the new files
             return launched(self.start, started)
 
-        with (
-            mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD),
-            mock.patch.object(client, "spawn_broker", spawn),
-        ):
+        with mock.patch.multiple(paths, **REWRITTEN), mock.patch.object(client, "spawn_broker", spawn):
             with client.ensure_broker(self.state, wait=10) as connection:
                 self.assertEqual(len(started), 1, "the old broker was kept instead of replaced")
                 self.assertEqual(connection.hello["broker_generation"], started[0].broker.generation)
                 self.assertEqual(connection.hello["code_fingerprint"], NEW_BUILD)
         self.assertTrue(old.stopped.wait(5), "the old broker did not stop with an idle connection open")
         # A client that held the old one reconnects to the new one.
-        with mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD):
+        with mock.patch.multiple(paths, **REWRITTEN):
             with client.BrokerClient(self.state) as again:
                 self.assertEqual(again.hello["broker_generation"], started[0].broker.generation)
 

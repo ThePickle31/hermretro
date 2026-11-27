@@ -6,7 +6,7 @@ repository into a throwaway Hermes home and uses it the way the page does: the s
 install, a game in the library with a thumbnail, a New Game conversation, a running broker. Then it moves the
 copy's default branch to HEAD, runs `hermes plugins update hermretro` and checks: the update needed no prompt,
 the new code registers its agent side only in hermretro and still matches plugin.yaml, it reads the user's
-games and library back, the old broker is replaced on the first call, a gateway of the old version still running
+games and library back, the old broker is replaced on the first call, a gateway of a published release still running
 (Hermes not yet restarted) keeps the broker the new version started, and nothing the old version left in the plugin
 folder gets in the way. The page calls run in Hermes's own Python (`inside`), through its plugin loader.
 """
@@ -86,8 +86,11 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         # the steps up to the new drive can outlast: a broker gone by itself proves no replacement. An open,
         # silent connection holds it (an idle exit waits for none) until the new drive has replaced it.
         held = hold_open(before["broker_socket"])
-        kept = OldGateway(args, tmp, root, fix)  # a gateway of the old version that Hermes has not restarted
-        kept.wait_ready()
+        # A gateway of the old version that Hermes has not restarted. Only a published release's: their handshake
+        # rule never changes (paths.release_fingerprint), while one between releases may not match the next.
+        if _git("tag", "--points-at", old, "--list", "v*"):
+            kept = OldGateway(args, tmp, root, fix)
+            kept.wait_ready()
         run(studio, "plugins", "enable", "hermretro")  # what the page's studio_profile RPC runs in the profile
         problems = []
         dirty = _git("status", "--porcelain", cwd=plugin)
@@ -124,7 +127,8 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         after = drive_holding(held, before["broker_pid"], _alive, lambda: _drive(args, tmp, root, "new"), fix)
         brokers.append(after.get("broker_pid") or 0)
         problems += _compare(before, after, fix)
-        problems += kept.problems(after)
+        if kept is not None:
+            problems += kept.problems(after)
     finally:
         if held is not None:
             held.close()
@@ -318,7 +322,8 @@ def _keep_the_old_code() -> dict:
     rpc("status")  # loads the plugin
     rpc("doctor")  # what the page calls, with the old broker, so its code is loaded too
     print(READY, flush=True)
-    sys.stdin.readline()  # the caller has updated the plugin folder and run the new version's drive
+    if sys.stdin.readline().strip() != GO:  # the caller updates the plugin folder and runs the new drive first
+        raise SystemExit("the check ended before the old gateway's turn")
     rpc("doctor")
     client, error = module("client").try_connect(module("paths").runtime_dir())
     if client is None:
@@ -382,7 +387,7 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
     return result
 
 
-READY = "the old gateway is running"
+READY, GO = "the old gateway is running", "go"
 
 
 class OldGateway:
@@ -427,8 +432,10 @@ class OldGateway:
     def problems(self, after: dict) -> list[str]:
         """Let it make its call after the update: it must have kept the broker the new version started."""
         try:
-            self.process.communicate("go\n", timeout=300)
-        except subprocess.TimeoutExpired:
+            self.process.stdin.write(GO + "\n")
+            self.process.stdin.close()
+            self.process.wait(timeout=300)
+        except (OSError, subprocess.TimeoutExpired):
             self.stop()
         self.reader.join(5)
         found = json.loads(self.out.read_text()) if self.out.is_file() else {"fatal": self._failure()}
@@ -450,6 +457,7 @@ class OldGateway:
     def stop(self) -> None:
         if self.process.poll() is None:
             self.process.kill()
+            self.process.wait()
 
     def _failure(self) -> str:
         found = json.loads(self.out.read_text()).get("fatal", "") if self.out.is_file() else ""

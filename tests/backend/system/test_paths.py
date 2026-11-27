@@ -355,6 +355,16 @@ class EngineEntries(unittest.TestCase):
             moved = paths.code_fingerprint()
         self.assertNotEqual(moved, before)
 
+    def test_without_plugin_yaml_only_the_full_fingerprint_answers(self):
+        # The releases could not fingerprint a backend without its plugin.yaml, so their rule gives none.
+        real_stamp = paths._file_stamp
+        gone = paths.PLUGIN_ROOT / "plugin.yaml"
+        with mock.patch.object(paths, "_file_stamp", lambda path: (-1, -1) if path == gone else real_stamp(path)):
+            code, released = paths.loaded_fingerprints()
+        self.assertNotEqual(code, paths.code_fingerprint())
+        self.assertIsNone(released)
+        self.assertIsNotNone(paths.release_fingerprint())
+
     def test_a_loaded_file_that_goes_between_its_stamp_and_its_read_is_stamped_again(self):
         gone = paths.PLUGIN_ROOT / "engine" / "contract" / "tools.json"
         real_stamp, real_read = paths._file_stamp, Path.read_bytes

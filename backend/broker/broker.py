@@ -113,8 +113,7 @@ class Broker(LaneMixin, SelectionMixin, ControlMixin, LifecycleMixin, HoldsMixin
         # the files on disk now. Read at each hello, a broker that `hermes plugins update` rewrote underneath
         # claimed the new build's fingerprint, so the new client kept it (old code) instead of replacing it.
         try:
-            self.code_fingerprint: str | None = paths.code_fingerprint()
-            self.release_fingerprint: str | None = paths.release_fingerprint()
+            self.code_fingerprint, self.release_fingerprint = paths.loaded_fingerprints()
         except OSError:  # files already moving under it: any client replaces it
             self.code_fingerprint = self.release_fingerprint = None
         self.engine_check = paths.verify_engine()

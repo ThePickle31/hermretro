@@ -438,19 +438,22 @@ def code_fingerprint() -> str:
     Read fresh (cached per file stamp) rather than once per process: a gateway that loaded the plugin
     before its files changed would otherwise keep a stale fingerprint and shut down every broker the
     new files start, in a loop, until the plugin is reloaded."""
-    return _fingerprint_of(LOADED_FILES)
+    return loaded_fingerprints()[0]
 
 
-def release_fingerprint() -> str:
-    """The fingerprint by the published releases' rule: backend/ and plugin.yaml only. Their clients compare
-    a broker's ``loaded_fingerprint`` with it, so a broker reports this one there (backend/broker/server.py): a
-    gateway of such a release, still running after an update to this one, keeps the broker the new files start."""
-    return _fingerprint_of(("plugin.yaml",))
+def release_fingerprint() -> str | None:
+    """The fingerprint by the published releases' rule: backend/ and plugin.yaml only (RELEASED_FILES). Their clients
+    compare a broker's ``loaded_fingerprint`` with it, so a broker reports this one there (backend/broker/server.py): a
+    gateway of such a release, still running after an update to this one, keeps the broker the new files start. None
+    when one of those files is missing, which the releases could not fingerprint either."""
+    return loaded_fingerprints()[1]
 
 
-def _fingerprint_of(loaded: tuple[str, ...]) -> str:
+def loaded_fingerprints() -> tuple[str, str | None]:
+    """``(code_fingerprint(), release_fingerprint())`` from one reading of the files: a broker names the code it loaded
+    with both, and read apart, an update between the two readings could give each a different build."""
     folder = BACKEND_ROOT
-    sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in loaded)]
+    sources = [*backend_sources(folder), *((f"../{rel}", folder.parent / rel) for rel in LOADED_FILES)]
     try:
         return _fingerprint_for(tuple((rel, *_file_stamp(path)) for rel, path in sources))
     except FileNotFoundError:  # a loaded file went between its stamp and its read: stamp them again
@@ -470,6 +473,9 @@ def _file_stamp(path: Path) -> tuple[int, int]:
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
 # the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
 LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/contract/tools.json")
+# Those the published releases' rule covers too (release_fingerprint), as the fingerprint names them. A rule a release
+# has shipped never changes: its gateways compare by it. A new rule gets a new handshake field (backend/broker/server.py).
+RELEASED_FILES = ("../plugin.yaml",)
 
 
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:
@@ -483,11 +489,18 @@ def backend_sources(folder: Path) -> list[tuple[str, Path]]:
 
 
 @lru_cache(maxsize=4)
-def _fingerprint_for(stamp: tuple) -> str:
+def _fingerprint_for(stamp: tuple) -> tuple[str, str | None]:
     # The version comes in through plugin.yaml's bytes, read now, never the value this process imported.
-    digest = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
+    code = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
+    released = hashlib.sha256(f"protocol:{PROTOCOL}".encode())
+    complete = True
     folder = BACKEND_ROOT
     for name, _mtime, size in stamp:
-        digest.update(name.encode())
-        digest.update((folder / name).read_bytes() if size >= 0 else b"(missing)")
-    return digest.hexdigest()[:24]
+        data = (folder / name).read_bytes() if size >= 0 else b"(missing)"
+        code.update(name.encode())
+        code.update(data)
+        if not name.startswith("../") or name in RELEASED_FILES:
+            complete = complete and size >= 0
+            released.update(name.encode())
+            released.update(data)
+    return code.hexdigest()[:24], released.hexdigest()[:24] if complete else None

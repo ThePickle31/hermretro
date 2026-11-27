@@ -28,7 +28,7 @@ from backend.broker.lane import Denied, Lane  # noqa: E402 - the repository root
 from backend.broker.lifecycle import UPDATE_NOTICE, Notices  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
-from tests.backend.broker.test_broker_fingerprint import NEW_BUILD, Running, launched  # noqa: E402 - the repository root goes on sys.path first
+from tests.backend.broker.test_broker_fingerprint import REWRITTEN, Running, launched  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
 CHAT = {"profile": "/profiles/hermretro", "conversation_id": "chat-a"}
@@ -106,7 +106,7 @@ class BrokerOfOlderCode(unittest.TestCase):
     def newer_client(self):
         """The plugin's code after the update: the files on disk are another build than the running broker's."""
         return (
-            mock.patch.object(paths, "code_fingerprint", lambda: NEW_BUILD),
+            mock.patch.multiple(paths, **REWRITTEN),
             mock.patch.object(client, "spawn_broker", self.spawn),
         )
 
