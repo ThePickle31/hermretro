@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { nativeTitleAtlasSchema } from "../native-title-atlas.js";
 import { MAX_EMULATOR_FRAMES, MAX_EMULATOR_INSPECTION_BYTES, MAX_EMULATOR_OAM_OBJECTS, MAX_EMULATOR_STEP_INPUTS, MAX_EMULATOR_STEP_SAMPLES, } from "../emulator.js";
 import { BUNDLED_TRACKS, DUTY_INSTRUMENTS, WAVE_INSTRUMENTS } from "../audio.js";
 export const identifier = z.string().trim().min(1).max(256);
@@ -145,7 +144,6 @@ const songPulseChannel = z.union([songRows, z.object({ notes: songRows, instrume
 const songWaveChannel = z.union([songRows, z.object({ notes: songRows, instrument: songWaveInstrument.optional() }).strict()])
     .describe("The wave channel's rows, C1–B6, or {notes, instrument} with bass, mellow, saw or hollow.");
 export const domainSchemas = {
-    nativeTitleAtlas: nativeTitleAtlasSchema,
     actorInspect: z.object({ sceneId: identifier, actorId: identifier }).strict(),
     actorUpdate: z.object({
         sceneId: identifier, actorId: identifier, name: boundedName.optional(),

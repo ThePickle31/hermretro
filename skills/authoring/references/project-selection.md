@@ -62,13 +62,8 @@ the bundled starter directly additionally requires `allowStarter: true`.
 
 Within an authorized workspace, `chromatic_project_create` remains confined to it;
 neither creation nor selection can broaden access to a sibling outside it.
-Relative creation requires an authorized workspace. Choose `template: "starter"`
-for a minimal `Start` scene. For the complete editable
-[Wrecklight sample](wrecklight-remix.md), use `template: "wrecklight"` and supply
-its matching local `templateSourcePath` when using the compact package.
-Wrecklight must be copied: direct
-selection of either bundled copy is rejected, even with `allowStarter: true`.
-Close an active emulator
+Relative creation requires an authorized workspace. `template: "starter"`, the
+only template, makes a minimal `Start` scene. Close an active emulator
 with `chromatic_emulator_close` before selecting another project. `chromatic_session_status` can report
 the selected project, authorized workspace, selection generation, and emulator
 state without granting further access. Selecting another project automatically

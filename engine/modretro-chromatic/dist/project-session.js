@@ -4,7 +4,6 @@ import path from "node:path";
 import { discoverProject, GameStudioProjectError, inventoryProject, } from "./project.js";
 import { ProjectWorldIndex } from "./project-world-index.js";
 import { assertSafePlatformPath } from "./platform.js";
-import { readWrecklightTemplate } from "./bundled-template.js";
 export const BLANK_PROJECT_GAME_TYPES = ["TOPDOWN", "PLATFORM", "ADVENTURE", "SHMUP", "POINTNCLICK"];
 export const BLANK_PROJECT_COLOR_MODES = ["mono", "mixed", "color"];
 const EXCLUDED_TEMPLATE_DIRECTORIES = new Set([
@@ -190,25 +189,6 @@ async function blankProjectOverrides(template, configuration) {
         [scenePath, json({ ...sceneData, type: configuration.gameType })],
     ]);
 }
-async function copyCapturedTemplate(files, destination, createdEntries) {
-    const directories = new Set([""]);
-    for (const [relative, bytes] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
-        if (relative === "project.gbsproj")
-            continue; // Customized descriptor is published last.
-        const parts = relative.split("/");
-        for (let i = 1; i < parts.length; i++) {
-            const directory = parts.slice(0, i).join("/");
-            if (directories.has(directory))
-                continue;
-            const target = path.join(destination, directory);
-            await assertCreatedParents(createdEntries, target);
-            await mkdir(target);
-            await rememberCreatedDirectory(target, createdEntries);
-            directories.add(directory);
-        }
-        await writeCreatedFile(path.join(destination, relative), bytes, createdEntries);
-    }
-}
 /** Owns one explicitly authorized workspace and its selected native game project. */
 export class ProjectSession {
     runtimeRoot;
@@ -216,7 +196,6 @@ export class ProjectSession {
     selectionGeneration = 0;
     #configuredProject;
     #bundleRoots;
-    #templateSourceRoots = new Set();
     #toolchainRoot;
     #isEmulatorActive;
     #isProjectBusy;
@@ -250,21 +229,13 @@ export class ProjectSession {
     get workspaceRoot() {
         return this.#workspaceRoot;
     }
-    /** A build/recording root must not include either immutable sample copy. */
+    /** The root a build or recording may write under: the workspace, or else the selected project. */
     authorizedOperationRoot(projectRoot = this.selectedProject?.projectRoot) {
         const root = this.#workspaceRoot ?? projectRoot;
         if (root === undefined) {
             throw new GameStudioProjectError("PROJECT_SELECTION_REQUIRED", "No project or workspace is authorized. For a native game project, call project_select with its absolute .gbsproj path. For a standalone ROM or C source, configure GB_STUDIO_WORKSPACE_ROOT to its containing workspace before starting this server. session_status shows the current authorization.");
         }
-        const canonical = canonicalDirectory(root, "The operation root");
-        if (!this.#overlapsBundledSample(canonical))
-            return canonical;
-        if (projectRoot !== undefined) {
-            const project = canonicalDirectory(projectRoot, "The selected project root");
-            if (isWithin(canonical, project) && !this.#overlapsBundledSample(project))
-                return project;
-        }
-        throw this.#bundledSampleError(canonical);
+        return canonicalDirectory(root, "The operation root");
     }
     async initialize() {
         if (this.selectedProject !== undefined)
@@ -330,8 +301,8 @@ export class ProjectSession {
             if (blank && (!BLANK_PROJECT_GAME_TYPES.includes(blank.gameType) || !BLANK_PROJECT_COLOR_MODES.includes(blank.colorMode))) {
                 throw new GameStudioProjectError("INVALID_INPUT", "Choose a supported blank-project game type and native color mode.");
             }
-            if (input.template !== "starter" && input.template !== "wrecklight") {
-                throw new GameStudioProjectError("INVALID_INPUT", "Choose the starter or wrecklight template explicitly.");
+            if (input.template !== "starter") {
+                throw new GameStudioProjectError("INVALID_INPUT", "Choose the starter template explicitly.");
             }
             if (typeof input.name !== "string" || input.name.trim().length === 0) {
                 throw new GameStudioProjectError("INVALID_INPUT", "The project name must be a non-empty string.");
@@ -339,21 +310,13 @@ export class ProjectSession {
             if (input.author !== undefined && (typeof input.author !== "string" || input.author.trim().length === 0)) {
                 throw new GameStudioProjectError("INVALID_INPUT", "The project author must be a non-empty string when provided.");
             }
-            if (input.templateSourcePath !== undefined && (input.template !== "wrecklight"
-                || typeof input.templateSourcePath !== "string" || !path.isAbsolute(input.templateSourcePath))) {
-                throw new GameStudioProjectError("INVALID_INPUT", "templateSourcePath must be an absolute directory and is only supported for wrecklight.");
-            }
-            const template = input.templateSourcePath === undefined
-                ? path.join(this.runtimeRoot, "examples", input.template) : path.resolve(input.templateSourcePath);
+            const template = path.join(this.runtimeRoot, "examples", input.template);
             let templateDetails;
             try {
                 templateDetails = await lstat(template);
             }
             catch (error) {
                 if (isMissing(error)) {
-                    if (input.template === "wrecklight" && input.templateSourcePath === undefined) {
-                        throw new GameStudioProjectError("PROJECT_NOT_FOUND", "Wrecklight is not included in this package. Supply templateSourcePath with its matching local source directory.");
-                    }
                     throw new GameStudioProjectError("PROJECT_NOT_FOUND", `The trusted ${input.template} template does not exist: ${template}`, template);
                 }
                 throw error;
@@ -361,25 +324,13 @@ export class ProjectSession {
             if (templateDetails.isSymbolicLink() || !templateDetails.isDirectory() || await realpath(template) !== template) {
                 throw new GameStudioProjectError("UNSAFE_SYMLINK", `The trusted ${input.template} template must be a real directory: ${template}`, template);
             }
-            if (input.templateSourcePath !== undefined && this.selectedProject !== undefined
-                && (isWithin(template, this.selectedProject.projectRoot) || isWithin(this.selectedProject.projectRoot, template))) {
-                throw new GameStudioProjectError("INVALID_INPUT", "The read-only template source must not overlap the currently selected project.", template);
-            }
-            const captured = input.template === "wrecklight" ? await readWrecklightTemplate(template) : undefined;
-            // The explicit path grants this read/copy only, not a wider workspace.
-            // Keep the authenticated source protected in this session as well.
-            if (input.templateSourcePath !== undefined)
-                this.#templateSourceRoots.add(template);
             const overrides = blank ? await blankProjectOverrides(template, blank) : undefined;
             const destination = await this.#resolveNewDestination(input.destinationPath);
-            const templateProject = captured === undefined ? await this.#discoverBounded(template, template) : {
-                projectPath: path.join(template, "project.gbsproj"),
-                descriptor: JSON.parse(captured.get("project.gbsproj").toString("utf8")),
-            };
+            const templateProject = await this.#discoverBounded(template, template);
             const descriptor = {
                 ...templateProject.descriptor,
                 name: input.name.trim(),
-                ...(input.author !== undefined ? { author: input.author.trim() } : input.template === "starter" ? { author: "" } : {}),
+                author: input.author !== undefined ? input.author.trim() : "",
             };
             try {
                 // Claim the exact new directory exclusively. rename() could replace a
@@ -393,10 +344,7 @@ export class ProjectSession {
                 throw error;
             }
             await rememberCreatedDirectory(destination, createdEntries);
-            if (captured === undefined)
-                await copyTrustedTemplate(template, destination, templateProject.projectPath, createdEntries, overrides);
-            else
-                await copyCapturedTemplate(captured, destination, createdEntries);
+            await copyTrustedTemplate(template, destination, templateProject.projectPath, createdEntries, overrides);
             await writeCreatedFile(path.join(destination, path.basename(templateProject.projectPath)), `${JSON.stringify(descriptor, null, 2)}\n`, createdEntries);
             await assertCompleteCreation(createdEntries);
             const created = await this.#discoverBounded(destination, this.#workspaceRoot ?? destination);
@@ -487,8 +435,6 @@ export class ProjectSession {
         }
     }
     async #assertStarterAllowed(projectRoot, allowed) {
-        if (this.#overlapsBundledSample(projectRoot))
-            throw this.#bundledSampleError(projectRoot);
         if (allowed)
             return;
         try {
@@ -501,16 +447,6 @@ export class ProjectSession {
             if (!isMissing(error))
                 throw error;
         }
-    }
-    #overlapsBundledSample(candidate) {
-        return [...this.#templateSourceRoots].some((source) => isWithin(source, candidate) || isWithin(candidate, source))
-            || this.#bundleRoots.some((root) => {
-                const sample = path.join(root, "examples", "wrecklight");
-                return isWithin(sample, candidate) || isWithin(candidate, sample);
-            });
-    }
-    #bundledSampleError(candidate) {
-        return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "The bundled Wrecklight sample is read-only. Use project_create with template: wrecklight, then select the editable copy for builds and recordings.", candidate);
     }
     async #discoverExactProject(candidate) {
         const requested = path.resolve(candidate);
@@ -586,16 +522,9 @@ export class ProjectSession {
         return discovered;
     }
     #assertOutsideTemplates(destination) {
-        for (const source of this.#templateSourceRoots) {
-            if (isWithin(source, destination) || isWithin(destination, source)) {
-                throw new GameStudioProjectError("INVALID_INPUT", "The project destination must not overlap its read-only template source.", destination);
-            }
-        }
         for (const root of this.#bundleRoots) {
-            for (const name of ["starter", "wrecklight"]) {
-                if (isWithin(path.join(root, "examples", name), destination)) {
-                    throw new GameStudioProjectError("INVALID_INPUT", "The project destination must not be inside a bundled template.", destination);
-                }
+            if (isWithin(path.join(root, "examples", "starter"), destination)) {
+                throw new GameStudioProjectError("INVALID_INPUT", "The project destination must not be inside a bundled template.", destination);
             }
         }
     }

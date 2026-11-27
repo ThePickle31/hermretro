@@ -727,12 +727,11 @@ function createGbStudioServer(options = {}) {
     }, async (input) => safely(() => performEmulatorOperation(() => selectProject(input))));
     server.registerTool("project_create", {
         title: "Create an editable native game project",
-        description: "Create an editable project from starter or the optional Wrecklight source sample. If Wrecklight is not bundled, supply its matching local templateSourcePath. The source is verified and never modified. With no workspace configured, use an absolute new destination under an existing canonical parent; otherwise stay within the workspace. Select only when requested.",
+        description: "Create an editable project from the bundled starter, which is never modified. With no workspace configured, use an absolute new destination under an existing canonical parent; otherwise stay within the workspace. Select only when requested.",
         inputSchema: z.object({
             name: z.string().trim().min(1).max(200),
             destinationPath: boundedPath,
-            template: z.enum(["starter", "wrecklight"]),
-            templateSourcePath: boundedPath.optional(),
+            template: z.enum(["starter"]),
             author: z.string().trim().min(1).max(200).optional(),
             select: z.boolean().optional()
         }).strict(),

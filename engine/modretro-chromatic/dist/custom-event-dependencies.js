@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { WRECKLIGHT_CONTRACTS } from "./wrecklight-dependencies.js";
 import { compilerDependenciesValid, compilerProfileValid } from "./reviewed-compiler.js";
 /** The reviewed loader reads core handlers first, then this project glob, keyed
  * by the exported ID. We refuse duplicates instead of guessing glob order.
@@ -222,4 +221,5 @@ export function extractReviewedEvent(contract, args, children, context) {
 }
 // Only reviewed maintained-source entries belong here. Project names, manifests
 // and `complete` flags cannot create authority or replace a current byte match.
-export const REVIEWED_CUSTOM_EVENTS = new ReviewedEventRegistry(WRECKLIGHT_CONTRACTS);
+// It holds none today: the engine's reviewed contracts were all Wrecklight's.
+export const REVIEWED_CUSTOM_EVENTS = new ReviewedEventRegistry([]);

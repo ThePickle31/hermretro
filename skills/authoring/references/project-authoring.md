@@ -72,11 +72,7 @@ missing parents nor overwrites an existing destination, even an empty one:
 chromatic_project_create {"name":"My Game","template":"starter"}
 ```
 
-The minimal `starter` is included. Choose `template: "wrecklight"` for a complete
-editable salvage adventure; in a compact installation, supply its matching local
-`templateSourcePath`. Follow the [remix guide](wrecklight-remix.md)
-for its engine version, controls, and credits. Both bundled Wrecklight copies
-are read-only; `allowStarter` does not permit selecting them directly.
+The minimal `starter` is the only template.
 
 This authorizes only the created `MyGame` project, not its parent or siblings.
 It remains unselected unless `select: true` is explicit; otherwise select the

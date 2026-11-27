@@ -64,7 +64,6 @@ const STEP_WORDS = {
   graphics_analyze: ['Checking the graphics limits', 'Checked the graphics limits'],
   graphics_analyze_scene: ['Checking the scene\u2019s graphics', 'Checked the scene\u2019s graphics'],
   graphics_preview_scene: ['Rendering the scene', 'Rendered the scene'],
-  native_graphics_update: ['Updating the title art', 'Updated the title art'],
   collision_edit: ['Drawing walls', 'Drew walls'],
   collision_inspect: ['Checking walls', 'Checked walls'],
   variable_set: ['Setting a variable', 'Set a variable'],

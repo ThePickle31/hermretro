@@ -40,10 +40,6 @@ unknown fields, event branches, source assets, and neighboring authored files.
   existing background's exact palette assignments, including UI cells, into
   empty metadata of the same dimensions. Supply `expectedRevision`; preview
   with `dryRun`. Neither PNG is changed.
-- `chromatic_native_graphics_update` applies a complete inert atlas contract to the
-  supported private-title renderer without accepting an arbitrary file path or
-  C source. See native title atlas for its revision,
-  preservation, and dependency-profile limits.
 - `chromatic_sprite_inspect`, `chromatic_sprite_edit`, `chromatic_sprite_preview`, and
   `chromatic_sprite_contact_sheet` support animation authoring and static visual review.
 - `chromatic_palette_inspect`, `chromatic_palette_create`, `chromatic_palette_update`, `chromatic_palette_assign`, and

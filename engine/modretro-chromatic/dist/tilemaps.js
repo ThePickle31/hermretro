@@ -9,7 +9,6 @@ import { analyzeGraphicsImage } from "./graphics.js";
 import { applyBackgroundPaletteEdits, decodeBackgroundPaletteTiles, resolvePaletteSlots, resolveUiPalette } from "./palettes.js";
 import { resolveProjectPath, stableResourceId } from "./project-files.js";
 import { ProjectWorldIndex } from "./project-world-index.js";
-import { reviewedNativeBackgroundOwner } from "./wrecklight-dependencies.js";
 import { decodeResourceBytes } from "./resource-codec.js";
 import { applyPreparedProjectTransaction } from "./scene-batch.js";
 import { applyTilemapOperations, prepareAtlasPixels, renderTilemap, replaceTilemapCells, setTilemapCollisionCells, sha256, tilemapDiff, tilemapError, tilePixels, validateRoomCells, validateRoomDimensions } from "./tilemap-compose.js";
@@ -357,8 +356,7 @@ async function loadBoundRoom(snapshot, recipePath, access, adoption) {
     if (!access.coverage.complete)
         tilemapError("TILEMAP_DEPENDENCY_UNCERTAIN", "The selected project's dependency coverage is incomplete; no native tilemap output was changed. Use world_dependencies and its coverageCursor for the actual reasons, including unresolved native references or an unsupported custom-event source, authored contract, or invocation. Successful compilation, retrying or adopt_binding cannot establish an unsupported custom-event contract. Atlas-only inspection remains available.");
     const references = access.structuralReferences({ type: "asset", id: room.backgroundId, resourcePath: background.asset.metadataPath });
-    if (references.some((reference) => reference.owner.sceneId !== scene.id && reference.owner.resourcePath !== background.asset.metadataPath
-        && reviewedNativeBackgroundOwner(reference, background.asset.metadataPath) !== scene.id))
+    if (references.some((reference) => reference.owner.sceneId !== scene.id && reference.owner.resourcePath !== background.asset.metadataPath))
         tilemapError("TILEMAP_SHARED_BACKGROUND", "Another authored owner references this background; replacement is not confined to the selected scene.");
     const atlasBinding = adoption
         ? { path: room.atlasPath, id: adoption.identity.atlasId, sha256: adoption.before.atlasSha256, sourceSha256: adoption.before.sourceSha256 }

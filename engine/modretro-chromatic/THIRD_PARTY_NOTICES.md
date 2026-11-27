@@ -58,18 +58,6 @@ The [binary SBOM](third-party/chromatic-cli/SBOM.json) lists these six executabl
 their supplier notices, the embedded Windows installer, and identified external Windows prerequisites.
 It is not a complete transitive source or license audit of the proprietary CLI.
 
-## Wrecklight sample
-
-The repository's `examples/wrecklight/` preserves the curated September 16, 2026 source snapshot
-and its [attribution](https://github.com/OpenAI-Partners/ModRetro-Chromatic-Plugin-for-Codex/blob/a734c73e21d234e252f6637960d65ec620ce9133/examples/wrecklight/ATTRIBUTION.md), MIT notices, and GBDK
-GPLv2 text with its linking exception. Preserve applicable notices when copying
-or redistributing source. OpenAI names and credit marks do not grant trademark
-rights or imply endorsement. The sample includes no compiler, emulator,
-proprietary boot ROM, compiled cartridge, or save data.
-It is omitted from compact distributions and available as an optional verified
-local template.
-
-
 ## Linux native device capture
 
 The Linux capture backend uses FFmpeg 8.0.3 (LGPL-2.1-or-later) and libvpx 1.15.2 (BSD-3-Clause plus the WebM patent grant). Its static builds include musl 1.2.5 and zlib 1.3.2 from Alpine Linux. GCC runtime portions use the GCC Runtime Library Exception. Full applicable notices are in `licenses/native-capture/`. FFmpeg's source, libvpx's source, checksums and build recipes are in the release source repository under `native/capture/source/`; they are not downloaded at runtime. The macOS AVFoundation helper is unchanged and does not use these components.

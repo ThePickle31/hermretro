@@ -368,3 +368,15 @@ that module.
   bundled engine has no use for. `docs/store-launcher.md` and `docs/chromatic-preview-install-testing.md` (removed)
   described ModRetro's store ZIP and its own test fixtures, which hermretro does not ship. Names stored in games, setup
   folders or the browser, and the extension's event id, stay as they are.
+- `dist/wrecklight/` (33 review profiles), `dist/wrecklight-dependencies.js`, `dist/bundled-template.js` and
+  `dist/native-title-atlas.js` (removed), with `dist/project-session.js`, `dist/entry.js`, `dist/tilemaps.js`,
+  `dist/custom-event-dependencies.js`, `dist/tool-domains/register.js` and `schemas.js`, and `scripts/setup-runtime.mjs`:
+  the engine's support for ModRetro's Wrecklight sample goes. Its source was never shipped and is only in ModRetro's
+  private repository, so no remix of it could start. `project_create` keeps `template`, with `starter` as its only
+  value, and loses `templateSourcePath`. The `native_graphics_update` tool, which edited Wrecklight's title screen only,
+  is removed (84 tools; the pin and `plugin.yaml` follow). The reviewed custom-event registry keeps its machinery and
+  is now empty, and the tilemap ownership check loses its Wrecklight-only exception. Neither matched any other game.
+  The runtime copy loses its Wrecklight source pins. The Wrecklight guides, `docs/native-title-atlas.md`, the
+  sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
+  published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in
+  hermretro's library (editing its copy, or keeping both on an update) is unchanged.
