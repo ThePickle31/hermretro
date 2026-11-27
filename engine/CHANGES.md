@@ -18,6 +18,11 @@ Every change to the engine raises its version, `version` in `package.json` (2.0.
 version first. A note in this file is not a change to the engine. 2.0.0, the first version named `hermretro-engine`,
 holds every change since ModRetro's 1.0.34.
 
+## 2.0.1
+
+- `docs/stepped-playtesting.md`: the emulator tools listed are all thirteen, with `emulator_audio` and
+  `emulator_replay`, and the guide no longer counts them.
+
 ## 2.0.0
 
 - `dist/server.js`, `dist/device-capture/linux-helper.js`: the path ffmpeg reads the Chromatic's video from during

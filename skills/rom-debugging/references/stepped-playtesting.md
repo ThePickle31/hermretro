@@ -218,6 +218,6 @@ official browser previews, persistent PyBoy, bounded diagnostics, recording,
 checkpoints, and clips remain available; implementation regression coverage
 remains in the development suite.
 
-The emulator surface has 11 tools: `run`, `step`, `observe`, `status`, `close`,
-`inspect`, `debug`, `checkpoint`, `recording`, `review`, and `clip`, each prefixed
-`emulator_`.
+The emulator tools are `run`, `step`, `observe`, `status`, `close`, `inspect`,
+`debug`, `checkpoint`, `recording`, `review`, `clip`, `audio` and `replay`, each
+prefixed `chromatic_emulator_`.

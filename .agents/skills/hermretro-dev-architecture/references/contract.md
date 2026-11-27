@@ -54,7 +54,7 @@ Declared by the owning feature in its front door (`EVENTS`), emitted only by it,
 | `setup.studio_profile_ready` | `profile` (profile name, str) | `studio_profile` finished the profile | — |
 | `assets.image_restored` | `path` (the image's absolute path, str) | `asset_restore` put a kept version back | — |
 | `history.build_kept` | `game` (library id, str), `root` (the real project folder, `pathlib.Path`) | a successful build was kept as a snapshot | — |
-- Tool names: every original engine tool `X` is exposed as `chromatic_X`
+- Tool names: every engine tool `X` in `engine/contract/tools.json` is exposed as `chromatic_X`
   (`project_select` → `chromatic_project_select`, `flash` → `chromatic_flash`). Besides them, the
   plugin-owned tools that are not engine tools (not in the pinned manifest): `chromatic_studio_device_cli`,
   `chromatic_present_game` (shows the built game in the Studio emulator beside the chat; see
