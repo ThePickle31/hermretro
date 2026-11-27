@@ -175,8 +175,23 @@ class TheRealBuild(Refresh):
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
+        # This process loaded the engine above, as one started after it was bundled.
+        patcher = mock.patch.object(paths, "ENGINE_IDENTITY", paths.engine_identity())
+        patcher.start()
+        self.addCleanup(patcher.stop)
         paths.verify_engine.cache_clear()
         self.addCleanup(paths.verify_engine.cache_clear)
+
+    def test_an_engine_changed_since_the_process_loaded_it_waits_for_the_restart(self):
+        self.earlier_copy("1.0.33")
+        (paths.ENGINE_ROOT / "package.json").write_text('{"name": "hermretro-engine", "version": "2.0.1"}')
+        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(paths.PREPARED_ENGINE.exists(), "a copy named for the loaded engine, made from another")
+        with self.assertRaises(provision.ProvisionError) as raised:
+            provision._prepare(TARGET, PINS, EXE, NOTICE)
+        self.assertEqual(raised.exception.code, "ENGINE_CHANGED")
+        # Nothing was marked unusable: once Hermes restarts, the same earlier copy gives its CLI.
+        self.assertEqual(provision._NOT_REUSABLE, set())
 
     def test_the_new_copy_verifies_and_is_chosen(self):
         source = self.earlier_copy("1.0.33")

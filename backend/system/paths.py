@@ -95,19 +95,21 @@ def hermretro_home() -> Path:
 DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".cache").resolve()
 
 
-def _engine_identity() -> str:
-    """The bundled engine's version and the start of its manifest's digest: an edited engine is a new identity."""
-    if ENGINE_VERSION is None:
+def engine_identity() -> str:
+    """The bundled engine's identity as its files say now: its version and the start of its manifest's digest, so an
+    edited engine is a new identity. ENGINE_IDENTITY is the one this process loaded."""
+    version = engine_version(ENGINE_ROOT / "package.json")
+    if version is None:
         return "unknown"
     try:
-        return f"{ENGINE_VERSION}-{json.loads(ENGINE_MANIFEST.read_text())['aggregate_sha256'][:12]}"
+        return f"{version}-{json.loads(ENGINE_MANIFEST.read_text())['aggregate_sha256'][:12]}"
     except (OSError, ValueError, KeyError, TypeError):
-        return ENGINE_VERSION
+        return version
 
 
 # Named by the engine it was made from, and never changed once made (backend/setup/provision.py): two plugin copies
 # (an installed one and a dev checkout) share this folder, and a running worker keeps reading the copy it started in.
-ENGINE_IDENTITY = _engine_identity()
+ENGINE_IDENTITY = engine_identity()
 PREPARED_ENGINE = DEPS_ROOT / f"engine-{ENGINE_IDENTITY}"  # bundled engine + ModRetro's CLI for this computer
 DEVICE_CLI_RECEIPT = DEPS_ROOT / f"device-cli-{ENGINE_IDENTITY}.json"
 # ModRetro's proprietary CLI, packed for all platforms. A distributable build of the plugin leaves
@@ -498,8 +500,15 @@ def _file_stamp(path: Path) -> tuple:
 
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
-# the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
-LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/contract/tools.json")
+# the manifest (it holds the version), the engine's package.json and manifest (ENGINE_VERSION and ENGINE_IDENTITY, so
+# an engine change retires a running broker) and the tool contract the tools register (and the broker starts) with.
+LOADED_FILES = (
+    "__init__.py",
+    "plugin.yaml",
+    "engine/package.json",
+    "engine/contract/manifest.json",
+    "engine/contract/tools.json",
+)
 # Those the published releases' rule covers too (release_fingerprint), as the fingerprint names them. A rule a release
 # has shipped never changes: its gateways compare by it. A new rule gets a new handshake field (backend/broker/server.py).
 RELEASED_FILES = ("../plugin.yaml",)

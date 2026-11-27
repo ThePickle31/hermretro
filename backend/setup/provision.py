@@ -304,11 +304,22 @@ def _require_bundled_engine() -> None:
         )
 
 
+def _engine_unchanged() -> bool:
+    """Whether the bundled engine is still the one this process loaded. A copy is named by that engine
+    (paths.PREPARED_ENGINE), so one made from a changed engine would carry another engine's name: after an engine-only
+    change, the process waits for Hermes's restart (the page asks for it) before it makes one."""
+    return paths.engine_identity() == paths.ENGINE_IDENTITY
+
+
 def _prepare(
     target: str, pins: dict, executable: bytes, notice: bytes, node_path: str | None = None, **dates: str | None
 ) -> None:
     """Build the prepared copy from the bundled engine and the verified CLI files, swap it in and write its receipt.
     The caller holds the provision lock."""
+    if not _engine_unchanged():
+        raise ProvisionError(
+            "ENGINE_CHANGED", "hermretro's engine changed after Hermes started. Restart Hermes, then try again."
+        )
     exe_rel, notice_rel = pins["executable"]["path"], pins["notice"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
     stage = paths.DEPS_ROOT / f"engine.staging-{os.getpid()}"
     shutil.rmtree(stage, ignore_errors=True)
@@ -452,7 +463,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
     """Make the prepared copy for the bundled engine from an earlier copy's CLI files, then remove the copies older
     than that earlier one. False when there is none to reuse, another setup holds the lock, or the new copy does not
     verify (setup then offers the install)."""
-    if not any(paths.DEPS_ROOT.glob("device-cli-*.json")):  # never installed: nothing to reuse
+    if not any(paths.DEPS_ROOT.glob("device-cli-*.json")) or not _engine_unchanged():  # nothing to reuse yet
         return False
     target = host_target(node_path)["target"]
     if target is None:
