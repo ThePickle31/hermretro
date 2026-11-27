@@ -86,9 +86,10 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         # the steps up to the new drive can outlast: a broker gone by itself proves no replacement. An open,
         # silent connection holds it (an idle exit waits for none) until the new drive has replaced it.
         held = hold_open(before["broker_socket"])
-        # A gateway of the old version that Hermes has not restarted. Only a published release's: their handshake
-        # rule never changes (paths.release_fingerprint), while one between releases may not match the next.
-        if _git("tag", "--points-at", old, "--list", "v*"):
+        # A gateway of the old version that Hermes has not restarted. Only a published release's with the backend/
+        # layout: their handshake rule never changes (paths.release_fingerprint), while one between releases may not
+        # match the next, and one from before backend/ reads adapter/, which the update removes.
+        if _git("tag", "--points-at", old, "--list", "v*") and _git("ls-tree", old, "backend/system/paths.py"):
             kept = OldGateway(args, tmp, root, fix)
             kept.wait_ready()
         run(studio, "plugins", "enable", "hermretro")  # what the page's studio_profile RPC runs in the profile

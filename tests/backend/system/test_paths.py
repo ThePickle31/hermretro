@@ -365,6 +365,23 @@ class EngineEntries(unittest.TestCase):
         self.assertIsNone(released)
         self.assertIsNotNone(paths.release_fingerprint())
 
+    def test_an_unreadable_file_only_the_full_rule_covers_keeps_the_release_fingerprint(self):
+        # A released client does not read __init__.py, so it still computes its digest: the broker must report it too.
+        unreadable, real_read = paths.PLUGIN_ROOT / "__init__.py", Path.read_bytes
+
+        def read(path):
+            if path.resolve() == unreadable:  # read as backend/../__init__.py
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_read(path)
+
+        paths._fingerprint_for.cache_clear()
+        self.addCleanup(paths._fingerprint_for.cache_clear)
+        with mock.patch.object(Path, "read_bytes", read):
+            code, released = paths.loaded_fingerprints()
+        paths._fingerprint_for.cache_clear()
+        self.assertEqual(released, paths.release_fingerprint())
+        self.assertNotEqual(code, paths.code_fingerprint())
+
     def test_a_loaded_file_that_goes_between_its_stamp_and_its_read_is_stamped_again(self):
         gone = paths.PLUGIN_ROOT / "engine" / "contract" / "tools.json"
         real_stamp, real_read = paths._file_stamp, Path.read_bytes

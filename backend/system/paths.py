@@ -488,6 +488,16 @@ def backend_sources(folder: Path) -> list[tuple[str, Path]]:
     )
 
 
+def _readable(path: Path) -> bytes | None:
+    """A file's bytes, or None when it is there but cannot be read: only the rules that cover it lose their answer."""
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        raise  # it went since its stamp: the caller stamps the files again
+    except OSError:
+        return None
+
+
 @lru_cache(maxsize=4)
 def _fingerprint_for(stamp: tuple) -> tuple[str, str | None]:
     # The version comes in through plugin.yaml's bytes, read now, never the value this process imported.
@@ -496,11 +506,11 @@ def _fingerprint_for(stamp: tuple) -> tuple[str, str | None]:
     complete = True
     folder = BACKEND_ROOT
     for name, _mtime, size in stamp:
-        data = (folder / name).read_bytes() if size >= 0 else b"(missing)"
+        data = b"(missing)" if size < 0 else _readable(folder / name)
         code.update(name.encode())
-        code.update(data)
+        code.update(data or b"(unreadable)")
         if not name.startswith("../") or name in RELEASED_FILES:
-            complete = complete and size >= 0
+            complete = complete and size >= 0 and data is not None
             released.update(name.encode())
-            released.update(data)
+            released.update(data or b"")
     return code.hexdigest()[:24], released.hexdigest()[:24] if complete else None
