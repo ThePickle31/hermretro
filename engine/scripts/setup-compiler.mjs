@@ -257,7 +257,7 @@ export function parseWindowsSetupArguments(arguments_) {
         options.help = true;
         break;
       default:
-        throw new SetupUsageError(`Unknown ModRetro Chromatic setup option: ${argument}`);
+        throw new SetupUsageError(`Unknown hermretro engine setup option: ${argument}`);
     }
   }
   if (options.headless && options.withDesktop) {
@@ -524,7 +524,7 @@ async function resolveGitExecutable(context) {
       // Reject missing aliases and any Git executable inside the checkout, vendor, or project.
     }
   }
-  throw new Error("ModRetro Chromatic setup requires a trusted Git installation outside the selected project and toolchain.");
+  throw new Error("hermretro engine setup requires a trusted Git installation outside the selected project and toolchain.");
 }
 
 async function resolvePowerShell(environment, context, override) {
@@ -884,7 +884,7 @@ async function resolveCorepackScript(executable, context, override) {
     }
   }
   throw new Error(
-    "ModRetro Chromatic setup could not find trusted Corepack beside Node.js or on an absolute PATH entry. " +
+    "hermretro engine setup could not find trusted Corepack beside Node.js or on an absolute PATH entry. " +
       COREPACK_REMEDIATION,
   );
 }
@@ -1197,7 +1197,7 @@ function windowsSetupSelection(options) {
   const platform = options.platform ?? process.platform;
   const architecture = options.arch ?? process.arch;
   if (!selected.help && !selected.dryRun && (platform !== "win32" || architecture !== "x64")) {
-    throw new Error(`Experimental native ModRetro Chromatic setup supports Windows x64 only; received ${platform} ${architecture}.`);
+    throw new Error(`Experimental native hermretro engine setup supports Windows x64 only; received ${platform} ${architecture}.`);
   }
   const logger = options.logger ?? ((message) => process.stdout.write(`${message}\n`));
   return { platform, selected, logger };
@@ -1416,14 +1416,14 @@ export async function dispatchGbStudioSetup(arguments_ = process.argv.slice(2), 
     await setupWindowsGbStudio({ ...options, args: arguments_, platform });
     return 0;
   }
-  throw new Error(`Unsupported ModRetro Chromatic setup platform: ${platform}.`);
+  throw new Error(`Unsupported hermretro engine setup platform: ${platform}.`);
 }
 
 if (process.argv[1] && samePath(process.argv[1], SCRIPT_PATH)) {
   try {
     process.exitCode = await dispatchGbStudioSetup();
   } catch (error) {
-    process.stderr.write(`ModRetro Chromatic setup failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(`hermretro engine setup failed: ${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = error instanceof SetupUsageError ? error.exitCode : 1;
   }
 }

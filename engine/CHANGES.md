@@ -418,8 +418,8 @@ holds every change since ModRetro's 1.0.34.
   `view.js`'s text at a fixed anchor (`backend/player/frame.py`). The rail looks the same in both players.
 - The name and the version: the package is `hermretro-engine` (it was `modretro-chromatic`) at 2.0.0, and the server
   names itself `hermretro-engine`, titled "hermretro engine" (`serverInfo`, and before its messages on standard
-  error), as do the launcher's messages (`scripts/start-mcp.mjs`) and the device guide
-  (`docs/chromatic-device-testing.md`). The version has one home, `package.json`: the server reads it there (`src/entry.js`), as hermretro's
+  error), as do the launcher's and setup's messages (`scripts/start-mcp.mjs`, `scripts/setup.*`,
+  `scripts/setup-compiler.*`) and the device guide (`docs/chromatic-device-testing.md`). The version has one home, `package.json`: the server reads it there (`src/entry.js`), as hermretro's
   backend does, and `contract/tools.json` pins the server's name and title but not its version. The runtime manifest
   and lock (`scripts/runtime-package.json`, `scripts/runtime-package-lock.json`) carry no version (setup writes the
   package's into the runtime it installs, as before). Setup's runtime checks (`scripts/setup-runtime.mjs`,

@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32311755,
+ "total_bytes": 32311912,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "11028741bd86336d3e4fb594c8614a176509688f874e09b2918bf9d4dbdc308d",
+ "aggregate_sha256": "b268ecc28dcfcb36e15aa3c19360572e9e04a1b1a7e7a21811d6b7649f632b4c",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 7872,
+   "size": 8067,
    "mode": "0o644",
-   "sha256": "a9e618e7f02409272915c6980d5f42344f42bab6c918b714575d42fdb684f1dd"
+   "sha256": "babe759c4326a44b2827e467e97e23eae254b2f6289ac6d0981221681e3a65fe"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -1088,16 +1088,16 @@
   {
    "path": "scripts/setup-compiler.mjs",
    "type": "file",
-   "size": 66826,
+   "size": 66814,
    "mode": "0o644",
-   "sha256": "34677d927eaf763fb0b1509e8950429e1569633db968fe207fd2f8cf49dab933"
+   "sha256": "890bb27814d650f88182ddf7751260bd295d55bd903b53066992076943cb4c54"
   },
   {
    "path": "scripts/setup-compiler.sh",
    "type": "file",
-   "size": 21498,
+   "size": 21490,
    "mode": "0o755",
-   "sha256": "720d90af517bffa57288b970521c62e4f57b72cccd73b395c155ba6784f14c8b"
+   "sha256": "3955e7df8b5a31fb761dcd500e9b07ac3132631d34f1bb04caddc3c0073706fd"
   },
   {
    "path": "scripts/setup-components.mjs",
@@ -1137,23 +1137,23 @@
   {
    "path": "scripts/setup.mjs",
    "type": "file",
-   "size": 39187,
+   "size": 39183,
    "mode": "0o644",
-   "sha256": "8d16526f615de6775ba9dedc9a00f9250640f976ff7cfcaa8db15469e5544a8c"
+   "sha256": "4d09012d4701be6622c20b2599c32202d50bb5ce0a7b2d76f2b1af87a422111d"
   },
   {
    "path": "scripts/setup.ps1",
    "type": "file",
-   "size": 44020,
+   "size": 44012,
    "mode": "0o644",
-   "sha256": "02b06c090515d57e65211be35501f9557485a84f1a816a4cea15fe6b5ce1e6fb"
+   "sha256": "ff5f2516fadcb86eb1d225aecbe162145dbaed9d7e04249004cb8d4fdbc34118"
   },
   {
    "path": "scripts/setup.sh",
    "type": "file",
-   "size": 30681,
+   "size": 30675,
    "mode": "0o755",
-   "sha256": "012f12d0920c83cc4175b86b532e6b21ef41d4d3b41920f1cb2b0c5663a8337a"
+   "sha256": "b5cb79606ece622e2706d52fd49dee659b61d3d7f15c1e788e804409fb5634f4"
   },
   {
    "path": "scripts/start-mcp.mjs",

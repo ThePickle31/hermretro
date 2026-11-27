@@ -29,8 +29,8 @@ PACKAGE = ENGINE / "package.json"
 VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)")
 
 
-def git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+def git(*args: str, text: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, text=text)
 
 
 def engine_changes(old: str, new: str) -> list[str]:
@@ -51,7 +51,7 @@ class Unreadable(Exception):
 
 def version_at(revision: str) -> tuple[int, int, int] | None:
     """The engine's version at a revision, or None when it has no engine/package.json there."""
-    done = git("show", f"{revision}:{PACKAGE.as_posix()}")
+    done = git("show", f"{revision}:{PACKAGE.as_posix()}", text=False)  # bytes: the parser reports bad UTF-8
     if done.returncode:
         return None
     try:

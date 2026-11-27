@@ -75,7 +75,7 @@ class Bump(unittest.TestCase):
             self.git("mv", old, new)
         for name, text in files.items():
             (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
-            (self.repo / name).write_text(text)
+            (self.repo / name).write_text(text, encoding="utf-8", errors="surrogateescape")  # \udcff: byte 0xff
         self.git("add", "-A")
         self.git("commit", "--quiet", "--allow-empty", "-m", "change")
 
@@ -125,6 +125,11 @@ class Bump(unittest.TestCase):
             "moved": ({}, {"engine/package.json": "engine/scripts/package.json"}, "is gone"),
             "not JSON": ({"engine/package.json": "{"}, None, "holds no x.y.z version"),
             "an array": ({"engine/package.json": "[]\n"}, None, "holds no x.y.z version"),
+            "not UTF-8": (
+                {"engine/package.json": '{"version": "2.0.1", "x": "\udcff"}'},
+                None,
+                "holds no x.y.z version",
+            ),
             "two numbers": ({"engine/package.json": package("2.1")}, None, "holds no x.y.z version"),
         }
         for name, (files, moves, said) in cases.items():

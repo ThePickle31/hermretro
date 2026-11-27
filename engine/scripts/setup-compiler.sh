@@ -36,7 +36,7 @@ for setup_argument in "$@"; do
     --use-existing) setup_use_existing=true ;;
     --dry-run) setup_dry_run=true ;;
     --help|-h) setup_help=true ;;
-    *) printf 'Unknown ModRetro Chromatic setup option: %s\n' "$setup_argument" >&2; usage >&2; exit 2 ;;
+    *) printf 'Unknown hermretro engine setup option: %s\n' "$setup_argument" >&2; usage >&2; exit 2 ;;
   esac
 done
 
@@ -101,7 +101,7 @@ case "${setup_system}:${setup_architecture}" in
     setup_gbdk_sha="d7857a5f6d135ee4c249043ca26aad9f2ec8ab5d4106d97720d404114f42605c"
     ;;
   *)
-    printf 'Unsupported ModRetro Chromatic setup platform: %s %s. Supported platforms are macOS and Linux on x64 or arm64.\n' \
+    printf 'Unsupported hermretro engine setup platform: %s %s. Supported platforms are macOS and Linux on x64 or arm64.\n' \
       "$setup_system" "$setup_architecture" >&2
     exit 1
     ;;
@@ -152,7 +152,7 @@ setup_gbdk_archive="$setup_downloads/$setup_gbdk_asset"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    printf 'ModRetro Chromatic setup requires %s; install it and rerun setup.\n' "$1" >&2
+    printf 'hermretro engine setup requires %s; install it and rerun setup.\n' "$1" >&2
     exit 1
   fi
 }
@@ -296,7 +296,7 @@ download_and_verify() (
   elif command -v shasum >/dev/null 2>&1; then
     checksum_command=shasum
   else
-    printf '%s\n' 'ModRetro Chromatic setup requires sha256sum or shasum to authenticate official releases.' >&2
+    printf '%s\n' 'hermretro engine setup requires sha256sum or shasum to authenticate official releases.' >&2
     return 1
   fi
 
