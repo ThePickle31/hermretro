@@ -385,7 +385,8 @@ that module.
   set is now the registry's own (`isEventInput`), and the semantic generation advances on a fingerprint change with
   or without contracts, so it counts exactly as before, including an edit that is later undone. Only files at
   Wrecklight's own asset and actor paths (its `wrecklight_*` sprites and sounds, its backgrounds and two actors) no
-  longer count.
+  longer count, and a handler at one of Wrecklight's own plugin paths no longer forces a full dependency refresh or a
+  compiler observation.
   The runtime copy loses its Wrecklight source pins. The Wrecklight guides, `docs/native-title-atlas.md`, the
   sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
   published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in
