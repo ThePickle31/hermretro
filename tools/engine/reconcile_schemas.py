@@ -3,6 +3,8 @@
 
 Starts one private engine process, enumerates every tool, and diffs name,
 description, inputSchema, outputSchema and annotations against the pinned file.
+The server's name and title are pinned there too; its version is the engine's
+package.json version, which the pin leaves out so a version bump changes no pin.
 Exits non-zero on any missing, extra, duplicate or altered contract.
 
     python tools/engine/reconcile_schemas.py engine/contract/tools.json [report.json]
@@ -31,7 +33,14 @@ def live_contracts(root: Path) -> dict:
     try:
         initialize = engine.start()
         tools, pages = engine.list_tools()
-        return {"initialize": initialize, "tools": tools, "pages": pages, "ready_seconds": engine.ready_seconds}
+        version = json.loads((root / "package.json").read_text(encoding="utf-8"))["version"]
+        return {
+            "initialize": initialize,
+            "tools": tools,
+            "pages": pages,
+            "ready_seconds": engine.ready_seconds,
+            "package_version": version,
+        }
     finally:
         engine.close()
 
@@ -39,7 +48,7 @@ def live_contracts(root: Path) -> dict:
 def compare(pinned_doc: dict, live: dict, pinned_path: Path) -> dict:
     """Every difference between the pinned contracts and the live ones; passed only when there is none."""
     pinned = pinned_doc["tools"]
-    live_tools, server_info, ready = live["tools"], live["initialize"].get("serverInfo"), live["ready_seconds"]
+    live_tools, server_info, ready = live["tools"], live["initialize"].get("serverInfo") or {}, live["ready_seconds"]
     pinned_names = [t["name"] for t in pinned]
     live_names = [t["name"] for t in live_tools]
     pinned_by = {t["name"]: t for t in pinned}
@@ -55,8 +64,9 @@ def compare(pinned_doc: dict, live: dict, pinned_path: Path) -> dict:
         "pinned_file_sha256": hashlib.sha256(pinned_path.read_bytes()).hexdigest(),
         "pinned_tools_canonical_sha256": canonical_hash(pinned),
         "live_tools_canonical_sha256": canonical_hash(live_tools),
-        "live_server_info": server_info,
+        "live_server_info": {key: value for key, value in server_info.items() if key != "version"},
         "pinned_server_info": pinned_doc.get("initialize", {}).get("serverInfo"),
+        "live_version_is_package_version": server_info.get("version") == live["package_version"],
         "engine_ready_seconds": round(ready, 3) if ready else None,
         "pages": live["pages"],
         "pinned_count": len(pinned_names),
@@ -74,6 +84,7 @@ def compare(pinned_doc: dict, live: dict, pinned_path: Path) -> dict:
         and not report["extra_in_live"]
         and not altered
         and report["live_server_info"] == report["pinned_server_info"]
+        and report["live_version_is_package_version"]
     )
     return report
 

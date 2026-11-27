@@ -240,7 +240,7 @@ const notLoaded = { isError: true, error: Object.assign(new Error('unknown metho
 const cli = state => ({ state, version: state === 'installed' ? '1.2.1' : null, terms: 'https://modretro.com/eula' })
 const status = (extra = {}) => ({
   ok: true, plugin: { version: '9.9.9' }, platform: { system: 'linux', machine: 'x86_64', qualified: true },
-  node: { found: true, version: '26.13.0', required: '22', ok: true }, engine: { present: true, version: '1.0.34', verified: true },
+  node: { found: true, version: '26.13.0', required: '22', ok: true }, engine: { present: true, version: '2.0.0', verified: true },
   hardware_enabled: false, project: null,
   profile: { name: 'hermretro', is_studio: true, studio: { name: 'hermretro', exists: true, installed: true, ours: true } },
   deps: { toolchain_root: '/h/hermretro/.cache/toolchain', device_cli: cli('missing') }, ...extra

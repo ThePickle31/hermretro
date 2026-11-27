@@ -63,7 +63,9 @@ and `.dev/` are not linted.
 
 - **Every pull request** (`.github/workflows/ci.yml`): plugin and repository unit tests on Linux (Python 3.11 and
   3.14), Apple Silicon and Intel macOS. CI also runs bundle, engine (with the engine's build tools) and page, the install scan,
-  `plugins validate`, the clean install and the update from the newest release with the oldest supported Hermes.
+  `plugins validate`, the clean install and the update from the newest release with the oldest supported Hermes. Job
+  `engine-version` fails a pull request that changes the engine without raising its version
+  (`tools/engine/version.py`).
 - **Integration** (`integration.yml`): toolchain install (cached) and acceptance on Linux and Apple Silicon
   macOS, for pull requests that touch the backend, engine or toolchain, and on every push; not for a change of only
   `plugin.yaml`'s `version:` line (a pull request, or a push of that one commit: `tools/ci/changes.py`).

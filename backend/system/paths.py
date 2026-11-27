@@ -18,7 +18,6 @@ from pathlib import Path
 from . import hermes_home
 
 PLUGIN_ID = "hermretro"
-ENGINE_VERSION = "1.0.34"
 NODE_REQUIRED_MAJOR = 22
 PROTOCOL = 2
 
@@ -42,6 +41,19 @@ def _manifest_version(manifest: Path) -> str:
 
 PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
 ENGINE_ROOT = PLUGIN_ROOT / "engine"
+
+
+def _engine_version(package: Path) -> str | None:
+    """The bundled engine's version, from its ``package.json`` (its only home: the engine's server reports the same
+    one). None when it cannot be read: that engine fails its manifest check too, so nothing is prepared or started."""
+    try:
+        version = json.loads(package.read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return version if isinstance(version, str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) else None
+
+
+ENGINE_VERSION = _engine_version(ENGINE_ROOT / "package.json")
 # The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
 SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
 # What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is part
@@ -85,6 +97,8 @@ DEPS_ROOT = Path(os.environ.get("HERMRETRO_DEPS_ROOT") or hermretro_home() / ".c
 
 def _engine_identity() -> str:
     """The bundled engine's version and the start of its manifest's digest: an edited engine is a new identity."""
+    if ENGINE_VERSION is None:
+        return "unknown"
     try:
         return f"{ENGINE_VERSION}-{json.loads(ENGINE_MANIFEST.read_text())['aggregate_sha256'][:12]}"
     except (OSError, ValueError, KeyError, TypeError):
@@ -457,8 +471,9 @@ def _file_stamp(path: Path) -> tuple[int, int]:
 
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
-# the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
-LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/contract/tools.json")
+# the manifest (it holds the version), the engine's package.json (the engine's version) and the tool contract the
+# tools register (and the broker starts) with.
+LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/package.json", "engine/contract/tools.json")
 
 
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:

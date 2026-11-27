@@ -1,19 +1,18 @@
 {
   "pinned_file": "engine/contract/tools.json",
-  "pinned_file_sha256": "34effbcb35830a057e734442ea9091cf75a076e5773cb902ef7d82cf400aa78d",
+  "pinned_file_sha256": "c4b510e6c5af8f2d5414cb95ee95b930f493056c78631d8815362759ab052aa9",
   "pinned_tools_canonical_sha256": "b253c960fc761e077ca5504b10bc64cab928d130bad271cf123abc09f1ed0ace",
   "live_tools_canonical_sha256": "b253c960fc761e077ca5504b10bc64cab928d130bad271cf123abc09f1ed0ace",
   "live_server_info": {
-    "name": "modretro-chromatic",
-    "title": "ModRetro Chromatic",
-    "version": "1.0.34"
+    "name": "hermretro-engine",
+    "title": "hermretro engine"
   },
   "pinned_server_info": {
-    "name": "modretro-chromatic",
-    "title": "ModRetro Chromatic",
-    "version": "1.0.34"
+    "name": "hermretro-engine",
+    "title": "hermretro engine"
   },
-  "engine_ready_seconds": 0.132,
+  "live_version_is_package_version": true,
+  "engine_ready_seconds": 0.13,
   "pages": 1,
   "pinned_count": 84,
   "live_count": 84,

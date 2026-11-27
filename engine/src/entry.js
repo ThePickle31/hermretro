@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -32,8 +33,10 @@ import { WebPreviewService } from "./web-preview.js";
 import { nativeSelectionSchema } from "./device-capture/native-protocol.js";
 import { NativeDeviceCaptureService } from "./native-device-capture.js";
 
-const SERVER_NAME = "modretro-chromatic";
-const SERVER_VERSION = "1.0.34";
+const SERVER_NAME = "hermretro-engine";
+const SERVER_TITLE = "hermretro engine";
+// The engine's version has one home, its package.json, one folder up from src/ and dist/ alike.
+const SERVER_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 const WEB_ANNOTATION_ASSETS = fileURLToPath(new URL("../src/web-annotations/", import.meta.url));
 const DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath(new URL("../../player/skins/", import.meta.url));
 const readOnly = {
@@ -343,7 +346,7 @@ function createGbStudioServer(options = {}) {
         initialSelectionError = error;
         return undefined;
     });
-    const server = new McpServer({ name: SERVER_NAME, title: "ModRetro Chromatic", version: SERVER_VERSION }, {
+    const server = new McpServer({ name: SERVER_NAME, title: SERVER_TITLE, version: SERVER_VERSION }, {
         instructions: "Use project_create_blank for a blank game or project_create for a sample. Select the project before editing. In Hermes, show a successful playable build to the user early with chromatic_present_game (the hermretro emulator beside the chat); if the user cannot see that emulator, open studio.playerUrl from its result with desktop_preview, never web_preview URLs. Defer updates that could interrupt human play, saves or recordings; resolve unknown outcomes first. Do not arbitrarily reload or autoplay. Continue gameplay headlessly with public PyBoy emulator_run on the intended exact ROM, then emulator_step and emulator_observe; use emulator_review for retained evidence. Browser access is not a prerequisite for gameplay checks. If PyBoy is missing, follow the setup skill for the emulator component within existing authorization. Keep denials and uncertain actions scoped; never replay them. Native gameplay does not verify browser UI, annotations or physical capture. Use device_capture to watch physical play beside the chat in Hermes Desktop; emulator controls cannot drive hardware. Inspect the exact ROM before an approved device action. Close only temporary sessions you own when no longer needed, preserving user play and recordings."
     });
     async function selectedProject() {

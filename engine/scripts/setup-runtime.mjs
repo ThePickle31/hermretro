@@ -23,7 +23,7 @@ import {
   requireChromaticHostTarget, verifyChromaticBundle, verifyChromaticRecords,
 } from "./chromatic-runtime.mjs";
 
-const PACKAGE_NAME = "modretro-chromatic";
+const PACKAGE_NAME = "hermretro-engine";
 const MAX_FILES = 4096;
 const MAX_BYTES = 136 * 1024 * 1024;
 const MAX_FILE_BYTES = 24 * 1024 * 1024;
@@ -347,7 +347,7 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
 
 function validateManifests(source, manifest, lock) {
   if (source.name !== PACKAGE_NAME || typeof source.version !== "string" || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(source.version)) {
-    throw new Error("Runtime preparation requires a versioned modretro-chromatic package.");
+    throw new Error("Runtime preparation requires a versioned " + PACKAGE_NAME + " package.");
   }
   const allowed = new Set(["name", "version", "description", "private", "type", "main", "engines", "license", "dependencies"]);
   if (!isObject(manifest.dependencies) || Object.keys(manifest).some((field) => !allowed.has(field)) ||

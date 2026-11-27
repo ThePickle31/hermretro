@@ -46,6 +46,21 @@ jobs:
           echo "::error::This pull request targets ${BASE}. FIX: edit the pull request and change its base branch to dev."
           exit 1
 
+  engine-version:
+    name: Engine version raised
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      # A pull request's checkout is its merge commit: the first parent is the base. Every change to the engine
+      # raises its version (tools/engine/version.py says what counts).
+      - name: python tools/engine/version.py HEAD^1 HEAD
+        run: python3 tools/engine/version.py HEAD^1 HEAD
+
   unit:
     name: Unit tests (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -247,7 +262,7 @@ jobs:
   all-checks-pass:
     name: All checks pass
     if: always()
-    needs: [base, unit, page, scan, validate, update, update-dev, changes, integration]
+    needs: [base, engine-version, unit, page, scan, validate, update, update-dev, changes, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

@@ -7,9 +7,8 @@
       }
     },
     "serverInfo": {
-      "name": "modretro-chromatic",
-      "title": "ModRetro Chromatic",
-      "version": "1.0.34"
+      "name": "hermretro-engine",
+      "title": "hermretro engine"
     },
     "instructions": "Use project_create_blank for a blank game or project_create for a sample. Select the project before editing. In Hermes, show a successful playable build to the user early with chromatic_present_game (the hermretro emulator beside the chat); if the user cannot see that emulator, open studio.playerUrl from its result with desktop_preview, never web_preview URLs. Defer updates that could interrupt human play, saves or recordings; resolve unknown outcomes first. Do not arbitrarily reload or autoplay. Continue gameplay headlessly with public PyBoy emulator_run on the intended exact ROM, then emulator_step and emulator_observe; use emulator_review for retained evidence. Browser access is not a prerequisite for gameplay checks. If PyBoy is missing, follow the setup skill for the emulator component within existing authorization. Keep denials and uncertain actions scoped; never replay them. Native gameplay does not verify browser UI, annotations or physical capture. Use device_capture to watch physical play beside the chat in Hermes Desktop; emulator controls cannot drive hardware. Inspect the exact ROM before an approved device action. Close only temporary sessions you own when no longer needed, preserving user play and recordings."
   },
