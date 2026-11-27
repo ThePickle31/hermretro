@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
-from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import engine_tree, paths  # noqa: E402 - the repository root goes on sys.path first
 
 CLEAN = {
     key: value
@@ -276,15 +276,20 @@ class PreparedEngine(unittest.TestCase):
             patcher = mock.patch.object(paths, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.release('{"name": "modretro-chromatic", "bundledChromaticFormat": "packed"}')
+        self.release('{"name": "hermretro-engine", "bundledChromaticFormat": "packed"}')
         receipt.write_text(json.dumps({"engine_version": paths.ENGINE_VERSION, "target": "linux-x64", "added": {}}))
 
     def release(self, package: str) -> None:
         """Ship a bundled engine with this package.json and prepare the copy from it, as provisioning does."""
         self.bundled.mkdir(exist_ok=True)
         (self.bundled / "package.json").write_text(package)
-        digest = paths._file_sha256(self.bundled / "package.json")
-        self.manifest.write_text(json.dumps({"entries": [{"path": "package.json", "sha256": digest}]}))
+        entries = [{"path": "package.json", "sha256": engine_tree.file_sha256(self.bundled / "package.json")}]
+        manifest = {"entries": entries, "aggregate_sha256": engine_tree.manifest_digest(entries)}
+        self.manifest.write_text(json.dumps(manifest))
+        # The process checking it was started with this engine, as one is after a release.
+        patcher = mock.patch.object(paths, "ENGINE_IDENTITY", paths._identity(paths.ENGINE_VERSION, manifest))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.prepared.mkdir(exist_ok=True)
         (self.prepared / "package.json").write_bytes(paths.prepared_package_json("linux-x64"))
 
@@ -293,7 +298,7 @@ class PreparedEngine(unittest.TestCase):
 
     def test_an_edited_package_json_retires_the_old_copy(self):
         prepared_before = (self.prepared / "package.json").read_bytes()
-        self.release('{"name": "modretro-chromatic", "edited": true}')
+        self.release('{"name": "hermretro-engine", "edited": true}')
         (self.prepared / "package.json").write_bytes(prepared_before)
         self.assertEqual(paths.verify_prepared_engine()["detail"], "changed package.json")
 
@@ -313,10 +318,10 @@ class EngineEntries(unittest.TestCase):
         ):
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             (self.root / rel).write_text(rel)
-        self.expected = {rel: paths._file_sha256(self.root / rel) for rel in ("package.json", "scripts/worker.py")}
+        self.expected = {rel: engine_tree.file_sha256(self.root / rel) for rel in ("package.json", "scripts/worker.py")}
 
     def listed(self) -> list[str]:
-        return [path.relative_to(self.root).as_posix() for path in paths.engine_entries(self.root)]
+        return [path.relative_to(self.root).as_posix() for path in engine_tree.engine_entries(self.root)]
 
     def test_bytecode_is_left_out_and_never_stated(self):
         # A running script renames its bytecode into place: a .pyc listed and then stat'ed could be gone.
@@ -333,19 +338,19 @@ class EngineEntries(unittest.TestCase):
             mock.patch.object(Path, "stat", refusing_bytecode(Path.stat)),
         ):
             self.assertEqual(self.listed(), ["package.json", "scripts/worker.py"])
-            self.assertEqual(paths._compare_tree(self.root, self.expected), [])
+            self.assertEqual(engine_tree.compare_tree(self.root, self.expected), [])
 
     def test_the_engines_record_is_left_out_of_an_engine_folder_and_not_of_a_copy(self):
         (self.root / "contract").mkdir()
         (self.root / "contract" / "manifest.json").write_text("{}")
         (self.root / "CHANGES.md").write_text("- a note")
         (self.root / "scripts" / "CHANGES.md").write_text("only the top-level one is the record")
-        self.expected["scripts/CHANGES.md"] = paths._file_sha256(self.root / "scripts" / "CHANGES.md")
+        self.expected["scripts/CHANGES.md"] = engine_tree.file_sha256(self.root / "scripts" / "CHANGES.md")
         self.assertEqual(self.listed(), ["package.json", "scripts/CHANGES.md", "scripts/worker.py"])
-        self.assertEqual(paths._compare_tree(self.root, self.expected), [])
+        self.assertEqual(engine_tree.compare_tree(self.root, self.expected), [])
         # A prepared copy holds no record, so one there is a file it should not have.
         self.assertEqual(
-            paths._compare_tree(self.root, self.expected, engine_folder=False),
+            engine_tree.compare_tree(self.root, self.expected, engine_folder=False),
             ["unexpected file CHANGES.md", "unexpected file contract/manifest.json"],
         )
 
@@ -430,7 +435,7 @@ class EngineEntries(unittest.TestCase):
         (self.root / "scripts" / "linked").symlink_to(self.root / "scripts", target_is_directory=True)
         self.assertEqual(self.listed(), ["package.json", "scripts/gone.pyc", "scripts/linked", "scripts/worker.py"])
         self.assertEqual(
-            paths._compare_tree(self.root, self.expected),
+            engine_tree.compare_tree(self.root, self.expected),
             ["unexpected symlink scripts/gone.pyc", "unexpected symlink scripts/linked"],
         )
 

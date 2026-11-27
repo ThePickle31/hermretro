@@ -90,7 +90,7 @@ layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
 | `backend/history/` | RPCs `builds`, `build_restore`; `post_tool_call` (a snapshot after each build); listens to `library.game_moved` | nothing; `history.build_kept` |
 | `backend/player/` | nothing | the loopback player server (`get_server`, `game_build`, …) |
 | `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `game_hold`, `test_build`, `BrokerUnavailable`, `BrokerNotRunning`, `BrokerRestarting`, `OtherCopyBusy`) |
-| `backend/system/` | nothing | a shared layer: `paths.py`, `host.py`, `events.py`, `hermes_home.py` |
+| `backend/system/` | nothing | a shared layer: `paths.py`, `engine_tree.py`, `host.py`, `events.py`, `hermes_home.py` |
 
 `__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
 the page's RPCs in every profile; tools, skills, hooks and the prompt section only in the `hermretro` profile. A
@@ -156,8 +156,10 @@ imports; there are no exceptions).
 **Why a broker.** Engine workers are expensive (about 300 MB each), a project may only have one writer, and
 Hermes runs many chats (and profiles) in one gateway process. One broker per user owns all of that; the
 gateway talks to it over a private Unix socket with a token. A client replaces it when the backend's code on disk
-changes (the fingerprint covers every file under `backend/`, `__init__.py`, `plugin.yaml` and the pinned
-`tools.json`: what the plugin reads as it loads), and likewise when
+changes (the fingerprint covers every Python file under `backend/`, `__init__.py`, `plugin.yaml`, the engine's
+`package.json` and manifest, and the pinned `tools.json`: what the plugin reads as it loads, so an engine change
+retires it too; a prepared engine copy holds exactly the engine its process loaded, checked before it is published),
+and likewise when
 its handshake shows its new workers cannot start (its `node` was removed, or `temp_ok` is false while the
 client's TMPDIR would work): it asks `{"op": "shutdown", "replace": true}`. The broker's life is one state under its
 table lock (`backend/broker/lifecycle.py`): serving, retiring, stopping. Work (a call, the page's install start,

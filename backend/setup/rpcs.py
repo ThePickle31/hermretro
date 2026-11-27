@@ -95,7 +95,9 @@ def rpc_status(ctx):
                 "broker": {"running": False},
                 "project": None,
                 "profile": studio_profile.describe(host._data_dir().parents[1]),
-                "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT,
+                # The files changed since it loaded them, or it loaded them across a change to the engine.
+                "restart_needed": paths.code_fingerprint() != LOADED_FINGERPRINT
+                or paths.engine_identity() != paths.ENGINE_IDENTITY,
             }
             # Each look at Setup brings the studio profile up to date with the installing profile's providers; a
             # caller that only reads (`sync: false`, the benchmark's check) writes nothing.

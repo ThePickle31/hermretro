@@ -105,7 +105,7 @@ def manifest() -> dict:
 
 def download_bytes(root: Path) -> int:
     """Bytes under a toolchain root's ``downloads/`` and ``cache/`` only (what an install adds while it runs; the
-    whole folder is ``provision.folder_bytes``). Cheap enough to call every poll (a few thousand files)."""
+    whole folder is ``trees.folder_bytes``). Cheap enough to call every poll (a few thousand files)."""
     total = 0
     stack = [root / name for name in _DOWNLOAD_DIRS]
     while stack:

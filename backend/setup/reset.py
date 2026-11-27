@@ -17,7 +17,7 @@ from ..hermes import api as hermes_api
 from ..library import Registry
 from ..player import DEMO_ID
 from ..system import paths
-from . import provision, studio_profile
+from . import provision, studio_profile, trees
 
 # `links` is no choice of its own: after the studio profile (and its chats) is deleted, the games let go of them.
 PARTS = ("games", "history", "chats", "settings", "toolchain", "logs", "links")
@@ -34,7 +34,7 @@ SETTINGS_KEYS = ("settings", "config")
 
 
 def _bytes(*places: Path) -> int:
-    return sum(provision.folder_bytes(place) for place in places if place.exists() or place.is_symlink())
+    return sum(trees.folder_bytes(place) for place in places if place.exists() or place.is_symlink())
 
 
 def _remove(place: Path) -> None:
@@ -44,7 +44,7 @@ def _remove(place: Path) -> None:
         if place.is_symlink() or place.is_file():
             place.unlink(missing_ok=True)
         elif place.is_dir():
-            provision.remove_tree(place)
+            trees.remove_tree(place)
     except OSError:
         pass
 

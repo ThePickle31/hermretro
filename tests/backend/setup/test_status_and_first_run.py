@@ -181,6 +181,9 @@ class UpdatedOnDisk(Home):
         self.assertEqual(status({})["plugin"]["root"], str(paths.PLUGIN_ROOT))  # with it, where the code came from
         with mock.patch.object(paths, "code_fingerprint", return_value="changed-on-disk"):
             self.assertTrue(status({})["restart_needed"])
+        # Loaded across an engine change: the fingerprint it recorded is the new engine's, its identity the old one.
+        with mock.patch.object(paths, "ENGINE_IDENTITY", "2.0.0-loadedbefore0"):
+            self.assertTrue(status({})["restart_needed"])
 
     def test_status_says_which_feature_flags_are_on(self):
         self.assertEqual(setup_rpcs.rpc_status(CTX)({})["flags"], [])

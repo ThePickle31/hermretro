@@ -25,7 +25,6 @@ import shutil
 import stat
 import subprocess
 import tarfile
-import sys
 import tempfile
 import time
 import urllib.request
@@ -33,8 +32,9 @@ from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 
-from ..system import host as host_os, paths
+from ..system import engine_tree, host as host_os, paths
 from .seed import _seed_source
+from .trees import folder_bytes, remove_tree
 
 CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"
@@ -261,6 +261,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
     if host["target"] is None:
         raise ProvisionError("UNSUPPORTED_HOST", host["reason"])
     target = host["target"]
+    _require_loaded_engine()  # first, and before the download: a gateway an engine change left stale says so at once
     _require_bundled_engine()
     pins = _pins(target)
     with _lock():
@@ -272,6 +273,7 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
 
     selection = paths.select_engine()
     if not selection["prepared"]:
+        _require_loaded_engine()  # it changed after the copy was made: the copy is right, this process is not
         raise ProvisionError(
             "VERIFY_FAILED",
             "The prepared engine did not verify after install: " + str(selection.get("prepared_problem")),
@@ -304,11 +306,23 @@ def _require_bundled_engine() -> None:
         )
 
 
+# A copy is named by the engine this process loaded (paths.PREPARED_ENGINE), so it holds that engine or none: after an
+# engine-only change, the process waits for Hermes's restart (the page asks for it) before it makes one.
+ENGINE_CHANGED = "hermretro's engine changed after Hermes started. Restart Hermes, then try again."
+
+
+def _require_loaded_engine() -> None:
+    if paths.engine_identity() != paths.ENGINE_IDENTITY:
+        raise ProvisionError("ENGINE_CHANGED", ENGINE_CHANGED)
+
+
 def _prepare(
     target: str, pins: dict, executable: bytes, notice: bytes, node_path: str | None = None, **dates: str | None
 ) -> None:
     """Build the prepared copy from the bundled engine and the verified CLI files, swap it in and write its receipt.
-    The caller holds the provision lock."""
+    The caller holds the provision lock. The staged copy must be exactly the engine this process loaded, checked
+    after copying, so an edit made meanwhile publishes nothing."""
+    _require_loaded_engine()
     exe_rel, notice_rel = pins["executable"]["path"], pins["notice"]["path"]  # e.g. linux-x64-gnu/bin/chromatic-cli
     stage = paths.DEPS_ROOT / f"engine.staging-{os.getpid()}"
     shutil.rmtree(stage, ignore_errors=True)
@@ -322,10 +336,17 @@ def _prepare(
                 n
                 for n in names
                 if str(Path(folder) / n) in skipped
-                or paths.is_left_beside(n)
-                or paths.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
+                or engine_tree.is_left_beside(n)
+                or engine_tree.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
             ],
         )
+        problems = paths.staged_engine_problems(stage)
+        if problems:
+            _require_loaded_engine()  # changed since this process loaded it: restart; otherwise it is just unverified
+            raise ProvisionError(
+                "ENGINE_NOT_VERIFIED",
+                "The bundled engine does not match its manifest: " + engine_tree.describe_problems(problems),
+            )
         for rel, data, mode in (
             (exe_rel, executable, int(pins["executable"]["mode"], 8)),
             (notice_rel, notice, int(pins["notice"]["mode"], 8)),
@@ -336,7 +357,7 @@ def _prepare(
                 handle.write(data)
             os.chmod(destination, mode)
 
-        package_json = paths.prepared_package_json(target)
+        package_json = paths.prepared_package_json(target, stage / "package.json")  # the copied, checked one
         (stage / "package.json").write_bytes(package_json)
         os.chmod(stage / "package.json", 0o644)
 
@@ -346,6 +367,7 @@ def _prepare(
             _RESOLVE % {"runtime": runtime}, cwd=stage, node_path=node_path
         )  # the engine's admission, before the swap
 
+        _require_loaded_engine()  # Node's admission ran meanwhile: still the engine this copy is named for
         previous = None
         if paths.PREPARED_ENGINE.exists():
             previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
@@ -469,11 +491,16 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
             dates = {"installed_at": receipt.get("installed_at"), "refreshed_at": _now()}
             try:
                 _prepare(target, pins, executable, notice, node_path=node_path, **dates)
-            except (ProvisionError, OSError, ValueError, KeyError):
+            except ProvisionError as error:
+                if error.code not in ("ENGINE_CHANGED", "ENGINE_NOT_VERIFIED"):  # the bundled engine's, not the CLI's
+                    _NOT_REUSABLE.add(key)
+                return False
+            except (OSError, ValueError, KeyError):
                 _NOT_REUSABLE.add(key)
                 return False
             if not paths.verify_prepared_engine()["verified"]:
-                _NOT_REUSABLE.add(key)
+                if paths.engine_identity() == paths.ENGINE_IDENTITY:  # not because the engine changed since
+                    _NOT_REUSABLE.add(key)
                 return False
             for receipt_path, copy in _earlier_copies():  # the one just read may still serve a running worker
                 if copy not in (paths.PREPARED_ENGINE, source):
@@ -541,34 +568,6 @@ def remove_downloads() -> dict:
 
 
 _TRASH_PREFIX = ".removing-"
-
-
-def remove_tree(path: Path) -> None:
-    """Delete a tree, making read-only folders (from extracted archives) writable when a delete is refused."""
-
-    def retry(function, failed, _info):
-        try:
-            parent = os.path.dirname(failed)
-            # Only inside the tree being deleted: the folder that holds it is never made writable.
-            if Path(parent).is_relative_to(path):
-                os.chmod(parent, 0o700)
-            if os.path.isdir(failed) and not os.path.islink(failed):
-                os.chmod(failed, 0o700)
-            function(failed)
-        except OSError:
-            pass
-
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=retry)
-    else:
-        shutil.rmtree(path, onerror=retry)
-
-
-def folder_bytes(path: Path) -> int:
-    """Bytes in a whole file or folder tree (links counted as themselves, never followed)."""
-    if path.is_symlink() or path.is_file():
-        return path.lstat().st_size
-    return sum(child.lstat().st_size for child in path.rglob("*") if not child.is_dir() or child.is_symlink())
 
 
 if __name__ == "__main__":

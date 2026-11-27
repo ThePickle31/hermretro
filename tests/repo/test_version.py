@@ -94,6 +94,30 @@ class OneVersion(unittest.TestCase):
         for rel in paths.LOADED_FILES:
             self.assertTrue((ROOT / rel).is_file(), rel)
 
+    def test_an_engine_change_moves_the_full_fingerprint_and_not_the_releases(self):
+        # The backend reads the engine's package.json and manifest as it loads (ENGINE_VERSION, ENGINE_IDENTITY):
+        # a change to either retires a running broker, while released gateways (backend/ and plugin.yaml) see none.
+        self.assertTrue({"engine/package.json", "engine/contract/manifest.json"} <= set(paths.LOADED_FILES))
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / "backend").mkdir()
+            (base / "backend" / "one.py").write_bytes(b"x = 1\n")
+            self.loaded_files(base)
+            with mock.patch.object(paths, "BACKEND_ROOT", base / "backend"):
+                paths._fingerprint_for.cache_clear()
+                try:
+                    before = paths.loaded_fingerprints()
+                    for number, rel in enumerate(("engine/package.json", "engine/contract/manifest.json"), 1):
+                        (base / rel).write_text(f"changed {number}\n", encoding="utf-8")
+                        stamp = 1_700_000_000_000_000_000 + number * 100_000_000_000
+                        os.utime(base / rel, ns=(stamp, stamp))
+                        code, released = paths.loaded_fingerprints()
+                        self.assertNotEqual(code, before[0], rel)
+                        self.assertEqual(released, before[1], rel)
+                        before = (code, released)
+                finally:
+                    paths._fingerprint_for.cache_clear()
+
     def test_no_other_file_repeats_the_version(self):
         try:
             listed = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True)

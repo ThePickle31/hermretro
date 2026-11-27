@@ -14,7 +14,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import engine_tree, paths  # noqa: E402 - the repository root goes on sys.path first
 
 SCRIPT = ROOT / "tools" / "engine" / "version.py"
 PINNED = ROOT / "engine" / "contract" / "tools.json"
@@ -64,7 +64,7 @@ class Headings(unittest.TestCase):
                 (root / "scripts" / "start-mcp.mjs").write_text("// the launcher\n")
                 (root / "package.json").write_text(json.dumps({"name": "hermretro-engine", "version": version}))
                 entries = [
-                    {"path": rel, "sha256": paths._file_sha256(root / rel)}
+                    {"path": rel, "sha256": engine_tree.file_sha256(root / rel)}
                     for rel in ("package.json", "scripts/start-mcp.mjs")
                 ]
                 manifest.write_text(json.dumps({"entries": entries}))

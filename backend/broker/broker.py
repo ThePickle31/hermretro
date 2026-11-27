@@ -116,6 +116,10 @@ class Broker(LaneMixin, SelectionMixin, ControlMixin, LifecycleMixin, HoldsMixin
             self.code_fingerprint, self.release_fingerprint = paths.loaded_fingerprints()
         except OSError:  # files already moving under it: any client replaces it
             self.code_fingerprint = self.release_fingerprint = None
+        # Read after the fingerprints, which cover the engine's package.json and manifest: an engine changed since paths
+        # named the one this process loaded (ENGINE_IDENTITY) would otherwise be named current with that old identity.
+        if paths.engine_identity() != paths.ENGINE_IDENTITY:
+            self.code_fingerprint = self.release_fingerprint = None
         self.engine_check = paths.verify_engine()
         # Set once a client of newer code asks this broker to make way (LifecycleMixin.retire): from then on it admits
         # no work, and it stops once the work it must finish has ended.

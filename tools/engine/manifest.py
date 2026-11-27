@@ -22,13 +22,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from engine_dev import dev_engine_root, paths  # noqa: E402 - tools/engine goes on sys.path first
 
+from backend.system import engine_tree  # noqa: E402 - engine_dev puts the repository root on sys.path
+
 
 LEFT_OUT = frozenset(paths.VENDOR_ARCHIVES + paths.CAPTURE_FFMPEG)
 
 
 def scan(root: Path) -> list[dict]:
     entries = []
-    for path in paths.engine_entries(root):
+    for path in engine_tree.engine_entries(root):
         info = path.lstat()
         rel = path.relative_to(root).as_posix()
         if stat.S_ISLNK(info.st_mode):
@@ -48,11 +50,6 @@ def scan(root: Path) -> list[dict]:
                 }
             )
     return entries
-
-
-def aggregate(entries: list[dict]) -> str:
-    canonical = json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(canonical).hexdigest()
 
 
 def build(root: Path, recorded: dict | None = None) -> dict:
@@ -76,7 +73,7 @@ def build(root: Path, recorded: dict | None = None) -> dict:
         "symlink_count": len(entries) - len(files),
         "total_bytes": sum(e["size"] for e in files),
         "suffix_counts": dict(sorted(suffixes.items(), key=lambda kv: (-kv[1], kv[0]))),
-        "aggregate_sha256": aggregate(entries),
+        "aggregate_sha256": engine_tree.manifest_digest(entries),
         "entries": entries,
     }
 

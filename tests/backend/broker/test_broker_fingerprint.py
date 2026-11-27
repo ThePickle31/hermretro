@@ -178,6 +178,14 @@ class FingerprintOfTheLoadedBuild(unittest.TestCase):
         with client.BrokerClient(self.state) as connection:
             self.assertEqual(connection.hello["loaded_fingerprint"], digest.hexdigest()[:24])
 
+    def test_a_broker_started_while_the_engine_changes_names_no_build(self):
+        # Its fingerprints may already cover the new engine while paths named the old one: neither field may say current.
+        with mock.patch.object(paths, "engine_identity", lambda: "9.9.9-changed000000"):
+            self.start()
+        with client.BrokerClient(self.state) as connection:
+            self.assertIsNone(connection.hello["loaded_code_fingerprint"])
+            self.assertIsNone(connection.hello["loaded_fingerprint"])
+
     def test_the_same_build_is_kept(self):
         old = self.start()
         with mock.patch.object(client, "spawn_broker") as spawn:
