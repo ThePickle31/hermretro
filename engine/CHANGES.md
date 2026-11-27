@@ -395,8 +395,9 @@ one names `dist/server.js` and a module, the change is now in that module.
 - The layout (moved, nothing else changed): `engine/modretro-chromatic/` is now `engine/` itself; the server's
   modules, `entry.js`, the player's browser files (`web-annotations/`, `device-capture/`) and the event catalog moved
   from `dist/` to `src/`, so `dist/` holds only the generated `server.js`; and `engine/pins/1.0.34/` is now
-  `engine/contract/`, with no version folder. `contract/` is hermretro's record of the engine, so the manifest and the
-  prepared copy leave it out (`is_engine_record` in `backend/system/paths.py`). Three module paths that the bundle
+  `engine/contract/`, with no version folder. `contract/` and this changelog are hermretro's record of the engine, so
+  the manifest and the prepared copy leave them out (`is_engine_record` in `backend/system/paths.py`), and a note here
+  changes the engine's identity no more than it did outside the engine folder. Three module paths that the bundle
   resolves beside itself now name `../src/` (the web annotations, the capture assets and `event-catalog.js`'s
   catalog), which reaches the same file from `src/` and from `dist/server.js`, and the device-art fallback is
   `../../player/skins/`. The bundle's code is otherwise the same: only its module comments read `// src/...`. Earlier

@@ -17,7 +17,8 @@ holds that release as published.
 - **Setup.** The hermretro page installs the toolchain through the engine's `toolchain_prepare` tool, with the `build`
   and `emulator` components: the pinned GB Studio CLI and GBDK, and an isolated Python with PyBoy, under hermretro's
   own folder. The Chromatic CLI is a separate install, for hardware only.
-- **The manifest.** The plugin starts only an engine whose files match `contract/manifest.json`.
+- **The manifest.** The plugin starts only an engine whose files match `contract/manifest.json`. The record
+  (`contract/` and `CHANGES.md`) is not part of it.
 - **Tool names.** The guides use the engine's own tool names; hermretro's agent calls each one `chromatic_<name>`.
 
 ## Layout
@@ -26,8 +27,8 @@ holds that release as published.
 |---|---|
 | `src/` | The server's source: one module per file, `entry.js` the server's own, and the player's browser files (`web-annotations/`, `device-capture/`) |
 | `dist/server.js` | The bundle, generated from `src/` by `tools/engine/bundle.mjs`; never edited by hand |
-| `contract/` | hermretro's record of the engine: its tool contracts and file manifest, outside the manifest itself |
-| `CHANGES.md` | Every change hermretro made since ModRetro's 1.0.34 |
+| `contract/` | hermretro's record of the engine: its tool contracts and file manifest |
+| `CHANGES.md` | Also part of the record: every change hermretro made since ModRetro's 1.0.34 |
 | `scripts/` | The launcher, setup and doctor, the emulator worker and the Chromatic CLI runtime, used as they are (the bundle imports some of them) |
 | `skills/` | ModRetro's original agent skills, archived as published: they describe ModRetro's plugin, including parts this engine no longer has (Wrecklight, `native_graphics_update`). The ones hermretro gives its agent are adapted from them, in the repository's `skills/` |
 | `docs/` | Guides to the tools, setup, playtesting and the device |

@@ -338,12 +338,15 @@ class EngineEntries(unittest.TestCase):
     def test_the_engines_record_is_left_out_of_an_engine_folder_and_not_of_a_copy(self):
         (self.root / "contract").mkdir()
         (self.root / "contract" / "manifest.json").write_text("{}")
-        self.assertEqual(self.listed(), ["package.json", "scripts/worker.py"])
+        (self.root / "CHANGES.md").write_text("- a note")
+        (self.root / "scripts" / "CHANGES.md").write_text("only the top-level one is the record")
+        self.expected["scripts/CHANGES.md"] = paths._file_sha256(self.root / "scripts" / "CHANGES.md")
+        self.assertEqual(self.listed(), ["package.json", "scripts/CHANGES.md", "scripts/worker.py"])
         self.assertEqual(paths._compare_tree(self.root, self.expected), [])
         # A prepared copy holds no record, so one there is a file it should not have.
         self.assertEqual(
             paths._compare_tree(self.root, self.expected, engine_folder=False),
-            ["unexpected file contract/manifest.json"],
+            ["unexpected file CHANGES.md", "unexpected file contract/manifest.json"],
         )
 
     def test_a_loaded_file_that_an_update_moved_still_gives_a_fingerprint(self):

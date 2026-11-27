@@ -5,7 +5,7 @@ repository. It does not cover the bundled engine under `engine/` or the componen
 it, which keep their own licences, listed below.
 
 hermretro's engine under `engine/` started from one third-party package, ModRetro's Chromatic
-engine 1.0.34, and is maintained by hermretro since. Every file in it but its own record (`engine/contract/`) is
+engine 1.0.34, and is maintained by hermretro since. Every file in it but its own record (`engine/contract/` and `engine/CHANGES.md`) is
 recorded with size, mode and SHA-256 in `engine/contract/manifest.json`, and the plugin refuses to start an engine
 that does not match that record.
 

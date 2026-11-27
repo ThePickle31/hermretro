@@ -3,12 +3,12 @@
  "package_name": "modretro-chromatic",
  "package_version": "1.0.34",
  "distribution_directory_name": "engine",
- "file_count": 298,
+ "file_count": 297,
  "symlink_count": 0,
- "total_bytes": 32351522,
+ "total_bytes": 32307862,
  "suffix_counts": {
   ".js": 111,
-  ".md": 61,
+  ".md": 60,
   ".gbsres": 42,
   ".json": 21,
   ".png": 17,
@@ -26,15 +26,8 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "7f6c488e285ce634fd775ea5a013e328581a7f2f20a99147678ba717e6481954",
+ "aggregate_sha256": "627c8483b6dacb92785b6982b1a76d6708dd3162c08ec6a4133fee40a1be7535",
  "entries": [
-  {
-   "path": "CHANGES.md",
-   "type": "file",
-   "size": 43719,
-   "mode": "0o644",
-   "sha256": "bf0fbc43571c9aa71c7b8d4c212127372073c0a6fcc1e4bbb9358a72c3c67db6"
-  },
   {
    "path": "LICENSE",
    "type": "file",
@@ -45,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 4758,
+   "size": 4817,
    "mode": "0o644",
-   "sha256": "a5c14a1a3359d3dab7451749817295aa2e975b48f656bbfb6440a206443ceac6"
+   "sha256": "c4b434e2464667a9c34b2c5203375b7de5626bcb2e8d42971a7de02648518882"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",

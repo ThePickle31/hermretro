@@ -44,8 +44,8 @@ PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
 ENGINE_ROOT = PLUGIN_ROOT / "engine"
 # The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
 SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
-# What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is the
-# record of the engine, not part of it: the manifest and the prepared copy leave it out (engine_entries).
+# What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is part
+# of the record of the engine, not of the engine: the manifest and the prepared copy leave it out (engine_entries).
 ENGINE_PINS = ENGINE_ROOT / "contract"
 PINNED_TOOLS = ENGINE_PINS / "tools.json"
 ENGINE_MANIFEST = ENGINE_PINS / "manifest.json"
@@ -302,10 +302,14 @@ def is_left_beside(name: str) -> bool:
     return is_bytecode(name) or name == ".DS_Store"
 
 
+# hermretro's record of the engine, at its top: its contract (tool contracts and manifest) and its changelog.
+ENGINE_RECORD = (ENGINE_PINS.name, "CHANGES.md")
+
+
 def is_engine_record(root: Path | str, path: Path | str) -> bool:
-    """Whether path is the engine's record of itself (contract/, at the engine's top), which no copy or manifest of
-    the engine holds."""
-    return Path(path) == Path(root) / ENGINE_PINS.name
+    """Whether path is part of the engine's record (ENGINE_RECORD), which no copy or manifest of the engine holds: a
+    note in the changelog is not a change to the engine."""
+    return Path(path).parent == Path(root) and Path(path).name in ENGINE_RECORD
 
 
 def engine_entries(root: Path, *, engine_folder: bool = True) -> list[Path]:
