@@ -13,7 +13,8 @@ A change's tier comes from the paths it changes, against `origin/dev`:
 - **Sensitive**: a path where a missed bug costs a user most, or more than 1000 changed lines (lockfiles and
   generated files not counted). Sensitive comes first: a change with one sensitive path is sensitive whatever
   else it holds. A security review runs beside pass 1, and beside a later pass when it reads a sensitive path or
-  follows the fix of a security finding; a change sensitive for its size alone has it at pass 1 only.
+  follows the fix of a security finding. Size alone brings it to pass 1 only; a security finding's fix still
+  brings it back.
   - the broker and its handshake: `backend/broker/`, the code fingerprint in `backend/system/paths.py`;
   - the prepared engine copy, setup, removal and the factory reset: `backend/setup/`;
   - the hardware approvals: `backend/hermes/hooks.py`;

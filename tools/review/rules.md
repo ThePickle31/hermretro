@@ -46,8 +46,9 @@ applies only where its paths cover the file. Don't report:
 - A test that touches state uses `isolated_home(self)` from `tests/support.py`: never the real Hermes home.
   Tests never run the hardware tools.
 - No real people, accounts, email addresses or home folders in fixtures.
-- Every failure a development check or tool reports (`tools/`, the tests) ends with a `FIX:` line. A plugin
-  tool's error is the JSON `tool_error` gives (`backend/hermes/tool_args.py`).
+- Every failure `python tools/check.py`, a CI job or a tool that promises it reports ends with a `FIX:` line.
+- A plugin tool's error is JSON with `error`, `code` and `nextStep` (`tool_error` in `backend/hermes/tool_args.py`
+  makes the common ones), plus the structured details its callers rely on.
 
 ## `__init__.py`, `plugin.yaml`, `backend/**`
 
@@ -88,7 +89,10 @@ applies only where its paths cover the file. Don't report:
 - A route that serves data or acts on a game answers only `127.0.0.1` or `localhost` with the token in its path
   (a browser's preflight gets its empty answer), and serves only what it names: the game's web export, its
   verified ROM and captures, the engine's player files, the skins and the demo cartridge. No path escapes its
-  folder. A tokenized URL goes only to the page it was made for.
+  folder. A tokenized URL goes only where its route is meant to be opened: the player frame and a capture's
+  URL to the page, and `chromatic_present_game`'s `studio.playerUrl` to the chat (for the desktop preview, or for
+  the user when they can't see the emulator). Never into logs, another profile or anything outside this
+  computer.
 
 ## `engine/**`
 

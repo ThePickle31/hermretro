@@ -20,7 +20,8 @@ Also look for:
 - paths that escape their folder, links followed out of one, and files made with modes wider than they need;
 - shell commands or arguments built from untrusted text (a game's files, a project's names, a request);
 - a loopback route that serves data or acts on a game without its token and host check, or serves more than its
-  route names; a tokenized URL reaching anyone but the page it was made for;
+  route names; a tokenized URL reaching anywhere but where its route is meant to be opened (the page's player
+  frame and captures, and `chromatic_present_game`'s `studio.playerUrl` in the chat);
 - the hardware tools (`flash`, `play`, `setup`, capture) reached without the user's `hardware_enabled`
   setting and Hermes's approval prompt;
 - downloaded or unpacked code trusted without its pinned SHA-256;
