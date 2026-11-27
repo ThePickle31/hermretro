@@ -90,7 +90,7 @@ layers. Each feature's `README.md` lists its RPCs, tools, hooks and events.
 | `backend/history/` | RPCs `builds`, `build_restore`; `post_tool_call` (a snapshot after each build); listens to `library.game_moved` | nothing; `history.build_kept` |
 | `backend/player/` | nothing | the loopback player server (`get_server`, `game_build`, …) |
 | `backend/broker/` | nothing (a separate process) | the client (`ensure_broker`, `try_connect`, `game_hold`, `test_build`, `BrokerUnavailable`, `BrokerNotRunning`, `BrokerRestarting`, `OtherCopyBusy`) |
-| `backend/system/` | nothing | a shared layer: `paths.py`, `host.py`, `events.py`, `hermes_home.py` |
+| `backend/system/` | nothing | a shared layer: `paths.py`, `engine_tree.py`, `host.py`, `events.py`, `hermes_home.py` |
 
 `__init__.register()` collects every feature's declarations (`backend/hermes/declare.py`) in `features.py` order:
 the page's RPCs in every profile; tools, skills, hooks and the prompt section only in the `hermretro` profile. A

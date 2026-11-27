@@ -25,7 +25,6 @@ import shutil
 import stat
 import subprocess
 import tarfile
-import sys
 import tempfile
 import time
 import urllib.request
@@ -33,8 +32,9 @@ from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 
-from ..system import host as host_os, paths
+from ..system import engine_tree, host as host_os, paths
 from .seed import _seed_source
+from .trees import folder_bytes, remove_tree
 
 CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"
@@ -261,8 +261,8 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
     if host["target"] is None:
         raise ProvisionError("UNSUPPORTED_HOST", host["reason"])
     target = host["target"]
+    _require_loaded_engine()  # first, and before the download: a gateway an engine change left stale says so at once
     _require_bundled_engine()
-    _require_loaded_engine()  # before the download: a gateway an engine change left stale says so at once
     pins = _pins(target)
     with _lock():
         archive_bytes = _download(pins["package"], opener)
@@ -336,12 +336,17 @@ def _prepare(
                 n
                 for n in names
                 if str(Path(folder) / n) in skipped
-                or paths.is_left_beside(n)
-                or paths.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
+                or engine_tree.is_left_beside(n)
+                or engine_tree.is_engine_record(paths.ENGINE_ROOT, Path(folder) / n)
             ],
         )
-        if paths.staged_engine_problems(stage):
-            raise ProvisionError("ENGINE_CHANGED", ENGINE_CHANGED)
+        problems = paths.staged_engine_problems(stage)
+        if problems:
+            _require_loaded_engine()  # changed since this process loaded it: restart; otherwise it is just unverified
+            raise ProvisionError(
+                "ENGINE_NOT_VERIFIED",
+                "The bundled engine does not match its manifest: " + engine_tree.describe_problems(problems),
+            )
         for rel, data, mode in (
             (exe_rel, executable, int(pins["executable"]["mode"], 8)),
             (notice_rel, notice, int(pins["notice"]["mode"], 8)),
@@ -487,7 +492,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
             try:
                 _prepare(target, pins, executable, notice, node_path=node_path, **dates)
             except ProvisionError as error:
-                if error.code != "ENGINE_CHANGED":  # the earlier copy is fine: this process must restart first
+                if error.code not in ("ENGINE_CHANGED", "ENGINE_NOT_VERIFIED"):  # the bundled engine's, not the CLI's
                     _NOT_REUSABLE.add(key)
                 return False
             except (OSError, ValueError, KeyError):
@@ -563,34 +568,6 @@ def remove_downloads() -> dict:
 
 
 _TRASH_PREFIX = ".removing-"
-
-
-def remove_tree(path: Path) -> None:
-    """Delete a tree, making read-only folders (from extracted archives) writable when a delete is refused."""
-
-    def retry(function, failed, _info):
-        try:
-            parent = os.path.dirname(failed)
-            # Only inside the tree being deleted: the folder that holds it is never made writable.
-            if Path(parent).is_relative_to(path):
-                os.chmod(parent, 0o700)
-            if os.path.isdir(failed) and not os.path.islink(failed):
-                os.chmod(failed, 0o700)
-            function(failed)
-        except OSError:
-            pass
-
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=retry)
-    else:
-        shutil.rmtree(path, onerror=retry)
-
-
-def folder_bytes(path: Path) -> int:
-    """Bytes in a whole file or folder tree (links counted as themselves, never followed)."""
-    if path.is_symlink() or path.is_file():
-        return path.lstat().st_size
-    return sum(child.lstat().st_size for child in path.rglob("*") if not child.is_dir() or child.is_symlink())
 
 
 if __name__ == "__main__":

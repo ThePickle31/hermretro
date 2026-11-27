@@ -15,7 +15,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 
-from . import hermes_home
+from . import engine_tree, hermes_home
 
 PLUGIN_ID = "hermretro"
 NODE_REQUIRED_MAJOR = 22
@@ -57,7 +57,7 @@ ENGINE_VERSION = engine_version(ENGINE_ROOT / "package.json")
 # The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
 SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
 # What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is part
-# of the record of the engine, not of the engine: the manifest and the prepared copy leave it out (engine_entries).
+# of the record of the engine, not of the engine: the manifest and the prepared copy leave it out (engine_tree.engine_entries).
 ENGINE_PINS = ENGINE_ROOT / "contract"
 PINNED_TOOLS = ENGINE_PINS / "tools.json"
 ENGINE_MANIFEST = ENGINE_PINS / "manifest.json"
@@ -115,11 +115,6 @@ def _identity(version: str | None, manifest) -> str:
         return f"{version}-{manifest['aggregate_sha256'][:12]}"
     except (KeyError, TypeError):
         return version
-
-
-def manifest_digest(entries: list[dict]) -> str:
-    """The digest of a manifest's entries, its ``aggregate_sha256`` (tools/engine/manifest.py writes it)."""
-    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 # Named by the engine it was made from, and never changed once made (backend/setup/provision.py): two plugin copies
@@ -314,82 +309,6 @@ def find_node() -> dict:
     return best or {"found": False, "path": None, "version": None, "required": str(NODE_REQUIRED_MAJOR), "ok": False}
 
 
-def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def is_bytecode(name: str) -> bool:
-    """Whether a file or folder name is Python's own bytecode, which running the engine's scripts writes."""
-    return name == "__pycache__" or name.endswith(".pyc")
-
-
-def is_left_beside(name: str) -> bool:
-    """Whether a file or folder name is one the system writes beside the engine's files rather than part of it:
-    Python's bytecode, or the .DS_Store macOS Finder leaves in a folder it showed (git ignores both, so an update
-    keeps them). Never recorded in the manifest, compared with it nor copied into the prepared engine."""
-    return is_bytecode(name) or name == ".DS_Store"
-
-
-# hermretro's record of the engine, at its top: its contract (tool contracts and manifest) and its changelog.
-ENGINE_RECORD = (ENGINE_PINS.name, "CHANGES.md")
-
-
-def is_engine_record(root: Path | str, path: Path | str) -> bool:
-    """Whether path is part of the engine's record (ENGINE_RECORD), which no copy or manifest of the engine holds: a
-    note in the changelog is not a change to the engine."""
-    return Path(path).parent == Path(root) and Path(path).name in ENGINE_RECORD
-
-
-def engine_entries(root: Path, *, engine_folder: bool = True) -> list[Path]:
-    """Every file and link under root, sorted, but Python's bytecode and, in an engine folder (the bundled engine or
-    another checkout's), its record. A running script writes bytecode and renames it into place meanwhile, so it is
-    left out by name from the folder listing, before anything stats it; a link is listed whatever its name. A copy of
-    the engine holds no record, so one there is listed like any other file."""
-    found: list[Path] = []
-    folders = [root]
-    while folders:
-        with os.scandir(folders.pop()) as listing:
-            for entry in listing:
-                if entry.is_symlink():
-                    found.append(Path(entry.path))
-                elif is_left_beside(entry.name) or (engine_folder and is_engine_record(root, entry.path)):
-                    continue
-                elif entry.is_dir():
-                    folders.append(Path(entry.path))
-                else:
-                    found.append(Path(entry.path))
-    return sorted(found)
-
-
-def _compare_tree(
-    root: Path, expected: dict[str, str], optional: frozenset[str] = frozenset(), *, engine_folder: bool = True
-) -> list[str]:
-    """Every regular file under root against rel -> SHA-256. No extras, no symlinks."""
-    problems: list[str] = []
-    seen: set[str] = set()
-    for path in engine_entries(root, engine_folder=engine_folder):
-        info = path.lstat()
-        rel = path.relative_to(root).as_posix()
-        if stat.S_ISLNK(info.st_mode):
-            problems.append(f"unexpected symlink {rel}")
-        elif stat.S_ISREG(info.st_mode):
-            seen.add(rel)
-            if rel not in expected:
-                problems.append(f"unexpected file {rel}")
-            elif _file_sha256(path) != expected[rel]:
-                problems.append(f"changed {rel}")
-    problems.extend(f"missing {rel}" for rel in sorted(set(expected) - seen - optional))
-    return problems
-
-
-def _detail(problems: list[str]) -> str:
-    return "; ".join(problems[:5]) + (f" (+{len(problems) - 5} more)" if len(problems) > 5 else "")
-
-
 def _recorded() -> dict[str, str]:
     return {e["path"]: e["sha256"] for e in json.loads(ENGINE_MANIFEST.read_text())["entries"]}
 
@@ -403,7 +322,9 @@ def verify_engine() -> dict:
     if not (ENGINE_ROOT / "scripts" / "start-mcp.mjs").is_file():
         return {"present": False, "version": None, "verified": False, "detail": "Bundled engine is missing."}
     try:
-        problems = _compare_tree(ENGINE_ROOT, _recorded(), optional=frozenset(VENDOR_ARCHIVES + CAPTURE_FFMPEG))
+        problems = engine_tree.compare_tree(
+            ENGINE_ROOT, _recorded(), optional=frozenset(VENDOR_ARCHIVES + CAPTURE_FFMPEG)
+        )
         version = engine_version(ENGINE_ROOT / "package.json")
         if version is None:
             problems.append("package.json has no x.y.z version")
@@ -411,7 +332,7 @@ def verify_engine() -> dict:
             "present": True,
             "version": version,
             "verified": not problems,
-            "detail": _detail(problems),
+            "detail": engine_tree.describe_problems(problems),
             "vendor_archives_bundled": all((ENGINE_ROOT / rel).is_file() for rel in VENDOR_ARCHIVES),
         }
     except (OSError, ValueError, KeyError) as error:
@@ -435,12 +356,18 @@ def staged_engine_problems(stage: Path) -> list[str]:
         manifest = json.loads(ENGINE_MANIFEST.read_text())
         if _identity(ENGINE_VERSION, manifest) != ENGINE_IDENTITY:
             return ["the engine's manifest changed since this process loaded it"]
-        if manifest_digest(manifest["entries"]) != manifest["aggregate_sha256"]:
+        if engine_tree.manifest_digest(manifest["entries"]) != manifest["aggregate_sha256"]:
             return ["the engine's manifest entries do not match its digest"]
         expected = {e["path"]: e["sha256"] for e in manifest["entries"] if e["path"] not in VENDOR_ARCHIVES}
     except (OSError, ValueError, KeyError, TypeError) as error:
         return [f"the engine's manifest cannot be read: {error}"]
-    problems = _compare_tree(stage, expected, optional=frozenset(CAPTURE_FFMPEG), engine_folder=False)
+    problems = engine_tree.compare_tree(
+        stage,
+        expected,
+        optional=frozenset(CAPTURE_FFMPEG),
+        engine_folder=False,
+        executable=engine_tree.executable(manifest["entries"]),
+    )
     if engine_version(stage / "package.json") != ENGINE_VERSION:
         problems.append(f"its package.json is not version {ENGINE_VERSION}")
     return problems
@@ -462,15 +389,22 @@ def verify_prepared_engine() -> dict:
                 "verified": False,
                 "detail": f"prepared for engine {receipt.get('engine_version')}, plugin now has {ENGINE_VERSION}",
             }
-        expected = {rel: digest for rel, digest in _recorded().items() if rel not in VENDOR_ARCHIVES}
+        entries = json.loads(ENGINE_MANIFEST.read_text())["entries"]
+        expected = {e["path"]: e["sha256"] for e in entries if e["path"] not in VENDOR_ARCHIVES}
         expected.update(receipt["added"])
         expected["package.json"] = hashlib.sha256(prepared_package_json(receipt["target"])).hexdigest()
         problems = (
-            _compare_tree(PREPARED_ENGINE, expected, optional=frozenset(CAPTURE_FFMPEG), engine_folder=False)
+            engine_tree.compare_tree(
+                PREPARED_ENGINE,
+                expected,
+                optional=frozenset(CAPTURE_FFMPEG),
+                engine_folder=False,
+                executable=engine_tree.executable(entries),
+            )
             if PREPARED_ENGINE.is_dir()
             else ["missing engine copy"]
         )
-        return {"present": True, "verified": not problems, "detail": _detail(problems)}
+        return {"present": True, "verified": not problems, "detail": engine_tree.describe_problems(problems)}
     except (OSError, ValueError, KeyError, TypeError) as error:
         return {"present": True, "verified": False, "detail": f"Could not verify: {error}"}
 

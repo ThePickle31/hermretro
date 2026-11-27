@@ -1,6 +1,7 @@
 # backend/system
 
-The machine, shared by every feature and the broker: locations (`paths.py`), every Linux/macOS difference and
+The machine, shared by every feature and the broker: locations (`paths.py`), an engine folder against its manifest
+(`engine_tree.py`), every Linux/macOS difference and
 the supported-system check (`host.py`), events between features (`events.py`), the Hermes home handed over
 by the Hermes layer (`hermes_home.py`), and which feature flags are on (`flags.py`; `page/app/flags.js` lists
 them). Standard library only; it imports nothing of ours outside itself (not even `backend.hermes`).

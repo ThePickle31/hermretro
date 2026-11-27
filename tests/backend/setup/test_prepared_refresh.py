@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import stat
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
-from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import engine_tree, paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import throwaway_deps  # noqa: E402 - the repository root goes on sys.path first
 
 EXE, NOTICE = b"cli build", b"cli notice"
@@ -164,6 +165,7 @@ class TheRealBuild(Refresh):
         for rel, text in files.items():
             (bundled / rel).parent.mkdir(parents=True, exist_ok=True)
             (bundled / rel).write_text(text)
+        (bundled / "scripts" / "start-mcp.mjs").chmod(0o755)  # one the engine runs
         (bundled / "assets" / "devices").mkdir(parents=True)
         self.manifest = self.base / "manifest.json"
         self.record_manifest(bundled, files)
@@ -191,8 +193,18 @@ class TheRealBuild(Refresh):
 
     def record_manifest(self, bundled: Path, files) -> None:
         """The bundled engine's manifest, as tools/engine/manifest.py writes one: its entries and their digest."""
-        entries = [{"path": rel, "sha256": hashlib.sha256((bundled / rel).read_bytes()).hexdigest()} for rel in files]
-        self.manifest.write_text(json.dumps({"entries": entries, "aggregate_sha256": paths.manifest_digest(entries)}))
+        entries = [
+            {
+                "path": rel,
+                "type": "file",
+                "mode": oct(stat.S_IMODE((bundled / rel).stat().st_mode)),
+                "sha256": hashlib.sha256((bundled / rel).read_bytes()).hexdigest(),
+            }
+            for rel in files
+        ]
+        self.manifest.write_text(
+            json.dumps({"entries": entries, "aggregate_sha256": engine_tree.manifest_digest(entries)})
+        )
 
     def assert_waits_for_the_restart(self):
         self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
@@ -248,6 +260,23 @@ class TheRealBuild(Refresh):
         (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
         self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists())
+        with self.assertRaises(provision.ProvisionError) as raised:  # what is wrong is the manifest, not this process
+            provision._prepare(TARGET, PINS, EXE, NOTICE)
+        self.assertEqual(raised.exception.code, "ENGINE_NOT_VERIFIED")
+        self.assertIn("changed dist/server.js", str(raised.exception))
+        self.assertEqual(provision._NOT_REUSABLE, set())
+
+    def test_a_script_that_lost_its_execute_bit_publishes_nothing(self):
+        self.earlier_copy("1.0.33")
+        (paths.ENGINE_ROOT / "scripts" / "start-mcp.mjs").chmod(0o644)
+        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(paths.PREPARED_ENGINE.exists())
+
+    def test_a_copy_whose_script_lost_its_execute_bit_does_not_verify(self):
+        self.earlier_copy("1.0.33")
+        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        (paths.PREPARED_ENGINE / "scripts" / "start-mcp.mjs").chmod(0o644)
+        self.assertEqual(paths.verify_prepared_engine()["detail"], "changed mode of scripts/start-mcp.mjs")
 
     def test_an_edit_while_the_copy_is_made_publishes_nothing(self):
         self.earlier_copy("1.0.33")

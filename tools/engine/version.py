@@ -23,11 +23,11 @@ import sys
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.system import engine_tree, paths  # noqa: E402 - the repository root goes on sys.path first
 
 ENGINE = PurePosixPath(paths.ENGINE_ROOT.relative_to(paths.PLUGIN_ROOT).as_posix())
 PACKAGE = ENGINE / "package.json"
-RECORD = {(name,) for name in paths.ENGINE_RECORD}
+RECORD = {(name,) for name in engine_tree.ENGINE_RECORD}
 VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)")
 
 
