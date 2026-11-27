@@ -256,9 +256,12 @@ the worker's output, not because bytes stopped growing; `quiet_seconds` is how l
 
 Setup's "Remove downloaded tools": empties `<hermretro home>/.cache` (toolchain, prepared engine, ModRetro's CLI
 and their receipts; only its lock file stays); games and the library stay, and links inside are removed, never
-followed. Asks a running broker to stop, then holds the broker's election lock for the whole removal (no broker
-can start meanwhile). Returns `{ ok, removed_bytes, left_bytes, root }` or `{ ok: false, code, error }` with `code`
+followed. Asks a running broker to stop, then holds the broker's election lock for the whole removal (no broker of
+this install's run folder can start meanwhile; another's, such as a test run's, can). Returns
+`{ ok, removed_bytes, left_bytes, root }` or `{ ok: false, code, error }` with `code`
 `BUSY` (a game's chat has a live worker, an install runs, or the broker did not stop within 15 s),
+`IN_USE` (a worker still runs in a prepared engine copy: one of another run folder's broker, or one a killed broker
+left),
 `UNAVAILABLE` (the handshake or shutdown could not be confirmed),
 `CUSTOM_LOCATION` (`HERMRETRO_DEPS_ROOT` / `GB_STUDIO_SETUP_ROOT` set), `UNEXPECTED_LOCATION` or `PARTLY_REMOVED`
 (some files could not be deleted; a retry finishes them). Setup can then install again.

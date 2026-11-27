@@ -25,7 +25,6 @@ import shutil
 import stat
 import subprocess
 import tarfile
-import tempfile
 import time
 import urllib.request
 from contextlib import contextmanager
@@ -33,8 +32,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from ..system import engine_tree, host as host_os, paths
+from . import copy_lease
 from .seed import _seed_source
-from .trees import folder_bytes, remove_tree
+from .trees import remove_tree
 
 CLI_DIR = "third-party/chromatic-cli"
 REGISTRY_PREFIX = "https://registry.npmjs.org/@modretro/"
@@ -162,7 +162,8 @@ def device_cli_status(selection: dict | None = None) -> dict:
 
 
 @contextmanager
-def _lock():
+def lock():
+    """One setup at a time changes the download folder: an install, a refresh, a pruning or emptying it."""
     paths.DEPS_ROOT.mkdir(mode=0o755, parents=True, exist_ok=True)
     with open(paths.DEPS_ROOT / ".provision.lock", "a+") as handle:
         try:
@@ -264,13 +265,26 @@ def install_device_cli(accept_vendor_terms: bool, opener=urllib.request.urlopen)
     _require_loaded_engine()  # first, and before the download: a gateway an engine change left stale says so at once
     _require_bundled_engine()
     pins = _pins(target)
-    with _lock():
+    with lock():  # held to the end: nothing removes or replaces the copy before its runtime has accepted it
+        receipt = read_receipt() or {}
+        if (receipt.get("target"), receipt.get("cli_version")) == (target, pins["version"]) and (
+            paths.verify_prepared_engine()["verified"]
+        ):  # a copy of this build, kept as it is (a worker may run in it) unless its runtime refuses it
+            try:
+                return _installed(target, pins)
+            except ProvisionError as error:
+                if error.code != "ENGINE_REFUSED":
+                    raise
         archive_bytes = _download(pins["package"], opener)
         with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
             executable = _member(archive, "package/" + pins["executable"]["path"].split("/", 1)[1], pins["executable"])
             notice = _member(archive, "package/" + pins["notice"]["path"].split("/", 1)[1], pins["notice"])
         _prepare(target, pins, executable, notice, installed_at=_now())
+        return _installed(target, pins)
 
+
+def _installed(target: str, pins: dict) -> dict:
+    """What install_device_cli answers, once the copy verifies and its runtime resolves the CLI."""
     selection = paths.select_engine()
     if not selection["prepared"]:
         _require_loaded_engine()  # it changed after the copy was made: the copy is right, this process is not
@@ -309,6 +323,9 @@ def _require_bundled_engine() -> None:
 # A copy is named by the engine this process loaded (paths.PREPARED_ENGINE), so it holds that engine or none: after an
 # engine-only change, the process waits for Hermes's restart (the page asks for it) before it makes one.
 ENGINE_CHANGED = "hermretro's engine changed after Hermes started. Restart Hermes, then try again."
+
+
+IN_USE = "A game is running from hermretro's engine copy. Close the chats that are running games, then try again."
 
 
 def _require_loaded_engine() -> None:
@@ -369,10 +386,14 @@ def _prepare(
 
         _require_loaded_engine()  # Node's admission ran meanwhile: still the engine this copy is named for
         previous = None
-        if paths.PREPARED_ENGINE.exists():
-            previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
-            os.replace(paths.PREPARED_ENGINE, previous)
-        os.replace(stage, paths.PREPARED_ENGINE)
+        with copy_lease.unused(paths.PREPARED_ENGINE) as unused:  # no worker starts in it while it is swapped
+            if not unused:
+                raise ProvisionError("IN_USE", IN_USE)
+            if paths.PREPARED_ENGINE.exists():
+                previous = paths.DEPS_ROOT / f"engine.old-{int(time.time())}-{os.getpid()}"
+                os.replace(paths.PREPARED_ENGINE, previous)
+            copy_lease.create(paths.PREPARED_ENGINE)  # published with its lease file: its workers' leases count
+            os.replace(stage, paths.PREPARED_ENGINE)
         if previous is not None:
             shutil.rmtree(previous, ignore_errors=True)
     finally:
@@ -416,6 +437,7 @@ def select_engine(node_path: str | None = None) -> dict:
     selection = paths.select_engine()
     if selection.get("prepared") or not selection["check"].get("verified") or not refresh_prepared_engine(node_path):
         return selection
+    prune_prepared_copies()  # the earlier copies no worker runs in: this engine's copy now gives their CLI
     return paths.select_engine()
 
 
@@ -471,9 +493,9 @@ def _reusable_cli(target: str, pins: dict) -> tuple[bytes, bytes, dict, Path, tu
 
 
 def refresh_prepared_engine(node_path: str | None = None) -> bool:
-    """Make the prepared copy for the bundled engine from an earlier copy's CLI files, then remove the copies older
-    than that earlier one. False when there is none to reuse, another setup holds the lock, or the new copy does not
-    verify (setup then offers the install)."""
+    """Make the prepared copy for the bundled engine from an earlier copy's CLI files. False when there is none to
+    reuse, another setup holds the lock, or the new copy does not verify (setup then offers the install). The earlier
+    copies stay: a worker may still run in one (prune_prepared_copies removes those no worker runs in)."""
     if not any(paths.DEPS_ROOT.glob("device-cli-*.json")):  # never installed: nothing to reuse
         return False
     target = host_target(node_path)["target"]
@@ -481,7 +503,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
         return False
     try:
         pins = _pins(target)
-        with _lock():
+        with lock():
             if paths.verify_prepared_engine()["verified"]:  # another process made it while this one waited
                 return True
             found = _reusable_cli(target, pins)
@@ -492,7 +514,7 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
             try:
                 _prepare(target, pins, executable, notice, node_path=node_path, **dates)
             except ProvisionError as error:
-                if error.code not in ("ENGINE_CHANGED", "ENGINE_NOT_VERIFIED"):  # the bundled engine's, not the CLI's
+                if error.code not in ("ENGINE_CHANGED", "ENGINE_NOT_VERIFIED", "IN_USE"):  # not the CLI's fault
                     _NOT_REUSABLE.add(key)
                 return False
             except (OSError, ValueError, KeyError):
@@ -502,13 +524,59 @@ def refresh_prepared_engine(node_path: str | None = None) -> bool:
                 if paths.engine_identity() == paths.ENGINE_IDENTITY:  # not because the engine changed since
                     _NOT_REUSABLE.add(key)
                 return False
-            for receipt_path, copy in _earlier_copies():  # the one just read may still serve a running worker
-                if copy not in (paths.PREPARED_ENGINE, source):
-                    remove_tree(copy)
-                    receipt_path.unlink(missing_ok=True)
         return True
     except (ProvisionError, OSError, ValueError, KeyError, StopIteration):  # BUSY included: tried again later
         return False
+
+
+def prune_prepared_copies() -> int:
+    """Remove every other engine's prepared copy that no worker runs in (its lease is free) and that holds the same CLI
+    build as this engine's, with its receipt and lease, once this engine's copy verifies: it gives that CLI now. Returns how many went; none while another
+    setup holds the lock or the engine on disk is not the one this process loaded (its copy may be the older one)."""
+    if not paths.DEVICE_CLI_RECEIPT.is_file():  # no copy of this engine: nothing to keep, and no folder made for it
+        return 0
+    removed = 0
+    try:
+        with lock():  # checked under it: a repair interrupted mid-swap leaves this engine's copy unverified
+            if paths.engine_identity() != paths.ENGINE_IDENTITY or not paths.verify_prepared_engine()["verified"]:
+                return 0  # an earlier copy may still have to give its CLI to this engine's
+            cli = _cli_build(paths.DEVICE_CLI_RECEIPT)
+            for receipt, copy in _earlier_copies():
+                if copy == paths.PREPARED_ENGINE or _cli_build(receipt) != cli:
+                    continue  # another checkout pinning another CLI build may still need its copy's
+                try:
+                    with copy_lease.unused(copy) as unused:
+                        if unused:
+                            remove_tree(copy)
+                except OSError:  # its lease cannot be opened or locked (another user's, read-only): left as it is
+                    continue
+                if not copy.exists():  # all of it went: the receipt lists it for the next try until then
+                    receipt.unlink(missing_ok=True)
+                    copy_lease.path_for(copy).unlink(missing_ok=True)
+                    removed += 1
+            # A removal stopped before its receipt or lease file went leaves one without its copy.
+            for receipt in paths.DEPS_ROOT.glob("device-cli-*.json"):
+                _drop_without_copy(receipt, "engine-" + receipt.name.removeprefix("device-cli-").removesuffix(".json"))
+            for lease in paths.DEPS_ROOT.glob("engine-*.lease"):
+                _drop_without_copy(lease, lease.name.removesuffix(".lease"))
+    except (ProvisionError, OSError):  # BUSY, or the folder cannot be read: the next refresh or broker tries again
+        pass
+    return removed
+
+
+def _cli_build(receipt: Path) -> tuple | None:
+    """The CLI build a copy holds, by its receipt: (target, version), or None when the receipt is unreadable."""
+    try:
+        found = json.loads(receipt.read_text())
+    except (OSError, ValueError):
+        return None
+    return (found.get("target"), found.get("cli_version")) if isinstance(found, dict) else None
+
+
+def _drop_without_copy(leftover: Path, copy_name: str) -> None:
+    copy = paths.DEPS_ROOT / copy_name
+    if copy != paths.PREPARED_ENGINE and not copy.exists() and not copy.is_symlink():
+        leftover.unlink(missing_ok=True)
 
 
 def summary() -> dict:
@@ -521,53 +589,6 @@ def summary() -> dict:
         "engine_root": str(selection["root"]),
         "device_cli": device_cli_status(selection),
     }
-
-
-def remove_downloads() -> dict:
-    """Empty hermretro's download folder ``<hermretro home>/.cache`` (toolchain, prepared engine with ModRetro's
-    CLI, receipts). Games and the library are elsewhere and untouched; links inside are removed, never followed.
-    The caller holds the broker's election lock, so no broker or worker runs from it meanwhile. Refused when the
-    location was configured by hand, since that folder is the user's."""
-    if os.environ.get("HERMRETRO_DEPS_ROOT") or os.environ.get("GB_STUDIO_SETUP_ROOT"):
-        raise ProvisionError(
-            "CUSTOM_LOCATION",
-            "The downloaded tools are in a folder you configured "
-            "(HERMRETRO_DEPS_ROOT or GB_STUDIO_SETUP_ROOT); delete it yourself.",
-        )
-    root = paths.DEPS_ROOT
-    home = paths.hermretro_home().resolve()
-    if root != home / ".cache" or root.is_relative_to(paths.PLUGIN_ROOT) or root.is_symlink():
-        raise ProvisionError(
-            "UNEXPECTED_LOCATION", f"Refusing to delete {root}: it is not hermretro's download folder."
-        )
-    if not root.is_dir():
-        return {"ok": True, "removed_bytes": 0, "left_bytes": 0, "root": str(root)}
-    with _lock():  # no device-CLI install meanwhile
-        # Inside .cache, so every move is a rename on the same filesystem; the folder empties at once.
-        trash = Path(tempfile.mkdtemp(prefix=_TRASH_PREFIX, dir=root))
-        for child in list(root.iterdir()):
-            if child.name == ".provision.lock" or child.name.startswith(_TRASH_PREFIX):
-                continue
-            os.replace(child, trash / child.name)
-    removed = 0
-    for leftover in [p for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX)]:  # also earlier, failed runs
-        removed += folder_bytes(leftover)
-        remove_tree(leftover)
-    left = sum(folder_bytes(p) for p in root.iterdir() if p.name.startswith(_TRASH_PREFIX))
-    return {
-        "ok": not left,
-        "removed_bytes": removed - left,
-        "left_bytes": left,
-        "root": str(root),
-        **(
-            {"code": "PARTLY_REMOVED", "error": f"{left // 1_000_000} MB could not be deleted from {root}."}
-            if left
-            else {}
-        ),
-    }
-
-
-_TRASH_PREFIX = ".removing-"
 
 
 if __name__ == "__main__":

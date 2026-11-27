@@ -152,13 +152,12 @@ class Lane:
                 pass
 
 
-class LaneMixin:
-    """The Broker's lane work: starting and stopping workers, writer leases and project selection."""
-
-    # -- engine workers --------------------------------------------------------
-    def new_engine(self, client_name: str, workspace: str | None = None) -> EngineProcess:
-        # Re-read each start: setup may have prepared a copy since, or the engine changed under the copy (rebuilt here).
-        selection = setup.select_engine(self.node if paths.node_usable(self.node) else None)
+def _chosen_engine(node: str) -> tuple[dict, int | None]:
+    """The engine a new worker starts from, re-read each start (setup may have prepared a copy since, or the engine
+    changed under the copy: rebuilt here), and for a prepared copy its lease, which the worker holds for as long as
+    it runs so the copy is never removed under it."""
+    for _ in range(2):
+        selection = setup.select_engine(node if paths.node_usable(node) else None)
         if not selection["check"].get("verified"):
             raise Denied(
                 "ENGINE_NOT_VERIFIED",
@@ -166,6 +165,20 @@ class LaneMixin:
                 + (selection["check"].get("detail") or "unknown difference")
                 + ". Reinstall the plugin.",
             )
+        if not selection["prepared"]:
+            return selection, None
+        try:
+            return selection, setup.hold_copy(selection["root"])
+        except FileNotFoundError:  # another broker removed it as this one chose it: choose again
+            continue
+    raise Denied("ENGINE_COPY_GONE", "hermretro's engine copy was removed while a game was starting. Try again.")
+
+
+class LaneMixin:
+    """The Broker's lane work: starting and stopping workers, writer leases and project selection."""
+
+    # -- engine workers --------------------------------------------------------
+    def new_engine(self, client_name: str, workspace: str | None = None) -> EngineProcess:
         if not paths.node_usable(self.node):
             # A client replaces an idle broker in this state; this one stays for the games it still runs.
             raise Denied(
@@ -174,20 +187,28 @@ class LaneMixin:
                 "close the chats that are running games: the game tools restart with the current Node.js once "
                 "no game is running, then try again.",
             )
-        engine = EngineProcess(
-            selection["root"],
-            node=self.node,
-            client_name=client_name,
-            env=sanitized_environment(
-                {
-                    "PATH": os.pathsep.join([str(Path(self.node).parent), os.environ.get("PATH", "")]),
-                    "GB_STUDIO_SETUP_ROOT": str(paths.setup_root()),
-                    # A game installed without its source: its folder is the worker's whole authorization.
-                    **({"GB_STUDIO_WORKSPACE_ROOT": workspace} if workspace else {}),
-                }
-            ),
-        )
-        engine.start()
+        selection, lease = _chosen_engine(self.node)
+        try:
+            engine = EngineProcess(
+                selection["root"],
+                node=self.node,
+                client_name=client_name,
+                env=sanitized_environment(
+                    {
+                        "PATH": os.pathsep.join([str(Path(self.node).parent), os.environ.get("PATH", "")]),
+                        "GB_STUDIO_SETUP_ROOT": str(paths.setup_root()),
+                        # A game installed without its source: its folder is the worker's whole authorization.
+                        **({"GB_STUDIO_WORKSPACE_ROOT": workspace} if workspace else {}),
+                        # The launcher passes the lease on to the server it starts (engine/scripts/start-mcp.mjs).
+                        **({setup.COPY_LEASE_VARIABLE: str(lease)} if lease is not None else {}),
+                    }
+                ),
+                keep_fds=() if lease is None else (lease,),
+            )
+            engine.start()
+        finally:
+            if lease is not None:
+                os.close(lease)  # the worker holds its own
         return engine
 
     def view_lane(self, profile, ids) -> tuple[Lane | None, str | None]:

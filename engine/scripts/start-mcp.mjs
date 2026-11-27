@@ -75,6 +75,17 @@ export function mcpLauncherSignals(platform = process.platform) {
     : ["SIGINT", "SIGTERM", "SIGHUP"];
 }
 
+/**
+ * The server's standard streams, plus hermretro's lease on the prepared engine copy it runs in when the launcher was
+ * given one (HERMRETRO_COPY_LEASE_FD, backend/setup/copy_lease.py), as the server's descriptor 3: the copy is not
+ * removed while the server runs in it, even once this launcher has gone.
+ */
+export function mcpServerStdio(environment = process.env, platform = process.platform) {
+  const value = platform === "win32" ? undefined : environment.HERMRETRO_COPY_LEASE_FD;
+  if (!/^[0-9]+$/u.test(value ?? "") || Number(value) < 3) return "inherit";
+  return ["inherit", "inherit", "inherit", Number(value)];
+}
+
 /** Preserve enterprise registry/CA settings without inheriting executable hooks. */
 export function prepareMcpLauncherEnvironment({
   environment = process.env,
@@ -317,7 +328,7 @@ function startMcpLauncher() {
   const child = spawn(process.execPath, [serverPath, ...process.argv.slice(2)], {
     cwd: runtimeRoot,
     env: childEnvironment,
-    stdio: "inherit",
+    stdio: mcpServerStdio(process.env, platform),
     shell: false,
     windowsHide: true,
   });

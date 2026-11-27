@@ -6,8 +6,9 @@ Front door: what other features may use. Standard library only (the broker impor
 hooks.py and studio_profile.py are never imported from here.
 """
 
+from .copy_lease import DESCRIPTOR_VARIABLE as COPY_LEASE_VARIABLE, hold as hold_copy
 from .progress import download_bytes, progress as install_progress
-from .provision import select_engine
+from .provision import prune_prepared_copies, select_engine
 from .trees import folder_bytes
 from .seed import seed_toolchain_cache
 from .recovery import (
@@ -27,15 +28,18 @@ from .recovery import (
 
 __all__ = [
     "activity_mark",
+    "COPY_LEASE_VARIABLE",
     "classify",
     "download_bytes",
     "explain",
     "foreign_lock_hint",
     "folder_bytes",
     "free_space",
+    "hold_copy",
     "install_progress",
     "lock_path",
     "lock_started",
+    "prune_prepared_copies",
     "read_journal",
     "recovered_install",
     "seed_toolchain_cache",

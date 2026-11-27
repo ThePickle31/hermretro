@@ -17,7 +17,7 @@ from ..hermes import api as hermes_api
 from ..library import Registry
 from ..player import DEMO_ID
 from ..system import paths
-from . import provision, studio_profile, trees
+from . import downloads, studio_profile, trees
 
 # `links` is no choice of its own: after the studio profile (and its chats) is deleted, the games let go of them.
 PARTS = ("games", "history", "chats", "settings", "toolchain", "logs", "links")
@@ -287,7 +287,7 @@ def _places(part: str, data: Path) -> list[Path]:
 def clear(part: str, data: Path, homes: list[Path]) -> dict:
     """Delete one part. Answers ``{ok: true, removed_bytes}``; the toolchain answers as Setup's removal does."""
     if part == "toolchain":
-        removed = provision.remove_downloads()
+        removed = downloads.remove_downloads()
         return {
             **removed,
             "partly": not removed.get("ok") and removed.get("removed_bytes", 0) > 0,

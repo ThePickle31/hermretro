@@ -7,6 +7,7 @@ failing every new worker: its handshake says so, and the client replaces it, aft
 
 import os
 import shutil
+import signal
 import sys
 import tempfile
 import unittest
@@ -15,9 +16,11 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from backend.broker import client, lifecycle, server  # noqa: E402 - the repository root goes on sys.path first
+from backend.broker import client, lane, lifecycle, server  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.lane import Denied  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import copy_lease  # noqa: E402 - the repository root goes on sys.path first
+from tests.support import isolated_home  # noqa: E402 - the repository root goes on sys.path first
 from tests.backend.broker.test_broker_fingerprint import Running, launched  # noqa: E402 - the repository root goes on sys.path first
 
 POSIX = sys.platform.startswith("linux") or sys.platform == "darwin"
@@ -134,6 +137,60 @@ class StaleWorkerSetup(unittest.TestCase):
             with self.connect() as connection:
                 self.assertEqual(self.started, [])
                 self.assertEqual(connection.hello["broker_generation"], old.broker.generation)
+
+
+class ChoosingTheEngine(unittest.TestCase):
+    """The engine a worker starts from (lane._chosen_engine): every choice is verified, a retry's included."""
+
+    def test_a_copy_removed_as_it_was_chosen_is_chosen_again_and_verified(self):
+        copy = {"root": Path("/x/engine-2.0.2-a"), "prepared": True, "check": {"verified": True}}
+        unverified = {"root": paths.ENGINE_ROOT, "prepared": False, "check": {"verified": False, "detail": "changed x"}}
+        with (
+            mock.patch.object(lane.setup, "select_engine", side_effect=[copy, unverified]),
+            mock.patch.object(lane.setup, "hold_copy", side_effect=FileNotFoundError("gone")),
+        ):
+            with self.assertRaises(Denied) as raised:
+                lane._chosen_engine(sys.executable)
+        self.assertEqual(raised.exception.code, "ENGINE_NOT_VERIFIED")
+
+    def test_a_copy_that_keeps_going_says_so(self):
+        copy = {"root": Path("/x/engine-2.0.2-a"), "prepared": True, "check": {"verified": True}}
+        with (
+            mock.patch.object(lane.setup, "select_engine", return_value=copy),
+            mock.patch.object(lane.setup, "hold_copy", side_effect=FileNotFoundError("gone")),
+        ):
+            with self.assertRaises(Denied) as raised:
+                lane._chosen_engine(sys.executable)
+        self.assertEqual(raised.exception.code, "ENGINE_COPY_GONE")
+
+
+@unittest.skipUnless(paths.find_node()["ok"], "no usable Node.js")
+class AWorkerHoldsItsCopy(unittest.TestCase):
+    """A real worker started in a prepared copy, through the engine's own launcher and server, holds the copy's lease
+    until it exits, after the broker has let go of its own descriptor."""
+
+    def test_the_copy_is_in_use_until_the_worker_exits(self):
+        isolated_home(self)
+        with tempfile.TemporaryDirectory() as folder:
+            copy = Path(folder) / "engine-2.0.2-0123456789ab"  # the bundled engine stands in for a prepared copy
+            shutil.copytree(paths.ENGINE_ROOT, copy, ignore=shutil.ignore_patterns("contract", "CHANGES.md"))
+            copy_lease.create(copy)
+            chosen = {"root": copy, "prepared": True, "check": {"verified": True}}
+            broker = mock.Mock(node=paths.find_node()["path"])
+            with mock.patch.object(lane.setup, "select_engine", return_value=chosen):
+                engine = lane.LaneMixin.new_engine(broker, "lease-test")
+            try:
+                with copy_lease.unused(copy) as unused:
+                    self.assertFalse(unused, "the running worker holds the lease")
+                launcher = engine._proc
+                os.kill(launcher.pid, signal.SIGKILL)  # the launcher alone: its server lives on
+                launcher.wait(10)
+                with copy_lease.unused(copy) as unused:
+                    self.assertFalse(unused, "the server the launcher started holds it too")
+            finally:
+                engine.close()  # reaps the whole session, the server with it
+            with copy_lease.unused(copy) as unused:
+                self.assertTrue(unused, "released once the worker has exited")
 
 
 if __name__ == "__main__":

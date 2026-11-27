@@ -143,7 +143,7 @@ pull request body. The rest log through `host.logger` and keep its name.
 
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
-(ModRetro's CLI, pinned SHA-256; removing downloads), `backend/broker/broker.py` (the single authority: identity,
+(ModRetro's CLI, pinned SHA-256; the prepared engine copy), `backend/setup/downloads.py` (removing downloads), `backend/broker/broker.py` (the single authority: identity,
 admission, the hardware gate), `lane.py` (a conversation's engine worker and writer leases), `selection.py` (which projects it may open, ownership), `installed.py` (installed games' conversations, `test_build`), `control.py`
 (control ops, the page's install), `lifecycle.py` (admission, shutdown, retirement, notices), `server.py` (the user-only Unix socket), `client.py` (finds or starts the
 broker; refuses a stale one), `backend/system/paths.py` (every location, the code fingerprint, the version).
@@ -204,7 +204,12 @@ All of hermretro's own per-user state is in `~/.hermes/hermretro/` (see the READ
 left alone by plugin updates and removal. The engine adds one folder of its own once a Chromatic is used:
 `~/.codex-gb-studio/chromatic/` (device-operation journal). The device CLI is unpacked in the prepared engine copy
 (`.cache/engine-<version>-<digest>/`), whose `package.json` names no packed format, so the engine never unpacks
-it into `~/.modretro-chromatic-runtime/` as ModRetro's packed plugin does. Per-profile state (saved frames, asset versions) is in that profile's
+it into `~/.modretro-chromatic-runtime/` as ModRetro's packed plugin does. A copy for a new engine is made from an
+earlier one's CLI. Every worker running in a copy holds its lease (`engine-<name>.lease` beside it, `copy_lease.py`)
+for as long as it runs, the engine process and its server inheriting it, so nothing removes or replaces a copy a worker
+uses: `prune_prepared_copies` (after a refresh, and as a broker starts) removes the other engines' copies of the same CLI
+build whose leases are free once this engine's copy verifies, a repair of a copy in use is refused (`IN_USE`), and emptying the download
+folder is refused while a game still runs from it. A copy from before leases (no lease file) is left to Setup's removal. Per-profile state (saved frames, asset versions) is in that profile's
 `plugin-data/hermretro/`. Nothing is written into the plugin folder.
 
 ## What runs where

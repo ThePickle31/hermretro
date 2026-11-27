@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from backend.hermes import host as hermes_host  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import broker_stop  # noqa: E402 - the repository root goes on sys.path first
-from backend.setup import provision  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import copy_lease, downloads, provision  # noqa: E402 - the repository root goes on sys.path first
 from backend.setup import rpcs as setup_rpcs  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import FakeBrokerClient, isolated_home  # noqa: E402 - the repository root goes on sys.path first
 
@@ -40,8 +40,32 @@ class RemoveDownloads(unittest.TestCase):
         self.deps.start()
         self.addCleanup(self.deps.stop)
 
+    def test_a_game_still_running_from_a_copy_keeps_everything(self):
+        # A worker a killed broker left behind still holds its copy's lease.
+        lease = copy_lease.hold(self.cache / f"engine-{paths.ENGINE_VERSION}")
+        self.addCleanup(os.close, lease)
+        with self.assertRaises(provision.ProvisionError) as raised:
+            downloads.remove_downloads()
+        self.assertEqual(raised.exception.code, "IN_USE")
+        self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
+        self.assertTrue((self.cache / f"engine-{paths.ENGINE_VERSION}").is_dir())
+
+    def test_the_copies_go_before_their_lease_files(self):
+        # Moved while their leases are held: a worker starting meanwhile waits, then finds its copy gone.
+        copy = self.cache / f"engine-{paths.ENGINE_VERSION}"
+        copy_lease.create(copy)
+        moved, real = [], os.replace
+
+        def record(source, target):
+            moved.append(Path(source).name)
+            return real(source, target)
+
+        with mock.patch.object(downloads.os, "replace", record):
+            self.assertTrue(downloads.remove_downloads()["ok"])
+        self.assertLess(moved.index(copy.name), moved.index(copy_lease.path_for(copy).name))
+
     def test_it_empties_the_download_folder_and_keeps_games_and_library(self):
-        answer = provision.remove_downloads()
+        answer = downloads.remove_downloads()
         self.assertTrue(answer["ok"])
         self.assertGreaterEqual(answer["removed_bytes"], 1000)
         self.assertEqual([p.name for p in self.cache.iterdir() if p.name != ".provision.lock"], [])
@@ -53,14 +77,14 @@ class RemoveDownloads(unittest.TestCase):
         for variable in ("HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT"):
             with mock.patch.dict(os.environ, {variable: str(self.cache)}):
                 with self.assertRaises(provision.ProvisionError) as caught:
-                    provision.remove_downloads()
+                    downloads.remove_downloads()
             self.assertEqual(caught.exception.code, "CUSTOM_LOCATION")
         self.assertTrue((self.cache / "toolchain" / "bin" / "gbdk").is_file())
 
     def test_anything_but_the_hermretro_cache_is_refused(self):
         with mock.patch.object(paths, "DEPS_ROOT", self.home / "games"):
             with self.assertRaises(provision.ProvisionError) as caught:
-                provision.remove_downloads()
+                downloads.remove_downloads()
         self.assertEqual(caught.exception.code, "UNEXPECTED_LOCATION")
         self.assertTrue((self.home / "games" / "Frog").is_dir())
 
@@ -70,7 +94,7 @@ class RemoveDownloads(unittest.TestCase):
         (stale / "x").mkdir(parents=True)
         (stale / "x" / "f").write_bytes(b"y" * 10)
         os.chmod(stale / "x", 0o500)  # read-only, as extracted archives can be
-        answer = provision.remove_downloads()
+        answer = downloads.remove_downloads()
         self.assertTrue(answer["ok"], answer)
         self.assertEqual([p.name for p in self.cache.iterdir()], [".provision.lock"])
         self.assertTrue((self.home / "games" / "Frog" / "frog.gbsproj").is_file())
@@ -80,7 +104,7 @@ class RemoveDownloads(unittest.TestCase):
         os.replace(self.cache, elsewhere)
         self.cache.symlink_to(elsewhere)
         with self.assertRaises(provision.ProvisionError) as caught:
-            provision.remove_downloads()
+            downloads.remove_downloads()
         self.assertEqual(caught.exception.code, "UNEXPECTED_LOCATION")
         self.assertTrue((elsewhere / "toolchain" / "bin" / "gbdk").is_file())
 

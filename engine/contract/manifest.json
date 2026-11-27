@@ -1,11 +1,11 @@
 {
  "manifest_schema": 1,
  "package_name": "hermretro-engine",
- "package_version": "2.0.1",
+ "package_version": "2.0.2",
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32312313,
+ "total_bytes": 32312972,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "b1cdee89949db1f2c839cab15959e9250b1a868f58ab5c4e030a2bd129af2a17",
+ "aggregate_sha256": "23c0ac19adbeffe99e0973536d6dd63d829d78b620ae185d2e0a1273d92066c7",
  "entries": [
   {
    "path": "LICENSE",
@@ -1020,7 +1020,7 @@
    "type": "file",
    "size": 2865,
    "mode": "0o644",
-   "sha256": "2ed294b9731e98158d2cb7ac98bc004d546300e771744f3099e7d9173b406eb4"
+   "sha256": "0f0a82ba0e7d020d4f3c4916c46a2bdb05872643a06aa12bb65dd155247aacb4"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",
@@ -1158,9 +1158,9 @@
   {
    "path": "scripts/start-mcp.mjs",
    "type": "file",
-   "size": 14098,
+   "size": 14757,
    "mode": "0o644",
-   "sha256": "efe7732e8e2394c005d85ce8a7c93b3d6a8e52dd925d2a95cffc9f407c59bf12"
+   "sha256": "5ae3268e07c4fc43491b3a8ba8df24535dc3b5bcba91ff1339b03f863b3aba7a"
   },
   {
    "path": "skills/chromatic-deployment/SKILL.md",
