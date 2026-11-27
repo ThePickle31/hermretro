@@ -96,7 +96,7 @@ class ReportTest(Fixture):
                 [
                     call("terminal", source),
                     call("read_file", {"path": "games/Test/project/scenes/title.gbsres"}),
-                    call("read_file", {"path": "engine/modretro-chromatic/dist/server.js"}),
+                    call("read_file", {"path": "engine/dist/server.js"}),
                     call("chromatic_emulator_checkpoint", {"action": "save", "label": "start"}),
                     call(
                         "tool_call",

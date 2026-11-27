@@ -19,7 +19,7 @@ from tests.repo.test_layout import LAYOUT, files  # noqa: E402 - the repository 
 
 # What counts as a document. Source, data and config files are judged by the layout test instead.
 DOCUMENT = (".md", ".markdown", ".txt", ".rst", ".adoc", ".org", ".log")
-SKIPPED = ("engine/modretro-chromatic/", "tools/npm/")  # the engine's own documents (from ModRetro), and vendored tools
+SKIPPED = ("engine/", "tools/npm/")  # the engine's own documents (from ModRetro), and vendored tools
 
 
 def unlisted(names: list[str], allowed: dict[str, str]) -> list[str]:

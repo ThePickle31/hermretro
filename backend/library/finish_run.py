@@ -2,7 +2,7 @@
 (``chromatic_build_report``'s ``finishRun``, ``report_tools.py``). The engine's emulator worker keeps each recorded
 attempt as a folder holding ``recording.json``, rewritten when the attempt is created and when it ends, and the
 append-only journal ``events.jsonl``, which opens with a ``header`` row and closes with a ``finish`` row (``Recording``
-in engine/modretro-chromatic/scripts/emulator_worker.py). Standard library only."""
+in engine/scripts/emulator_worker.py). Standard library only."""
 
 from __future__ import annotations
 

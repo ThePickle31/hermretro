@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools" / "engine"
 NODE = shutil.which("node")
 INSTALLED = (TOOLS / "npm" / "node_modules" / "esbuild" / "package.json").is_file()
-ENGINE_LOCK = ROOT / "engine" / "modretro-chromatic" / "scripts" / "runtime-package-lock.json"
+ENGINE_LOCK = ROOT / "engine" / "scripts" / "runtime-package-lock.json"
 PNGJS_LICENCE = TOOLS / "npm" / "node_modules" / "pngjs" / "LICENSE"
 
 
@@ -28,7 +28,7 @@ def lock_naming(*packages: str) -> str:
 
 ENGINE = {
     "package.json": '{"type": "module"}\n',
-    "dist/greet.js": (
+    "src/greet.js": (
         'import path from "node:path";\n'
         'import { PNG } from "pngjs";\n'
         "export function greet(name) {\n"
@@ -56,6 +56,8 @@ class EngineBundleTests(unittest.TestCase):
             (self.engine / rel).write_text(text)
         self.entry = self.engine / "entry.js"
         self.entry.write_text(ENTRY)
+        # The engine's dist/ holds only the bundle.
+        (self.engine / "dist").mkdir()
         self.bundle = self.engine / "dist" / "server.js"
 
     def node(self, *args: str, env: dict | None = None, cwd: Path = ROOT) -> subprocess.CompletedProcess:
@@ -76,22 +78,22 @@ class EngineBundleTests(unittest.TestCase):
         done = self.build()
         self.assertEqual(done.returncode, 0, done.stderr)
         text = self.bundle.read_text()
-        for module in ("// dist/greet.js", "// dist/server.js", "// node_modules/pngjs/lib/png.js"):
+        for module in ("// src/greet.js", "// src/entry.js", "// node_modules/pngjs/lib/png.js"):
             self.assertIn(module, text)
         self.assertIn('from "../scripts/helper.mjs"', text)
         self.assertTrue(text.startswith('import { createRequire as __mcpCreateRequire } from "node:module";'))
         # The modules are ES modules in Node's sense (package.json), so CommonJS imports use Node's interop.
         self.assertIn("__toESM(require_png(), 1)", text)
         self.assertEqual(self.run_bundle(), "b:function!")
-        self.assertEqual(sorted(os.listdir(self.bundle.parent)), ["greet.js", "server.js"])
+        self.assertEqual(sorted(os.listdir(self.bundle.parent)), ["server.js"])
 
-    def test_the_entry_is_the_engines_dist_entry_js_unless_named(self):
-        (self.engine / "dist" / "entry.js").write_text(ENTRY)
+    def test_the_entry_is_the_engines_src_entry_js_unless_named(self):
+        (self.engine / "src" / "entry.js").write_text(ENTRY)
         done = self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine))
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.run_bundle(), "b:function!")
-        # Built in as dist/server.js, as an entry given by path is.
-        self.assertIn("// dist/server.js", self.bundle.read_text())
+        # Built in as src/entry.js, as an entry given by path is.
+        self.assertIn("// src/entry.js", self.bundle.read_text())
         self.assertEqual(self.node(str(TOOLS / "bundle.mjs"), "--engine", str(self.engine), "--check").returncode, 0)
 
     def test_a_temporary_folder_reached_through_a_link_builds_the_same(self):
@@ -107,7 +109,7 @@ class EngineBundleTests(unittest.TestCase):
             self.assertEqual(os.listdir(real), [])
 
     def test_a_read_only_folder_in_the_engine_is_built_and_cleaned_up(self):
-        folder = self.engine / "dist" / "fixed"
+        folder = self.engine / "src" / "fixed"
         folder.mkdir()
         (folder / "data.js").write_text("export const data = 1;\n")
         folder.chmod(0o555)
@@ -219,7 +221,7 @@ class EngineBundleTests(unittest.TestCase):
             self.assertEqual(self.bundle.read_bytes(), expected)
 
     def test_a_read_only_bundle_builds_to_another_place(self):
-        # The engine's own bundle is never copied into the build: the entry takes its place.
+        # The build never reads the engine's own bundle.
         self.assertEqual(self.build().returncode, 0)
         expected = self.bundle.read_bytes()
         self.bundle.chmod(0o444)
@@ -264,37 +266,37 @@ class EngineBundleTests(unittest.TestCase):
 
     def test_a_package_from_outside_the_pinned_ones_is_refused(self):
         self.entry.write_text('import { value } from "sample-unpinned";\nexport const said = value;\n')
-        # Above the build's folder (found by walking up from it), or inside the engine's dist/.
+        # Above the build's folder (found by walking up from it), or inside the engine's src/.
         for where in ("above", "inside"):
             with self.subTest(where=where), tempfile.TemporaryDirectory() as tmp:
-                package = (Path(tmp) if where == "above" else self.engine / "dist") / "node_modules" / "sample-unpinned"
+                package = (Path(tmp) if where == "above" else self.engine / "src") / "node_modules" / "sample-unpinned"
                 package.mkdir(parents=True)
                 (package / "package.json").write_text('{"name": "sample-unpinned", "version": "1.0.0"}')
                 (package / "index.js").write_text("export const value = 1;\n")
                 done = self.build(env={**os.environ, "TMPDIR": tmp})
                 self.assertEqual(done.returncode, 1, done.stdout)
                 self.assertIn("neither the engine's modules nor the pinned packages", done.stderr)
-                shutil.rmtree(self.engine / "dist" / "node_modules", ignore_errors=True)
+                shutil.rmtree(self.engine / "src" / "node_modules", ignore_errors=True)
 
     def test_a_link_in_the_engine_is_refused(self):
-        (self.engine / "dist" / "alias.js").symlink_to(self.engine / "dist" / "greet.js")
+        (self.engine / "src" / "alias.js").symlink_to(self.engine / "src" / "greet.js")
         done = self.build("--check")
         self.assertEqual(done.returncode, 1)
         self.assertIn("the engine's folders hold no links", done.stderr)
-        (self.engine / "dist" / "alias.js").unlink()
+        (self.engine / "src" / "alias.js").unlink()
         outside = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        # A dist/ that is itself a link is refused before anything is written through it.
-        shutil.move(self.engine / "dist", outside / "dist")
-        (self.engine / "dist").symlink_to(outside / "dist")
-        before = (outside / "dist" / "greet.js").read_text()
+        # A src/ that is itself a link is refused before anything is written through it.
+        shutil.move(self.engine / "src", outside / "src")
+        (self.engine / "src").symlink_to(outside / "src")
+        before = (outside / "src" / "greet.js").read_text()
         done = self.build("--check")
         self.assertEqual(done.returncode, 1)
         self.assertIn("the engine's folders hold no links", done.stderr)
-        self.assertEqual(sorted(os.listdir(outside / "dist")), ["greet.js"])
-        self.assertEqual((outside / "dist" / "greet.js").read_text(), before)
+        self.assertEqual(sorted(os.listdir(outside / "src")), ["greet.js"])
+        self.assertEqual((outside / "src" / "greet.js").read_text(), before)
 
     def test_a_build_that_writes_more_than_the_bundle_is_refused(self):
-        (self.engine / "dist" / "look.css").write_text("body { color: red; }\n")
+        (self.engine / "src" / "look.css").write_text("body { color: red; }\n")
         self.entry.write_text('import "./look.css";\nexport const said = 1;\n')
         done = self.build()
         self.assertEqual(done.returncode, 1)

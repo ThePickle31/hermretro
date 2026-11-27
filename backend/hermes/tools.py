@@ -1,4 +1,4 @@
-"""The engine's tools, pinned in engine/pins/<version>/tools.json, each exposed as ``chromatic_<name>`` and
+"""The engine's tools, pinned in engine/contract/tools.json, each exposed as ``chromatic_<name>`` and
 handled by sending the call to the broker (host.make_tool_handler). Their step words live on the page."""
 
 from __future__ import annotations

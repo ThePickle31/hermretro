@@ -11,7 +11,7 @@ from pathlib import Path
 from tests.support import isolated_home
 
 ROOT = Path(__file__).resolve().parents[2]
-ENGINE = ROOT / "engine" / "modretro-chromatic"
+ENGINE = ROOT / "engine"
 
 # applySetup for the build components, with detection, probes and the CLI installer replaced: an owned root gets a
 # first CLI, the compiler then changes (detection reports it incompatible), and an upgrade fails offline before a
@@ -55,7 +55,7 @@ steps.seen = seen;
 process.stdout.write(JSON.stringify(steps));
 """
 
-# The engine's compiler-bound signing key, taken from its module (dist/web-build.js), over a CLI folder.
+# The engine's compiler-bound signing key, taken from its module (src/web-build.js), over a CLI folder.
 KEY = """
 import { createHash, createHmac } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -74,7 +74,7 @@ process.stdout.write(JSON.stringify({ first, again, replaced }));
 """
 
 
-WEB_BUILD = ENGINE / "dist" / "web-build.js"
+WEB_BUILD = ENGINE / "src" / "web-build.js"
 
 
 def module_functions(*names: str) -> str:

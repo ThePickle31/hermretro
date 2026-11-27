@@ -15,7 +15,7 @@ TOP = Path(__file__).resolve().parents[2]
 DEV = "dev"
 # What the sandbox's gateway runs (a change means a restart) and what the seeded snapshots were made by (a change
 # means seeding again). Page changes need neither: the page reloads.
-BACKEND = ("__init__.py", "plugin.yaml", "backend", "engine/pins")
+BACKEND = ("__init__.py", "plugin.yaml", "backend", "engine/contract")
 SEED_INPUTS = (*BACKEND, "tools/dev/scripts")
 
 

@@ -1,18 +1,17 @@
 // Build the engine's server bundle (dist/server.js) from its modules, the way ModRetro's own build made it: one ESM
-// file for Node 22 holding every dist/ module and the packages they import, with scripts/ left as imports beside it,
+// file for Node 22 holding every src/ module and the packages they import, with scripts/ left as imports beside it,
 // built by the esbuild and packages pinned in tools/engine/npm.
 //
 //   node tools/engine/bundle.mjs [--entry <file>] [--engine <folder>] [--out <file>]   build (writes when bytes change)
 //   node tools/engine/bundle.mjs [--entry <file>] [--engine <folder>] --check          verify the bundle; writes nothing
 //
-// --entry is the server's own module (the engine's dist/entry.js), built in as dist/server.js, the name the bundle
-// has always given it. --engine defaults to engine/modretro-chromatic and --out to the engine's dist/server.js.
-// The build runs in a temporary folder holding a copy of the engine's dist/, scripts/ and package.json and of the
-// pinned packages as its node_modules, so the bundle's module comments read as they always have (`// dist/emulator.js`,
-// `// node_modules/zod/...`) and modules resolve as they did for ModRetro. The bundle may hold only the engine's
-// modules and packages its lock file (scripts/runtime-package-lock.json) names at that version, each with its
-// licence file, whose text the engine's notices (licenses/bundled-javascript.txt) carry; the engine's folders may
-// hold no links (as its manifest requires). A stopped build leaves nothing behind.
+// --entry is the server's own module (the engine's src/entry.js). --engine defaults to engine and --out to the
+// engine's dist/server.js. The build runs in a temporary folder holding a copy of the engine's src/, scripts/ and
+// package.json and of the pinned packages as its node_modules, so the bundle's module comments name each module's
+// source (`// src/emulator.js`, `// node_modules/zod/...`) and modules resolve as they do in the engine. The bundle
+// may hold only the engine's modules and packages its lock file (scripts/runtime-package-lock.json) names at that
+// version, each with its licence file, whose text the engine's notices (licenses/bundled-javascript.txt) carry; the
+// engine's folders may hold no links (as its manifest requires). A stopped build leaves nothing behind.
 
 import { chmodSync, closeSync, cpSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
@@ -22,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const TOOLS = path.join(ROOT, "tools", "engine", "npm");
-export const ENGINE = path.join(ROOT, "engine", "modretro-chromatic");
+export const ENGINE = path.join(ROOT, "engine");
 export const MISSING = "esbuild and the engine's packages were not found (npm ci --prefix tools/engine/npm --ignore-scripts)";
 const NOTICES = path.join("licenses", "bundled-javascript.txt");
 const LOCK = path.join("scripts", "runtime-package-lock.json");
@@ -81,7 +80,7 @@ function forget(where) {
 function options(stage) {
   return {
     absWorkingDir: stage,
-    entryPoints: ["dist/server.js"],
+    entryPoints: ["src/entry.js"],
     outfile: "dist/server.js",
     allowOverwrite: true,
     bundle: true,
@@ -149,7 +148,7 @@ function refusals(stage, result, engine) {
   if (kept.length) problems.push(`the bundle would import packages instead of including them: ${kept.map((found) => found.path).join(", ")}`);
   const inputs = Object.keys(result.metafile.inputs);
   if (inputs.some((input) => input.startsWith("scripts/"))) problems.push("the bundle took in a file from scripts/, which must stay beside it");
-  const foreign = inputs.filter((input) => !(input.startsWith("dist/") && !input.includes("/node_modules/")) && !input.startsWith("node_modules/"));
+  const foreign = inputs.filter((input) => !(input.startsWith("src/") && !input.includes("/node_modules/")) && !input.startsWith("node_modules/"));
   if (foreign.length) problems.push(`the bundle took in files that are neither the engine's modules nor the pinned packages: ${foreign.join(", ")}`);
   if (problems.length) return { problems, packages: [] };
 
@@ -181,12 +180,10 @@ function stageFolder() {
 // but the engine's modules and the pinned packages, and on a package its lock does not name or whose licence the
 // engine does not carry.
 export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbuild() }) {
-  for (const folder of ["dist", "scripts", "package.json"]) noLinks(path.join(engine, folder));
+  for (const folder of ["src", "scripts", "package.json"]) noLinks(path.join(engine, folder));
   const stage = made(stageFolder());
   try {
-    // All of dist/ but the bundle itself, whose place the entry takes.
-    const bundle = path.join(engine, "dist", "server.js");
-    cpSync(path.join(engine, "dist"), path.join(stage, "dist"), { recursive: true, filter: (source) => source !== bundle });
+    cpSync(path.join(engine, "src"), path.join(stage, "src"), { recursive: true });
     cpSync(path.join(engine, "scripts"), path.join(stage, "scripts"), { recursive: true });
     // Its "type": "module" makes the modules ES modules in Node's sense, which decides how they import CommonJS.
     cpSync(path.join(engine, "package.json"), path.join(stage, "package.json"));
@@ -197,7 +194,7 @@ export async function bundleEngine({ engine = ENGINE, entry, esbuild = loadEsbui
     });
     writable(stage);
     // Its contents, not the file: an entry given as a link is still the module it points at.
-    writeFileSync(path.join(stage, "dist", "server.js"), readFileSync(entry));
+    writeFileSync(path.join(stage, "src", "entry.js"), readFileSync(entry));
     const result = await esbuild.build(options(stage));
     const { problems, packages: included } = refusals(stage, result, engine);
     if (problems.length) throw new Error(problems.join("\n"));
@@ -219,7 +216,7 @@ function parse(argv) {
       index++;
     } else throw new Error(`unknown argument ${flag}`);
   }
-  args.entry ??= path.join(args.engine, "dist", "entry.js");
+  args.entry ??= path.join(args.engine, "src", "entry.js");
   args.out ??= path.join(args.engine, "dist", "server.js");
   return args;
 }

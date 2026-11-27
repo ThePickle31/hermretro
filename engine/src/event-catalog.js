@@ -4,7 +4,8 @@ import { SCRIPT_KEYS, MAXIMUM_EVENT_DEPTH, isObject } from "./native-script-even
 import { GameStudioProjectError } from "./project.js";
 import { supplementalResources } from "./world-script-graph.js";
 
-const EVENT_CATALOG_URL = new URL("./gb-studio-events.json", import.meta.url);
+// "../src/" reaches the catalog from this module and from the bundle in dist/ alike.
+const EVENT_CATALOG_URL = new URL("../src/gb-studio-events.json", import.meta.url);
 const EVENT_LIST_LIMIT = 40;
 const EVENT_UNCATEGORIZED = "Uncategorized";
 const EVENT_FIELD_TYPES = {

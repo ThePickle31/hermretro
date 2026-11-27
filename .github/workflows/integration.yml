@@ -50,7 +50,7 @@ jobs:
       # bad cache away.
       - name: Toolchain cache key
         id: key
-        run: echo "key=toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/modretro-chromatic/scripts/**', 'engine/pins/**', 'backend/setup/provision.py', 'backend/setup/progress.py') }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine/scripts/**', 'engine/contract/**', 'backend/setup/provision.py', 'backend/setup/progress.py') }}" >> "$GITHUB_OUTPUT"
       - id: toolchain
         if: inputs.restore
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

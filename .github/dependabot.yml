@@ -3,7 +3,7 @@
 # bundle, so it moves only together with Hermes Desktop's. Security-update pull requests for tools/npm may
 # open against main: close them and redo the bump on a branch from dev.
 #
-# The engine (engine/modretro-chromatic) is hash-pinned (engine/pins/<version>/manifest.json) and its dependencies
+# The engine (engine) is hash-pinned (engine/contract/manifest.json) and its dependencies
 # change only by hand, as an engine change: Dependabot opens no pull requests for it, security ones included (ignore "*"
 # applies to both). Its alerts stay visible; accepted ones are explained in .github/SECURITY.md. tools/engine/npm, the
 # tools that build the engine's bundle, holds the same packages at the same versions (tests/repo/test_engine_bundle.py)
@@ -11,7 +11,7 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: /engine/modretro-chromatic
+    directory: /engine
     schedule:
       interval: monthly
     open-pull-requests-limit: 0

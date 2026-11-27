@@ -264,10 +264,10 @@ Screenshots and videos saved from the player live in `<project>/captures/` (the 
 ## Save states
 
 The player's save states live in `<project>/save-states/<build digest>/<id>.gbstate.json`, written by the engine's
-web preview (`engine/modretro-chromatic/dist/web-preview-states.js`, `PreviewStateStore`); the plugin only keeps them
+web preview (`engine/src/web-preview-states.js`, `PreviewStateStore`); the plugin only keeps them
 out of source checks and snapshots (`project.NOT_SOURCE`, `backend/history/snapshots.py`). `<build digest>` is the
 SHA-256 of the JSON `{romSha256, runtimeSha256, sourceRevision, cartridgeType}` (so each build has its own folder) and
-`<id>` the SHA-256 of the file's canonical text. Each file is one JSON object (`engine/modretro-chromatic/dist/web-annotations/save-state.js`):
+`<id>` the SHA-256 of the file's canonical text. Each file is one JSON object (`engine/src/web-annotations/save-state.js`):
 `format` (`codex-gb-studio-save-state`), `version` (`1`), `identity` (that build identity), `frame`, `createdAt` (an
 ISO time), `title` (160 characters at most), and `state`, `framebuffer`, `sgbFramebuffer`, each `{encoding: "base64",
 byteLength, sha256, data}` (1 MiB decoded at most). Each build keeps its newest 8 (`MAX_PREVIEW_STATES`; a save

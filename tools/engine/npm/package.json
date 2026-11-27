@@ -1,7 +1,7 @@
 {
   "name": "hermretro-engine-build",
   "private": true,
-  "description": "Tools for building the engine bundle (engine/modretro-chromatic/dist/server.js) and comparing two bundles: esbuild at the version the engine was bundled with, the packages the bundle includes at the engine's locked versions (engine/modretro-chromatic/scripts/runtime-package-lock.json), and acorn and eslint-scope for the comparison. Never needed to use the plugin. Install with: npm ci --prefix tools/engine/npm --ignore-scripts",
+  "description": "Tools for building the engine bundle (engine/dist/server.js) and comparing two bundles: esbuild at the version the engine was bundled with, the packages the bundle includes at the engine's locked versions (engine/scripts/runtime-package-lock.json), and acorn and eslint-scope for the comparison. Never needed to use the plugin. Install with: npm ci --prefix tools/engine/npm --ignore-scripts",
   "license": "MIT",
   "devDependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

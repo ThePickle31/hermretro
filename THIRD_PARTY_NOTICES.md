@@ -1,15 +1,15 @@
 # Third-party notices
 
 The MIT licence in `LICENSE` covers the hermretro backend, desktop page, skills and tooling in this
-repository. It does not cover the bundled engine under `engine/modretro-chromatic/` or the components inside
+repository. It does not cover the bundled engine under `engine/` or the components inside
 it, which keep their own licences, listed below.
 
-hermretro's engine under `engine/modretro-chromatic/` started from one third-party package, ModRetro's Chromatic
+hermretro's engine under `engine/` started from one third-party package, ModRetro's Chromatic
 engine 1.0.34, and is maintained by hermretro since. Every file in it is recorded with size, mode and SHA-256 in
-`engine/pins/1.0.34/manifest.json`, and the plugin refuses to start an engine that does not match that record.
+`engine/contract/manifest.json`, and the plugin refuses to start an engine that does not match that record.
 
 **Changes made by hermretro** (allowed by the engine's MIT licence): every one is listed in `engine/CHANGES.md`, and
-`git diff engine-upstream-1.0.34 HEAD -- engine/modretro-chromatic` shows them against ModRetro's 1.0.34 (the tag
+`git diff engine-upstream-1.0.34 HEAD -- engine` shows them against ModRetro's 1.0.34 (the tag
 holds that release as it was published, without the files left out below).
 
 **Left out by hermretro:** the engine's two FFmpeg builds for Linux hardware capture
@@ -20,10 +20,10 @@ binaries, capturing a real Chromatic's video on Linux reports itself unavailable
 
 ## ModRetro Chromatic Plugin engine 1.0.34
 
-- Engine code (`dist/`, `scripts/`, documentation, examples, skills): MIT, Copyright (c) 2026 Eric Provencher.
-  Licence text: `engine/modretro-chromatic/LICENSE`.
-- Its own third-party notices: `engine/modretro-chromatic/THIRD_PARTY_NOTICES.md` and
-  `engine/modretro-chromatic/licenses/`. These cover the GBVM runtime (MIT), GBDK (GPL-2.0 with linking
+- Engine code (`src/`, `dist/`, `scripts/`, documentation, examples, skills): MIT, Copyright (c) 2026 Eric Provencher.
+  Licence text: `engine/LICENSE`.
+- Its own third-party notices: `engine/THIRD_PARTY_NOTICES.md` and
+  `engine/licenses/`. These cover the GBVM runtime (MIT), GBDK (GPL-2.0 with linking
   exception), bundled JavaScript dependencies, and the Linux capture components (FFmpeg LGPL-2.1-or-later,
   libvpx BSD-3-Clause, musl, zlib, GCC runtime; the binaries themselves are left out, see above).
 - hermretro's skills (`skills/`) are adapted from the engine's skills and documentation (MIT, Copyright (c)
@@ -38,10 +38,10 @@ hermretro does not contain ModRetro's closed-source Chromatic CLI executables, i
 embedded Gowin USB driver installer. They are **not** MIT-licensed. Only when the user sets up hardware support,
 and after they accept ModRetro's terms (https://modretro.com/eula), hermretro downloads the package for their
 platform from ModRetro's official npm releases (`@modretro/chromatic-cli-*`), checks it against the SHA-256
-pinned in `engine/modretro-chromatic/third-party/chromatic-cli/PROVENANCE.json`, and unpacks it unchanged
+pinned in `engine/third-party/chromatic-cli/PROVENANCE.json`, and unpacks it unchanged
 in hermretro's folder in the Hermes home on that machine (`~/.hermes/hermretro/.cache/`).
 
-`engine/modretro-chromatic/third-party/chromatic-cli/` holds only the engine's notice, provenance record and
+`engine/third-party/chromatic-cli/` holds only the engine's notice, provenance record and
 SBOM for that package (`NOTICE.md`, `PROVENANCE.json`, `SBOM.json`); the packed copies of the executables and their
 notices that ModRetro's release carries there (`executables-v2.br`, `notices.br`) are left out, as they are from the
 tag `engine-upstream-1.0.34`. The redistribution permission described in

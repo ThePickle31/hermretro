@@ -12,7 +12,7 @@ from pathlib import Path
 from tests.support import isolated_home
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "engine" / "modretro-chromatic" / "scripts"
+SCRIPTS = ROOT / "engine" / "scripts"
 
 # The three places of the pinned compileData.ts the patch changes, in a stand-in for it.
 SOURCE = (

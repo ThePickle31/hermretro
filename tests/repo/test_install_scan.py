@@ -33,8 +33,8 @@ class InstallScanTests(unittest.TestCase):
 
     def test_capture_reads_the_inherited_descriptor_through_dev_fd(self):
         for rel in (
-            "engine/modretro-chromatic/dist/server.js",
-            "engine/modretro-chromatic/dist/device-capture/linux-helper.js",
+            "engine/dist/server.js",
+            "engine/src/device-capture/linux-helper.js",
         ):
             self.assertEqual((ROOT / rel).read_text(encoding="utf-8").count('"-i", "/dev/fd/6"'), 2, rel)
 

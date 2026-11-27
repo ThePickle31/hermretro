@@ -1,5 +1,5 @@
 // The host side of the engine's annotate feature (`document.oai.annotation`, which the engine's
-// dist/web-annotations/native.js looks for). The engine does the work: it freezes the frame, reads
+// src/web-annotations/native.js looks for). The engine does the work: it freezes the frame, reads
 // every sprite and tile from the emulator (hit test), names them, and previews colour changes on the
 // frozen frame. This file is only the host: pointer handling, our overlay, the marks, and messages
 // to the page.

@@ -146,7 +146,7 @@ class DocPathTests(unittest.TestCase):
                 "# backend/setup\n\n"
                 "Preparing the machine: ModRetro's CLI (`provision.py`, was `old_provision.py`) and the RPCs (`rpcs.py`).\n"
                 "\n## What it adds\n\n- RPCs (`rpcs.py`): `status`. Tools (`tools.py`): none.\n"
-                "\n## The level (`attract/`)\n\n| `run.js` | `attract/run.js` | `gone.js` | `engine/modretro-chromatic/dist/web-preview-states.js` |\n"
+                "\n## The level (`attract/`)\n\n| `run.js` | `attract/run.js` | `gone.js` | `engine/src/web-preview-states.js` |\n"
                 "\n## Tests\n\n`tests/backend/setup/`: `test_provision.py`, `tests/page/attract.test.mjs`.\n"
                 "\n## Adding here\n\n- an event: writes `emits.py`; a split writes `<name>_tools.py`, `listeners.py`.\n",
                 encoding="utf-8",

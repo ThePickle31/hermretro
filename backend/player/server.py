@@ -3,7 +3,7 @@
 The engine's own preview server refuses framing and opaque origins on purpose, so the Studio does
 not proxy it. It assembles the same page the way the engine does (``dist/server.js``
 ``prepareAnnotations``): the game's GB Studio web export, the engine's player modules
-(``dist/web-annotations``), its device artwork and the engine's bootstrap, plus a small frame shim
+(``src/web-annotations``), its device artwork and the engine's bootstrap, plus a small frame shim
 (storage, the host annotation API, page commands). The frame's origin is opaque (``null``), so every
 response allows any origin; the random path token is what keeps other pages out.
 

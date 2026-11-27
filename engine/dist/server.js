@@ -9281,7 +9281,7 @@ var require_png = __commonJS({
   }
 });
 
-// dist/server.js
+// src/entry.js
 import os7 from "node:os";
 import path46 from "node:path";
 import { fileURLToPath as fileURLToPath4, pathToFileURL as pathToFileURL2 } from "node:url";
@@ -23520,7 +23520,7 @@ var StdioServerTransport = class {
   }
 };
 
-// dist/toolchain-prepare.js
+// src/toolchain-prepare.js
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 async function prepareToolchain(packageRoot, components, options = {}) {
@@ -23545,12 +23545,12 @@ async function prepareToolchain(packageRoot, components, options = {}) {
   };
 }
 
-// dist/project-snapshot.js
+// src/project-snapshot.js
 import { createHash as createHash7 } from "node:crypto";
 import { readdir as readdir3, readFile as readFile4, realpath as realpath7 } from "node:fs/promises";
 import path11 from "node:path";
 
-// dist/project-access.js
+// src/project-access.js
 var PROJECT_REVISION_ALGORITHM = "sha256-merkle-v2";
 var PUBLIC_REVISION_DIRECTORIES = ["project", "assets"];
 var PROJECT_RESPONSE_LIMITS = Object.freeze({
@@ -23597,12 +23597,12 @@ function isSemanticCursorCurrent(payload, current, query) {
   return isSemanticCursorPayload(payload) && payload.revision === current.revision && payload.revisionAlgorithm === current.revisionAlgorithm && payload.selectionGeneration === current.selectionGeneration && payload.semanticGeneration === current.semanticGeneration && payload.query === query;
 }
 
-// dist/project.js
+// src/project.js
 import { createHash as createHash5 } from "node:crypto";
 import { access as access2, lstat as lstat6, mkdir as mkdir2, open as open3, readdir as readdir2, readFile as readFile3, realpath as realpath6, rename as rename2, rm as rm2, stat as stat2 } from "node:fs/promises";
 import path9 from "node:path";
 
-// dist/project-error.js
+// src/project-error.js
 var GameStudioProjectError = class extends Error {
   code;
   resourcePath;
@@ -23614,7 +23614,7 @@ var GameStudioProjectError = class extends Error {
   }
 };
 
-// dist/resource-codec.js
+// src/resource-codec.js
 var ResourceCodecError = class extends Error {
   code;
   constructor(code, message2) {
@@ -23727,16 +23727,16 @@ function encodeResourceBytes(values) {
   return encoded2;
 }
 
-// dist/event-catalog.js
+// src/event-catalog.js
 import path7 from "node:path";
 import { readdirSync, readFileSync, realpathSync as realpathSync2, statSync } from "node:fs";
 
-// dist/world-script-graph.js
+// src/world-script-graph.js
 import { createHash as createHash4 } from "node:crypto";
 import { readdir, readFile as readFile2, realpath as realpath5 } from "node:fs/promises";
 import path6 from "node:path";
 
-// dist/project-files.js
+// src/project-files.js
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat as lstat2, mkdir, open, readFile, realpath as realpath2, rename, rm, unlink } from "node:fs/promises";
@@ -23744,7 +23744,7 @@ import { hostname as hostname2, userInfo } from "node:os";
 import path3 from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-// dist/platform.js
+// src/platform.js
 import { execFile } from "node:child_process";
 import { lstatSync, realpathSync } from "node:fs";
 import { lstat, realpath } from "node:fs/promises";
@@ -24071,7 +24071,7 @@ async function verifyWindowsPrivatePath(candidate, options = {}) {
   }
 }
 
-// dist/project-files.js
+// src/project-files.js
 function isSystemError(error2, code) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
 }
@@ -24639,16 +24639,16 @@ function nextResourceIndex(resources) {
   }, -1) + 1;
 }
 
-// dist/custom-event-dependencies.js
+// src/custom-event-dependencies.js
 import { createHash as createHash3 } from "node:crypto";
 
-// dist/reviewed-compiler.js
+// src/reviewed-compiler.js
 import { createHash as createHash2 } from "node:crypto";
 import { constants as constants2 } from "node:fs";
 import { lstat as lstat4, open as open2, realpath as realpath4 } from "node:fs/promises";
 import path5 from "node:path";
 
-// dist/compiler-selection.js
+// src/compiler-selection.js
 import { access, lstat as lstat3, realpath as realpath3, stat } from "node:fs/promises";
 import path4 from "node:path";
 function configuredEnvironmentValue(name3) {
@@ -24749,7 +24749,7 @@ async function selectProjectCompiler(projectRoot, configuredRoot) {
   return { toolchainRoot, cliPath, compilerRoot: cliPath ? path4.resolve(path4.dirname(cliPath), "..", "..") : null };
 }
 
-// dist/reviewed-compiler.js
+// src/reviewed-compiler.js
 var MAX_FILE_BYTES = 8 * 1024 * 1024;
 var MAX_TOTAL_BYTES = 16 * 1024 * 1024;
 var MAX_FILES = 128;
@@ -24846,7 +24846,7 @@ async function observeReviewedCompiler(projectRoot, profiles, configuredRoot, de
   }
 }
 
-// dist/custom-event-dependencies.js
+// src/custom-event-dependencies.js
 var CUSTOM_EVENT_RESOLUTION_PROFILE = "gb-studio-4.3.2/project-event-exports/v1";
 var EVENT_FILE = /^plugins\/[^/]+\/(?:[^/]+\/)*events\/event[^/]*\.js$/;
 var SHA256 = /^[a-f0-9]{64}$/;
@@ -25031,7 +25031,7 @@ function extractReviewedEvent(contract, args, children, context) {
 }
 var REVIEWED_CUSTOM_EVENTS = new ReviewedEventRegistry([]);
 
-// dist/world-script-graph.js
+// src/world-script-graph.js
 var SCRIPT_KEY = /^(?:script|[A-Za-z][A-Za-z0-9]*Script)$/;
 var FORMAL_VARIABLE = /^V\d+$/;
 var LOCAL_VARIABLE = /^L\d+$/;
@@ -25913,8 +25913,8 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
   };
 }
 
-// dist/event-catalog.js
-var EVENT_CATALOG_URL = new URL("./gb-studio-events.json", import.meta.url);
+// src/event-catalog.js
+var EVENT_CATALOG_URL = new URL("../src/gb-studio-events.json", import.meta.url);
 var EVENT_LIST_LIMIT = 40;
 var EVENT_UNCATEGORIZED = "Uncategorized";
 var EVENT_FIELD_TYPES = {
@@ -26434,7 +26434,7 @@ async function authoringScripts(inventory) {
   return { scripts, prefabs };
 }
 
-// dist/native-script-events.js
+// src/native-script-events.js
 var SCRIPT_KEYS = /^(?:script|[A-Za-z][A-Za-z0-9]*Script)$/;
 var ACTOR_PROPERTIES = /* @__PURE__ */ new Set([
   "xpos",
@@ -26696,7 +26696,7 @@ function findInvalidNativeScriptEvent(proposed, previous, options = {}) {
   return void 0;
 }
 
-// dist/actors.js
+// src/actors.js
 import { lstat as lstat5, unlink as unlink2 } from "node:fs/promises";
 import path8 from "node:path";
 var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
@@ -27175,7 +27175,7 @@ async function deleteActor(projectPath, input, access4) {
   });
 }
 
-// dist/legacy-project-assets.js
+// src/legacy-project-assets.js
 function isObject4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -27254,7 +27254,7 @@ function legacyPluginAssetCandidates(discovery) {
   return [...paths.values()].flatMap((candidates) => candidates.length === 1 ? candidates : []);
 }
 
-// dist/project.js
+// src/project.js
 function resolveNativeAssetIdentity(source, id3) {
   const indexed = "asset" in source ? source.asset({ assetId: id3 }) : void 0;
   const matches2 = indexed?.matches ?? ("assets" in source ? source.assets.filter((asset) => asset.id === id3) : []);
@@ -28313,7 +28313,7 @@ async function updateSettings(projectPath, updates, indexedAccess) {
   });
 }
 
-// dist/project-revision.js
+// src/project-revision.js
 import { createHash as createHash6 } from "node:crypto";
 import path10 from "node:path";
 var SHA256_HEX2 = /^[a-f\d]{64}$/u;
@@ -28456,7 +28456,7 @@ function isPublicProjectRevisionPath(relativePath2, descriptorRelativePath) {
   return normalized === descriptor || PUBLIC_REVISION_DIRECTORIES.some((directory) => normalized.startsWith(`${directory}/`));
 }
 
-// dist/project-snapshot.js
+// src/project-snapshot.js
 var RESOURCE_ORDER = [
   "scene",
   "actor",
@@ -29134,13 +29134,13 @@ async function inventoryProjectNormalized(projectPath, options = {}, selectionGe
   return inventoryProjectSnapshot(snapshot, options);
 }
 
-// dist/scene-batch.js
+// src/scene-batch.js
 import { createHash as createHash9 } from "node:crypto";
 import { lstat as lstat8, readFile as readFile5, rmdir as rmdir2, unlink as unlink4 } from "node:fs/promises";
 import path17 from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
-// dist/native-import-files.js
+// src/native-import-files.js
 import { createHash as createHash8, randomUUID as randomUUID2 } from "node:crypto";
 import { constants as constants3 } from "node:fs";
 import { link as link2, lstat as lstat7, mkdir as mkdir3, mkdtemp, open as open4, opendir, rename as rename3, rmdir, unlink as unlink3 } from "node:fs/promises";
@@ -29532,7 +29532,7 @@ async function readNativeProjectMetadata(root) {
   return values;
 }
 
-// dist/collisions.js
+// src/collisions.js
 import path13 from "node:path";
 var MAXIMUM_SCENE_DIMENSION = 255;
 var MAXIMUM_EDITS = 1024;
@@ -29747,7 +29747,7 @@ async function editCollisions(projectPath, input, access4) {
   });
 }
 
-// dist/game-scripts.js
+// src/game-scripts.js
 import path14 from "node:path";
 var FORBIDDEN_KEYS2 = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 var VALID_DIRECTIONS = /* @__PURE__ */ new Set(["up", "down", "left", "right"]);
@@ -30145,7 +30145,7 @@ async function createSceneTransition(projectPath, input, access4) {
   }, access4, inventory);
 }
 
-// dist/game-variables.js
+// src/game-variables.js
 import path15 from "node:path";
 var MAXIMUM_AUTOMATIC_VARIABLE_ID = 511;
 var FORBIDDEN_KEYS3 = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
@@ -30358,7 +30358,7 @@ async function updateVariable(projectPath, input, access4) {
   };
 }
 
-// dist/triggers.js
+// src/triggers.js
 import path16 from "node:path";
 function findSceneTrigger(scene, triggerId, access4) {
   const trigger = access4 ? access4.trigger(scene.id, triggerId) : scene.triggers.find((candidate) => candidate.id === triggerId);
@@ -30614,7 +30614,7 @@ async function deleteTrigger(projectPath, input, access4) {
   });
 }
 
-// dist/scene-batch.js
+// src/scene-batch.js
 var MAX_BATCH_OPERATIONS = 100;
 var MAX_INSPECTION_RESOURCES = 100;
 var MAX_INSPECTION_EVENTS = 250;
@@ -31942,7 +31942,7 @@ async function deleteScene(projectPath, input, indexedAccess) {
   });
 }
 
-// dist/build.js
+// src/build.js
 import { execFile as execFile2, spawn } from "node:child_process";
 import { createHash as createHash12, randomUUID as randomUUID3 } from "node:crypto";
 import { constants as constants5, writeFileSync } from "node:fs";
@@ -31955,7 +31955,7 @@ import { promisify as promisify2 } from "node:util";
 import { detectDependencies, probeDependencies } from "../scripts/dependency-doctor.mjs";
 import { detectDependencies as detectDependencies2, probeDependencies as probeDependencies2 } from "../scripts/dependency-doctor.mjs";
 
-// dist/debug-symbols.js
+// src/debug-symbols.js
 import { createHash as createHash10, timingSafeEqual } from "node:crypto";
 var WRAM_START = 49152;
 var WRAM_END = 57343;
@@ -32261,7 +32261,7 @@ function decodeCurrentScene(manifest, bytes2) {
   return matches2[0];
 }
 
-// dist/build-provenance.js
+// src/build-provenance.js
 import { createHash as createHash11 } from "node:crypto";
 import { constants as constants4 } from "node:fs";
 import { lstat as lstat9, open as open5, readdir as readdir4, realpath as realpath8 } from "node:fs/promises";
@@ -32489,7 +32489,7 @@ function authenticatedSourceBuild(build2) {
   return AUTHENTICATED_BUILDS.get(build2);
 }
 
-// dist/build.js
+// src/build.js
 var execFileAsync2 = promisify2(execFile2);
 var MAX_TIMEOUT_MS = 6e5;
 var DEFAULT_TIMEOUT_MS = 12e4;
@@ -33821,7 +33821,7 @@ async function buildRom(options) {
   }
 }
 
-// dist/chromatic.js
+// src/chromatic.js
 import { createHash as createHash14, randomUUID as randomUUID5 } from "node:crypto";
 import { constants as constants7 } from "node:fs";
 import { lstat as lstat11, mkdir as mkdir5, open as open6, opendir as opendir2, realpath as realpath10 } from "node:fs/promises";
@@ -33829,7 +33829,7 @@ import path21 from "node:path";
 import { CHROMATIC_VERSION, selectChromaticTarget } from "../scripts/chromatic-runtime.mjs";
 import { runChromaticCaptured, ChromaticNotStartedError, CHROMATIC_LIVE_DEFAULT_DURATION_SECONDS, CHROMATIC_LIVE_MIN_DURATION_SECONDS, CHROMATIC_LIVE_MAX_DURATION_SECONDS } from "../scripts/chromatic.mjs";
 
-// dist/chromatic-journal.js
+// src/chromatic-journal.js
 import { closeSync, constants as constants6, fstatSync, fsyncSync, ftruncateSync, lstatSync as lstatSync2, mkdirSync, openSync, opendirSync, readSync, readdirSync as readdirSync2, realpathSync as realpathSync3, renameSync, rmdirSync, unlinkSync, writeSync } from "node:fs";
 import fs2 from "node:fs";
 import { createHash as createHash13, randomUUID as randomUUID4 } from "node:crypto";
@@ -34232,7 +34232,7 @@ var ChromaticJournalLease = class {
   }
 };
 
-// dist/chromatic.js
+// src/chromatic.js
 var ChromaticDeviceError = class extends Error {
   code;
   details;
@@ -35092,27 +35092,27 @@ var ChromaticService = class {
   }
 };
 
-// dist/contact-sheet.js
+// src/contact-sheet.js
 import { createHash as createHash20, randomBytes } from "node:crypto";
 var import_pngjs5 = __toESM(require_png(), 1);
 
-// dist/palettes.js
+// src/palettes.js
 import { createHash as createHash19 } from "node:crypto";
 import { realpath as realpath12 } from "node:fs/promises";
 import path28 from "node:path";
 
-// dist/scene-graphics.js
+// src/scene-graphics.js
 var import_pngjs4 = __toESM(require_png(), 1);
 import { createHash as createHash18 } from "node:crypto";
 import { mkdir as mkdir8, open as open11, readFile as readFile9 } from "node:fs/promises";
 import path27 from "node:path";
 
-// dist/graphics.js
+// src/graphics.js
 var import_pngjs = __toESM(require_png(), 1);
 import { open as open7, realpath as realpath11 } from "node:fs/promises";
 import path22 from "node:path";
 
-// dist/graphics-palette-packing.js
+// src/graphics-palette-packing.js
 var MAX_PALETTES = 8;
 var MAX_PALETTE_SEARCH_NODES = 1e5;
 function paletteKey(colors) {
@@ -35254,7 +35254,7 @@ function packTilePalettes(tilePalettes, capacity) {
   return packingResult(greedyFamilies, lowerBound, "exact", false);
 }
 
-// dist/graphics.js
+// src/graphics.js
 var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAX_IMAGE_BYTES = 24 * 1024 * 1024;
 var MAX_IMAGE_DIMENSION = 4096;
@@ -35693,20 +35693,20 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
   };
 }
 
-// dist/sprites.js
+// src/sprites.js
 var import_pngjs3 = __toESM(require_png(), 1);
 import { createHash as createHash17, randomUUID as randomUUID6 } from "node:crypto";
 import { mkdir as mkdir7, open as open10, readFile as readFile8 } from "node:fs/promises";
 import path26 from "node:path";
 
-// dist/assets.js
+// src/assets.js
 var import_pngjs2 = __toESM(require_png(), 1);
 import { createHash as createHash16 } from "node:crypto";
 import { mkdir as mkdir6, open as open9, rename as rename5, rm as rm5 } from "node:fs/promises";
 import path25 from "node:path";
 import { inflateSync } from "node:zlib";
 
-// dist/audio.js
+// src/audio.js
 import { readdir as readdir6, readFile as readFile7, open as open8, rm as rm4 } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path23 from "node:path";
@@ -36493,7 +36493,7 @@ async function inspectAudioAsset(loaded) {
   return audioResult(loaded.metadata, loaded.assetPath, inspectAudio(type, extension, bytes2));
 }
 
-// dist/engine-fields.js
+// src/engine-fields.js
 import path24 from "node:path";
 var MAX_ENGINE_FIELD_INSPECTION = 250;
 var MAX_ENGINE_FIELD_UPDATES = 100;
@@ -36658,7 +36658,7 @@ async function updateEngineFields(projectPath, input, access4) {
   };
 }
 
-// dist/native-sprite-metadata.js
+// src/native-sprite-metadata.js
 import { createHash as createHash15 } from "node:crypto";
 var MAX_NATIVE_METADATA_BYTES = 2 * 1024 * 1024;
 var NATIVE_SPRITE_LIMITS = { states: 32, animationsPerState: 8, framesPerAnimation: 32, frames: 1024, objectsPerFrame: 40, objects: 8192, depth: 12 };
@@ -36905,7 +36905,7 @@ function createNativeSpriteMetadata(bytes2, pngBytes, image, output, existingIds
   };
 }
 
-// dist/assets.js
+// src/assets.js
 var PNG_SIGNATURE2 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAX_PNG_BYTES = 16 * 1024 * 1024;
 var MAX_PNG_CHUNKS = 4096;
@@ -37633,7 +37633,7 @@ async function deleteAsset(projectRoot, input, access4) {
   return { ...assetResult(loaded.metadata, loaded.assetPath), deleted: true };
 }
 
-// dist/sprites.js
+// src/sprites.js
 var SOURCE_PREVIEW_LABEL = "Authored sprite source composite; not an emulator framebuffer or gameplay capture.";
 var MAX_PREVIEW_FRAMES = 32;
 var SPRITE_TILE_WIDTH = 8;
@@ -38257,7 +38257,7 @@ async function spriteContactSheet(projectRoot, input, access4) {
   };
 }
 
-// dist/scene-graphics.js
+// src/scene-graphics.js
 var MAX_TILE_DETAILS = 512;
 var DEFAULT_TILE_DETAILS = 64;
 var MAX_PREVIEW_PIXELS = 4194304;
@@ -39056,7 +39056,7 @@ async function previewSceneContactSheet(projectPath, input, access4) {
   };
 }
 
-// dist/palettes.js
+// src/palettes.js
 var HARDWARE_PALETTE_SLOTS = 8;
 var DEFAULT_UI_PALETTE_SLOT = 7;
 var FALLBACK_PALETTE_COLORS = ["E0F8CF", "86C06C", "306850", "071821"];
@@ -39499,7 +39499,7 @@ async function paintBackgroundPalette(projectPath, input, access4) {
   };
 }
 
-// dist/contact-sheet.js
+// src/contact-sheet.js
 var GAME_BOY_FRAME_WIDTH = 160;
 var MAX_CONTACT_SHEET_FRAMES = 64;
 var MAX_CONTACT_SHEET_MAGNIFICATION = 6;
@@ -39790,7 +39790,7 @@ function renderContactSheetPng(options) {
   };
 }
 
-// dist/dialogue.js
+// src/dialogue.js
 var import_pngjs6 = __toESM(require_png(), 1);
 import { readFile as readFile10, realpath as realpath13, stat as stat4 } from "node:fs/promises";
 import path29 from "node:path";
@@ -40353,12 +40353,12 @@ async function analyzeDialogue(projectPath, input = {}, access4) {
   return access4 || input.eventLimit !== void 0 || input.pageLimit !== void 0 ? projectDialogueAnalysis(analysis, input) : analysis;
 }
 
-// dist/recording-maintenance.js
+// src/recording-maintenance.js
 import { createHash as createHash24, randomUUID as randomUUID7 } from "node:crypto";
 import { closeSync as closeSync5, constants as constants11, fstatSync as fstatSync5, lstatSync as lstatSync6, mkdirSync as mkdirSync3, openSync as openSync5, readdirSync as readdirSync5, readSync as readSync5, realpathSync as realpathSync7, renameSync as renameSync2, unlinkSync as unlinkSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname3, join as join4, relative as relative4, resolve as resolve3, sep as sep4 } from "node:path";
 
-// dist/recording-location.js
+// src/recording-location.js
 import { createHash as createHash21 } from "node:crypto";
 import { closeSync as closeSync2, constants as constants8, fstatSync as fstatSync2, lstatSync as lstatSync3, openSync as openSync2, readSync as readSync2, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
@@ -40488,12 +40488,12 @@ function recordingArchiveOrigin(root, resolvePath) {
   return original;
 }
 
-// dist/recording-archive.js
+// src/recording-archive.js
 import { createHash as createHash23 } from "node:crypto";
 import { closeSync as closeSync4, constants as constants10, fstatSync as fstatSync4, lstatSync as lstatSync5, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync6 } from "node:fs";
 import { isAbsolute as isAbsolute3, join as join3, relative as relative3, resolve as resolve2, sep as sep3 } from "node:path";
 
-// dist/recording-common.js
+// src/recording-common.js
 var import_pngjs7 = __toESM(require_png(), 1);
 import { createHash as createHash22 } from "node:crypto";
 import { closeSync as closeSync3, constants as constants9, fstatSync as fstatSync3, lstatSync as lstatSync4, mkdirSync as mkdirSync2, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4, realpathSync as realpathSync5, statSync as statSync2, writeSync as writeSync2 } from "node:fs";
@@ -40802,7 +40802,7 @@ function artifactUsage(root, resolvePath) {
   return total;
 }
 
-// dist/recording-archive.js
+// src/recording-archive.js
 var MANIFEST_BYTES = 1024 * 1024;
 var JOURNAL_CHUNK_BYTES = 64 * 1024;
 var RECORDING_STATUSES = /* @__PURE__ */ new Set(["recording", "stopped", "cancelled", "failed", "interrupted"]);
@@ -41193,7 +41193,7 @@ function readRecording(root, resolvePath, options = {}) {
   return result;
 }
 
-// dist/recording-maintenance.js
+// src/recording-maintenance.js
 var POINTER = ".recording-archive.json";
 var MAX_ENTRIES2 = 2e4;
 var inside3 = (root, path47) => path47 === root || path47.startsWith(root + sep4);
@@ -41599,7 +41599,7 @@ var RecordingMaintenance = class {
   }
 };
 
-// dist/emulator.js
+// src/emulator.js
 var import_pngjs8 = __toESM(require_png(), 1);
 import { spawn as spawn2 } from "node:child_process";
 import { createHash as createHash25, randomUUID as randomUUID8 } from "node:crypto";
@@ -42937,7 +42937,7 @@ var EmulatorService = class {
   }
 };
 
-// dist/mcp-path-privacy.js
+// src/mcp-path-privacy.js
 import { realpathSync as realpathSync9 } from "node:fs";
 import path30 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -43118,7 +43118,7 @@ function createMcpPathPrivacy(options) {
   return (value) => redactValue(value, sanitizeString);
 }
 
-// dist/playtest-errors.js
+// src/playtest-errors.js
 var PlaytestError = class extends Error {
   code;
   recordingPath;
@@ -43130,17 +43130,17 @@ var PlaytestError = class extends Error {
   }
 };
 
-// dist/project-session.js
+// src/project-session.js
 import { realpathSync as realpathSync10, statSync as statSync4 } from "node:fs";
 import { lstat as lstat13, mkdir as mkdir9, open as open12, readdir as readdir8, readFile as readFile12, realpath as realpath15, rmdir as rmdir3, stat as stat6, unlink as unlink5 } from "node:fs/promises";
 import path33 from "node:path";
 
-// dist/project-world-index.js
+// src/project-world-index.js
 import { createHash as createHash26 } from "node:crypto";
 import { lstat as lstat12, readdir as readdir7, readFile as readFile11, realpath as realpath14, stat as stat5 } from "node:fs/promises";
 import path32 from "node:path";
 
-// dist/project-tree-watcher.js
+// src/project-tree-watcher.js
 import { EventEmitter } from "node:events";
 import { lstatSync as lstatSync8, readdirSync as readdirSync6, watch } from "node:fs";
 import path31 from "node:path";
@@ -43291,7 +43291,7 @@ function watchProjectTree(root, options, listener) {
   return process.platform === "linux" ? new ProjectTreeWatcher(root, options, listener) : watch(root, options, listener);
 }
 
-// dist/project-world-index.js
+// src/project-world-index.js
 var ASSET_EXTENSIONS2 = /* @__PURE__ */ new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
 var PNG_SIGNATURE4 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAXIMUM_DIRTY_PATHS = 2048;
@@ -44684,7 +44684,7 @@ var ProjectWorldIndex = class {
   }
 };
 
-// dist/project-session.js
+// src/project-session.js
 var BLANK_PROJECT_GAME_TYPES = ["TOPDOWN", "PLATFORM", "ADVENTURE", "SHMUP", "POINTNCLICK"];
 var BLANK_PROJECT_COLOR_MODES = ["mono", "mixed", "color"];
 var EXCLUDED_TEMPLATE_DIRECTORIES = /* @__PURE__ */ new Set([
@@ -45254,12 +45254,12 @@ var ProjectSession = class {
   }
 };
 
-// dist/source-debug.js
+// src/source-debug.js
 import { constants as constants13 } from "node:fs";
 import { lstat as lstat14, open as open13, realpath as realpath16 } from "node:fs/promises";
 import path34 from "node:path";
 
-// dist/world-queries.js
+// src/world-queries.js
 import { createHash as createHash27 } from "node:crypto";
 var MAXIMUM_RELATIONS = 32;
 var MAXIMUM_TRAVERSED_REFERENCES = 1e5;
@@ -45524,7 +45524,7 @@ async function worldDependencies(access4, query) {
   return resultPage(returned, coverageReturned);
 }
 
-// dist/source-debug.js
+// src/source-debug.js
 var MAX_SOURCE_DEBUG_VARIABLES = 32;
 var MAX_SOURCE_DEBUG_COLLISION_CELLS = 256;
 var MAX_SOURCE_DEBUG_REFERENCES = 64;
@@ -46280,7 +46280,7 @@ async function createSourceDebugContext(options) {
   return SourceDebugContext.create(options);
 }
 
-// dist/tool-domains/schemas.js
+// src/tool-domains/schemas.js
 var identifier = external_exports.string().trim().min(1).max(256);
 var variableId = external_exports.string().trim().regex(/^(?:0|[1-9]\d{0,14}|[1-8]\d{15}|900[0-6]\d{12}|90070\d{11}|90071[0-8]\d{10}|900719[0-8]\d{9}|9007199[0-1]\d{8}|90071992[0-4]\d{7}|900719925[0-3]\d{6}|9007199254[0-6]\d{5}|90071992547[0-3]\d{4}|9007199254740[0-8]\d{2}|90071992547409[0-8]\d|900719925474099[01])$/u).describe("Canonical nonnegative decimal string, e.g. 0 or 12: no leading zeros; maximum 9007199254740991. This is an authored ID, not an emulator memory address.");
 var variableSymbol = external_exports.string().trim().max(256).regex(/^var_[A-Za-z][A-Za-z0-9_]*$/u).describe("Optional compiler symbol, e.g. var_audit_counter. Must begin with var_ followed by an ASCII letter, then letters, digits or underscores. Omit to retain the existing symbol or generate one from a new variable's name.");
@@ -46731,10 +46731,10 @@ var domainSchemas = {
   }).strict()
 };
 
-// dist/tool-domains/register.js
+// src/tool-domains/register.js
 import path37 from "node:path";
 
-// dist/dialogue-preview.js
+// src/dialogue-preview.js
 var import_pngjs9 = __toESM(require_png(), 1);
 import { createHash as createHash28 } from "node:crypto";
 import { lstat as lstat15, mkdir as mkdir10, open as open14, readFile as readFile13, realpath as realpath17 } from "node:fs/promises";
@@ -47032,18 +47032,18 @@ async function previewDialogue(projectPath, input, access4) {
   };
 }
 
-// dist/tilemaps.js
+// src/tilemaps.js
 var import_pngjs11 = __toESM(require_png(), 1);
 import { constants as constants14 } from "node:fs";
 import { lstat as lstat16, open as open15 } from "node:fs/promises";
 import path36 from "node:path";
 import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
-// dist/tilemap-compose.js
+// src/tilemap-compose.js
 var import_pngjs10 = __toESM(require_png(), 1);
 import { createHash as createHash29 } from "node:crypto";
 
-// dist/tilemap-schema.js
+// src/tilemap-schema.js
 var TILEMAP_TILE_SIZE = 8;
 var MAX_ROOM_CELLS = 16380;
 var MAX_EDIT_CELLS = 4096;
@@ -47216,7 +47216,7 @@ var tilemapSchemas = {
   }).strict()
 };
 
-// dist/tilemap-compose.js
+// src/tilemap-compose.js
 var SOURCE_COLORS = /* @__PURE__ */ new Set(["071821", "306850", "86c06c", "e0f8cf"]);
 function tilemapError(code, message2) {
   throw new GameStudioProjectError(code, message2);
@@ -47455,7 +47455,7 @@ function tilemapDiff(before, after, width, atlas) {
   };
 }
 
-// dist/tilemaps.js
+// src/tilemaps.js
 var MAX_PNG_BYTES2 = 16 * 1024 * 1024;
 var jsonBytes = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}
 `);
@@ -48011,7 +48011,7 @@ async function inspectTilemap(projectPath, input, access4) {
   return withTilemapIndex(projectPath, access4, (index) => inspectTilemapIndexed(projectPath, input, index));
 }
 
-// dist/tool-domains/tilemap.js
+// src/tool-domains/tilemap.js
 function registerTilemapTools(server, context) {
   const mutation2 = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
   server.registerTool("tilemap_atlas_create", {
@@ -48046,7 +48046,7 @@ function registerTilemapTools(server, context) {
   }, (input) => context.safely(() => context.runTransaction((project, access4) => compileTilemap(project.projectPath, input, access4))));
 }
 
-// dist/tool-domains/register.js
+// src/tool-domains/register.js
 var readOnly = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -48357,7 +48357,7 @@ function registerProjectDomains(server, context) {
   }, async (input) => inspect((_project, access4) => worldDependencies(access4, input)));
 }
 
-// dist/tool-domains/chromatic.js
+// src/tool-domains/chromatic.js
 import { CHROMATIC_LIVE_DEFAULT_DURATION_SECONDS as CHROMATIC_LIVE_DEFAULT_DURATION_SECONDS2, CHROMATIC_LIVE_MIN_DURATION_SECONDS as CHROMATIC_LIVE_MIN_DURATION_SECONDS2, CHROMATIC_LIVE_MAX_DURATION_SECONDS as CHROMATIC_LIVE_MAX_DURATION_SECONDS2 } from "../scripts/chromatic.mjs";
 var identifier2 = external_exports.string().min(1).max(128);
 var requestId = identifier2.describe("Unique ID for the authorized attempt. If the reply is lost, retrieve this same ID through device operation_status; it never starts another attempt.");
@@ -48475,7 +48475,7 @@ function registerChromaticTools(server, context) {
   }, async (input, extra) => invoke({ ...input, command: "play" }, extra.signal));
 }
 
-// dist/tool-domains/playtest.js
+// src/tool-domains/playtest.js
 import { createHash as createHash30 } from "node:crypto";
 import { constants as constants15 } from "node:fs";
 import { lstat as lstat17, open as open16, realpath as realpath18 } from "node:fs/promises";
@@ -48738,7 +48738,7 @@ function registerPlaytestTools(context) {
   }, async (input) => safely(() => context.runOperation(() => context.sourceDebug(input))));
 }
 
-// dist/web-build.js
+// src/web-build.js
 import { createHash as createHash31, createHmac, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
 import { constants as constants16, createReadStream } from "node:fs";
 import { link as link3, lstat as lstat18, mkdir as mkdir11, mkdtemp as mkdtemp3, open as open17, readFile as readFile14, readdir as readdir9, realpath as realpath19, rename as rename6, rm as rm6, stat as stat7, unlink as unlink6, writeFile as writeFile2 } from "node:fs/promises";
@@ -49661,10 +49661,10 @@ async function buildWeb(options, platformOptions = {}) {
   });
 }
 
-// dist/web-preview-input.js
+// src/web-preview-input.js
 import { randomUUID as randomUUID9 } from "node:crypto";
 
-// dist/web-annotations/input-protocol.js
+// src/web-annotations/input-protocol.js
 var INPUT_BUTTONS = ["up", "down", "left", "right", "a", "b", "start", "select"];
 var INPUT_LEASE_MS = 400;
 var INPUT_MAX_MS = 2e3;
@@ -49705,7 +49705,7 @@ function parseInputReceipt(value) {
   return { ...v, generation: inputGeneration(v.generation), requestedDurationMs: inputDuration(v.requestedDurationMs) };
 }
 
-// dist/web-preview-input.js
+// src/web-preview-input.js
 var PreviewInputError = class extends Error {
   code;
   commandId;
@@ -49871,16 +49871,16 @@ var PreviewInputBroker = class {
   }
 };
 
-// dist/web-preview-recording.js
+// src/web-preview-recording.js
 import { randomUUID as randomUUID11 } from "node:crypto";
 
-// dist/web-preview-recording-journal.js
+// src/web-preview-recording-journal.js
 import { constants as constants17 } from "node:fs";
 import { lstat as lstat19, mkdir as mkdir12, open as open18, opendir as opendir3, realpath as realpath20, rename as rename7, unlink as unlink7, link as link4 } from "node:fs/promises";
 import path39 from "node:path";
 import { randomUUID as randomUUID10 } from "node:crypto";
 
-// dist/web-annotations/recording-protocol.js
+// src/web-annotations/recording-protocol.js
 var RECORDING_DEFAULT_MS = 18e4;
 var RECORDING_MAX_MS = 6e5;
 var RECORDING_DRAIN_MS = 3e4;
@@ -49966,7 +49966,7 @@ function parseRecordingState(value) {
   return r;
 }
 
-// dist/web-preview-recording-record.js
+// src/web-preview-recording-record.js
 function object5(value, required3, optional2 = []) {
   if (!value || typeof value !== "object" || Array.isArray(value) || required3.some((k) => !Object.hasOwn(value, k)) || Object.keys(value).some((k) => ![...required3, ...optional2].includes(k)))
     throw new Error("Invalid recording journal fields.");
@@ -50031,7 +50031,7 @@ function parseRecordingJob(value) {
   return r;
 }
 
-// dist/web-preview-recording-journal.js
+// src/web-preview-recording-journal.js
 var LIMIT = 32 * 1024;
 var RecordingJournal = class {
   root;
@@ -50214,7 +50214,7 @@ var RecordingJournal = class {
   }
 };
 
-// dist/web-preview-recording.js
+// src/web-preview-recording.js
 var errorText = (error2) => (error2 instanceof Error ? error2.message : String(error2)).slice(0, 512);
 var PreviewRecordingBroker = class {
   now;
@@ -50663,7 +50663,7 @@ var PreviewRecordingBroker = class {
   }
 };
 
-// dist/web-preview.js
+// src/web-preview.js
 import { createHash as createHash35, randomBytes as randomBytes3, timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 import { constants as constants20 } from "node:fs";
 import { lstat as lstat22, open as open21, realpath as realpath23 } from "node:fs/promises";
@@ -50671,12 +50671,12 @@ import { createServer } from "node:http";
 import path40 from "node:path";
 import { pipeline } from "node:stream/promises";
 
-// dist/web-preview-states.js
+// src/web-preview-states.js
 import { createHash as createHash32, randomUUID as randomUUID12 } from "node:crypto";
 import { constants as constants18 } from "node:fs";
 import { link as link5, lstat as lstat20, mkdir as mkdir13, open as open19, opendir as opendir4, realpath as realpath21, unlink as unlink8 } from "node:fs/promises";
 
-// dist/web-annotations/save-state.js
+// src/web-annotations/save-state.js
 var MAX_SAVE_STATE_BYTES = 1024 * 1024;
 var MAX_SAVE_STATE_FILE_BYTES = Math.ceil(MAX_SAVE_STATE_BYTES / 3) * 4 + 16 * 1024;
 var FORMAT = "codex-gb-studio-save-state";
@@ -50805,7 +50805,7 @@ function serializeSaveState(file2) {
   return text;
 }
 
-// dist/web-preview-states.js
+// src/web-preview-states.js
 var MAX_PREVIEW_STATES = 8;
 var MAX_DIRECTORY_ENTRIES = 64;
 var SHA2565 = /^[a-f0-9]{64}$/;
@@ -51137,7 +51137,7 @@ var PreviewStateStore = class {
   }
 };
 
-// dist/web-preview-captures.js
+// src/web-preview-captures.js
 var import_pngjs12 = __toESM(require_png(), 1);
 import { createHash as createHash33, randomUUID as randomUUID13 } from "node:crypto";
 import { constants as constants19, openAsBlob } from "node:fs";
@@ -51842,7 +51842,7 @@ var PreviewCaptureStore = class {
   }
 };
 
-// dist/web-preview-player.js
+// src/web-preview-player.js
 import { createHash as createHash34, randomUUID as randomUUID14 } from "node:crypto";
 var VIEW_TTL_MS = 5e3;
 var MAX_TIMEOUT_MS3 = 15e3;
@@ -52093,10 +52093,10 @@ var PreviewPlayerControl = class {
   }
 };
 
-// dist/web-preview-flash.js
+// src/web-preview-flash.js
 import { randomUUID as randomUUID15 } from "node:crypto";
 
-// dist/web-annotations/flash-diagnostics.js
+// src/web-annotations/flash-diagnostics.js
 var PHASES = ["detect", "read_header", "probe_flash", "identify", "write"];
 var TOKENS = ["LIBUSB_ERROR_ACCESS", "IOKit 0xe00002be"];
 var RECOVERY = [
@@ -52125,7 +52125,7 @@ function copyFlashFailureDetails(value) {
   };
 }
 
-// dist/chromatic-failure-diagnostics.js
+// src/chromatic-failure-diagnostics.js
 var record5 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 var positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
 var nonnegativeInteger = (value) => Number.isSafeInteger(value) && value >= 0;
@@ -52174,7 +52174,7 @@ function flashFailureDetails(operation, command) {
   });
 }
 
-// dist/web-preview-flash.js
+// src/web-preview-flash.js
 var PreviewFlashError = class extends Error {
   code;
   constructor(code, message2) {
@@ -52441,10 +52441,10 @@ var PreviewFlashControl = class {
   }
 };
 
-// dist/web-preview.js
+// src/web-preview.js
 import { Readable } from "node:stream";
 
-// dist/loopback-listener.js
+// src/loopback-listener.js
 async function listenLoopback(server, closedPort) {
   const listen = (port) => new Promise((resolve5, reject2) => {
     const ready = () => {
@@ -52472,7 +52472,7 @@ async function listenLoopback(server, closedPort) {
   }
 }
 
-// dist/web-preview.js
+// src/web-preview.js
 var LOOPBACK_ADDRESS = "127.0.0.1";
 var CAPABILITY_BYTES = 32;
 var MAX_REQUEST_TARGET_LENGTH = 8192;
@@ -53770,7 +53770,7 @@ var WebPreviewService = class {
   }
 };
 
-// dist/device-capture/native-protocol.js
+// src/device-capture/native-protocol.js
 var NATIVE_LIMITS = { maxDurationMs: 6e5, maxRecordingBytes: 128 * 1024 * 1024, maxRecordings: 2, maxScreenshots: 32, maxScreenshotBytes: 2 * 1024 * 1024, maxPreviewBytes: 1024 * 1024 };
 var integer5 = external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 var finite = external_exports.number().finite().nonnegative();
@@ -53936,14 +53936,14 @@ var nativeResponseSchema = external_exports.union([
   external_exports.object({ requestId: external_exports.string().uuid(), ok: external_exports.literal(false), error: nativeErrorSchema, ...sequence }).strict()
 ]);
 
-// dist/native-device-capture.js
+// src/native-device-capture.js
 import { randomBytes as randomBytes4, randomUUID as randomUUID18, timingSafeEqual as timingSafeEqual4 } from "node:crypto";
 import { createServer as createServer2 } from "node:http";
 import { readFile as readFile15 } from "node:fs/promises";
 import path45 from "node:path";
 import { pipeline as pipeline2 } from "node:stream/promises";
 
-// dist/web-annotations/view.js
+// src/web-annotations/view.js
 var DEVICE_COLORS = [
   { id: "codex", name: "DevDay Edition", background: "#ffffff", ink: "#27272b" },
   { id: "transparent-green", name: "Transparent Green", background: "#bedc63", ink: "#27272b" },
@@ -54002,7 +54002,7 @@ var ICONS = {
   device: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm1 3h8v6H8Zm.5 10h3m-1.5-1.5v3M15 16h.01M17 17.5h.01"
 };
 
-// dist/device-capture/page.js
+// src/device-capture/page.js
 var DEVICE_CAPTURE_IMAGES = DEVICE_COLORS.map((color) => `assets/devices/chromatic-${color.id}.${color.id === "supply-co" ? "png" : "webp"}`);
 var icon = (name3) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name3]}"/></svg>`;
 var skins = DEVICE_COLORS.map((color) => `<button id="skin-${color.id}" class="skin-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.id === "codex"}"><span style="background:${color.id === "supply-co" ? "transparent" : color.background};color:${color.id === "supply-co" ? "#9480ab" : "inherit"}">${color.id === "codex" || color.id === "supply-co" ? `<svg viewBox="180 180 356 356" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="${ICONS.codex}"/></svg>` : ""}</span></button>`).join("");
@@ -54105,7 +54105,7 @@ main{min-height:100svh;display:flex;flex-direction:column;justify-content:safe c
 <div id="saved" role="status" hidden></div>
 </main><script type="module" src="./device-capture/native-entry.js"></script></body></html>`;
 
-// dist/device-capture/native-page.js
+// src/device-capture/native-page.js
 var NATIVE_CAPTURE_PAGE = DEVICE_CAPTURE_PAGE.replace('<h2 id="settings-title">', '<h2 id="settings-title" tabindex="-1">').replace('<video id="video" autoplay muted playsinline aria-label="Selected Chromatic live feed"></video>', '<img id="video" alt="Live feed from the selected Chromatic" style="display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated" hidden><div id="device-empty" style="position:absolute;inset:0;display:grid;align-content:center;gap:8px;padding:14px;text-align:center;background:#f4f4f6;color:#36363c;line-height:1.4;font-size:12px"><span id="device-empty-message">Device capture is off.</span><button id="empty-settings" type="button" style="font:inherit;border:0;border-radius:7px;padding:7px;background:#fff;color:#36363c">Enable capture\u2026</button></div>').replace('<div id="capture-consent-help"></div>', '<div id="capture-consent-help"><p id="capture-permission-help" class="limits">Allow camera and microphone access to use live capture.</p><p id="permission-status" role="status" class="limits"></p></div>').replace('<div class="cgv-dialog-actions settings-actions">', '<div class="cgv-dialog-actions settings-actions"><button id="capture-enable" data-primary="true" type="button">Enable capture</button>').replace("Keep this page visible while recording.", "Recording continues when this view is hidden.").replace('<p class="live-note">Live feed from your Chromatic \u2014 use the device controls.</p>', "");
 var NATIVE_CAPTURE_VIEW = NATIVE_CAPTURE_PAGE.slice(NATIVE_CAPTURE_PAGE.indexOf("<style>"), NATIVE_CAPTURE_PAGE.indexOf("</style>") + 8) + NATIVE_CAPTURE_PAGE.slice(NATIVE_CAPTURE_PAGE.indexOf("<main "), NATIVE_CAPTURE_PAGE.indexOf("</main>") + 7) + `<style>
 :host{display:block;color:var(--cgv-ink,#27272b);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -54120,7 +54120,7 @@ main{display:block;min-height:0;width:100%;padding:var(--cgv-device-top,0px) 0 0
 .capture-notices #saved{position:static;transform:none;box-sizing:border-box;width:100%;text-align:left}
 </style>`;
 
-// dist/device-capture/native-helper.js
+// src/device-capture/native-helper.js
 import { spawn as spawn3 } from "node:child_process";
 import { createHash as createHash36, randomUUID as randomUUID16 } from "node:crypto";
 import { constants as constants21 } from "node:fs";
@@ -54485,21 +54485,21 @@ var NativeHelperProcess = class _NativeHelperProcess {
   }
 };
 
-// dist/device-capture/linux-helper.js
+// src/device-capture/linux-helper.js
 import { createHash as createHash40, randomUUID as randomUUID17 } from "node:crypto";
 import { constants as constants24 } from "node:fs";
 import { lstat as lstat26, mkdtemp as mkdtemp4, open as open25, realpath as realpath27, unlink as unlink10 } from "node:fs/promises";
 import os6 from "node:os";
 import path44 from "node:path";
 
-// dist/device-capture/native-files.js
+// src/device-capture/native-files.js
 import { createHash as createHash37 } from "node:crypto";
 import { constants as constants22 } from "node:fs";
 import { lstat as lstat24, open as open23, realpath as realpath25 } from "node:fs/promises";
 import path42 from "node:path";
 import os5 from "node:os";
 
-// dist/device-capture/native-jpeg.js
+// src/device-capture/native-jpeg.js
 var MAX_BYTES2 = 1024 * 1024;
 var MAX_PIXELS = 8388608;
 var MAX_HEADER_BYTES2 = 64 * 1024;
@@ -54682,7 +54682,7 @@ function validateNativeJpeg(bytes2, expected) {
   invalid3("missing end marker");
 }
 
-// dist/device-capture/native-files.js
+// src/device-capture/native-files.js
 function same2(a, b) {
   return a.dev === b.dev && a.ino === b.ino && a.uid === b.uid;
 }
@@ -54788,7 +54788,7 @@ async function readBoundedCaptureAsset(filename, maximum) {
   }
 }
 
-// dist/device-capture/linux-device.js
+// src/device-capture/linux-device.js
 import { createHash as createHash38 } from "node:crypto";
 import { constants as constants23 } from "node:fs";
 import { lstat as lstat25, open as open24, readdir as readdir10, realpath as realpath26 } from "node:fs/promises";
@@ -54899,7 +54899,7 @@ async function openBoundLinuxVideo(node) {
   }
 }
 
-// dist/device-capture/linux-frame-stream.js
+// src/device-capture/linux-frame-stream.js
 import { createHash as createHash39 } from "node:crypto";
 var LinuxFrameStream = class _LinuxFrameStream {
   receive;
@@ -55010,7 +55010,7 @@ var LinuxFrameStream = class _LinuxFrameStream {
   }
 };
 
-// dist/device-capture/linux-packet-stats.js
+// src/device-capture/linux-packet-stats.js
 var LinuxPacketStats = class {
   pending = "";
   codec = false;
@@ -55075,7 +55075,7 @@ var LinuxPacketStats = class {
   }
 };
 
-// dist/device-capture/linux-process.js
+// src/device-capture/linux-process.js
 import { spawn as spawn4 } from "node:child_process";
 var LinuxCaptureProcess = class _LinuxCaptureProcess {
   child;
@@ -55204,7 +55204,7 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
   }
 };
 
-// dist/device-capture/linux-helper.js
+// src/device-capture/linux-helper.js
 var permissions = { video: "not_required", audio: "not_supported" };
 var prefix = ["-hide_banner", "-loglevel", "info", "-nostats", "-xerror", "-max_alloc", "67108864"];
 var deviceAccess = { scan: scanChromaticVideoNodes, open: openBoundLinuxVideo, launch: LinuxCaptureProcess.launch };
@@ -55695,7 +55695,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
   }
 };
 
-// dist/device-capture/native-cache-metrics.js
+// src/device-capture/native-cache-metrics.js
 var LIMIT2 = 4096;
 var WINDOW_MS = 6e4;
 var NativeCacheMetrics = class _NativeCacheMetrics {
@@ -55840,7 +55840,7 @@ var NativeCacheMetrics = class _NativeCacheMetrics {
   }
 };
 
-// dist/device-capture/service-stage-trace.js
+// src/device-capture/service-stage-trace.js
 var CAPACITY = 60;
 var WIDTH_MS = 1e3;
 var count2 = (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -55991,7 +55991,7 @@ var ServiceStageTrace = class {
   }
 };
 
-// dist/native-device-capture.js
+// src/native-device-capture.js
 var SESSION_BYTES = 256 * 1024 * 1024;
 var MAX_REQUEST2 = 16 * 1024;
 var NEXT_FRAME_WAIT_MS = 250;
@@ -57289,11 +57289,11 @@ var NativeDeviceCaptureService = class {
   }
 };
 
-// dist/server.js
+// src/entry.js
 var SERVER_NAME = "modretro-chromatic";
 var SERVER_VERSION = "1.0.34";
-var WEB_ANNOTATION_ASSETS = fileURLToPath4(new URL("../dist/web-annotations/", import.meta.url));
-var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path46.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath4(new URL("../../../player/skins/", import.meta.url));
+var WEB_ANNOTATION_ASSETS = fileURLToPath4(new URL("../src/web-annotations/", import.meta.url));
+var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path46.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath4(new URL("../../player/skins/", import.meta.url));
 var readOnly3 = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -57587,7 +57587,7 @@ function createGbStudioServer(options = {}) {
     helperManifest: fileURLToPath4(new URL("../native/capture/macos/manifest.json", import.meta.url)),
     linuxHelperManifest: fileURLToPath4(new URL("../native/capture/linux/manifest.json", import.meta.url)),
     deviceAssetsRoot: DEVICE_ASSETS,
-    assetsRoot: fileURLToPath4(new URL("../dist/", import.meta.url)),
+    assetsRoot: fileURLToPath4(new URL("../src/", import.meta.url)),
     isSelected: (root, generation) => session.selectedProject?.projectRoot === root && session.selectionGeneration === generation
   });
   let initialSelectionError;

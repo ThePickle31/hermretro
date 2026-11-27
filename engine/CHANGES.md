@@ -391,3 +391,13 @@ that module.
   sample's notice and hermretro's remix reference go too. ModRetro's original skills in `skills/` are kept as
   published, so their Wrecklight mentions and links now point at what this engine no longer has. Remixing a game in
   hermretro's library (editing its copy, or keeping both on an update) is unchanged.
+- The layout (moved, nothing else changed): `engine/modretro-chromatic/` is now `engine/` itself; the server's
+  modules, `entry.js`, the player's browser files (`web-annotations/`, `device-capture/`) and the event catalog moved
+  from `dist/` to `src/`, so `dist/` holds only the generated `server.js`; and `engine/pins/1.0.34/` is now
+  `engine/contract/`, with no version folder. `contract/` is hermretro's record of the engine, so the manifest and the
+  prepared copy leave it out (`is_engine_record` in `backend/system/paths.py`). Three module paths that the bundle
+  resolves beside itself now name `../src/` (the web annotations, the capture assets and `event-catalog.js`'s
+  catalog), which reaches the same file from `src/` and from `dist/server.js`, and the device-art fallback is
+  `../../player/skins/`. The bundle's code is otherwise the same: only its module comments read `// src/...`. Earlier
+  lines in this file name the old paths. `git diff engine-upstream-1.0.34 HEAD -- engine` still compares with
+  ModRetro's release.

@@ -287,7 +287,7 @@ def up(desktop: Path, sync: bool = True) -> None:
         names = [
             f"GAMES={HOME / hermes.PLUGIN / 'games'}",
             f"ART={SCRIPTS / 'art'}",
-            f"ENGINE={TOP / 'engine' / 'modretro-chromatic'}",
+            f"ENGINE={TOP / 'engine'}",
         ]
         start(
             "model", [sys.executable, str(HERE / "script_model.py"), str(SANDBOX / "model.port"), str(SCRIPTS), *names]

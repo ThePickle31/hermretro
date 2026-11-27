@@ -32,7 +32,7 @@ def project_writer_lock(root):
     node = find_node()
     if not node["ok"]:
         raise OSError("Node.js is needed to lock the project before restoring an image.")
-    module_url = (ENGINE_ROOT / "dist" / "project-files.js").as_uri()
+    module_url = (ENGINE_ROOT / "src" / "project-files.js").as_uri()
     with subprocess.Popen(
         [node["path"], "--input-type=module", "-e", _HOLD_LOCK, module_url, str(root)],
         stdin=subprocess.PIPE,

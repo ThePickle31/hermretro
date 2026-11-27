@@ -40,7 +40,7 @@ def measured(name: str) -> bool:
     return (
         name.endswith(tuple(size["extensions"]))
         and not name.startswith(tuple(size["exempt"]))
-        and not (name.startswith("engine/pins/") and name.endswith(".json"))
+        and not (name.startswith("engine/contract/") and name.endswith(".json"))
     )
 
 

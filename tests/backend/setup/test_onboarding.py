@@ -19,7 +19,7 @@ from backend.setup import progress as onboarding  # noqa: E402 - the repository 
 from tests.backend.broker.bare import bare_broker  # noqa: E402 - the repository root goes on sys.path first
 from backend.broker.broker import Denied  # noqa: E402 - the repository root goes on sys.path first
 
-CATALOG = (ROOT / "engine/modretro-chromatic/scripts/dependency-catalog.mjs").read_text()
+CATALOG = (ROOT / "engine/scripts/dependency-catalog.mjs").read_text()
 
 
 def pin(name: str) -> str:

@@ -25,7 +25,7 @@ Ask Hermes for the work you want to do:
 > Make a small playable game and show it to me. Prepare any missing
 > dependencies.
 
-[hermretro's setup skill](../../../skills/setup/SKILL.md) prepares the
+[hermretro's setup skill](../../skills/setup/SKILL.md) prepares the
 dependencies and checks readiness. The commands below are reference
 instructions for the agent and maintainers; users do not need to copy them into
 a terminal. No manual Node/npm installation is required: the OS-shell setup
@@ -42,7 +42,7 @@ to obtain or add.
 
 In hermretro, each game is opened and edited in its own conversation, from the
 Build page. Selecting, building and showing it follow
-[hermretro's authoring skill](../../../skills/authoring/SKILL.md#select-the-intended-project).
+[hermretro's authoring skill](../../skills/authoring/SKILL.md#select-the-intended-project).
 Keep custom launchers such as `tools/preview.mjs` and project scripts intact;
 the engine does not need to rewrite them to preview your game.
 

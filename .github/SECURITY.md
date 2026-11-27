@@ -10,7 +10,7 @@ Reports about any of these are welcome. Only the latest release is supported.
 
 ## Known advisories in the engine
 
-The engine (`engine/modretro-chromatic/`, hermretro's own, started from ModRetro's 1.0.34; its changes are in
+The engine (`engine/`, hermretro's own, started from ModRetro's 1.0.34; its changes are in
 `engine/CHANGES.md`) is verified by hash, and its Node dependencies are installed from its own pinned lock file. A
 bump changes the engine (its lock, the bundle built with them and `tools/engine/npm/`, which holds the same versions),
 so it is made by hand as an engine change: GitHub's alerts for them stay open as accepted risks until then, and

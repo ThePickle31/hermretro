@@ -1,4 +1,4 @@
-# The bundled engine is checked file by file against SHA-256 digests (engine/pins/), so git must
+# The bundled engine is checked file by file against SHA-256 digests (engine/contract/), so git must
 # never rewrite its line endings (Git for Windows does by default with core.autocrlf=true).
 engine/** -text
 # Its hash decides whether an unedited studio-profile SOUL may be upgraded.

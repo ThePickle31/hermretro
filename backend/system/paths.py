@@ -41,11 +41,12 @@ def _manifest_version(manifest: Path) -> str:
 
 
 PLUGIN_VERSION = _manifest_version(PLUGIN_ROOT / "plugin.yaml")
-ENGINE_ROOT = PLUGIN_ROOT / "engine" / "modretro-chromatic"
+ENGINE_ROOT = PLUGIN_ROOT / "engine"
 # The emulator's device skins, one folder each (backend/player/skins.py); the engine reads its device art from here too.
 SKINS_DIR = PLUGIN_ROOT / "player" / "skins"
-# What this plugin pinned for the engine version it ships: its tool contracts and the hash of every engine file.
-ENGINE_PINS = PLUGIN_ROOT / "engine" / "pins" / ENGINE_VERSION
+# What this plugin pinned for the engine it ships: its tool contracts and the hash of every engine file. It is the
+# record of the engine, not part of it: the manifest and the prepared copy leave it out (engine_entries).
+ENGINE_PINS = ENGINE_ROOT / "contract"
 PINNED_TOOLS = ENGINE_PINS / "tools.json"
 ENGINE_MANIFEST = ENGINE_PINS / "manifest.json"
 
@@ -295,6 +296,12 @@ def is_bytecode(name: str) -> bool:
     return name == "__pycache__" or name.endswith(".pyc")
 
 
+def is_engine_record(root: Path | str, path: Path | str) -> bool:
+    """Whether path is the engine's record of itself (contract/, at the engine's top), which no copy or manifest of
+    the engine holds."""
+    return Path(path) == Path(root) / ENGINE_PINS.name
+
+
 def engine_entries(root: Path) -> list[Path]:
     """Every file and link under root, sorted, but Python's bytecode. A running script writes bytecode and renames it
     into place meanwhile, so it is left out by name from the folder listing, before anything stats it; a link is
@@ -306,7 +313,7 @@ def engine_entries(root: Path) -> list[Path]:
             for entry in listing:
                 if entry.is_symlink():
                     found.append(Path(entry.path))
-                elif is_bytecode(entry.name):
+                elif is_bytecode(entry.name) or is_engine_record(root, entry.path):
                     continue
                 elif entry.is_dir():
                     folders.append(Path(entry.path))
@@ -426,7 +433,7 @@ def code_fingerprint() -> str:
 
 # The plugin's files outside backend/ that its code reads as it loads, relative to the plugin root: the entry point,
 # the manifest (it holds the version) and the tool contract the tools register (and the broker starts) with.
-LOADED_FILES = ("__init__.py", "plugin.yaml", f"engine/pins/{ENGINE_VERSION}/tools.json")
+LOADED_FILES = ("__init__.py", "plugin.yaml", "engine/contract/tools.json")
 
 
 def backend_sources(folder: Path) -> list[tuple[str, Path]]:

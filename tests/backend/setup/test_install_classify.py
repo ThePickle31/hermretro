@@ -1,5 +1,5 @@
 """Why a page install stopped, read from the pinned engine's structured toolchain_prepare results (shapes from
-engine/modretro-chromatic: scripts/setup.mjs serializedError, scripts/setup-io.mjs, dist/server.js
+engine: scripts/setup.mjs serializedError, scripts/setup-io.mjs, dist/server.js
 prepareToolchain and formatErrorResult), and whether the disk can hold an install before it starts."""
 
 import json
