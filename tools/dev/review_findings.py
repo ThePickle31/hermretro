@@ -53,6 +53,10 @@ def parse(text: str) -> tuple[list[Finding], int]:
         findings.append(Finding(label.strip(), what.strip()))
     if not findings:
         raise FindingsError(f"The findings hold no ## heading and don't say `{NONE}` alone.")
+    headings = [finding.heading for finding in findings]
+    twice = sorted({heading for heading in headings if headings.count(heading) > 1})
+    if twice:
+        raise FindingsError(f'"{twice[0]}" is the heading of two findings: each needs its own, to be answered.')
     kept, nits = [], 0
     for finding in findings:
         if finding.label == "Nit":

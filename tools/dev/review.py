@@ -3,7 +3,8 @@ reviewers and the author do the reading; this pins what they read, writes their 
 and puts the outcome in the pull request.
 
   prepare   the pass's tier and briefs, in notes/reviews/<branch>/<pass>/, pinned to the pushed head in a detached
-            checkout beside the worktree for the reviewers to read (the worktree stays free)
+            checkout beside the worktree for the reviewers to read (the worktree stays free); for a light change,
+            the Review section saying it is not reviewed
   take      once the reviewers wrote their findings: removes that checkout and starts answers.md
   record    refuses an unanswered finding, writes the pass's outcome into the pull request's Review section, and
             says whether another pass runs
@@ -19,11 +20,12 @@ import subprocess
 from pathlib import Path
 
 import review_findings as findings
+import review_pr
 import review_tier as tier
 
 CAP = 3
 BASE = "origin/dev"
-KINDS = {  # a review: its template, findings and answers files
+KINDS = {  # a review: its template, its brief, findings and answers files
     "code": ("brief.md", "brief.md", "findings.md", "answers.md"),
     "security": ("security.md", "security-brief.md", "security-findings.md", "security-answers.md"),
 }
@@ -62,6 +64,11 @@ def gh(root: Path, *args: str) -> str:
     return done.stdout
 
 
+def fixed(outcome: dict) -> bool:
+    """Whether an answer changed the code."""
+    return outcome["answer"] in ("fixed", "changed")
+
+
 class Review:
     """One branch's review, from the worktree at root."""
 
@@ -86,10 +93,16 @@ class Review:
     def changed(self, revisions: str) -> list[tier.Changed]:
         return tier.numstat(git(self.root, "diff", "--numstat", "--no-renames", "-z", revisions))
 
+    def judged(self, head: str) -> tier.Judged:
+        return tier.judge(self.changed(f"{BASE}...{head}"))
+
+    def head(self) -> str:
+        return git(self.root, "rev-parse", "HEAD").strip()
+
     def pushed_head(self) -> str:
         if git(self.root, "status", "--porcelain").strip():
             raise ReviewError("the worktree has uncommitted changes\nFIX: commit them, push, then run this again")
-        head = git(self.root, "rev-parse", "HEAD").strip()
+        head = self.head()
         try:
             upstream = git(self.root, "rev-parse", "@{u}").strip()
         except ReviewError:
@@ -105,97 +118,121 @@ class Review:
             n += 1
         return found
 
+    def due(self, head: str) -> tuple[int, str] | None:
+        """The pass that is due at head, and what it reads (tier.PASS or tier.TESTS), or None when none is: after a
+        fixed Important, or commits no answer accounts for, past what needs no pass (tools/review/README.md)."""
+        records = self.recorded()
+        if not records:
+            return 1, tier.PASS
+        last = records[-1]
+        if last["head"] == head:
+            return None
+        needs = tier.later(self.changed(f"{last['head']}..{head}"))
+        if needs == tier.NOTHING:
+            return None
+        if any(o["label"] == "Important" and fixed(o) for o in last["outcomes"]):
+            return last["pass"] + 1, needs
+        # Commits before the record answer its findings only when an answer changed the code; any after it, none.
+        since = last["recorded_head"] if any(fixed(o) for o in last["outcomes"]) else last["head"]
+        unaccounted = self.changed(f"{since}..{head}") if since != head else []
+        if unaccounted and tier.later(unaccounted) != tier.NOTHING:
+            return last["pass"] + 1, needs
+        return None
+
     # -- prepare -------------------------------------------------------------------------------------------------
     def prepare(self, n: int, over_cap: bool = False) -> str:
+        if n < 1 or n > CAP + 1:
+            raise ReviewError(f"a pass is numbered 1 to {CAP}, or {CAP + 1} when the owner asked for it")
         if n > CAP and not over_cap:
             raise ReviewError(f"a review stops after pass {CAP}\nFIX: --over-cap, only when the owner asked for it")
-        if n > 1 and self.load(n - 1, "record.json") is None:
-            raise ReviewError(f"pass {n - 1} is not recorded\nFIX: python tools/dev review record --pass {n - 1}")
         if self.load(n, "pass.json") is not None:
             raise ReviewError(f"pass {n} is prepared already, its reviewers may be reading it\nFIX: take it first")
         decisions = self.folder / "decisions.md"
         if not decisions.is_file():
             raise ReviewError(f"{decisions} is missing\nFIX: write what the owner approved there first")
         head = self.pushed_head()
+        judged = self.judged(head)
+        if n == 1 and judged.tier == tier.LIGHT:
+            self.write_review_section(tier.LIGHT, [])
+            return "Tier light: Markdown and tests alone, so no review. The Review section says so."
+        due = self.due(head)
+        if due is None:
+            raise ReviewError(f"no pass is due: {self.status()}")
+        if due[0] != n:
+            raise ReviewError(f"the pass due is {due[0]}, not {n}\nFIX: prepare --pass {due[0]}")
         if n == 1:
-            changed = self.changed(f"{BASE}...{head}")
-            judged = tier.judge(changed)
-            scope, diff, security = "the whole change", f"git diff {BASE}...{head}", judged.tier == tier.SENSITIVE
+            scope, diff, kinds = "the whole change", f"git diff {BASE}...{head}", ["code"]
+            paths = [file.path for file in self.changed(f"{BASE}...{head}")]
+            if judged.tier == tier.SENSITIVE:
+                kinds.append("security")
         else:
-            first = self.load(1, "pass.json")
-            last = self.load(n - 1, "pass.json")
-            judged = tier.Judged(first["tier"], tuple(first["reasons"]))
-            if last["head"] == head:
-                raise ReviewError(f"pass {n - 1} reviewed {head[:10]} already\nFIX: commit and push what changes first")
-            changed = self.changed(f"{last['head']}..{head}")
-            needs = tier.later(changed)
-            if needs == tier.NOTHING:
-                raise ReviewError(f"what changed since pass {n - 1} is documentation alone: it needs no pass")
-            scope = (
-                f"the tests changed since pass {n - 1}, alone"
-                if needs == tier.TESTS
-                else f"what changed since pass {n - 1}, and how it fits the rest of the change"
+            last = self.load(n - 1, "record.json")
+            delta = self.changed(f"{last['head']}..{head}")
+            paths = [file.path for file in delta]
+            if due[1] == tier.TESTS:
+                scope = f"the tests changed since pass {n - 1}, alone"
+                diff = f"git diff {last['head']}..{head} -- tests/"
+                paths = [path for path in paths if tier.is_test(path)]
+            else:
+                scope = f"what changed since pass {n - 1}, and how it fits the rest of the change"
+                diff = f"git diff {last['head']}..{head}"
+            security = any(tier.sensitive(path) for path in paths) or any(
+                o["security"] and fixed(o) for o in last["outcomes"]
             )
-            diff = f"git diff {last['head']}..{head}"
-            security = judged.tier == tier.SENSITIVE and (
-                any(tier.sensitive(file.path) for file in changed) or self.security_fixed(n - 1)
-            )
-        if judged.tier == tier.LIGHT:
-            return "Tier light: Markdown and tests alone, so no review. Its Review section says `Tier light · not reviewed`."
-        folder = self.pass_folder(n)
-        folder.mkdir(parents=True, exist_ok=True)
-        checkout = self.checkout(n)
-        git(self.root, "worktree", "add", "--detach", str(checkout), head)
-        kinds = ["code", "security"] if security else ["code"]
+            kinds = ["code", "security"] if security else ["code"]
+        # Everything that can fail before the reviewers' checkout is made: the purpose and the templates.
+        purpose = self.purpose()
+        templates = {kind: git(self.root, "show", f"{head}:tools/review/{KINDS[kind][0]}") for kind in kinds}
+        checkout, folder = self.checkout(n), self.pass_folder(n)
         values = {
             "branch": self.branch,
             "head": head,
             "checkout": str(checkout),
             "scope": scope,
             "diff": diff,
-            "purpose": self.purpose(),
+            "purpose": purpose,
             "decisions": str(decisions),
             "rules": str(checkout / "tools" / "review" / "rules.md"),
-            "reading": self.reading(checkout, [file.path for file in changed]),
+            "reading": self.reading(checkout, head, paths),
             "earlier": self.earlier(n),
         }
-        written = []
-        for kind in kinds:
-            template, brief, found, _answers = KINDS[kind]
-            text = (checkout / "tools" / "review" / template).read_text(encoding="utf-8")
-            brief_path = folder / brief
-            brief_path.write_text(fill(text, {**values, "findings": str(folder / found)}), encoding="utf-8")
-            written.append(brief_path)
-        reasons = {"tier": judged.tier, "reasons": list(judged.reasons)}
-        (folder / "pass.json").write_text(
-            json.dumps({"pass": n, "head": head, "scope": scope, "kinds": kinds, **reasons}, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        briefs = {kind: fill(templates[kind], {**values, "findings": str(folder / KINDS[kind][2])}) for kind in kinds}
+        git(self.root, "worktree", "add", "--detach", str(checkout), head)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            for kind, text in briefs.items():
+                (folder / KINDS[kind][1]).write_text(text, encoding="utf-8")
+            state = {
+                "pass": n,
+                "head": head,
+                "scope": scope,
+                "kinds": kinds,
+                "tier": judged.tier,
+                "reasons": list(judged.reasons),
+            }
+            (folder / "pass.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        except BaseException:
+            git(self.root, "worktree", "remove", "--force", str(checkout))
+            raise
         why = f" ({'; '.join(judged.reasons)})" if judged.reasons else ""
         lines = [f"Pass {n}, tier {judged.tier}{why}, pinned to {head[:10]} in {checkout}."]
-        lines += [f"  {path}" for path in written]
+        lines += [f"  {folder / KINDS[kind][1]}" for kind in kinds]
         lines.append(
             "Start each brief's reviewer with delegate_task, its model as hermretro-dev-maintain's table says."
         )
         return "\n".join(lines)
 
-    def security_fixed(self, n: int) -> bool:
-        record = self.load(n, "record.json") or {}
-        return any(
-            o["security"] and o["label"] == "Important" and o["answer"] == "fixed" for o in record.get("outcomes", [])
-        )
-
     def purpose(self) -> str:
         view = json.loads(gh(self.root, "pr", "view", self.branch, "--json", "title,body"))
         parts = [view["title"]] + [
-            section for name in ("Summary", "Why") if (section := pr_section(view["body"], name))
+            text for name in ("Summary", "Why") if (text := review_pr.section(view["body"], name))
         ]
         return "\n>\n".join("> " + part.replace("\n", "\n> ") for part in parts)
 
-    def reading(self, checkout: Path, paths: list[str]) -> str:
+    def reading(self, checkout: Path, head: str, paths: list[str]) -> str:
         lines = [f"- {checkout / 'AGENTS.md'}: how code here is written, and the rules that protect users."]
         for prefixes, page in READING:
-            if any(path.startswith(prefixes) for path in paths) and (checkout / page).is_file():
+            if any(path.startswith(prefixes) for path in paths) and git(self.root, "ls-tree", head, page).strip():
                 lines.append(f"- {checkout / page}: how the parts this change touches are built.")
         return "\n".join(lines)
 
@@ -212,9 +249,8 @@ class Review:
             raise ReviewError(f"pass {n} is not prepared\nFIX: python tools/dev review prepare --pass {n}")
         folder, lines = self.pass_folder(n), []
         for kind in prepared["kinds"]:
-            _template, _brief, found, answers = KINDS[kind]
-            if not (folder / found).is_file():
-                raise ReviewError(f"{folder / found} is missing\nFIX: wait for that reviewer's answer")
+            if not (folder / KINDS[kind][2]).is_file():
+                raise ReviewError(f"{folder / KINDS[kind][2]} is missing\nFIX: wait for that reviewer's answer")
         for kind in prepared["kinds"]:
             _template, _brief, found, answers = KINDS[kind]
             parsed, dropped = findings.parse((folder / found).read_text(encoding="utf-8"))
@@ -232,6 +268,8 @@ class Review:
         prepared = self.load(n, "pass.json")
         if prepared is None:
             raise ReviewError(f"pass {n} is not prepared\nFIX: python tools/dev review prepare --pass {n}")
+        if self.load(n, "record.json") is not None:
+            raise ReviewError(f"pass {n} is recorded already")
         if "security" in prepared["kinds"] and not security_model:
             raise ReviewError("this pass had a security review\nFIX: --security-model <the model that ran it>")
         folder, outcomes = self.pass_folder(n), []
@@ -241,58 +279,51 @@ class Review:
                 raise ReviewError(f"{folder / answers} is missing\nFIX: python tools/dev review take --pass {n}")
             parsed, _dropped = findings.parse((folder / found).read_text(encoding="utf-8"))
             for done in findings.answers(parsed, (folder / answers).read_text(encoding="utf-8")):
-                outcomes.append(
-                    {
-                        "label": done.finding.label,
-                        "what": done.finding.what,
-                        "answer": done.answer,
-                        "reason": done.reason,
-                        "security": kind == "security",
-                    }
-                )
-        recorded_head = self.pushed_head()
+                outcomes.append({"label": done.finding.label, "what": done.finding.what, "answer": done.answer,
+                                 "reason": done.reason, "security": kind == "security"})  # fmt: skip
+        # A first attempt whose publishing failed keeps the head it recorded: what came after it is still unanswered.
+        pending = folder / "record.pending.json"
+        recorded_head = json.loads(pending.read_text())["recorded_head"] if pending.is_file() else self.pushed_head()
         record = {"pass": n, "head": prepared["head"], "recorded_head": recorded_head, "model": model,
                   "security_model": security_model, "outcomes": outcomes}  # fmt: skip
-        (folder / "record.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-        self.write_review_section(prepared["tier"])
-        if any(o["label"] == "Important" and o["answer"] == "fixed" for o in outcomes):
-            if n >= CAP:
-                return (
-                    f"Pass {n} recorded. An Important was fixed, but a review stops after pass {CAP}: tell the owner."
-                )
-            return (
-                f"Pass {n} recorded. An Important was fixed: pass {n + 1} reads what changed (prepare --pass {n + 1})."
-            )
-        return f"Pass {n} recorded. No Important was fixed: no other pass, unless commits come after this."
+        pending.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        self.write_review_section(prepared["tier"], [*self.recorded(), record])
+        pending.replace(folder / "record.json")
+        due = self.due(self.head())
+        if due is None:
+            return f"Pass {n} recorded. No other pass is due."
+        if due[0] > CAP:
+            return f"Pass {n} recorded. Another pass is due, but a review stops after pass {CAP}: tell the owner."
+        return f"Pass {n} recorded. Pass {due[0]} is due: prepare --pass {due[0]}."
 
-    def write_review_section(self, tier_name: str) -> None:
+    def write_review_section(self, tier_name: str, records: list[dict]) -> None:
         body = json.loads(gh(self.root, "pr", "view", self.branch, "--json", "body"))["body"]
-        new = replace_section(body, "Review", review_text(tier_name, self.recorded()))
         path = self.folder / "pr-body.md"
-        path.write_text(new, encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            review_pr.replace_section(body, "Review", review_pr.review_text(tier_name, records)), encoding="utf-8"
+        )
         gh(self.root, "pr", "edit", self.branch, "--body-file", str(path))
 
     # -- status --------------------------------------------------------------------------------------------------
     def status(self) -> str:
-        records = self.recorded()
-        head = git(self.root, "rev-parse", "HEAD").strip()
-        if not records:
-            first = self.load(1, "pass.json")
-            if first:
-                return f"Tier {first['tier']}. Pass 1 is prepared: take it once its reviewers answered."
-            judged = tier.judge(self.changed(f"{BASE}...{head}"))
-            return f"Tier {judged.tier}. No pass yet: prepare --pass 1 once the pull request is open and pushed."
-        last = records[-1]
-        tier_name = self.load(1, "pass.json")["tier"]
-        lines = [f"Tier {tier_name}. {len(records)} pass(es) recorded."]
-        needs = tier.later(self.changed(f"{last['recorded_head']}..{head}")) if last["recorded_head"] != head else None
-        fixed = any(o["label"] == "Important" and o["answer"] == "fixed" for o in last["outcomes"])
-        if fixed or needs in (tier.PASS, tier.TESTS):
-            n = last["pass"] + 1
-            lines.append(f"Next: pass {n}" if n <= CAP else f"Next: nothing; a pass {n} only when the owner asks")
-        else:
-            lines.append("Next: nothing; the review is done")
-        return "\n".join(lines)
+        head, records = self.head(), self.recorded()
+        latest = next((p for n in range(CAP + 1, 0, -1) if (p := self.load(n, "pass.json"))), None)
+        tier_name = latest["tier"] if latest else self.judged(head).tier
+        if tier_name == tier.LIGHT and not records:
+            return "Tier light: no review. prepare --pass 1 writes `Tier light · not reviewed` into the Review section."
+        prepared = [
+            p for n in range(1, CAP + 2) if (p := self.load(n, "pass.json")) and not self.load(n, "record.json")
+        ]
+        if prepared:
+            return f"Tier {tier_name}. Pass {prepared[0]['pass']} is prepared: take it once its reviewers answered."
+        due = self.due(head)
+        done = f"Tier {tier_name}. {len(records)} pass(es) recorded."
+        if due is None:
+            return f"{done} Next: nothing; the review is done."
+        if due[0] > CAP:
+            return f"{done} Next: nothing; a pass {due[0]} only when the owner asks (--over-cap)."
+        return f"{done} Next: pass {due[0]}."
 
 
 def fill(template: str, values: dict) -> str:
@@ -304,47 +335,3 @@ def fill(template: str, values: dict) -> str:
         return str(values[match.group(1)])
 
     return re.sub(r"\{\{(\w+)\}\}", value, template)
-
-
-def pr_section(body: str, name: str) -> str:
-    match = re.search(rf"(?ms)^## {re.escape(name)}\n(.*?)(?=^## |\Z)", body)
-    return match.group(1).strip() if match else ""
-
-
-def replace_section(body: str, name: str, text: str) -> str:
-    pattern = rf"(?ms)^## {re.escape(name)}\n.*?(?=^## |\Z)"
-    section = f"## {name}\n{text}\n"
-    if re.search(pattern, body):
-        return (
-            re.sub(pattern, lambda _m: section + ("\n" if not section.endswith("\n\n") else ""), body, count=1).rstrip()
-            + "\n"
-        )
-    return body.rstrip() + "\n\n" + section
-
-
-def review_text(tier_name: str, records: list[dict]) -> str:
-    """The pull request's Review section: a line per pass, the answers that left something, and what is left."""
-    passes = []
-    for record in records:
-        models = record["model"] + (f" + {record['security_model']}" if record.get("security_model") else "")
-        tally: dict[str, int] = {}
-        for o in record["outcomes"]:
-            key = f"{o['label']} {o['answer']}"
-            tally[key] = tally.get(key, 0) + 1
-        said = ", ".join(f"{count} {key}" for key, count in tally.items()) or "no findings"
-        passes.append(f"pass {record['pass']} ({models}): {said}")
-    lines = [f"Tier {tier_name} · " + " · ".join(passes) + "."]
-    kept = [
-        (r["pass"], o)
-        for r in records
-        for o in r["outcomes"]
-        if o["answer"] in ("wrong", "intentional", "declined", "kept")
-    ]
-    left = [(r["pass"], o) for r in records for o in r["outcomes"] if o["answer"] == "noted"]
-    if kept:
-        lines += ["", "Answered without a change:"] + [
-            f"- Pass {n}, {o['label']} {o['answer']}: {o['what']} — {o['reason']}" for n, o in kept
-        ]
-    if left:
-        lines += ["", "Left for after the merge:"] + [f"- {o['label']}: {o['what']}" for _n, o in left]
-    return "\n".join(lines)
