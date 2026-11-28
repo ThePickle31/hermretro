@@ -195,6 +195,52 @@ class KeptGateway(unittest.TestCase):
         self.assertEqual(gateway.broker_pid, 9)
 
 
+class FailedDrive(unittest.TestCase):
+    """A drive's doctor call can fail after starting a broker: the drive names it, and the check stops it too."""
+
+    def test_the_new_drives_doctor_call_failing_still_names_the_broker_that_answers(self):
+        def rpc(name, _params=None):
+            if name == "doctor":
+                raise SystemExit("plugin.hermretro.doctor answered {}")
+            return {"ok": True, "games": [], "pending": []}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / "thumbs").mkdir()
+            (folder / "thumbs" / "a.png").write_bytes(b"")
+            (folder / "update-check.txt").write_text("downloads stay")
+            fake_paths = mock.Mock(DEPS_ROOT=folder, library_dir=lambda: folder, hermretro_home=lambda: folder)
+            with (
+                mock.patch.object(update_inside, "rpc", side_effect=rpc),
+                mock.patch.object(update_inside, "module", lambda role: fake_paths if role == "paths" else mock.Mock()),
+                mock.patch.object(update_inside, "answering_broker", return_value=(9, "")),
+            ):
+                found = update_inside._use_the_plugin("new", folder / "new.json")
+        self.assertEqual(found, {"fatal": "plugin.hermretro.doctor answered {}", "broker_pid": 9})
+
+    def test_a_failed_doctor_call_keeps_only_the_end_of_its_error(self):
+        with mock.patch.object(update_inside, "answering_broker", return_value=(9, "")):
+            found = update_inside.doctor_failed(SystemExit("x" * 5000 + "the end"))
+        self.assertEqual(len(found["fatal"]), update_inside.FATAL_CHARS)
+        self.assertTrue(found["fatal"].endswith("the end"))
+        self.assertEqual(found["broker_pid"], 9)
+
+    def test_the_broker_a_failed_drive_names_goes_to_the_cleanup(self):
+        brokers = []
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "new.json"
+
+            def run(*_args, **_kwargs):
+                out.write_text(json.dumps({"fatal": "plugin.hermretro.doctor answered {}", "broker_pid": 9}))
+                return subprocess.CompletedProcess([], 0, "", "")
+
+            args = mock.Mock(hermes_python="python3", update_from="v1")
+            with mock.patch.object(update_check.subprocess, "run", side_effect=run), mock.patch("builtins.print"):
+                with self.assertRaises(SystemExit):
+                    update_check._drive(args, Path(tmp), Path(tmp), "new", brokers)
+        self.assertEqual(brokers, [9])
+
+
 class CleanUp(unittest.TestCase):
     def test_every_broker_is_stopped_once_the_kept_gateways_replacement_included(self):
         held, kept = mock.Mock(), mock.Mock(broker_pid=9)

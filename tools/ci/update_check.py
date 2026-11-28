@@ -75,7 +75,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
     run = runner(hermes, tmp, fix=fix)
     studio = root / "profiles" / "hermretro"
     plugin = root / "plugins" / "hermretro"
-    brokers: list[int] = []
+    brokers: list[int | None] = []
     held = kept = None
     print(f"updating from {ref} ({old[:10]}) to HEAD ({new[:10]})", flush=True)
     try:
@@ -83,8 +83,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         # links to that install (one copy; `hermes plugins update` runs where it was installed).
         run(root, "plugins", "install", f"file://{origin}", "--enable", "--yes-deps")
         run(root, "profile", "create", "hermretro", "--no-alias", "--no-skills")
-        before = _drive(args, tmp, root, "old")
-        brokers.append(before["broker_pid"])
+        before = _drive(args, tmp, root, "old", brokers)
         # The old broker idles out a minute after its last connection closes (the drive sets that), which
         # the steps up to the new drive can outlast: a broker gone by itself proves no replacement. An open,
         # silent connection holds it (an idle exit waits for none) until the new drive has replaced it.
@@ -128,8 +127,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
                 report[-2000:] + "\nFIX: after the update `hermes plugins validate` no longer matches plugin.yaml; "
                 "check __init__.register and provides_tools / provides_hooks"
             )
-        after = drive_holding(held, before["broker_pid"], alive, lambda: _drive(args, tmp, root, "new"), fix)
-        brokers.append(after.get("broker_pid") or 0)
+        after = drive_holding(held, before["broker_pid"], alive, lambda: _drive(args, tmp, root, "new", brokers), fix)
         problems += _compare(before, after, fix)
         if kept is not None:
             problems += kept.problems(after)
@@ -231,8 +229,9 @@ def _compare(before: dict, after: dict, fix: str) -> list[str]:
     return problems
 
 
-def _drive(args, tmp: Path, root: Path, phase: str) -> dict:
-    """Run `inside` with Hermes's own Python in the throwaway home and return what it found."""
+def _drive(args, tmp: Path, root: Path, phase: str, brokers: list) -> dict:
+    """Run `inside` with Hermes's own Python in the throwaway home and return what it found. The broker it reached goes
+    into ``brokers`` for the cleanup, whether the run worked or failed after starting one."""
     out = tmp / f"{phase}.json"
     done = subprocess.run(
         inside_command(args, phase, out),
@@ -245,6 +244,7 @@ def _drive(args, tmp: Path, root: Path, phase: str) -> dict:
     )
     print(f"$ page RPCs of the {phase} version through Hermes's plugin loader  [{root.name}] -> {done.returncode}")
     found = json.loads(out.read_text()) if out.is_file() else {"fatal": (done.stdout + done.stderr)[-3000:]}
+    brokers.append(found.get("broker_pid"))
     if done.returncode or "fatal" in found:
         raise SystemExit(
             found.get("fatal", "") + f"\nFIX: the {phase} version's page calls failed in a clean Hermes home "
