@@ -12,16 +12,30 @@ export const CHROMATIC_LIVE_MIN_DURATION_SECONDS = 0.1;
 export const CHROMATIC_LIVE_MAX_DURATION_SECONDS = 300;
 
 function vendorEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([name]) =>
-    !/^(?:DYLD_|LD_)/iu.test(name) && !["NODE_OPTIONS", "NODE_PATH"].includes(name.toUpperCase())));
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !/^(?:DYLD_|LD_)/iu.test(name) && !["NODE_OPTIONS", "NODE_PATH"].includes(name.toUpperCase()),
+    ),
+  );
 }
 
-export function systemElevationExecutable(platform, environment, { lstat = lstatSync, realpath = realpathSync.native } = {}) {
+export function systemElevationExecutable(
+  platform,
+  environment,
+  { lstat = lstatSync, realpath = realpathSync.native } = {},
+) {
   let filename;
   if (platform === "linux") filename = "/usr/bin/pkexec";
   else {
-    const roots = Object.entries(environment).filter(([name]) => name.toUpperCase() === "SYSTEMROOT").map(([, value]) => value);
-    if (!roots.length || roots.some((value) => value !== roots[0]) || !/^[A-Za-z]:[\\/]/u.test(roots[0]) || /[\0\r\n]/u.test(roots[0])) {
+    const roots = Object.entries(environment)
+      .filter(([name]) => name.toUpperCase() === "SYSTEMROOT")
+      .map(([, value]) => value);
+    if (
+      !roots.length ||
+      roots.some((value) => value !== roots[0]) ||
+      !/^[A-Za-z]:[\\/]/u.test(roots[0]) ||
+      /[\0\r\n]/u.test(roots[0])
+    ) {
       throw new Error("Driver setup needs one unambiguous absolute Windows SystemRoot.");
     }
     filename = path.win32.join(roots[0], "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -32,9 +46,12 @@ export function systemElevationExecutable(platform, environment, { lstat = lstat
     const entry = lstat(current);
     // Windows servicing legitimately hardlinks PowerShell into WinSxS. Trust
     // the host's SystemRoot; these path checks are not signature verification.
-    if (entry.isSymbolicLink() || (current === filename ? !entry.isFile() || (platform !== "win32" && entry.nlink !== 1) : !entry.isDirectory())
-      || paths.relative(current, realpath(current)) !== ""
-      || (platform === "linux" && (entry.uid !== 0 || (entry.mode & 0o022)))) {
+    if (
+      entry.isSymbolicLink() ||
+      (current === filename ? !entry.isFile() || (platform !== "win32" && entry.nlink !== 1) : !entry.isDirectory()) ||
+      paths.relative(current, realpath(current)) !== "" ||
+      (platform === "linux" && (entry.uid !== 0 || entry.mode & 0o022))
+    ) {
       throw new Error(`Driver setup requires an unredirected OS elevation executable: ${filename}`);
     }
     const parent = paths.dirname(current);
@@ -45,23 +62,43 @@ export function systemElevationExecutable(platform, environment, { lstat = lstat
 }
 
 /** Fixed driver-only consent route. Paths are data, never shell fragments. */
-export function chromaticInvocation(runtime, args, {
-  platform = process.platform, environment = vendorEnvironment(), resolveElevationExecutable = systemElevationExecutable, operationId = randomUUID(),
-} = {}) {
+export function chromaticInvocation(
+  runtime,
+  args,
+  {
+    platform = process.platform,
+    environment = vendorEnvironment(),
+    resolveElevationExecutable = systemElevationExecutable,
+    operationId = randomUUID(),
+  } = {},
+) {
   validateChromaticArguments(args);
   if (args[0] !== "install-drivers" || args.length !== 4 || !["linux", "win32"].includes(platform)) {
     return { command: runtime.executable, args, environment };
   }
   const executable = resolveElevationExecutable(platform, environment);
-  if (typeof operationId !== "string" || !/^[A-Za-z0-9-]{1,128}$/u.test(operationId)) throw new Error("Invalid driver operation identity.");
-  if (platform === "linux") return {
-    command: executable, args: ["--disable-internal-agent", runtime.executable, ...args], environment,
-    elevation: { method: "polkit", operationId, requestedExecutable: runtime.executable, requestedArgs: [...args],
-      outputScope: "vendor-or-polkit", note: "OS desktop consent only; no terminal/password fallback. Numeric exit codes alone do not distinguish a polkit refusal from a vendor exit." },
-  };
+  if (typeof operationId !== "string" || !/^[A-Za-z0-9-]{1,128}$/u.test(operationId))
+    throw new Error("Invalid driver operation identity.");
+  if (platform === "linux")
+    return {
+      command: executable,
+      args: ["--disable-internal-agent", runtime.executable, ...args],
+      environment,
+      elevation: {
+        method: "polkit",
+        operationId,
+        requestedExecutable: runtime.executable,
+        requestedArgs: [...args],
+        outputScope: "vendor-or-polkit",
+        note: "OS desktop consent only; no terminal/password fallback. Numeric exit codes alone do not distinguish a polkit refusal from a vendor exit.",
+      },
+    };
   const sha256 = CHROMATIC_FILES[CHROMATIC_TARGETS[runtime.platform]];
   if (!sha256) throw new Error("Driver setup requires an exact bundled Windows target.");
-  const configuration = Buffer.from(JSON.stringify({ executable: runtime.executable, sha256, operationId }), "utf8").toString("base64");
+  const configuration = Buffer.from(
+    JSON.stringify({ executable: runtime.executable, sha256, operationId }),
+    "utf8",
+  ).toString("base64");
   const script = `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
@@ -124,56 +161,136 @@ exit 1
   const encoded = Buffer.from(script, "utf16le").toString("base64");
   if (encoded.length > 24000) throw new Error("Driver setup command exceeds its Windows argument bound.");
   return {
-    command: executable, args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], environment,
-    elevation: { method: "windows-run-as", operationId, requestedExecutable: runtime.executable, requestedArgs: [...args], sha256,
-      outputScope: "os-broker-only", note: "Vendor stdout/stderr are unavailable through direct UAC. The broker reports only its observed vendor process handle and exit; this is not driver-health proof." },
+    command: executable,
+    args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+    environment,
+    elevation: {
+      method: "windows-run-as",
+      operationId,
+      requestedExecutable: runtime.executable,
+      requestedArgs: [...args],
+      sha256,
+      outputScope: "os-broker-only",
+      note: "Vendor stdout/stderr are unavailable through direct UAC. The broker reports only its observed vendor process handle and exit; this is not driver-health proof.",
+    },
   };
 }
 
 export function validateChromaticArguments(args) {
-  if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0"))) throw new Error("Chromatic arguments must be explicit strings.");
-  if (!["--help", "-h", "--version", "-V", "help", "list-devices", "detect-cart", "reset-device", "write-homebrew", "install-drivers", "live-demo"].includes(args[0])) throw new Error("Select an explicit public Chromatic command; no default operation is run.");
+  if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")))
+    throw new Error("Chromatic arguments must be explicit strings.");
+  if (
+    ![
+      "--help",
+      "-h",
+      "--version",
+      "-V",
+      "help",
+      "list-devices",
+      "detect-cart",
+      "reset-device",
+      "write-homebrew",
+      "install-drivers",
+      "live-demo",
+    ].includes(args[0])
+  )
+    throw new Error("Select an explicit public Chromatic command; no default operation is run.");
   if (args[0] === "install-drivers") {
     const help = args.length === 2 && ["--help", "-h"].includes(args[1]);
     const install = args.length === 4 && args[1] === "--format" && args[2] === "json" && args[3] === "--yes";
-    if (!help && !install) throw new Error("Driver installation requires: install-drivers --format json --yes. Obtain explicit human/system-administrator authorization for system changes first; use install-drivers --help for help only.");
+    if (!help && !install)
+      throw new Error(
+        "Driver installation requires: install-drivers --format json --yes. Obtain explicit human/system-administrator authorization for system changes first; use install-drivers --help for help only.",
+      );
   }
   if (args[0] === "write-homebrew" && !args.includes("--help") && !args.includes("-h")) {
-    if (args.length !== 9 || !path.isAbsolute(args[1]) || args[2] !== "--player" || !/^[1-8]$/u.test(args[3]) ||
-        args[4] !== "--expect-sha256" || !/^[a-f0-9]{64}$/u.test(args[5]) || args[6] !== "--format" || args[7] !== "json" || args[8] !== "--yes") {
-      throw new Error("Writing requires: write-homebrew <absolute ROM> --player <number> --expect-sha256 <sha256> --format json --yes. Obtain permission for that exact write first.");
+    if (
+      args.length !== 9 ||
+      !path.isAbsolute(args[1]) ||
+      args[2] !== "--player" ||
+      !/^[1-8]$/u.test(args[3]) ||
+      args[4] !== "--expect-sha256" ||
+      !/^[a-f0-9]{64}$/u.test(args[5]) ||
+      args[6] !== "--format" ||
+      args[7] !== "json" ||
+      args[8] !== "--yes"
+    ) {
+      throw new Error(
+        "Writing requires: write-homebrew <absolute ROM> --player <number> --expect-sha256 <sha256> --format json --yes. Obtain permission for that exact write first.",
+      );
     }
   }
   if (args[0] === "live-demo" && !(args.length === 2 && ["--help", "-h"].includes(args[1]))) {
     const duration = Number(args[7]);
-    const save = args.length === 12 && args[11] === "--no-save"
-      || args.length === 13 && args[11] === "--save-dir" && path.isAbsolute(args[12]);
-    if (!save || !path.isAbsolute(args[1] ?? "") || args[2] !== "--player" || !/^[1-8]$/u.test(args[3] ?? "")
-      || args[4] !== "--expect-sha256" || !/^[a-f0-9]{64}$/u.test(args[5] ?? "") || args[6] !== "--duration"
-      || !/^(?:\d+(?:\.\d+)?|\.\d+)$/u.test(args[7] ?? "") || !Number.isFinite(duration)
-      || duration < CHROMATIC_LIVE_MIN_DURATION_SECONDS || duration > CHROMATIC_LIVE_MAX_DURATION_SECONDS
-      || args[8] !== "--format" || args[9] !== "jsonl" || args[10] !== "--yes") {
-      throw new Error("Live demo requires one absolute ROM, explicit player and SHA-256, a duration from 0.1 to 300 seconds, --format jsonl --yes, and exactly one of --no-save or --save-dir <absolute directory>.");
+    const save =
+      (args.length === 12 && args[11] === "--no-save") ||
+      (args.length === 13 && args[11] === "--save-dir" && path.isAbsolute(args[12]));
+    if (
+      !save ||
+      !path.isAbsolute(args[1] ?? "") ||
+      args[2] !== "--player" ||
+      !/^[1-8]$/u.test(args[3] ?? "") ||
+      args[4] !== "--expect-sha256" ||
+      !/^[a-f0-9]{64}$/u.test(args[5] ?? "") ||
+      args[6] !== "--duration" ||
+      !/^(?:\d+(?:\.\d+)?|\.\d+)$/u.test(args[7] ?? "") ||
+      !Number.isFinite(duration) ||
+      duration < CHROMATIC_LIVE_MIN_DURATION_SECONDS ||
+      duration > CHROMATIC_LIVE_MAX_DURATION_SECONDS ||
+      args[8] !== "--format" ||
+      args[9] !== "jsonl" ||
+      args[10] !== "--yes"
+    ) {
+      throw new Error(
+        "Live demo requires one absolute ROM, explicit player and SHA-256, a duration from 0.1 to 300 seconds, --format jsonl --yes, and exactly one of --no-save or --save-dir <absolute directory>.",
+      );
     }
   }
   return args;
 }
 
-export async function runChromatic(args, { root, platform, arch, glibcVersion, spawnChild = spawn, signalSource = process, resolveElevationExecutable, operationId } = {}) {
+export async function runChromatic(
+  args,
+  {
+    root,
+    platform,
+    arch,
+    glibcVersion,
+    spawnChild = spawn,
+    signalSource = process,
+    resolveElevationExecutable,
+    operationId,
+  } = {},
+) {
   validateChromaticArguments(args);
   const runtime = resolveChromaticRuntime({ root, platform, arch, glibcVersion });
   // Inherit normal vendor configuration, but never accept dynamic-loader injection.
   const env = vendorEnvironment();
-  const launch = chromaticInvocation(runtime, args, { platform, environment: env, resolveElevationExecutable, operationId });
+  const launch = chromaticInvocation(runtime, args, {
+    platform,
+    environment: env,
+    resolveElevationExecutable,
+    operationId,
+  });
   const interruptions = [];
-  const handlers = ["SIGINT", "SIGTERM", "SIGHUP"].map((name) => [name, () => {
-    interruptions.push(name);
-    // Never abandon a live vendor process or add a write-interrupting kill/reset.
-    console.error(`Chromatic wrapper received ${name}; waiting for the current vendor process to close. No retry or reset will run.`);
-  }]);
+  const handlers = ["SIGINT", "SIGTERM", "SIGHUP"].map((name) => [
+    name,
+    () => {
+      interruptions.push(name);
+      // Never abandon a live vendor process or add a write-interrupting kill/reset.
+      console.error(
+        `Chromatic wrapper received ${name}; waiting for the current vendor process to close. No retry or reset will run.`,
+      );
+    },
+  ]);
   for (const [name, handler] of handlers) signalSource.on(name, handler);
   try {
-    const child = spawnChild(launch.command, launch.args, { shell: false, stdio: "inherit", env: launch.environment, windowsHide: true });
+    const child = spawnChild(launch.command, launch.args, {
+      shell: false,
+      stdio: "inherit",
+      env: launch.environment,
+      windowsHide: true,
+    });
     return await new Promise((resolve, reject) => {
       child.once("error", reject);
       child.once("close", (code, signal) => resolve({ code, signal, pid: child.pid, interruptions }));
@@ -206,24 +323,42 @@ export class ChromaticNotStartedError extends Error {
  * A client timeout is not permission to interrupt a flash or start another one.
  * Overflow is reported, while the pipes continue draining without killing it.
  */
-export async function runChromaticCaptured(args, {
-  root, platform, arch, glibcVersion, spawnChild = spawn, signalSource = process, onEvent = () => {}, onOutput = () => {},
-  resolveElevationExecutable, operationId,
-} = {}) {
+export async function runChromaticCaptured(
+  args,
+  {
+    root,
+    platform,
+    arch,
+    glibcVersion,
+    spawnChild = spawn,
+    signalSource = process,
+    onEvent = () => {},
+    onOutput = () => {},
+    resolveElevationExecutable,
+    operationId,
+  } = {},
+) {
   let runtime, launch;
   try {
     validateChromaticArguments(args);
     runtime = resolveChromaticRuntime({ root, platform, arch, glibcVersion });
     launch = chromaticInvocation(runtime, args, { platform, resolveElevationExecutable, operationId });
-  } catch (error) { throw new ChromaticNotStartedError(error); }
+  } catch (error) {
+    throw new ChromaticNotStartedError(error);
+  }
   const startedAt = new Date().toISOString();
   const interruptions = [];
   const observationErrors = [];
   const observationCounts = { failedCallbacks: 0, skippedCallbacks: 0 };
   const failedSinks = new Set();
   const observe = (sink, callback) => {
-    if (failedSinks.has(sink)) { observationCounts.skippedCallbacks++; return; }
-    try { callback(); } catch (error) {
+    if (failedSinks.has(sink)) {
+      observationCounts.skippedCallbacks++;
+      return;
+    }
+    try {
+      callback();
+    } catch (error) {
       observationErrors.push({ ...errorFields(error), sink });
       observationCounts.failedCallbacks++;
       failedSinks.add(sink);
@@ -232,29 +367,51 @@ export async function runChromaticCaptured(args, {
   const emit = (event) => {
     observe("events", () => onEvent(event));
   };
-  const handlers = ["SIGINT", "SIGTERM", "SIGHUP"].map((name) => [name, () => {
-    interruptions.push(name);
-    emit({ type: "interruption", signal: name, at: new Date().toISOString() });
-  }]);
+  const handlers = ["SIGINT", "SIGTERM", "SIGHUP"].map((name) => [
+    name,
+    () => {
+      interruptions.push(name);
+      emit({ type: "interruption", signal: name, at: new Date().toISOString() });
+    },
+  ]);
   for (const [name, handler] of handlers) signalSource.on(name, handler);
   try {
     let child;
     try {
       child = spawnChild(launch.command, launch.args, {
-        shell: false, stdio: ["ignore", "pipe", "pipe"], env: launch.environment, windowsHide: true,
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: launch.environment,
+        windowsHide: true,
       });
-    } catch (error) { throw new ChromaticNotStartedError(error); }
+    } catch (error) {
+      throw new ChromaticNotStartedError(error);
+    }
     const result = {
-      command: launch.command, args: [...launch.args], version: runtime.version, target: runtime.platform,
+      command: launch.command,
+      args: [...launch.args],
+      version: runtime.version,
+      target: runtime.platform,
       ...(launch.elevation ? { elevation: launch.elevation } : {}),
-      startedAt, ...(child.pid === undefined ? {} : { pid: child.pid }), interruptions, observationErrors, observationCounts,
+      startedAt,
+      ...(child.pid === undefined ? {} : { pid: child.pid }),
+      interruptions,
+      observationErrors,
+      observationCounts,
     };
     emit({ type: "started", ...result });
     const streams = {};
     let elevationProgress = "";
     let progressOverflow = false;
     for (const name of ["stdout", "stderr"]) {
-      const state = { bytes: 0, retainedBytes: 0, truncated: false, endObserved: false, closeObserved: false, chunks: [] };
+      const state = {
+        bytes: 0,
+        retainedBytes: 0,
+        truncated: false,
+        endObserved: false,
+        closeObserved: false,
+        chunks: [],
+      };
       streams[name] = state;
       const stream = child[name];
       if (!stream) continue;
@@ -262,34 +419,59 @@ export async function runChromaticCaptured(args, {
         const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
         state.bytes += bytes.length;
         const keep = Math.min(bytes.length, CHROMATIC_STREAM_LIMIT - state.retainedBytes);
-        if (keep > 0) { state.chunks.push(Buffer.from(bytes.subarray(0, keep))); state.retainedBytes += keep; }
+        if (keep > 0) {
+          state.chunks.push(Buffer.from(bytes.subarray(0, keep)));
+          state.retainedBytes += keep;
+        }
         state.truncated = state.bytes > state.retainedBytes;
         observe("output", () => onOutput(name, bytes));
         if (name === "stderr" && launch.elevation?.method === "windows-run-as" && !progressOverflow) {
           elevationProgress += bytes.toString("utf8");
           if (Buffer.byteLength(elevationProgress) > 4096) {
-            progressOverflow = true; elevationProgress = "";
-            observationErrors.push({ name: "ElevationProgressOverflow", message: "OS-broker progress exceeded its bound; raw stderr continues draining." });
+            progressOverflow = true;
+            elevationProgress = "";
+            observationErrors.push({
+              name: "ElevationProgressOverflow",
+              message: "OS-broker progress exceeded its bound; raw stderr continues draining.",
+            });
           }
           let newline;
           while ((newline = elevationProgress.indexOf("\n")) >= 0) {
-            const line = elevationProgress.slice(0, newline); elevationProgress = elevationProgress.slice(newline + 1);
+            const line = elevationProgress.slice(0, newline);
+            elevationProgress = elevationProgress.slice(newline + 1);
             try {
               const event = JSON.parse(line);
-              if (event.source === "codex-chromatic-uac" && event.operationId === launch.elevation.operationId
-                && ["consent-requested", "vendor-started", "vendor-exited"].includes(event.event)) {
-                emit({ type: "elevation-progress", scope: "os-broker-observation", source: event.source,
-                  operationId: event.operationId, event: event.event, at: event.at,
+              if (
+                event.source === "codex-chromatic-uac" &&
+                event.operationId === launch.elevation.operationId &&
+                ["consent-requested", "vendor-started", "vendor-exited"].includes(event.event)
+              ) {
+                emit({
+                  type: "elevation-progress",
+                  scope: "os-broker-observation",
+                  source: event.source,
+                  operationId: event.operationId,
+                  event: event.event,
+                  at: event.at,
                   ...(Object.hasOwn(event, "pid") ? { pid: event.pid } : {}),
-                  ...(Object.hasOwn(event, "exitCode") ? { exitCode: event.exitCode } : {}) });
+                  ...(Object.hasOwn(event, "exitCode") ? { exitCode: event.exitCode } : {}),
+                });
               }
-            } catch { /* Non-protocol diagnostics remain in the complete raw stderr. */ }
+            } catch {
+              /* Non-protocol diagnostics remain in the complete raw stderr. */
+            }
           }
         }
       });
-      stream.once("end", () => { state.endObserved = true; });
-      stream.once("close", () => { state.closeObserved = true; });
-      stream.once("error", (error) => { state.error = errorFields(error); });
+      stream.once("end", () => {
+        state.endObserved = true;
+      });
+      stream.once("close", () => {
+        state.closeObserved = true;
+      });
+      stream.once("error", (error) => {
+        state.error = errorFields(error);
+      });
     }
     return await new Promise((resolve) => {
       child.once("spawn", () => {
@@ -329,7 +511,10 @@ export async function runChromaticCaptured(args, {
 if (process.argv[1] && realpathSync(path.resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const result = await runChromatic(process.argv.slice(2));
-    if (result.signal || result.code === null || result.interruptions.length) console.error(`Chromatic command was interrupted or lacked a normal exit (vendor code ${result.code}, signal ${result.signal}); retain the original result and do not retry automatically.`);
+    if (result.signal || result.code === null || result.interruptions.length)
+      console.error(
+        `Chromatic command was interrupted or lacked a normal exit (vendor code ${result.code}, signal ${result.signal}); retain the original result and do not retry automatically.`,
+      );
     process.exitCode = !result.interruptions.length && Number.isInteger(result.code) ? result.code : 1;
   } catch (error) {
     console.error(`Chromatic command could not complete: ${error.message}. No retry was attempted.`);

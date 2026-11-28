@@ -154,6 +154,15 @@ class EngineCompareTests(unittest.TestCase):
                 "const major = 1n;\nconsole.log((major & 0xfffn) << 8n);\n",
                 "const major = 1n;\nconsole.log(((major) & 0xfffn) << 8n);\n",
             ),
+            # Prettier writes `a || (b || c)` as `a || b || c`: each of these operators evaluates its operands left
+            # to right and stops at the same one however they are grouped.
+            **{
+                f"a chain of {op} grouped another way": (
+                    f"const [a, b, c, d] = [0, 1, 2, 3];\nconsole.log(a {op} (b {op} c) {op} d);\n",
+                    f"const [a, b, c, d] = [0, 1, 2, 3];\nconsole.log(((a {op} b) {op} c) {op} d);\n",
+                )
+                for op in ("||", "&&", "??")
+            },
         }
         for case, (before, after) in same.items():
             with self.subTest(case=case):
@@ -204,6 +213,23 @@ class EngineCompareTests(unittest.TestCase):
         for change, replacements in changes.items():
             with self.subTest(change=change):
                 self.assertDifferent(BUNDLE, bundle_with(**replacements))
+
+    def test_a_chain_of_two_logical_operators_grouped_another_way_differs(self):
+        # `a || (b && c)` and `(a || b) && c` give different values (a = 1, c = 0): grouping counts across operators.
+        prefix = "const [a, b, c] = [1, 1, 0];\n"
+        self.assertDifferent(prefix + "console.log(a || (b && c));\n", prefix + "console.log((a || b) && c);\n")
+        # `a ?? (b || c)` and `(a ?? b) || c` give 0 and 2 with these.
+        nullish = "const [a, b, c] = [0, 1, 2];\n"
+        self.assertDifferent(nullish + "console.log(a ?? (b || c));\n", nullish + "console.log((a ?? b) || c);\n")
+
+    def test_a_regrouped_chain_that_differs_is_reported_at_the_operand_that_changed(self):
+        done = self.compare(
+            "const [a, b] = [0, 0];\nconsole.log(a || (b ||\n  1));\n",
+            "const [a, b] = [0, 0];\nconsole.log(a || b ||\n  2);\n",
+        )
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("1));", done.stdout)
+        self.assertIn("2);", done.stdout)
 
     def test_modules_run_in_another_order_differ(self):
         a, b = BUNDLE.split("// dist/b.js\n")

@@ -44,146 +44,172 @@ export const DIALOG_STYLES = `
 const BODY_CLASS = "codex-game-view-mounted";
 const SVG_NS = "http://www.w3.org/2000/svg";
 export const ICONS = {
-    codex: "M335.138 180.542C360.055 180.543 382.615 190.639 398.949 206.963C406.406 204.969 414.243 203.906 422.329 203.906C472.182 203.906 512.596 244.32 512.596 294.172C512.596 302.258 511.531 310.096 509.537 317.553C525.862 333.887 535.959 356.446 535.959 381.364C535.959 423.131 507.591 458.272 469.072 468.573C458.771 507.091 423.631 535.458 381.864 535.458C356.947 535.458 334.386 525.362 318.052 509.038C310.596 511.032 302.758 512.097 294.673 512.097C244.82 512.097 204.406 471.682 204.406 421.829C204.406 413.743 205.469 405.905 207.464 398.448C191.139 382.114 181.043 359.555 181.043 334.638C181.043 292.871 209.41 257.73 247.929 247.429C258.23 208.91 293.371 180.543 335.138 180.542ZM289.683 302.379C285.942 295.618 277.426 293.17 270.665 296.911C263.903 300.652 261.455 309.167 265.196 315.928L289.852 360.486L265.33 402.843C261.458 409.531 263.741 418.091 270.428 421.963C277.116 425.835 285.678 423.553 289.55 416.865L316.43 370.433L316.745 369.869C319.79 364.186 319.857 357.367 316.922 351.626L316.618 351.056L289.683 302.379ZM370.927 394.745C363.2 394.745 356.935 401.01 356.935 408.738C356.935 416.466 363.2 422.731 370.927 422.731H437.612C445.34 422.731 451.605 416.465 451.605 408.738C451.605 401.01 445.34 394.745 437.612 394.745H370.927Z",
-    play: "m8 5 11 7-11 7Z",
-    pause: "M9 5v14M15 5v14",
-    record: "M5 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm10 4 6-3v10l-6-3Z",
-    sound: "M10 5 5 9H2v6h3l5 4ZM14 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14",
-    muted: "M10 5 5 9H2v6h3l5 4ZM15 9l6 6m0-6-6 6",
-    restart: "M4 10a8 8 0 1 1 1 7M4 4v6h6",
-    history: "M3 12a9 9 0 1 0 2.6-6.4M3 3v5h5M12 7v5l3 2",
-    annotate: "M8 3H4a1 1 0 0 0-1 1v4m13-5h4a1 1 0 0 1 1 1v4M3 16v4a1 1 0 0 0 1 1h4m8 0h4a1 1 0 0 0 1-1v-4M12 8v8m-4-4h8",
-    device: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm1 3h8v6H8Zm.5 10h3m-1.5-1.5v3M15 16h.01M17 17.5h.01",
+  codex:
+    "M335.138 180.542C360.055 180.543 382.615 190.639 398.949 206.963C406.406 204.969 414.243 203.906 422.329 203.906C472.182 203.906 512.596 244.32 512.596 294.172C512.596 302.258 511.531 310.096 509.537 317.553C525.862 333.887 535.959 356.446 535.959 381.364C535.959 423.131 507.591 458.272 469.072 468.573C458.771 507.091 423.631 535.458 381.864 535.458C356.947 535.458 334.386 525.362 318.052 509.038C310.596 511.032 302.758 512.097 294.673 512.097C244.82 512.097 204.406 471.682 204.406 421.829C204.406 413.743 205.469 405.905 207.464 398.448C191.139 382.114 181.043 359.555 181.043 334.638C181.043 292.871 209.41 257.73 247.929 247.429C258.23 208.91 293.371 180.543 335.138 180.542ZM289.683 302.379C285.942 295.618 277.426 293.17 270.665 296.911C263.903 300.652 261.455 309.167 265.196 315.928L289.852 360.486L265.33 402.843C261.458 409.531 263.741 418.091 270.428 421.963C277.116 425.835 285.678 423.553 289.55 416.865L316.43 370.433L316.745 369.869C319.79 364.186 319.857 357.367 316.922 351.626L316.618 351.056L289.683 302.379ZM370.927 394.745C363.2 394.745 356.935 401.01 356.935 408.738C356.935 416.466 363.2 422.731 370.927 422.731H437.612C445.34 422.731 451.605 416.465 451.605 408.738C451.605 401.01 445.34 394.745 437.612 394.745H370.927Z",
+  play: "m8 5 11 7-11 7Z",
+  pause: "M9 5v14M15 5v14",
+  record: "M5 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm10 4 6-3v10l-6-3Z",
+  sound: "M10 5 5 9H2v6h3l5 4ZM14 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14",
+  muted: "M10 5 5 9H2v6h3l5 4ZM15 9l6 6m0-6-6 6",
+  restart: "M4 10a8 8 0 1 1 1 7M4 4v6h6",
+  history: "M3 12a9 9 0 1 0 2.6-6.4M3 3v5h5M12 7v5l3 2",
+  annotate: "M8 3H4a1 1 0 0 0-1 1v4m13-5h4a1 1 0 0 1 1 1v4M3 16v4a1 1 0 0 0 1 1h4m8 0h4a1 1 0 0 0 1-1v-4M12 8v8m-4-4h8",
+  device:
+    "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm1 3h8v6H8Zm.5 10h3m-1.5-1.5v3M15 16h.01M17 17.5h.01",
 };
 let tooltipSequence = 0;
 /** One transient tooltip follows the existing controls; it never handles their actions. */
 export function mountControlTooltips(root) {
-    const doc = root.ownerDocument;
-    const win = doc.defaultView;
-    if (!win)
-        return () => { };
-    const tooltip = doc.createElement("div");
-    tooltip.className = "cgv-tooltip";
-    tooltip.id = `cgv-tooltip-${++tooltipSequence}`;
-    tooltip.setAttribute("role", "tooltip");
+  const doc = root.ownerDocument;
+  const win = doc.defaultView;
+  if (!win) return () => {};
+  const tooltip = doc.createElement("div");
+  tooltip.className = "cgv-tooltip";
+  tooltip.id = `cgv-tooltip-${++tooltipSequence}`;
+  tooltip.setAttribute("role", "tooltip");
+  tooltip.hidden = true;
+  root.append(tooltip);
+  let hovered;
+  let focused;
+  let active;
+  let dismissed;
+  let timer;
+  const cleanups = [];
+  const listen = (target, name, handler, capture = false) => {
+    target.addEventListener(name, handler, capture);
+    cleanups.push(() => target.removeEventListener(name, handler, capture));
+  };
+  const clearTimer = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+  };
+  const hide = () => {
+    clearTimer();
+    if (active) {
+      const ids = (active.getAttribute("aria-describedby") ?? "").split(/\s+/u).filter((id) => id && id !== tooltip.id);
+      if (ids.length) active.setAttribute("aria-describedby", ids.join(" "));
+      else active.removeAttribute("aria-describedby");
+    }
+    active = undefined;
     tooltip.hidden = true;
-    root.append(tooltip);
-    let hovered;
-    let focused;
-    let active;
-    let dismissed;
-    let timer;
-    const cleanups = [];
-    const listen = (target, name, handler, capture = false) => {
-        target.addEventListener(name, handler, capture);
-        cleanups.push(() => target.removeEventListener(name, handler, capture));
-    };
-    const clearTimer = () => { if (timer !== undefined)
-        clearTimeout(timer); timer = undefined; };
-    const hide = () => {
-        clearTimer();
-        if (active) {
-            const ids = (active.getAttribute("aria-describedby") ?? "").split(/\s+/u).filter(id => id && id !== tooltip.id);
-            if (ids.length)
-                active.setAttribute("aria-describedby", ids.join(" "));
-            else
-                active.removeAttribute("aria-describedby");
-        }
-        active = undefined;
-        tooltip.hidden = true;
-    };
-    const targetOf = (target) => {
-        const element = target;
-        const control = typeof element?.closest === "function" ? element.closest("[data-tooltip]") : null;
-        return control && root.contains(control) ? control : undefined;
-    };
-    const show = (control) => {
-        clearTimer();
-        if (!control || control === dismissed || !root.contains(control) || control.matches(":disabled") ||
-            control.closest("[hidden]") || control.getClientRects().length === 0 || !control.dataset.tooltip) {
-            hide();
-            return;
-        }
-        if (active !== control)
-            hide();
-        active = control;
-        const host = control.closest("dialog[open]") ?? root;
-        if (tooltip.parentNode !== host)
-            host.append(tooltip);
-        if (tooltip.textContent !== control.dataset.tooltip)
-            tooltip.textContent = control.dataset.tooltip;
-        const ids = (control.getAttribute("aria-describedby") ?? "").split(/\s+/u).filter(id => id && id !== tooltip.id);
-        // aria-describedby overrides aria-description; do not hide the recording's elapsed time.
-        if (!control.hasAttribute("aria-description"))
-            ids.push(tooltip.id);
-        if (ids.length)
-            control.setAttribute("aria-describedby", ids.join(" "));
-        else
-            control.removeAttribute("aria-describedby");
-        tooltip.hidden = false;
-        const bounds = control.getBoundingClientRect();
-        const width = tooltip.offsetWidth;
-        const height = tooltip.offsetHeight;
-        const viewportWidth = doc.documentElement.clientWidth;
-        const viewportHeight = win.innerHeight;
-        const left = Math.max(8, Math.min(bounds.left + (bounds.width - width) / 2, viewportWidth - width - 8));
-        const preferredTop = bounds.top - height - 8;
-        const top = Math.max(8, Math.min(preferredTop >= 8 ? preferredTop : bounds.bottom + 8, viewportHeight - height - 8));
-        tooltip.style.left = `${left}px`;
-        tooltip.style.top = `${top}px`;
-    };
-    const schedule = (control, delay) => {
-        clearTimer();
-        timer = setTimeout(() => { timer = undefined; show(control); }, delay);
-    };
-    listen(root, "pointerover", raw => {
-        if (raw.pointerType === "touch")
-            return;
-        if (tooltip.contains(raw.target)) {
-            clearTimer();
-            return;
-        }
-        const control = targetOf(raw.target);
-        if (control === hovered)
-            return;
-        hovered = control;
-        dismissed = undefined;
-        schedule(hovered ?? focused, 250);
-    });
-    listen(root, "pointerout", raw => {
-        const next = raw.relatedTarget;
-        if (next && (tooltip.contains(next) || hovered?.contains(next)))
-            return;
-        hovered = undefined;
-        schedule(focused, 120);
-    });
-    listen(root, "focusin", raw => {
-        const control = targetOf(raw.target);
-        focused = control?.matches(":focus-visible") ? control : undefined;
-        if (focused) {
-            dismissed = undefined;
-            show(focused);
-        }
-    });
-    listen(root, "focusout", raw => {
-        const control = targetOf(raw.relatedTarget);
-        focused = control?.matches(":focus-visible") ? control : undefined;
-        show(focused ?? hovered);
-    });
-    const dismiss = () => { dismissed = active ?? focused ?? hovered; hide(); };
-    listen(root, "pointerdown", dismiss);
-    listen(doc, "keydown", raw => { if (raw.key === "Escape")
-        dismiss(); }, true);
-    listen(doc, "scroll", dismiss, true);
-    listen(win, "resize", dismiss);
-    listen(win, "blur", dismiss);
-    const observer = new MutationObserver(records => {
-        if (active && (!root.contains(active) || records.some(record => record.target === active || record.target.contains(active))))
-            show(active);
-    });
-    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-tooltip", "aria-description", "disabled", "hidden", "open"] });
-    return () => { observer.disconnect(); hide(); for (const cleanup of cleanups)
-        cleanup(); tooltip.remove(); };
+  };
+  const targetOf = (target) => {
+    const element = target;
+    const control = typeof element?.closest === "function" ? element.closest("[data-tooltip]") : null;
+    return control && root.contains(control) ? control : undefined;
+  };
+  const show = (control) => {
+    clearTimer();
+    if (
+      !control ||
+      control === dismissed ||
+      !root.contains(control) ||
+      control.matches(":disabled") ||
+      control.closest("[hidden]") ||
+      control.getClientRects().length === 0 ||
+      !control.dataset.tooltip
+    ) {
+      hide();
+      return;
+    }
+    if (active !== control) hide();
+    active = control;
+    const host = control.closest("dialog[open]") ?? root;
+    if (tooltip.parentNode !== host) host.append(tooltip);
+    if (tooltip.textContent !== control.dataset.tooltip) tooltip.textContent = control.dataset.tooltip;
+    const ids = (control.getAttribute("aria-describedby") ?? "").split(/\s+/u).filter((id) => id && id !== tooltip.id);
+    // aria-describedby overrides aria-description; do not hide the recording's elapsed time.
+    if (!control.hasAttribute("aria-description")) ids.push(tooltip.id);
+    if (ids.length) control.setAttribute("aria-describedby", ids.join(" "));
+    else control.removeAttribute("aria-describedby");
+    tooltip.hidden = false;
+    const bounds = control.getBoundingClientRect();
+    const width = tooltip.offsetWidth;
+    const height = tooltip.offsetHeight;
+    const viewportWidth = doc.documentElement.clientWidth;
+    const viewportHeight = win.innerHeight;
+    const left = Math.max(8, Math.min(bounds.left + (bounds.width - width) / 2, viewportWidth - width - 8));
+    const preferredTop = bounds.top - height - 8;
+    const top = Math.max(
+      8,
+      Math.min(preferredTop >= 8 ? preferredTop : bounds.bottom + 8, viewportHeight - height - 8),
+    );
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  };
+  const schedule = (control, delay) => {
+    clearTimer();
+    timer = setTimeout(() => {
+      timer = undefined;
+      show(control);
+    }, delay);
+  };
+  listen(root, "pointerover", (raw) => {
+    if (raw.pointerType === "touch") return;
+    if (tooltip.contains(raw.target)) {
+      clearTimer();
+      return;
+    }
+    const control = targetOf(raw.target);
+    if (control === hovered) return;
+    hovered = control;
+    dismissed = undefined;
+    schedule(hovered ?? focused, 250);
+  });
+  listen(root, "pointerout", (raw) => {
+    const next = raw.relatedTarget;
+    if (next && (tooltip.contains(next) || hovered?.contains(next))) return;
+    hovered = undefined;
+    schedule(focused, 120);
+  });
+  listen(root, "focusin", (raw) => {
+    const control = targetOf(raw.target);
+    focused = control?.matches(":focus-visible") ? control : undefined;
+    if (focused) {
+      dismissed = undefined;
+      show(focused);
+    }
+  });
+  listen(root, "focusout", (raw) => {
+    const control = targetOf(raw.relatedTarget);
+    focused = control?.matches(":focus-visible") ? control : undefined;
+    show(focused ?? hovered);
+  });
+  const dismiss = () => {
+    dismissed = active ?? focused ?? hovered;
+    hide();
+  };
+  listen(root, "pointerdown", dismiss);
+  listen(
+    doc,
+    "keydown",
+    (raw) => {
+      if (raw.key === "Escape") dismiss();
+    },
+    true,
+  );
+  listen(doc, "scroll", dismiss, true);
+  listen(win, "resize", dismiss);
+  listen(win, "blur", dismiss);
+  const observer = new MutationObserver((records) => {
+    if (
+      active &&
+      (!root.contains(active) || records.some((record) => record.target === active || record.target.contains(active)))
+    )
+      show(active);
+  });
+  observer.observe(root, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["data-tooltip", "aria-description", "disabled", "hidden", "open"],
+  });
+  return () => {
+    observer.disconnect();
+    hide();
+    for (const cleanup of cleanups) cleanup();
+    tooltip.remove();
+  };
 }
 const STYLES = `
 body.codex-game-view-mounted {
@@ -739,628 +765,666 @@ body.codex-game-view-mounted .codex-game-view #game canvas {
 }
 `;
 export function createPlayerView(canvas, title) {
-    const doc = canvas.ownerDocument;
-    const game = canvas.closest("#game");
-    const originalParent = game?.parentNode;
-    if (!game || !originalParent || !doc.body)
-        throw new Error("The official game canvas must be mounted before creating the player view.");
-    const originalNext = game.nextSibling;
-    const marker = doc.createComment("Official browser player location");
-    const hadBodyClass = doc.body.classList.contains(BODY_CLASS);
-    const element = (tag, className) => {
-        const node = doc.createElement(tag);
-        node.className = className;
-        return node;
-    };
-    const icon = (name) => {
-        const svg = doc.createElementNS(SVG_NS, "svg");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("aria-hidden", "true");
-        svg.setAttribute("focusable", "false");
-        const path = doc.createElementNS(SVG_NS, "path");
-        path.setAttribute("d", ICONS[name]);
-        svg.append(path);
-        return svg;
-    };
-    const button = (action, label, className) => {
-        const node = element("button", className);
-        node.type = "button";
-        node.dataset.action = action;
-        node.setAttribute("aria-label", label);
-        node.dataset.tooltip = label;
-        return node;
-    };
-    const iconButton = (action, label, name) => {
-        const node = button(action, label, "cgv-icon-button");
-        node.append(icon(name));
-        return node;
-    };
-    const root = element("section", "codex-game-view");
-    root.id = "codex-player";
-    root.dataset.source = "emulator";
-    root.setAttribute("aria-label", "Game player");
-    const header = element("header", "cgv-header");
-    const modes = element("nav", "cgv-source-modes");
-    modes.setAttribute("aria-label", "Preview source");
-    const emulationMode = iconButton("source-emulator", "Live view", "device");
-    emulationMode.dataset.tooltip = "Return to emulation";
-    emulationMode.setAttribute("aria-pressed", "true");
-    emulationMode.hidden = true;
-    const deviceMode = iconButton("source-device", "Live view", "device");
-    deviceMode.dataset.tooltip = "Switch to live view";
-    deviceMode.setAttribute("aria-pressed", "false");
-    const deviceChoice = element("span", "cgv-device-choice");
-    deviceChoice.append(deviceMode);
-    modes.append(emulationMode, deviceChoice);
-    const modeViews = element("div", "cgv-mode-views");
-    const viewsStage = element("div", "cgv-views-stage");
-    const deviceView = element("div", "cgv-device-view");
-    deviceView.inert = true;
-    deviceView.setAttribute("aria-hidden", "true");
-    const player = element("div", "cgv-player");
-    const toolbar = element("div", "cgv-toolbar");
-    const headerActions = element("div", "cgv-header-actions");
-    const deviceActions = element("div", "cgv-device-actions");
-    deviceActions.inert = true;
-    deviceActions.setAttribute("aria-hidden", "true");
-    const heading = element("h1", "cgv-title");
-    heading.textContent = title;
-    heading.title = title;
-    const sound = iconButton("sound", "Mute sound", "sound");
-    const play = iconButton("play", "Pause game", "pause");
-    const restart = iconButton("restart", "Restart game", "restart");
-    const history = iconButton("history", "Saved states", "history");
-    history.setAttribute("aria-haspopup", "menu");
-    history.setAttribute("aria-expanded", "false");
-    history.setAttribute("aria-controls", "codex-history-menu");
-    const lastCapture = button("last-capture", "Last capture", "cgv-action");
-    lastCapture.textContent = "Last capture";
-    lastCapture.disabled = true;
-    const more = element("div", "cgv-more");
-    const moreToggle = button("more", "More actions", "cgv-icon-button cgv-more-toggle");
-    moreToggle.setAttribute("aria-expanded", "false");
-    moreToggle.setAttribute("aria-controls", "codex-more-panel");
-    const moreIcon = element("span", "");
-    moreIcon.setAttribute("aria-hidden", "true");
-    moreIcon.textContent = "⋯";
-    moreToggle.append(moreIcon);
-    const morePanel = element("div", "cgv-more-panel");
-    morePanel.id = "codex-more-panel";
-    morePanel.hidden = true;
-    morePanel.setAttribute("role", "group");
-    morePanel.setAttribute("aria-label", "More actions");
-    for (const [control, label] of [[restart, "Restart game"], [history, "Saved states"]]) {
-        control.className = "cgv-action";
-        const text = element("span", "");
-        text.textContent = label;
-        control.append(text);
-        morePanel.append(control);
-    }
-    morePanel.append(lastCapture);
-    more.append(moreToggle, morePanel);
-    const historyMenu = element("div", "cgv-history");
-    historyMenu.id = "codex-history-menu";
-    historyMenu.hidden = true;
-    historyMenu.tabIndex = -1;
-    historyMenu.setAttribute("role", "menu");
-    historyMenu.setAttribute("aria-label", "Saved states");
-    const historyHeading = element("p", "cgv-history-heading");
-    historyHeading.textContent = "Saved states";
-    historyHeading.setAttribute("aria-hidden", "true");
-    const annotate = iconButton("annotate", "Annotate", "annotate");
-    annotate.disabled = true;
-    toolbar.append(sound, play, annotate, more, historyMenu);
-    const deviceStage = element("div", "cgv-device-stage");
-    const handheld = element("div", "cgv-handheld");
-    const screen = element("div", "cgv-screen");
-    const colors = element("div", "cgv-colors");
-    colors.setAttribute("role", "group");
-    colors.setAttribute("aria-label", "Device color");
-    colors.setAttribute("aria-busy", "false");
-    const colorFeedback = element("p", "cgv-color-feedback");
-    colorFeedback.setAttribute("role", "button");
-    colorFeedback.setAttribute("aria-live", "polite");
-    colorFeedback.tabIndex = 0;
-    const dismissNotice = (notice, dismiss) => {
-        notice.title = "Dismiss message";
-        notice.addEventListener("click", dismiss);
-        notice.addEventListener("keydown", event => {
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                dismiss();
-            }
-        });
-    };
-    dismissNotice(colorFeedback, () => { colorFeedback.textContent = ""; });
-    let selectedColor = DEVICE_COLORS[0];
-    try {
-        const stored = doc.defaultView?.localStorage.getItem(DEVICE_COLOR_KEY);
-        selectedColor = DEVICE_COLORS.find(color => color.id === stored) ?? selectedColor;
-    }
-    catch { /* The color picker also works when browser storage is unavailable. */ }
-    const previousBodyColors = ["--cgv-background", "--cgv-ink"].map(name => ({
-        name, value: doc.body.style.getPropertyValue(name), priority: doc.body.style.getPropertyPriority(name),
-    }));
-    for (const color of DEVICE_COLORS) {
-        const swatch = button("device-color", (color.id === "codex" || color.id === "supply-co") ? color.name : `${color.name} device`, "cgv-color");
-        swatch.dataset.deviceColor = color.id;
-        if (Object.prototype.hasOwnProperty.call(DEVICE_RAIL_ORDER, color.id))
-            swatch.style.order = String(DEVICE_RAIL_ORDER[color.id]);
-        swatch.dataset.tooltip = color.name;
-        const chip = element("span", "cgv-color-chip");
-        chip.style.backgroundColor = (color.id === "codex" || color.id === "supply-co") ? "transparent" : color.background;
-        chip.setAttribute("aria-hidden", "true");
-        if (color.id === "codex" || color.id === "supply-co") {
-            chip.classList.add("cgv-codex-chip");
-            chip.style.color = color.id === "supply-co" ? "#9480ab" : "var(--cgv-ink)";
-            const logo = icon("codex");
-            logo.setAttribute("viewBox", "180 180 356 356");
-            logo.setAttribute("fill-rule", "evenodd");
-            chip.append(logo);
-        }
-        swatch.append(chip);
-        colors.append(swatch);
-    }
-    const paintColor = () => {
-        root.dataset.deviceColor = selectedColor.id;
-        for (const [name, value] of [["--cgv-background", selectedColor.background], ["--cgv-ink", selectedColor.ink]]) {
-            doc.body.style.setProperty(name, value);
-        }
-        for (const swatch of Array.from(colors.children)) {
-            swatch.setAttribute("aria-pressed", String(swatch.getAttribute("data-device-color") === selectedColor.id));
-        }
-    };
-    const deviceImage = (color) => {
-        const image = element("img", "cgv-shell");
-        image.alt = "";
-        image.setAttribute("aria-hidden", "true");
-        image.draggable = false;
-        image.decoding = "async";
-        image.src = new URL(`./chromatic-${color.id}.${color.id === "supply-co" ? "png" : "webp"}`, import.meta.url).href;
-        if (color.id === "supply-co") image.style.cssText = "top:-16.37%;left:-66.3%;width:230.55%;height:135.02%";
-        return image;
-    };
-    let shell = deviceImage(selectedColor);
-    paintColor();
-    let colorGeneration = 0;
-    const selectColor = async (color) => {
-        const generation = ++colorGeneration;
-        colorFeedback.textContent = "";
-        if (color.id === selectedColor.id) {
-            colors.setAttribute("aria-busy", "false");
-            return;
-        }
-        colors.setAttribute("aria-busy", "true");
-        const next = deviceImage(color);
-        try {
-            await next.decode();
-            if (destroyed || generation !== colorGeneration)
-                return;
-            shell.replaceWith(next);
-            shell = next;
-            selectedColor = color;
-            paintColor();
-            try {
-                doc.defaultView?.localStorage.setItem(DEVICE_COLOR_KEY, color.id);
-            }
-            catch { /* Keep the current selection usable. */ }
-        }
-        catch {
-            if (!destroyed && generation === colorGeneration)
-                colorFeedback.textContent = "That color could not load. Try again.";
-        }
-        finally {
-            if (!destroyed && generation === colorGeneration)
-                colors.setAttribute("aria-busy", "false");
-        }
-    };
-    const colorClick = (event) => {
-        const id = event.target?.closest("button[data-device-color]")?.dataset.deviceColor;
-        const color = DEVICE_COLORS.find(candidate => candidate.id === id);
-        if (color)
-            void selectColor(color);
-    };
-    colors.addEventListener("click", colorClick);
-    const gameButtons = new Map();
-    const controls = element("div", "cgv-device-controls");
-    controls.setAttribute("role", "group");
-    controls.setAttribute("aria-label", "Game controls");
-    for (const [name, label] of [
-        ["up", "D-pad up"], ["down", "D-pad down"], ["left", "D-pad left"], ["right", "D-pad right"],
-        ["b", "B button"], ["a", "A button"], ["select", "Select"], ["start", "Start"],
-    ]) {
-        const key = button(name, label, "cgv-game-button");
-        key.dataset.gameButton = name;
-        controls.append(key);
-        gameButtons.set(name, key);
-    }
-    handheld.append(shell, screen, heading, controls);
-    deviceStage.append(handheld, colors);
-    const keyboardHints = element("div", "cgv-keyboard-hints");
-    keyboardHints.setAttribute("role", "group");
-    keyboardHints.setAttribute("aria-label", "Keyboard controls");
-    const actionHints = element("ul", "cgv-keyboard-row cgv-keyboard-actions");
-    actionHints.setAttribute("aria-label", "Keyboard shortcuts");
-    const keyboardRows = [actionHints];
-    keyboardHints.append(...keyboardRows);
-    const hintGroups = [];
-    for (const hint of [
-        { row: actionHints, keys: ["arrowleft", "arrowup", "arrowdown", "arrowright"], labels: ["←", "↑", "↓", "→"], action: "Move" },
-        { row: actionHints, keys: ["z"], labels: ["Z"], action: "A" },
-        { row: actionHints, keys: ["x"], labels: ["X"], action: "B" },
-        { row: actionHints, keys: ["enter"], labels: ["Enter"], action: "Start" },
-        { row: actionHints, keys: ["p"], labels: ["P"], action: "Select" },
-    ]) {
-        const group = element("li", `cgv-keyboard-hint${hint.action === "Move" ? " cgv-keyboard-movement" : ""}`);
-        const keycaps = element("span", "cgv-keycaps");
-        for (const label of hint.labels) {
-            const keycap = element("kbd", "");
-            keycap.textContent = label;
-            keycaps.append(keycap);
-        }
-        const action = element("span", "");
-        action.textContent = hint.action;
-        group.append(keycaps, action);
-        hint.row.append(group);
-        hintGroups.push({ node: group, keys: hint.keys, row: hint.row });
-    }
-    const installSlot = element("div", "cgv-install-slot");
-    const sharedFooter = element("div", "cgv-shared-footer");
-    const hintArea = element("div", "cgv-hint-area");
-    const deviceFooter = element("div", "cgv-device-footer");
-    deviceFooter.hidden = true;
-    const status = element("p", "cgv-status");
-    status.setAttribute("role", "button");
-    status.setAttribute("aria-live", "polite");
-    status.setAttribute("aria-atomic", "true");
-    status.tabIndex = 0;
-    let dismissedStatus = "";
-    dismissNotice(status, () => { dismissedStatus = status.textContent ?? ""; status.textContent = ""; });
-    const noticeStack = element("div", "cgv-notice-stack");
-    noticeStack.append(deviceFooter, colorFeedback, status);
-    const recording = element("div", "cgv-recording");
-    deviceStage.append(recording);
-    headerActions.append(toolbar, deviceActions);
-    header.append(headerActions);
-    player.append(deviceStage);
-    hintArea.append(keyboardHints);
-    sharedFooter.append(hintArea, installSlot, noticeStack);
-    viewsStage.append(player, deviceView, modes);
-    modeViews.append(viewsStage, sharedFooter);
-    root.append(header, modeViews);
-    let historyItems = [];
-    let historyGeneration = 0;
-    let pendingSourceFocus;
-    let sourceHadFocus = false;
-    const historyWindow = doc.defaultView;
-    const historyDate = new Intl.DateTimeFormat(undefined, {
-        year: "numeric", month: "short", day: "numeric",
-        hour: "numeric", minute: "2-digit", second: "2-digit",
+  const doc = canvas.ownerDocument;
+  const game = canvas.closest("#game");
+  const originalParent = game?.parentNode;
+  if (!game || !originalParent || !doc.body)
+    throw new Error("The official game canvas must be mounted before creating the player view.");
+  const originalNext = game.nextSibling;
+  const marker = doc.createComment("Official browser player location");
+  const hadBodyClass = doc.body.classList.contains(BODY_CLASS);
+  const element = (tag, className) => {
+    const node = doc.createElement(tag);
+    node.className = className;
+    return node;
+  };
+  const icon = (name) => {
+    const svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    const path = doc.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", ICONS[name]);
+    svg.append(path);
+    return svg;
+  };
+  const button = (action, label, className) => {
+    const node = element("button", className);
+    node.type = "button";
+    node.dataset.action = action;
+    node.setAttribute("aria-label", label);
+    node.dataset.tooltip = label;
+    return node;
+  };
+  const iconButton = (action, label, name) => {
+    const node = button(action, label, "cgv-icon-button");
+    node.append(icon(name));
+    return node;
+  };
+  const root = element("section", "codex-game-view");
+  root.id = "codex-player";
+  root.dataset.source = "emulator";
+  root.setAttribute("aria-label", "Game player");
+  const header = element("header", "cgv-header");
+  const modes = element("nav", "cgv-source-modes");
+  modes.setAttribute("aria-label", "Preview source");
+  const emulationMode = iconButton("source-emulator", "Live view", "device");
+  emulationMode.dataset.tooltip = "Return to emulation";
+  emulationMode.setAttribute("aria-pressed", "true");
+  emulationMode.hidden = true;
+  const deviceMode = iconButton("source-device", "Live view", "device");
+  deviceMode.dataset.tooltip = "Switch to live view";
+  deviceMode.setAttribute("aria-pressed", "false");
+  const deviceChoice = element("span", "cgv-device-choice");
+  deviceChoice.append(deviceMode);
+  modes.append(emulationMode, deviceChoice);
+  const modeViews = element("div", "cgv-mode-views");
+  const viewsStage = element("div", "cgv-views-stage");
+  const deviceView = element("div", "cgv-device-view");
+  deviceView.inert = true;
+  deviceView.setAttribute("aria-hidden", "true");
+  const player = element("div", "cgv-player");
+  const toolbar = element("div", "cgv-toolbar");
+  const headerActions = element("div", "cgv-header-actions");
+  const deviceActions = element("div", "cgv-device-actions");
+  deviceActions.inert = true;
+  deviceActions.setAttribute("aria-hidden", "true");
+  const heading = element("h1", "cgv-title");
+  heading.textContent = title;
+  heading.title = title;
+  const sound = iconButton("sound", "Mute sound", "sound");
+  const play = iconButton("play", "Pause game", "pause");
+  const restart = iconButton("restart", "Restart game", "restart");
+  const history = iconButton("history", "Saved states", "history");
+  history.setAttribute("aria-haspopup", "menu");
+  history.setAttribute("aria-expanded", "false");
+  history.setAttribute("aria-controls", "codex-history-menu");
+  const lastCapture = button("last-capture", "Last capture", "cgv-action");
+  lastCapture.textContent = "Last capture";
+  lastCapture.disabled = true;
+  const more = element("div", "cgv-more");
+  const moreToggle = button("more", "More actions", "cgv-icon-button cgv-more-toggle");
+  moreToggle.setAttribute("aria-expanded", "false");
+  moreToggle.setAttribute("aria-controls", "codex-more-panel");
+  const moreIcon = element("span", "");
+  moreIcon.setAttribute("aria-hidden", "true");
+  moreIcon.textContent = "⋯";
+  moreToggle.append(moreIcon);
+  const morePanel = element("div", "cgv-more-panel");
+  morePanel.id = "codex-more-panel";
+  morePanel.hidden = true;
+  morePanel.setAttribute("role", "group");
+  morePanel.setAttribute("aria-label", "More actions");
+  for (const [control, label] of [
+    [restart, "Restart game"],
+    [history, "Saved states"],
+  ]) {
+    control.className = "cgv-action";
+    const text = element("span", "");
+    text.textContent = label;
+    control.append(text);
+    morePanel.append(control);
+  }
+  morePanel.append(lastCapture);
+  more.append(moreToggle, morePanel);
+  const historyMenu = element("div", "cgv-history");
+  historyMenu.id = "codex-history-menu";
+  historyMenu.hidden = true;
+  historyMenu.tabIndex = -1;
+  historyMenu.setAttribute("role", "menu");
+  historyMenu.setAttribute("aria-label", "Saved states");
+  const historyHeading = element("p", "cgv-history-heading");
+  historyHeading.textContent = "Saved states";
+  historyHeading.setAttribute("aria-hidden", "true");
+  const annotate = iconButton("annotate", "Annotate", "annotate");
+  annotate.disabled = true;
+  toolbar.append(sound, play, annotate, more, historyMenu);
+  const deviceStage = element("div", "cgv-device-stage");
+  const handheld = element("div", "cgv-handheld");
+  const screen = element("div", "cgv-screen");
+  const colors = element("div", "cgv-colors");
+  colors.setAttribute("role", "group");
+  colors.setAttribute("aria-label", "Device color");
+  colors.setAttribute("aria-busy", "false");
+  const colorFeedback = element("p", "cgv-color-feedback");
+  colorFeedback.setAttribute("role", "button");
+  colorFeedback.setAttribute("aria-live", "polite");
+  colorFeedback.tabIndex = 0;
+  const dismissNotice = (notice, dismiss) => {
+    notice.title = "Dismiss message";
+    notice.addEventListener("click", dismiss);
+    notice.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        dismiss();
+      }
     });
-    const closeHistory = (restoreFocus) => {
-        const wasOpen = !historyMenu.hidden;
-        historyMenu.hidden = true;
-        history.setAttribute("aria-expanded", "false");
-        historyGeneration++;
-        doc.removeEventListener("pointerdown", outsideHistory, true);
-        doc.removeEventListener("focusin", outsideHistory, true);
-        historyWindow?.removeEventListener("blur", blurHistory);
-        if (wasOpen && restoreFocus && !destroyed && !history.disabled && history.isConnected)
-            history.focus({ preventScroll: true });
-    };
-    const outsideHistory = (event) => {
-        const path = event.composedPath();
-        if (!path.includes(historyMenu) && !path.includes(history))
-            closeHistory(false);
-    };
-    const blurHistory = () => closeHistory(false);
-    const focusHistory = (index) => {
-        if (historyItems.length === 0) {
-            historyMenu.focus({ preventScroll: true });
-            return;
+  };
+  dismissNotice(colorFeedback, () => {
+    colorFeedback.textContent = "";
+  });
+  let selectedColor = DEVICE_COLORS[0];
+  try {
+    const stored = doc.defaultView?.localStorage.getItem(DEVICE_COLOR_KEY);
+    selectedColor = DEVICE_COLORS.find((color) => color.id === stored) ?? selectedColor;
+  } catch {
+    /* The color picker also works when browser storage is unavailable. */
+  }
+  const previousBodyColors = ["--cgv-background", "--cgv-ink"].map((name) => ({
+    name,
+    value: doc.body.style.getPropertyValue(name),
+    priority: doc.body.style.getPropertyPriority(name),
+  }));
+  for (const color of DEVICE_COLORS) {
+    const swatch = button(
+      "device-color",
+      color.id === "codex" || color.id === "supply-co" ? color.name : `${color.name} device`,
+      "cgv-color",
+    );
+    swatch.dataset.deviceColor = color.id;
+    if (Object.prototype.hasOwnProperty.call(DEVICE_RAIL_ORDER, color.id))
+      swatch.style.order = String(DEVICE_RAIL_ORDER[color.id]);
+    swatch.dataset.tooltip = color.name;
+    const chip = element("span", "cgv-color-chip");
+    chip.style.backgroundColor = color.id === "codex" || color.id === "supply-co" ? "transparent" : color.background;
+    chip.setAttribute("aria-hidden", "true");
+    if (color.id === "codex" || color.id === "supply-co") {
+      chip.classList.add("cgv-codex-chip");
+      chip.style.color = color.id === "supply-co" ? "#9480ab" : "var(--cgv-ink)";
+      const logo = icon("codex");
+      logo.setAttribute("viewBox", "180 180 356 356");
+      logo.setAttribute("fill-rule", "evenodd");
+      chip.append(logo);
+    }
+    swatch.append(chip);
+    colors.append(swatch);
+  }
+  const paintColor = () => {
+    root.dataset.deviceColor = selectedColor.id;
+    for (const [name, value] of [
+      ["--cgv-background", selectedColor.background],
+      ["--cgv-ink", selectedColor.ink],
+    ]) {
+      doc.body.style.setProperty(name, value);
+    }
+    for (const swatch of Array.from(colors.children)) {
+      swatch.setAttribute("aria-pressed", String(swatch.getAttribute("data-device-color") === selectedColor.id));
+    }
+  };
+  const deviceImage = (color) => {
+    const image = element("img", "cgv-shell");
+    image.alt = "";
+    image.setAttribute("aria-hidden", "true");
+    image.draggable = false;
+    image.decoding = "async";
+    image.src = new URL(`./chromatic-${color.id}.${color.id === "supply-co" ? "png" : "webp"}`, import.meta.url).href;
+    if (color.id === "supply-co") image.style.cssText = "top:-16.37%;left:-66.3%;width:230.55%;height:135.02%";
+    return image;
+  };
+  let shell = deviceImage(selectedColor);
+  paintColor();
+  let colorGeneration = 0;
+  const selectColor = async (color) => {
+    const generation = ++colorGeneration;
+    colorFeedback.textContent = "";
+    if (color.id === selectedColor.id) {
+      colors.setAttribute("aria-busy", "false");
+      return;
+    }
+    colors.setAttribute("aria-busy", "true");
+    const next = deviceImage(color);
+    try {
+      await next.decode();
+      if (destroyed || generation !== colorGeneration) return;
+      shell.replaceWith(next);
+      shell = next;
+      selectedColor = color;
+      paintColor();
+      try {
+        doc.defaultView?.localStorage.setItem(DEVICE_COLOR_KEY, color.id);
+      } catch {
+        /* Keep the current selection usable. */
+      }
+    } catch {
+      if (!destroyed && generation === colorGeneration)
+        colorFeedback.textContent = "That color could not load. Try again.";
+    } finally {
+      if (!destroyed && generation === colorGeneration) colors.setAttribute("aria-busy", "false");
+    }
+  };
+  const colorClick = (event) => {
+    const id = event.target?.closest("button[data-device-color]")?.dataset.deviceColor;
+    const color = DEVICE_COLORS.find((candidate) => candidate.id === id);
+    if (color) void selectColor(color);
+  };
+  colors.addEventListener("click", colorClick);
+  const gameButtons = new Map();
+  const controls = element("div", "cgv-device-controls");
+  controls.setAttribute("role", "group");
+  controls.setAttribute("aria-label", "Game controls");
+  for (const [name, label] of [
+    ["up", "D-pad up"],
+    ["down", "D-pad down"],
+    ["left", "D-pad left"],
+    ["right", "D-pad right"],
+    ["b", "B button"],
+    ["a", "A button"],
+    ["select", "Select"],
+    ["start", "Start"],
+  ]) {
+    const key = button(name, label, "cgv-game-button");
+    key.dataset.gameButton = name;
+    controls.append(key);
+    gameButtons.set(name, key);
+  }
+  handheld.append(shell, screen, heading, controls);
+  deviceStage.append(handheld, colors);
+  const keyboardHints = element("div", "cgv-keyboard-hints");
+  keyboardHints.setAttribute("role", "group");
+  keyboardHints.setAttribute("aria-label", "Keyboard controls");
+  const actionHints = element("ul", "cgv-keyboard-row cgv-keyboard-actions");
+  actionHints.setAttribute("aria-label", "Keyboard shortcuts");
+  const keyboardRows = [actionHints];
+  keyboardHints.append(...keyboardRows);
+  const hintGroups = [];
+  for (const hint of [
+    {
+      row: actionHints,
+      keys: ["arrowleft", "arrowup", "arrowdown", "arrowright"],
+      labels: ["←", "↑", "↓", "→"],
+      action: "Move",
+    },
+    { row: actionHints, keys: ["z"], labels: ["Z"], action: "A" },
+    { row: actionHints, keys: ["x"], labels: ["X"], action: "B" },
+    { row: actionHints, keys: ["enter"], labels: ["Enter"], action: "Start" },
+    { row: actionHints, keys: ["p"], labels: ["P"], action: "Select" },
+  ]) {
+    const group = element("li", `cgv-keyboard-hint${hint.action === "Move" ? " cgv-keyboard-movement" : ""}`);
+    const keycaps = element("span", "cgv-keycaps");
+    for (const label of hint.labels) {
+      const keycap = element("kbd", "");
+      keycap.textContent = label;
+      keycaps.append(keycap);
+    }
+    const action = element("span", "");
+    action.textContent = hint.action;
+    group.append(keycaps, action);
+    hint.row.append(group);
+    hintGroups.push({ node: group, keys: hint.keys, row: hint.row });
+  }
+  const installSlot = element("div", "cgv-install-slot");
+  const sharedFooter = element("div", "cgv-shared-footer");
+  const hintArea = element("div", "cgv-hint-area");
+  const deviceFooter = element("div", "cgv-device-footer");
+  deviceFooter.hidden = true;
+  const status = element("p", "cgv-status");
+  status.setAttribute("role", "button");
+  status.setAttribute("aria-live", "polite");
+  status.setAttribute("aria-atomic", "true");
+  status.tabIndex = 0;
+  let dismissedStatus = "";
+  dismissNotice(status, () => {
+    dismissedStatus = status.textContent ?? "";
+    status.textContent = "";
+  });
+  const noticeStack = element("div", "cgv-notice-stack");
+  noticeStack.append(deviceFooter, colorFeedback, status);
+  const recording = element("div", "cgv-recording");
+  deviceStage.append(recording);
+  headerActions.append(toolbar, deviceActions);
+  header.append(headerActions);
+  player.append(deviceStage);
+  hintArea.append(keyboardHints);
+  sharedFooter.append(hintArea, installSlot, noticeStack);
+  viewsStage.append(player, deviceView, modes);
+  modeViews.append(viewsStage, sharedFooter);
+  root.append(header, modeViews);
+  let historyItems = [];
+  let historyGeneration = 0;
+  let pendingSourceFocus;
+  let sourceHadFocus = false;
+  const historyWindow = doc.defaultView;
+  const historyDate = new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const closeHistory = (restoreFocus) => {
+    const wasOpen = !historyMenu.hidden;
+    historyMenu.hidden = true;
+    history.setAttribute("aria-expanded", "false");
+    historyGeneration++;
+    doc.removeEventListener("pointerdown", outsideHistory, true);
+    doc.removeEventListener("focusin", outsideHistory, true);
+    historyWindow?.removeEventListener("blur", blurHistory);
+    if (wasOpen && restoreFocus && !destroyed && !history.disabled && history.isConnected)
+      history.focus({ preventScroll: true });
+  };
+  const outsideHistory = (event) => {
+    const path = event.composedPath();
+    if (!path.includes(historyMenu) && !path.includes(history)) closeHistory(false);
+  };
+  const blurHistory = () => closeHistory(false);
+  const focusHistory = (index) => {
+    if (historyItems.length === 0) {
+      historyMenu.focus({ preventScroll: true });
+      return;
+    }
+    const selected = ((index % historyItems.length) + historyItems.length) % historyItems.length;
+    historyItems.forEach((item, at) => {
+      item.tabIndex = at === selected ? 0 : -1;
+    });
+    historyItems[selected]?.focus({ preventScroll: true });
+    historyItems[selected]?.scrollIntoView({ block: "nearest" });
+  };
+  const historyKeyDown = (event) => {
+    if (historyMenu.hidden) return;
+    event.stopPropagation();
+    const selected = historyItems.indexOf(doc.activeElement);
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        focusHistory(selected + 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        focusHistory(selected < 0 ? -1 : selected - 1);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusHistory(0);
+        break;
+      case "End":
+        event.preventDefault();
+        focusHistory(historyItems.length - 1);
+        break;
+      case "Escape":
+        event.preventDefault();
+        closeHistory(true);
+        break;
+      case "Tab":
+        closeHistory(true);
+        break;
+    }
+  };
+  const historyKeyUp = (event) => event.stopPropagation();
+  historyMenu.addEventListener("keydown", historyKeyDown);
+  historyMenu.addEventListener("keyup", historyKeyUp);
+  const closeMore = (restoreFocus) => {
+    if (morePanel.hidden) return;
+    closeHistory(false);
+    morePanel.hidden = true;
+    moreToggle.setAttribute("aria-expanded", "false");
+    moreToggle.setAttribute("aria-label", "More actions");
+    moreToggle.dataset.tooltip = "More actions";
+    doc.removeEventListener("pointerdown", outsideMore, true);
+    doc.removeEventListener("focusin", outsideMore, true);
+    historyWindow?.removeEventListener("blur", blurMore);
+    if (restoreFocus && !destroyed) moreToggle.focus({ preventScroll: true });
+  };
+  const outsideMore = (event) => {
+    const path = event.composedPath();
+    if (!path.includes(more) && !path.includes(historyMenu)) closeMore(false);
+  };
+  const blurMore = () => closeMore(false);
+  const toggleMore = () => {
+    if (!morePanel.hidden) {
+      closeMore(false);
+      return;
+    }
+    morePanel.hidden = false;
+    moreToggle.setAttribute("aria-expanded", "true");
+    moreToggle.setAttribute("aria-label", "Close more actions");
+    moreToggle.dataset.tooltip = "Close more actions (Esc)";
+    doc.addEventListener("pointerdown", outsideMore, true);
+    doc.addEventListener("focusin", outsideMore, true);
+    historyWindow?.addEventListener("blur", blurMore);
+  };
+  const moreKeyDown = (event) => {
+    event.stopPropagation();
+    if (event.key === "Escape" && !morePanel.hidden) {
+      event.preventDefault();
+      closeMore(true);
+    }
+  };
+  const moreKeyUp = (event) => event.stopPropagation();
+  const moreClick = (event) => {
+    const path = event.composedPath();
+    if (path.includes(lastCapture)) closeMore(false);
+    else if (path.includes(restart)) closeMore(true);
+  };
+  more.addEventListener("keydown", moreKeyDown);
+  more.addEventListener("keyup", moreKeyUp);
+  morePanel.addEventListener("click", moreClick);
+  const style = doc.createElement("style");
+  style.dataset.codexGameView = "";
+  style.textContent = STYLES + SOURCE_MODE_STYLES;
+  doc.head.append(style);
+  doc.body.classList.add(BODY_CLASS);
+  originalParent.insertBefore(marker, game);
+  originalParent.insertBefore(root, game);
+  screen.append(game);
+  const destroyTooltips = mountControlTooltips(root);
+  let destroyed = false;
+  // The still-mounted emulator is the geometry anchor, including after resize.
+  const alignDevice = () => {
+    const top = deviceStage.getBoundingClientRect().top - modeViews.getBoundingClientRect().top;
+    deviceView.style.setProperty("--cgv-device-top", `${top}px`);
+  };
+  const deviceGeometry = new ResizeObserver(alignDevice);
+  deviceGeometry.observe(player);
+  alignDevice();
+  const view = {
+    root,
+    emulationMode,
+    deviceMode,
+    deviceView,
+    deviceActions,
+    deviceFooter,
+    notices: noticeStack,
+    play,
+    sound,
+    restart,
+    history,
+    annotate,
+    moreToggle,
+    toggleMore,
+    recording,
+    lastCapture,
+    gameButtons,
+    setDeviceUnavailable(reason) {
+      if (reason) {
+        deviceChoice.tabIndex = 0;
+        deviceChoice.dataset.unavailable = "true";
+        deviceChoice.dataset.tooltip = reason;
+        deviceChoice.setAttribute("role", "group");
+        deviceChoice.setAttribute("aria-label", `Device unavailable. ${reason}`);
+      } else {
+        deviceChoice.removeAttribute("tabindex");
+        deviceChoice.removeAttribute("role");
+        deviceChoice.removeAttribute("aria-label");
+        delete deviceChoice.dataset.unavailable;
+        delete deviceChoice.dataset.tooltip;
+      }
+    },
+    rememberSourceFocus() {
+      sourceHadFocus = doc.activeElement === emulationMode || doc.activeElement === deviceMode;
+    },
+    setSourceMode(mode) {
+      const focusedMode = doc.activeElement === emulationMode || doc.activeElement === deviceMode;
+      if (mode === "device") closeMore(false);
+      alignDevice();
+      root.dataset.source = mode;
+      player.inert = mode === "device";
+      toolbar.inert = mode === "device";
+      toolbar.setAttribute("aria-hidden", String(mode === "device"));
+      deviceView.inert = mode !== "device";
+      deviceActions.inert = mode !== "device";
+      deviceActions.setAttribute("aria-hidden", String(mode !== "device"));
+      keyboardHints.setAttribute("aria-hidden", String(mode === "device"));
+      recording.hidden = mode === "device";
+      deviceFooter.hidden = mode !== "device";
+      colorFeedback.hidden = mode === "device";
+      deviceView.setAttribute("aria-hidden", String(mode !== "device"));
+      emulationMode.hidden = mode !== "device";
+      deviceChoice.hidden = mode === "device";
+      emulationMode.setAttribute("aria-pressed", String(mode === "device"));
+      deviceMode.setAttribute("aria-pressed", String(mode === "device"));
+      if (focusedMode || sourceHadFocus) pendingSourceFocus = mode === "device" ? emulationMode : deviceMode;
+      if (mode === "emulator") {
+        paintColor();
+        try {
+          const color = DEVICE_COLORS.find((c) => c.id === doc.defaultView?.localStorage.getItem(DEVICE_COLOR_KEY));
+          if (color) void selectColor(color);
+        } catch {
+          /* Optional preference only. */
         }
-        const selected = ((index % historyItems.length) + historyItems.length) % historyItems.length;
-        historyItems.forEach((item, at) => { item.tabIndex = at === selected ? 0 : -1; });
-        historyItems[selected]?.focus({ preventScroll: true });
-        historyItems[selected]?.scrollIntoView({ block: "nearest" });
-    };
-    const historyKeyDown = (event) => {
-        if (historyMenu.hidden)
-            return;
-        event.stopPropagation();
-        const selected = historyItems.indexOf(doc.activeElement);
-        switch (event.key) {
-            case "ArrowDown":
-                event.preventDefault();
-                focusHistory(selected + 1);
-                break;
-            case "ArrowUp":
-                event.preventDefault();
-                focusHistory(selected < 0 ? -1 : selected - 1);
-                break;
-            case "Home":
-                event.preventDefault();
-                focusHistory(0);
-                break;
-            case "End":
-                event.preventDefault();
-                focusHistory(historyItems.length - 1);
-                break;
-            case "Escape":
-                event.preventDefault();
-                closeHistory(true);
-                break;
-            case "Tab":
-                closeHistory(true);
-                break;
-        }
-    };
-    const historyKeyUp = (event) => event.stopPropagation();
-    historyMenu.addEventListener("keydown", historyKeyDown);
-    historyMenu.addEventListener("keyup", historyKeyUp);
-    const closeMore = (restoreFocus) => {
-        if (morePanel.hidden)
-            return;
-        closeHistory(false);
-        morePanel.hidden = true;
-        moreToggle.setAttribute("aria-expanded", "false");
-        moreToggle.setAttribute("aria-label", "More actions");
-        moreToggle.dataset.tooltip = "More actions";
-        doc.removeEventListener("pointerdown", outsideMore, true);
-        doc.removeEventListener("focusin", outsideMore, true);
-        historyWindow?.removeEventListener("blur", blurMore);
-        if (restoreFocus && !destroyed)
-            moreToggle.focus({ preventScroll: true });
-    };
-    const outsideMore = (event) => {
-        const path = event.composedPath();
-        if (!path.includes(more) && !path.includes(historyMenu))
-            closeMore(false);
-    };
-    const blurMore = () => closeMore(false);
-    const toggleMore = () => {
-        if (!morePanel.hidden) {
-            closeMore(false);
-            return;
-        }
-        morePanel.hidden = false;
-        moreToggle.setAttribute("aria-expanded", "true");
-        moreToggle.setAttribute("aria-label", "Close more actions");
-        moreToggle.dataset.tooltip = "Close more actions (Esc)";
-        doc.addEventListener("pointerdown", outsideMore, true);
-        doc.addEventListener("focusin", outsideMore, true);
-        historyWindow?.addEventListener("blur", blurMore);
-    };
-    const moreKeyDown = (event) => {
-        event.stopPropagation();
-        if (event.key === "Escape" && !morePanel.hidden) {
-            event.preventDefault();
-            closeMore(true);
-        }
-    };
-    const moreKeyUp = (event) => event.stopPropagation();
-    const moreClick = (event) => {
-        const path = event.composedPath();
-        if (path.includes(lastCapture))
-            closeMore(false);
-        else if (path.includes(restart))
-            closeMore(true);
-    };
-    more.addEventListener("keydown", moreKeyDown);
-    more.addEventListener("keyup", moreKeyUp);
-    morePanel.addEventListener("click", moreClick);
-    const style = doc.createElement("style");
-    style.dataset.codexGameView = "";
-    style.textContent = STYLES + SOURCE_MODE_STYLES;
-    doc.head.append(style);
-    doc.body.classList.add(BODY_CLASS);
-    originalParent.insertBefore(marker, game);
-    originalParent.insertBefore(root, game);
-    screen.append(game);
-    const destroyTooltips = mountControlTooltips(root);
-    let destroyed = false;
-    // The still-mounted emulator is the geometry anchor, including after resize.
-    const alignDevice = () => {
-        const top = deviceStage.getBoundingClientRect().top - modeViews.getBoundingClientRect().top;
-        deviceView.style.setProperty("--cgv-device-top", `${top}px`);
-    };
-    const deviceGeometry = new ResizeObserver(alignDevice);
-    deviceGeometry.observe(player);
-    alignDevice();
-    const view = {
-        root, emulationMode, deviceMode, deviceView, deviceActions, deviceFooter, notices: noticeStack, play, sound, restart, history, annotate, moreToggle, toggleMore, recording, lastCapture, gameButtons,
-        setDeviceUnavailable(reason) {
-            if (reason) {
-                deviceChoice.tabIndex = 0;
-                deviceChoice.dataset.unavailable = "true";
-                deviceChoice.dataset.tooltip = reason;
-                deviceChoice.setAttribute("role", "group");
-                deviceChoice.setAttribute("aria-label", `Device unavailable. ${reason}`);
-            }
-            else {
-                deviceChoice.removeAttribute("tabindex");
-                deviceChoice.removeAttribute("role");
-                deviceChoice.removeAttribute("aria-label");
-                delete deviceChoice.dataset.unavailable;
-                delete deviceChoice.dataset.tooltip;
-            }
-        },
-        rememberSourceFocus() { sourceHadFocus = doc.activeElement === emulationMode || doc.activeElement === deviceMode; },
-        setSourceMode(mode) {
-            const focusedMode = doc.activeElement === emulationMode || doc.activeElement === deviceMode;
-            if (mode === "device")
-                closeMore(false);
-            alignDevice();
-            root.dataset.source = mode;
-            player.inert = mode === "device";
-            toolbar.inert = mode === "device";
-            toolbar.setAttribute("aria-hidden", String(mode === "device"));
-            deviceView.inert = mode !== "device";
-            deviceActions.inert = mode !== "device";
-            deviceActions.setAttribute("aria-hidden", String(mode !== "device"));
-            keyboardHints.setAttribute("aria-hidden", String(mode === "device"));
-            recording.hidden = mode === "device";
-            deviceFooter.hidden = mode !== "device";
-            colorFeedback.hidden = mode === "device";
-            deviceView.setAttribute("aria-hidden", String(mode !== "device"));
-            emulationMode.hidden = mode !== "device";
-            deviceChoice.hidden = mode === "device";
-            emulationMode.setAttribute("aria-pressed", String(mode === "device"));
-            deviceMode.setAttribute("aria-pressed", String(mode === "device"));
-            if (focusedMode || sourceHadFocus)
-                pendingSourceFocus = mode === "device" ? emulationMode : deviceMode;
-            if (mode === "emulator") {
-                paintColor();
-                try {
-                    const color = DEVICE_COLORS.find(c => c.id === doc.defaultView?.localStorage.getItem(DEVICE_COLOR_KEY));
-                    if (color)
-                        void selectColor(color);
-                }
-                catch { /* Optional preference only. */ }
-            }
-        },
-        restoreSourceFocus() {
-            const target = pendingSourceFocus;
-            pendingSourceFocus = undefined;
-            sourceHadFocus = false;
-            if (target && !target.disabled && !destroyed && (doc.activeElement === doc.body || doc.activeElement === target))
-                target.focus({ preventScroll: true });
-        },
-        setPaused(paused) {
-            root.dataset.paused = String(paused);
-            const label = paused ? "Resume game" : "Pause game";
-            play.setAttribute("aria-label", label);
-            play.dataset.tooltip = label;
-            play.replaceChildren(icon(paused ? "play" : "pause"));
-        },
-        setMuted(muted) {
-            root.dataset.muted = String(muted);
-            const label = muted ? "Enable sound" : "Mute sound";
-            sound.setAttribute("aria-label", label);
-            sound.dataset.tooltip = label;
-            sound.replaceChildren(icon(muted ? "muted" : "sound"));
-        },
-        setAnnotating(active) {
-            root.dataset.annotating = String(active);
-            annotate.setAttribute("aria-pressed", String(active));
-            const label = active ? "Exit annotation mode" : "Annotate game";
-            annotate.setAttribute("aria-label", label);
-            annotate.dataset.tooltip = label;
-        },
-        setKeyboardHints(keys) {
-            const available = new Set(keys.map(key => key.toLowerCase()));
-            for (const group of hintGroups)
-                group.node.hidden = !group.keys.every(key => available.has(key));
-            for (const row of keyboardRows)
-                row.hidden = hintGroups.filter(group => group.row === row).every(group => group.node.hidden);
-            keyboardHints.hidden = hintGroups.every(group => group.node.hidden);
-            for (const [button, key, label] of [
-                ["up", "arrowup", "↑"], ["down", "arrowdown", "↓"], ["left", "arrowleft", "←"], ["right", "arrowright", "→"],
-                ["a", "z", "Z"], ["b", "x", "X"], ["start", "enter", "Enter"], ["select", "p", "P"],
-            ]) {
-                const control = gameButtons.get(button);
-                const name = control.getAttribute("aria-label");
-                control.dataset.tooltip = available.has(key) ? `${name} (${label})` : name;
-            }
-        },
-        beginHistoryRequest() {
-            const generation = ++historyGeneration;
-            return () => !destroyed && root.isConnected && !morePanel.hidden && generation === historyGeneration;
-        },
-        showHistory(states, choose) {
-            if (destroyed || !root.isConnected || morePanel.hidden)
-                return;
-            const focusedId = historyItems.find(item => item === doc.activeElement)?.dataset.stateId;
-            const generation = ++historyGeneration;
-            historyItems = [];
-            const entries = states.map(state => ({ state, timestamp: Date.parse(state.createdAt) }))
-                .sort((left, right) => (Number.isFinite(right.timestamp) ? right.timestamp : -Infinity) -
-                (Number.isFinite(left.timestamp) ? left.timestamp : -Infinity));
-            const rows = doc.createDocumentFragment();
-            rows.append(historyHeading);
-            for (const { state, timestamp } of entries) {
-                const item = button("open-history-state", "", "cgv-history-item");
-                item.removeAttribute("aria-label");
-                item.removeAttribute("title");
-                delete item.dataset.tooltip;
-                item.setAttribute("role", "menuitem");
-                item.dataset.stateId = state.id;
-                item.tabIndex = -1;
-                const date = element("time", "");
-                date.textContent = Number.isFinite(timestamp) ? historyDate.format(timestamp) : "Time unavailable";
-                if (Number.isFinite(timestamp))
-                    date.dateTime = new Date(timestamp).toISOString();
-                item.append(date);
-                item.addEventListener("click", () => {
-                    if (destroyed || historyMenu.hidden || generation !== historyGeneration)
-                        return;
-                    closeHistory(true);
-                    choose(state.id);
-                });
-                historyItems.push(item);
-                rows.append(item);
-            }
-            if (historyItems.length === 0) {
-                const empty = element("p", "cgv-history-empty");
-                empty.id = "codex-history-empty";
-                empty.textContent = "No saved moments yet.";
-                rows.append(empty);
-                historyMenu.setAttribute("aria-describedby", empty.id);
-            }
-            else
-                historyMenu.removeAttribute("aria-describedby");
-            historyMenu.replaceChildren(rows);
-            historyMenu.hidden = false;
-            history.setAttribute("aria-expanded", "true");
-            doc.addEventListener("pointerdown", outsideHistory, true);
-            doc.addEventListener("focusin", outsideHistory, true);
-            historyWindow?.addEventListener("blur", blurHistory);
-            const previous = historyItems.findIndex(item => item.dataset.stateId === focusedId);
-            focusHistory(previous < 0 ? 0 : previous);
-        },
-        hideHistory() { closeHistory(true); },
-        show(message) {
-            if (!message)
-                dismissedStatus = "";
-            status.textContent = message === dismissedStatus ? "" : message;
-        },
-        destroy() {
-            if (destroyed)
-                return;
-            destroyed = true;
-            destroyTooltips();
-            deviceGeometry.disconnect();
-            closeMore(false);
-            closeHistory(false);
-            historyMenu.removeEventListener("keydown", historyKeyDown);
-            historyMenu.removeEventListener("keyup", historyKeyUp);
-            more.removeEventListener("keydown", moreKeyDown);
-            more.removeEventListener("keyup", moreKeyUp);
-            morePanel.removeEventListener("click", moreClick);
-            doc.removeEventListener("pointerdown", outsideMore, true);
-            doc.removeEventListener("focusin", outsideMore, true);
-            historyWindow?.removeEventListener("blur", blurMore);
-            historyItems = [];
-            historyMenu.replaceChildren();
-            colors.removeEventListener("click", colorClick);
-            for (const { name, value, priority } of previousBodyColors) {
-                if (value)
-                    doc.body.style.setProperty(name, value, priority);
-                else
-                    doc.body.style.removeProperty(name);
-            }
-            if (marker.parentNode)
-                marker.parentNode.replaceChild(game, marker);
-            else
-                originalParent.insertBefore(game, originalNext?.parentNode === originalParent ? originalNext : null);
-            root.remove();
-            style.remove();
-            if (!hadBodyClass)
-                doc.body.classList.remove(BODY_CLASS);
-        },
-    };
-    view.setPaused(false);
-    view.setMuted(false);
-    view.setAnnotating(false);
-    return view;
+      }
+    },
+    restoreSourceFocus() {
+      const target = pendingSourceFocus;
+      pendingSourceFocus = undefined;
+      sourceHadFocus = false;
+      if (target && !target.disabled && !destroyed && (doc.activeElement === doc.body || doc.activeElement === target))
+        target.focus({ preventScroll: true });
+    },
+    setPaused(paused) {
+      root.dataset.paused = String(paused);
+      const label = paused ? "Resume game" : "Pause game";
+      play.setAttribute("aria-label", label);
+      play.dataset.tooltip = label;
+      play.replaceChildren(icon(paused ? "play" : "pause"));
+    },
+    setMuted(muted) {
+      root.dataset.muted = String(muted);
+      const label = muted ? "Enable sound" : "Mute sound";
+      sound.setAttribute("aria-label", label);
+      sound.dataset.tooltip = label;
+      sound.replaceChildren(icon(muted ? "muted" : "sound"));
+    },
+    setAnnotating(active) {
+      root.dataset.annotating = String(active);
+      annotate.setAttribute("aria-pressed", String(active));
+      const label = active ? "Exit annotation mode" : "Annotate game";
+      annotate.setAttribute("aria-label", label);
+      annotate.dataset.tooltip = label;
+    },
+    setKeyboardHints(keys) {
+      const available = new Set(keys.map((key) => key.toLowerCase()));
+      for (const group of hintGroups) group.node.hidden = !group.keys.every((key) => available.has(key));
+      for (const row of keyboardRows)
+        row.hidden = hintGroups.filter((group) => group.row === row).every((group) => group.node.hidden);
+      keyboardHints.hidden = hintGroups.every((group) => group.node.hidden);
+      for (const [button, key, label] of [
+        ["up", "arrowup", "↑"],
+        ["down", "arrowdown", "↓"],
+        ["left", "arrowleft", "←"],
+        ["right", "arrowright", "→"],
+        ["a", "z", "Z"],
+        ["b", "x", "X"],
+        ["start", "enter", "Enter"],
+        ["select", "p", "P"],
+      ]) {
+        const control = gameButtons.get(button);
+        const name = control.getAttribute("aria-label");
+        control.dataset.tooltip = available.has(key) ? `${name} (${label})` : name;
+      }
+    },
+    beginHistoryRequest() {
+      const generation = ++historyGeneration;
+      return () => !destroyed && root.isConnected && !morePanel.hidden && generation === historyGeneration;
+    },
+    showHistory(states, choose) {
+      if (destroyed || !root.isConnected || morePanel.hidden) return;
+      const focusedId = historyItems.find((item) => item === doc.activeElement)?.dataset.stateId;
+      const generation = ++historyGeneration;
+      historyItems = [];
+      const entries = states
+        .map((state) => ({ state, timestamp: Date.parse(state.createdAt) }))
+        .sort(
+          (left, right) =>
+            (Number.isFinite(right.timestamp) ? right.timestamp : -Infinity) -
+            (Number.isFinite(left.timestamp) ? left.timestamp : -Infinity),
+        );
+      const rows = doc.createDocumentFragment();
+      rows.append(historyHeading);
+      for (const { state, timestamp } of entries) {
+        const item = button("open-history-state", "", "cgv-history-item");
+        item.removeAttribute("aria-label");
+        item.removeAttribute("title");
+        delete item.dataset.tooltip;
+        item.setAttribute("role", "menuitem");
+        item.dataset.stateId = state.id;
+        item.tabIndex = -1;
+        const date = element("time", "");
+        date.textContent = Number.isFinite(timestamp) ? historyDate.format(timestamp) : "Time unavailable";
+        if (Number.isFinite(timestamp)) date.dateTime = new Date(timestamp).toISOString();
+        item.append(date);
+        item.addEventListener("click", () => {
+          if (destroyed || historyMenu.hidden || generation !== historyGeneration) return;
+          closeHistory(true);
+          choose(state.id);
+        });
+        historyItems.push(item);
+        rows.append(item);
+      }
+      if (historyItems.length === 0) {
+        const empty = element("p", "cgv-history-empty");
+        empty.id = "codex-history-empty";
+        empty.textContent = "No saved moments yet.";
+        rows.append(empty);
+        historyMenu.setAttribute("aria-describedby", empty.id);
+      } else historyMenu.removeAttribute("aria-describedby");
+      historyMenu.replaceChildren(rows);
+      historyMenu.hidden = false;
+      history.setAttribute("aria-expanded", "true");
+      doc.addEventListener("pointerdown", outsideHistory, true);
+      doc.addEventListener("focusin", outsideHistory, true);
+      historyWindow?.addEventListener("blur", blurHistory);
+      const previous = historyItems.findIndex((item) => item.dataset.stateId === focusedId);
+      focusHistory(previous < 0 ? 0 : previous);
+    },
+    hideHistory() {
+      closeHistory(true);
+    },
+    show(message) {
+      if (!message) dismissedStatus = "";
+      status.textContent = message === dismissedStatus ? "" : message;
+    },
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      destroyTooltips();
+      deviceGeometry.disconnect();
+      closeMore(false);
+      closeHistory(false);
+      historyMenu.removeEventListener("keydown", historyKeyDown);
+      historyMenu.removeEventListener("keyup", historyKeyUp);
+      more.removeEventListener("keydown", moreKeyDown);
+      more.removeEventListener("keyup", moreKeyUp);
+      morePanel.removeEventListener("click", moreClick);
+      doc.removeEventListener("pointerdown", outsideMore, true);
+      doc.removeEventListener("focusin", outsideMore, true);
+      historyWindow?.removeEventListener("blur", blurMore);
+      historyItems = [];
+      historyMenu.replaceChildren();
+      colors.removeEventListener("click", colorClick);
+      for (const { name, value, priority } of previousBodyColors) {
+        if (value) doc.body.style.setProperty(name, value, priority);
+        else doc.body.style.removeProperty(name);
+      }
+      if (marker.parentNode) marker.parentNode.replaceChild(game, marker);
+      else originalParent.insertBefore(game, originalNext?.parentNode === originalParent ? originalNext : null);
+      root.remove();
+      style.remove();
+      if (!hadBodyClass) doc.body.classList.remove(BODY_CLASS);
+    },
+  };
+  view.setPaused(false);
+  view.setMuted(false);
+  view.setAnnotating(false);
+  return view;
 }

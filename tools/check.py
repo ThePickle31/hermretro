@@ -205,9 +205,10 @@ def check_lint(args) -> str:
             engine_skip = "eslint was not found in tools/npm (npm ci --prefix tools/npm --ignore-scripts)"
         elif engine.returncode:
             problems.append(
-                tail(output, 40) + "\nFIX: fix each engine error as its message says, then record the engine change "
-                'with python tools/engine/bump.py "<files>: what changed and why" (a deliberate exception: '
-                "// hermretro: allow <rule> \u2014 <reason> on its line)"
+                tail(output, 40)
+                + "\nFIX: python tools/check.py fix puts the engine in Prettier's format; fix every other "
+                'engine error as its message says, then record the engine change with python tools/engine/bump.py '
+                '"<files>: what changed and why" (a deliberate exception: // hermretro: allow <rule> \u2014 <reason> on its line)'
             )
         elif not engine.returncode:
             done.insert(
@@ -228,7 +229,8 @@ def tree_digest() -> dict[str, str]:
 
 
 def fix(args) -> int:
-    """Apply every automatic fix (ruff's safe fixes and format, the page lint's), say what changed, lint."""
+    """Apply every automatic fix (ruff's safe fixes and format, the page lint's, the engine's format), say what changed,
+    lint."""
     if missing := ruff_missing():
         print(f"{missing}\nFIX: {RUFF_SETUP}")
         return 1
@@ -236,8 +238,9 @@ def fix(args) -> int:
     steps = [RUFF_CHECK[:2] + ["--fix", "--quiet", *RUFF_CHECK[2:]], RUFF_FORMAT]
     if node := shutil.which("node"):
         steps.append([node, "tools/bundle/lint-page.mjs", "--fix"])
+        steps.append([node, "tools/engine/lint.mjs", "--fix"])
     else:
-        print("node is not installed: the page lint's fixes were not applied")
+        print("node is not installed: the page lint's fixes and the engine's format were not applied")
     for cmd in steps:
         run(cmd)  # each reports again below, in the lint check
     after = tree_digest()

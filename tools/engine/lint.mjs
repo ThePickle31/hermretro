@@ -4,13 +4,20 @@
  * `python tools/check.py lint`.
  *
  *   node tools/engine/lint.mjs           report; exits 1 on an error
+ *   node tools/engine/lint.mjs --fix     put every file in Prettier's format first (the only automatic fix)
  *   node tools/engine/lint.mjs FILE...   only these files
+ *
+ * Every file is also held to Prettier's format (tools/engine/prettier.json: its defaults, 120 columns), the one layout
+ * for everyone, so a diff shows only real changes.
  *
  * A deliberate exception is `// hermretro: allow <rule> — <reason>` on its line, as for the page
  * (tools/bundle/eslint-run.mjs). Fixing a report changes the engine: record it with tools/engine/bump.py.
- * ESLint and `globals` come from tools/npm only, the versions this repository pins.
+ * ESLint, `globals` and Prettier come from tools/npm only, the versions this repository pins.
  */
-import { eslintTools, isMain, missing, printReport, runEslint } from '../bundle/eslint-run.mjs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+
+import { ROOT, eslintTools, isMain, missing, printReport, runEslint } from '../bundle/eslint-run.mjs'
 
 const PATTERNS = ['engine/src/**/*.js', 'engine/scripts/**/*.mjs']
 // The scripts the player's page and the capture page run in the browser (each says `/// <reference lib="dom" />`,
@@ -73,20 +80,63 @@ function engineConfig({ globals }) {
   ]
 }
 
-export const PACKAGES = ['globals'] // besides eslint (lint_tools.py's preflight reads it)
+export const PACKAGES = ['globals', 'prettier'] // besides eslint (lint_tools.py's preflight reads it)
+const FORMAT = JSON.parse(readFileSync(new URL('./prettier.json', import.meta.url), 'utf8'))
 
-export async function lintEngine({ files = [] } = {}) {
+// Whether a path from the root is one PATTERNS names: under the pattern's folder, with its extension.
+function inPatterns(name) {
+  return PATTERNS.some(pattern => {
+    const [folder, extension] = pattern.split('/**/*')
+    return name.startsWith(`${folder}/`) && name.endsWith(extension)
+  })
+}
+
+/** Each file not in Prettier's format, as an error line; with `fix`, each is rewritten in it instead (`fixed`
+ * counts those). A file that does not parse is left to ESLint's report of its syntax error. */
+async function formatting(prettier, files, fix) {
+  const result = { errors: [], fixed: 0 }
+  for (const name of files) {
+    const file = path.join(ROOT, name)
+    const source = readFileSync(file, 'utf8')
+    const options = { ...FORMAT, filepath: file }
+    try {
+      if (await prettier.check(source, options)) continue
+      if (fix) {
+        writeFileSync(file, await prettier.format(source, options))
+        result.fixed += 1
+      } else {
+        result.errors.push(`${name}:1:1  not in Prettier's format [format]\n    why: one layout for everyone, so a diff shows only real changes. Fix: node tools/engine/lint.mjs --fix.`)
+      }
+    } catch (error) {
+      result.errors.push(`${name}:1:1  Prettier could not read it: ${String(error.message).split('\n')[0]} [format]\n    why: a file Prettier cannot read is not in its format. Fix: make it parse (the error above says where), then node tools/engine/lint.mjs --fix.`)
+    }
+  }
+  return result
+}
+
+export async function lintEngine({ fix = false, files = [] } = {}) {
   const found = eslintTools(PACKAGES, { pinned: true })
 
   if (!found) {
     return { missing: missing(PACKAGES, { pinned: true }) }
   }
 
-  return runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
+  // ESLint resolves the files (paths written any way, globs, its ignores); the format is checked on those of them that
+  // are the engine's sources and scripts (PATTERNS), never the bundle or anything else a broad glob takes in.
+  const lint = () => runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
+  let report = await lint()
+  const readable = report.paths.filter(
+    name => inPatterns(name) && !report.unparsed.includes(name) && !report.ignored.includes(name)
+  )
+  const format = await formatting(found.prettier, readable, fix)
+  if (format.fixed) report = await lint()  // line numbers as the files now stand
+  report.errors.push(...format.errors)
+  return report
 }
 
 if (isMain(import.meta.url)) {
-  const report = await lintEngine({ files: process.argv.slice(2).filter(arg => !arg.startsWith('--')) })
+  const argv = process.argv.slice(2)
+  const report = await lintEngine({ fix: argv.includes('--fix'), files: argv.filter(arg => !arg.startsWith('--')) })
 
   process.exit(printReport(report, ' (then python tools/engine/bump.py for the engine change)'))
 }

@@ -7,11 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
-const TRUSTED_UV_REGISTRY_VARIABLES = new Set([
-  "UV_INDEX_URL",
-  "UV_DEFAULT_INDEX",
-  "UV_EXTRA_INDEX_URL",
-]);
+const TRUSTED_UV_REGISTRY_VARIABLES = new Set(["UV_INDEX_URL", "UV_DEFAULT_INDEX", "UV_EXTRA_INDEX_URL"]);
 const UNSAFE_EXACT_VARIABLES = new Set([
   "BASH_ENV",
   "ENV",
@@ -22,7 +18,8 @@ const UNSAFE_EXACT_VARIABLES = new Set([
   "PIP_TARGET",
 ]);
 
-const SETUP_USAGE = "Usage: node scripts/setup-emulator.mjs [--dry-run] [--help]\n" +
+const SETUP_USAGE =
+  "Usage: node scripts/setup-emulator.mjs [--dry-run] [--help]\n" +
   "Legacy developer setup for the optional PyBoy environment. --dry-run prints an unverified plan without running tools.\n" +
   "For installed plugins, use the packaged setup.mjs (or setup.sh/setup.ps1) entrypoint and an external dependency root.";
 
@@ -41,17 +38,25 @@ function emulatorSetupPlan(options) {
   const architecture = options.arch ?? process.arch;
   const environment = options.environment ?? process.env;
   const scriptDirectory = path.resolve(options.scriptDirectory ?? DEFAULT_SCRIPT_DIRECTORY);
-  const toolchainRoot = path.resolve(options.cwd ?? process.cwd(), options.toolchainRoot ??
-    environmentValue(environment, "GB_STUDIO_TOOLCHAIN_ROOT", platform) ?? path.dirname(scriptDirectory));
-  const pythonVersion = options.pythonVersion ?? environmentValue(environment, "GB_STUDIO_PYTHON_VERSION", platform) ?? "3.13";
+  const toolchainRoot = path.resolve(
+    options.cwd ?? process.cwd(),
+    options.toolchainRoot ??
+      environmentValue(environment, "GB_STUDIO_TOOLCHAIN_ROOT", platform) ??
+      path.dirname(scriptDirectory),
+  );
+  const pythonVersion =
+    options.pythonVersion ?? environmentValue(environment, "GB_STUDIO_PYTHON_VERSION", platform) ?? "3.13";
   if (!/^\d+\.\d+(?:\.\d+)?$/.test(pythonVersion)) {
     throw new Error(`The requested emulator Python version must be an explicit numeric version: ${pythonVersion}`);
   }
   const runtimeDirectory = path.join(toolchainRoot, ".local", "pyboy-venv");
-  writeTo(options.stdout ?? process.stdout, `[dry-run] Plan only; no tools were run and dependency health is unverified.\n` +
-    `[dry-run] Target ${platform}-${architecture}: Python ${pythonVersion}, PyBoy 2.7.0, Pillow >=11,<13.\n` +
-    `[dry-run] Would verify/reuse or prepare the PyBoy environment at ${runtimeDirectory}.\n` +
-    "[dry-run] Applying this legacy helper requires trusted uv when installation or repair is needed; installed plugins should use packaged setup.mjs with an external dependency root.");
+  writeTo(
+    options.stdout ?? process.stdout,
+    `[dry-run] Plan only; no tools were run and dependency health is unverified.\n` +
+      `[dry-run] Target ${platform}-${architecture}: Python ${pythonVersion}, PyBoy 2.7.0, Pillow >=11,<13.\n` +
+      `[dry-run] Would verify/reuse or prepare the PyBoy environment at ${runtimeDirectory}.\n` +
+      "[dry-run] Applying this legacy helper requires trusted uv when installation or repair is needed; installed plugins should use packaged setup.mjs with an external dependency root.",
+  );
   return { dryRun: true, verified: false, platform, architecture, toolchainRoot, runtimeDirectory, installed: false };
 }
 
@@ -157,13 +162,7 @@ function assertPhysicalEntry(filesystem, candidate, expectedKind, platform, labe
 
 function inspectExistingRuntime(filesystem, runtimeDirectory, platform) {
   assertPhysicalEntry(filesystem, runtimeDirectory, "directory", platform, "PyBoy environment");
-  assertPhysicalEntry(
-    filesystem,
-    path.join(runtimeDirectory, "pyvenv.cfg"),
-    "file",
-    platform,
-    "pyvenv.cfg",
-  );
+  assertPhysicalEntry(filesystem, path.join(runtimeDirectory, "pyvenv.cfg"), "file", platform, "pyvenv.cfg");
   const executableDirectory = path.join(runtimeDirectory, "Scripts");
   assertPhysicalEntry(filesystem, executableDirectory, "directory", platform, "Scripts directory");
   const pythonPath = path.join(executableDirectory, "python.exe");
@@ -281,16 +280,20 @@ export function setupEmulator(options = {}) {
     throw new Error("The trusted plugin scripts directory must be an existing physical directory.");
   }
 
-  const configuredToolchain = options.toolchainRoot ?? environmentValue(parentEnvironment, "GB_STUDIO_TOOLCHAIN_ROOT", platform);
+  const configuredToolchain =
+    options.toolchainRoot ?? environmentValue(parentEnvironment, "GB_STUDIO_TOOLCHAIN_ROOT", platform);
   let toolchainRoot;
   try {
     toolchainRoot = filesystem.realpathSync(path.resolve(configuredToolchain ?? path.dirname(trustedDirectory)));
     if (!filesystem.lstatSync(toolchainRoot).isDirectory()) throw new Error("not a directory");
   } catch {
-    throw new Error(`The selected game toolchain root must be an existing directory: ${configuredToolchain ?? path.dirname(trustedDirectory)}`);
+    throw new Error(
+      `The selected game toolchain root must be an existing directory: ${configuredToolchain ?? path.dirname(trustedDirectory)}`,
+    );
   }
 
-  const pythonVersion = options.pythonVersion ?? environmentValue(parentEnvironment, "GB_STUDIO_PYTHON_VERSION", platform) ?? "3.13";
+  const pythonVersion =
+    options.pythonVersion ?? environmentValue(parentEnvironment, "GB_STUDIO_PYTHON_VERSION", platform) ?? "3.13";
   if (!/^\d+\.\d+(?:\.\d+)?$/.test(pythonVersion)) {
     throw new Error(`The requested emulator Python version must be an explicit numeric version: ${pythonVersion}`);
   }
