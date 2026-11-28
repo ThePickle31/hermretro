@@ -218,7 +218,18 @@ class EngineCompareTests(unittest.TestCase):
         # `a || (b && c)` and `(a || b) && c` give different values (a = 1, c = 0): grouping counts across operators.
         prefix = "const [a, b, c] = [1, 1, 0];\n"
         self.assertDifferent(prefix + "console.log(a || (b && c));\n", prefix + "console.log((a || b) && c);\n")
-        self.assertDifferent(prefix + "console.log(a ?? (b || c));\n", prefix + "console.log((a ?? b) || c);\n")
+        # `a ?? (b || c)` and `(a ?? b) || c` give 0 and 2 with these.
+        nullish = "const [a, b, c] = [0, 1, 2];\n"
+        self.assertDifferent(nullish + "console.log(a ?? (b || c));\n", nullish + "console.log((a ?? b) || c);\n")
+
+    def test_a_regrouped_chain_that_differs_is_reported_at_the_operand_that_changed(self):
+        done = self.compare(
+            "const [a, b] = [0, 0];\nconsole.log(a || (b ||\n  1));\n",
+            "const [a, b] = [0, 0];\nconsole.log(a || b ||\n  2);\n",
+        )
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("1));", done.stdout)
+        self.assertIn("2);", done.stdout)
 
     def test_modules_run_in_another_order_differ(self):
         a, b = BUNDLE.split("// dist/b.js\n")

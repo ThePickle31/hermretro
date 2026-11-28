@@ -72,8 +72,8 @@ Four rules keep it that way, each checked:
   (`tests/engine/imports.test.mjs`).
 - **One format**, Prettier's (`tools/engine/prettier.json`), so a diff shows only real changes: `python tools/check.py
   fix` applies it (`tools/engine/lint.mjs`, which `python tools/check.py lint` runs).
-- **600 lines at most** per module; the files over it when the rule came in are listed in `tools/layout.toml`
-  (`tests/repo/test_layout.py`).
+- **600 lines at most** per module; the files over it when the rule came in, and those formatting took over it, are
+  listed in `tools/layout.toml` until the reorganization splits them (`tests/repo/test_layout.py`).
 
 ## Changing it
 

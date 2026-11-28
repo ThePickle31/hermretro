@@ -68,8 +68,8 @@ the few ignores it lists and why), quotes kept as written. The vendored player, 
 are not linted; the engine's Python (`engine/scripts/emulator_worker.py`) is linted but never reformatted (`[format]
 exclude`), so the engine keeps its own layout.
 
-- `python tools/check.py lint` checks; `python tools/check.py fix` applies ruff's safe fixes, `ruff format` and the
-  page lint's fixes, lists the files it changed, then lints again. `.dev/py/bin/ruff rule <CODE>` explains a rule.
+- `python tools/check.py lint` checks; `python tools/check.py fix` applies ruff's safe fixes, `ruff format`, the
+  page lint's fixes and the engine's format (`tools/engine/lint.mjs --fix`), lists the files it changed, then lints again. `.dev/py/bin/ruff rule <CODE>` explains a rule.
 - A deliberate exception is ruff's own `# noqa: <CODE>` on the line, followed by its reason after ` - ` or ` — `:
   `lock = open(path, "a+")  # noqa: SIM115 - a lock held until the process exits`; an import after the
   `sys.path` line says `# noqa: E402 - the repository root goes on sys.path first`. Prefer changing the code. (The page's escape is `// hermretro: allow <rule> — <reason>`.)

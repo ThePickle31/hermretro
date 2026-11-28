@@ -30,7 +30,7 @@ Python and page source files warn above 400 lines and fail above 600 (`tools/lay
 ```sh
 python tools/dev setup           # once per checkout: ruff and the npm tools the checks use (Node 22 or newer)
 python tools/check.py            # fast checks: unit, bundle, engine, lint, page, scan
-python tools/check.py fix        # automatic lint fixes and the Python formatting
+python tools/check.py fix        # automatic lint fixes, the Python formatting and the engine's format
 python tools/check.py full       # plus the real-engine run (its toolchain: hermretro-dev-testing)
 python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest, not pytest)
 node tests/page/<name>.test.mjs  # one page test (rebuild the bundle first after editing page/)

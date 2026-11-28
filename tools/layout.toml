@@ -37,8 +37,9 @@ extensions = [".py", ".js", ".mjs", ".cjs"]
 # Generated, vendored, or the engine outside its modules: never measured by this rule ([size.engine] measures engine/src/).
 exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-names.js", "player/web/", "tools/npm/", "tools/engine/npm/"]
 
-# The engine's modules: a failure above `fail` lines, and no warning. The files over it when this rule came in are in
-# [exceptions]; the engine's reorganization splits each one and takes it off.
+# The engine's modules: a failure above `fail` lines, and no warning. The files over it when this rule came in, and
+# those its formatting (one statement a line) took over it, are in [exceptions]; the engine's reorganization splits
+# each one and takes it off.
 [size.engine]
 root = "engine/src/"
 fail = 600

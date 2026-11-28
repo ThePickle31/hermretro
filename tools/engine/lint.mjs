@@ -14,7 +14,7 @@
  * (tools/bundle/eslint-run.mjs). Fixing a report changes the engine: record it with tools/engine/bump.py.
  * ESLint, `globals` and Prettier come from tools/npm only, the versions this repository pins.
  */
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { ROOT, eslintTools, isMain, missing, printReport, runEslint } from '../bundle/eslint-run.mjs'
@@ -83,33 +83,27 @@ function engineConfig({ globals }) {
 export const PACKAGES = ['globals', 'prettier'] // besides eslint (lint_tools.py's preflight reads it)
 const FORMAT = JSON.parse(readFileSync(new URL('./prettier.json', import.meta.url), 'utf8'))
 
-/** The engine files ESLint looks at (PATTERNS), or those of `files` among them. */
-function engineFiles(files) {
-  const roots = { 'engine/src/': '.js', 'engine/scripts/': '.mjs' }
-  const all = Object.entries(roots).flatMap(([folder, extension]) =>
-    readdirSyncRecursive(path.join(ROOT, folder)).filter(name => name.endsWith(extension)).map(name => folder + name)
-  )
-  return files.length ? all.filter(name => files.includes(name)) : all
-}
-
-function readdirSyncRecursive(folder) {
-  return readdirSync(folder, { recursive: true, withFileTypes: true })
-    .filter(entry => entry.isFile())
-    .map(entry => path.relative(folder, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
-}
-
-/** Each file not in Prettier's format, as an error line; with `fix`, each is rewritten in it instead. */
+/** Each file not in Prettier's format, as an error line; with `fix`, each is rewritten in it instead (`fixed`
+ * counts those). A file that does not parse is left to ESLint's report of its syntax error. */
 async function formatting(prettier, files, fix) {
-  const errors = []
+  const result = { errors: [], fixed: 0 }
   for (const name of files) {
     const file = path.join(ROOT, name)
     const source = readFileSync(file, 'utf8')
     const options = { ...FORMAT, filepath: file }
-    if (await prettier.check(source, options)) continue
-    if (fix) writeFileSync(file, await prettier.format(source, options))
-    else errors.push(`${name}:1:1  not in Prettier's format [format]\n    why: one layout for everyone, so a diff shows only real changes. Fix: node tools/engine/lint.mjs --fix.`)
+    try {
+      if (await prettier.check(source, options)) continue
+      if (fix) {
+        writeFileSync(file, await prettier.format(source, options))
+        result.fixed += 1
+      } else {
+        result.errors.push(`${name}:1:1  not in Prettier's format [format]\n    why: one layout for everyone, so a diff shows only real changes. Fix: node tools/engine/lint.mjs --fix.`)
+      }
+    } catch (error) {
+      result.errors.push(`${name}:1:1  Prettier could not read it: ${String(error.message).split('\n')[0]} [format]\n    why: a file Prettier cannot read is not in its format. Fix: make it parse (the error above says where), then node tools/engine/lint.mjs --fix.`)
+    }
   }
-  return errors
+  return result
 }
 
 export async function lintEngine({ fix = false, files = [] } = {}) {
@@ -119,9 +113,13 @@ export async function lintEngine({ fix = false, files = [] } = {}) {
     return { missing: missing(PACKAGES, { pinned: true }) }
   }
 
-  const format = await formatting(found.prettier, engineFiles(files), fix)
-  const report = await runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
-  report.errors.push(...format)
+  // ESLint picks the files (patterns, paths written any way, globs, its ignores); the format is checked on the same.
+  const lint = () => runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
+  let report = await lint()
+  const readable = report.paths.filter(name => !report.unparsed.includes(name))
+  const format = await formatting(found.prettier, readable, fix)
+  if (format.fixed) report = await lint()  // line numbers as the files now stand
+  report.errors.push(...format.errors)
   return report
 }
 

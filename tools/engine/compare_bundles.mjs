@@ -137,6 +137,13 @@ function program(ast, markers, named) {
 // The nodes a node holds, in order, as form() compares them: a property's key written as a name is part of the
 // property itself, and parentheses stand for what they hold.
 function children(node) {
+  // A chain of one logical operator holds its operands, however they are grouped, as form() compares it.
+  if (node.type === "LogicalExpression") {
+    return chain(node, node.operator).map((operand) => {
+      while (operand.type === "ParenthesizedExpression") operand = operand.expression;
+      return operand;
+    });
+  }
   const found = [];
   const named = PROPERTIES.has(node.type) && !node.computed;
   for (const [field, value] of Object.entries(node)) {

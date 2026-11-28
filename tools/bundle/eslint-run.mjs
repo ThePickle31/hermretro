@@ -86,10 +86,13 @@ export async function runEslint({ eslint, config, patterns, help, fix = false, f
     await eslint.ESLint.outputFixes(results)
   }
 
-  const report = { errors: [], warnings: [], allowed: [], files: results.length }
+  // paths: each file ESLint read, from the root; unparsed: those it could not parse (their syntax error is an error).
+  const report = { errors: [], warnings: [], allowed: [], files: results.length, paths: [], unparsed: [] }
 
   for (const result of results) {
     const file = path.relative(ROOT, result.filePath).split(path.sep).join('/')
+    report.paths.push(file)
+    if (result.messages.some(message => message.fatal)) report.unparsed.push(file)
     const { kept, used } = applyAllows(file, result.messages)
 
     report.allowed.push(...used)
