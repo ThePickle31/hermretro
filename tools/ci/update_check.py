@@ -138,6 +138,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
             held.close()
         if kept is not None:
             kept.stop()
+            brokers.append(kept.broker_pid)  # one the old gateway started in place of the new one, if it did
         for pid in brokers:  # whatever happened, leave no broker of the throwaway home running
             if pid:
                 try:

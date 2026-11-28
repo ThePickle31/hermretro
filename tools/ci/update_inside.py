@@ -175,6 +175,9 @@ class OldGateway:
     def __init__(self, args, tmp: Path, root: Path, fix: str):
         self.fix = fix
         self.out = tmp / "kept.json"
+        # The broker that answered its call (problems): the new version's, or one it started in its place, which the
+        # check stops with the others.
+        self.broker_pid: int | None = None
         self.process = subprocess.Popen(
             inside_command(args, "kept", self.out),
             env=inside_environment(tmp, root),
@@ -217,6 +220,7 @@ class OldGateway:
             self.stop()
         self.reader.join(5)
         found = json.loads(self.out.read_text()) if self.out.is_file() else {"fatal": self._failure()}
+        self.broker_pid = found.get("broker_pid")
         if "fatal" in found:
             return [
                 found["fatal"] + "\nFIX: a gateway of the old version, still running after the update, must work "
