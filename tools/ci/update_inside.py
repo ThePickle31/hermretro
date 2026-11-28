@@ -152,7 +152,11 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
     result["games"] = [{"id": game["id"], "title": game.get("title")} for game in games["games"]]
     result["pending"] = [item.get("storedId") for item in games.get("pending", [])]
     result["hermretro_home"] = str(paths.hermretro_home())
-    rpc("doctor")  # the first call that needs the broker: starts one, or replaces one running other code
+    try:
+        rpc("doctor")  # the first call that needs the broker: starts one, or replaces one running other code
+    except SystemExit as failed:
+        # It can fail after starting a broker: named here, so the check stops that one too.
+        return {"fatal": str(failed), "broker_pid": answering_broker()[0]}
     client, error = client_module.try_connect(paths.runtime_dir())
     if client is None:
         raise SystemExit(f"no broker answers after the doctor RPC: {error}")
