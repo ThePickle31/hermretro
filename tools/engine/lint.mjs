@@ -125,7 +125,9 @@ export async function lintEngine({ fix = false, files = [] } = {}) {
   // are the engine's sources and scripts (PATTERNS), never the bundle or anything else a broad glob takes in.
   const lint = () => runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
   let report = await lint()
-  const readable = report.paths.filter(name => inPatterns(name) && !report.unparsed.includes(name))
+  const readable = report.paths.filter(
+    name => inPatterns(name) && !report.unparsed.includes(name) && !report.ignored.includes(name)
+  )
   const format = await formatting(found.prettier, readable, fix)
   if (format.fixed) report = await lint()  // line numbers as the files now stand
   report.errors.push(...format.errors)
