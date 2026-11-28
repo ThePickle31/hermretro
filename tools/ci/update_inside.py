@@ -102,12 +102,24 @@ def _keep_the_old_code() -> dict:
     print(READY, flush=True)
     if sys.stdin.readline().strip() != GO:  # the caller updates the plugin folder and runs the new drive first
         raise SystemExit("the check ended before the old gateway's turn")
-    rpc("doctor")
+    try:
+        rpc("doctor")
+    except SystemExit as failed:
+        # It can fail after starting a broker in place of the new one: named here, so the check stops that one too.
+        return {"fatal": str(failed), "broker_pid": answering_broker()[0]}
+    pid, error = answering_broker()
+    if pid is None:
+        raise SystemExit(f"no broker answers the old gateway after its doctor RPC: {error}")
+    return {"broker_pid": pid}
+
+
+def answering_broker() -> tuple[int | None, str]:
+    """The pid of the broker that answers in the plugin's runtime folder, or None and why none does."""
     client, error = module("client").try_connect(module("paths").runtime_dir())
     if client is None:
-        raise SystemExit(f"no broker answers the old gateway after its doctor RPC: {error}")
+        return None, str(error)
     with client:
-        return {"broker_pid": client.hello.get("pid")}
+        return client.hello.get("pid"), ""
 
 
 def _use_the_plugin(phase: str, out: Path) -> dict:

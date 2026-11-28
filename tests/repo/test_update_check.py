@@ -171,6 +171,29 @@ class KeptGateway(unittest.TestCase):
             self.assertEqual(gateway.problems({"broker_pid": 8}), [])
         self.assertEqual(gateway.broker_pid, 8)
 
+    def test_its_doctor_call_failing_reports_and_names_the_broker_that_answered(self):
+        # The kept phase as it runs inside Hermes writes its report, and the gateway reads it back.
+        calls = iter([{"ok": True}, {"ok": True}, SystemExit("plugin.hermretro.doctor answered {}")])
+
+        def rpc(_name):
+            answer = next(calls)
+            if isinstance(answer, BaseException):
+                raise answer
+            return answer
+
+        with tempfile.TemporaryDirectory() as tmp:
+            gateway = self.gateway(Path(tmp), {})
+            with (
+                mock.patch.object(update_inside, "rpc", side_effect=rpc),
+                mock.patch.object(update_inside, "answering_broker", return_value=(9, "")),
+                mock.patch.object(update_inside.sys, "stdin", io.StringIO(update_inside.GO + "\n")),
+                mock.patch("builtins.print"),
+            ):
+                update_inside.inside("kept", str(gateway.out))
+            [problem] = gateway.problems({"broker_pid": 8})
+        self.assertIn("plugin.hermretro.doctor answered", problem)
+        self.assertEqual(gateway.broker_pid, 9)
+
 
 class CleanUp(unittest.TestCase):
     def test_every_broker_is_stopped_once_the_kept_gateways_replacement_included(self):
