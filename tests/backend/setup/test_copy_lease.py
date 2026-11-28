@@ -3,6 +3,7 @@ after the broker that started it has closed its own descriptor (or died), and a 
 
 import json
 import os
+import resource
 import shutil
 import subprocess
 import sys
@@ -115,7 +116,8 @@ class Launcher(unittest.TestCase):
             copy = Path(folder) / "engine-2.0.2-0123456789ab"
             copy.mkdir()
             held = copy_lease.hold(copy)
-            lease = os.dup2(held, 1234)  # a broker with many descriptors open
+            # A broker with many descriptors open, under this system's limit (macOS starts a shell at 256).
+            lease = os.dup2(held, min(1234, resource.getrlimit(resource.RLIMIT_NOFILE)[0] - 1))
             os.close(held)
             self.addCleanup(os.close, lease)
             code = (
