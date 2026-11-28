@@ -1,5 +1,4 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { readFile } from "node:fs/promises";
 const WRAM_START = 0xc000;
 const WRAM_END = 0xdfff;
 const SCENE_POINTER_BYTES = 3;
@@ -210,24 +209,6 @@ export function createDebugManifest(input) {
         scenes,
         ...(input.variables?.length ? mapVariables(definitions, input.globals, input.variables, input.globalHeapWords) : {}),
     };
-}
-/** Read captured artifacts directly; the caller must have established same-build provenance. */
-export async function createDebugManifestFromFiles(input) {
-    const [rom, noi, globals] = await Promise.all([
-        readFile(input.romPath),
-        readFile(input.noiPath, "utf8"),
-        input.globalsPath ? readFile(input.globalsPath, "utf8") : Promise.resolve(undefined),
-    ]);
-    return createDebugManifest({
-        rom,
-        noi,
-        scenes: input.scenes,
-        projectRevision: input.projectRevision,
-        engineAbiVersion: input.engineAbiVersion,
-        globalHeapWords: input.globalHeapWords,
-        ...(globals === undefined ? {} : { globals }),
-        ...(input.variables === undefined ? {} : { variables: input.variables }),
-    });
 }
 function object(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -18,6 +18,16 @@ Every change to the engine raises its version, `version` in `package.json` (2.0.
 version first. A note in this file is not a change to the engine. 2.0.0, the first version named `hermretro-engine`,
 holds every change since ModRetro's 1.0.34.
 
+## 2.0.4
+
+- `src/engine-root.js` (new), `src/entry.js`, `src/audio.js`, `src/event-catalog.js`, `src/compiler-selection.js`,
+  `src/web-build.js`, `src/project-session.js`, `src/emulator.js`: every path to the engine's own files is worked out
+  in `engine-root.js` at the top of `src/`, so a module can move into a folder and its paths still resolve, from
+  `src/` in the tests and from `dist/server.js` in production; each resolves to exactly the path it did.
+  `src/contact-sheet.js`, `src/recording-common.js`, `src/recording-archive.js`, `src/debug-symbols.js`,
+  `src/legacy-project-assets.js`, `src/project-access.js`, `src/device-capture/page.js`: 23 exports nothing used, and
+  the code only they used, go.
+
 ## 2.0.3
 
 - `src/build.js`, `src/entry.js`, `src/emulator.js`, `src/project-files.js`, `src/project-world-index.js`,

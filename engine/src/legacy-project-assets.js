@@ -27,10 +27,6 @@ function collection(discovery, folder) {
 function namedAsset(value) {
     return isObject(value) && typeof value.id === "string" && value.id.length > 0 && typeof value.filename === "string";
 }
-/** Descriptor metadata only establishes identity; the caller must confirm the physical PNG. */
-export function legacyPhysicalAssetMetadata(discovery, folder, filename, plugin) {
-    return legacyPhysicalAssetMetadataLookup(discovery, folder, plugin)(filename);
-}
 /** Precompute per-folder lookups; existing exact native filenames outrank compatibility prefixes. */
 export function legacyPhysicalAssetMetadataLookup(discovery, folder, plugin, physicalFilenames) {
     if (!isAssetFolder(folder) || (plugin !== undefined && !safeSegment(plugin)))

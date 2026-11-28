@@ -1,6 +1,4 @@
 import { DEVICE_COLORS, DIALOG_STYLES, ICONS } from "../web-annotations/view.js";
-/** Physical stream presentation shares the preview's shipped housing and screen geometry, without game input overlays. */
-export const DEVICE_CAPTURE_SHELL = "assets/devices/chromatic-codex.webp";
 export const DEVICE_CAPTURE_IMAGES = DEVICE_COLORS.map(color => `assets/devices/chromatic-${color.id}.${color.id === "supply-co" ? "png" : "webp"}`);
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 const skins = DEVICE_COLORS.map(color => `<button id="skin-${color.id}" class="skin-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.id === "codex"}"><span style="background:${color.id === "supply-co" ? "transparent" : color.background};color:${color.id === "supply-co" ? "#9480ab" : "inherit"}">${(color.id === "codex" || color.id === "supply-co") ? `<svg viewBox="180 180 356 356" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="${ICONS.codex}"/></svg>` : ""}</span></button>`).join("");

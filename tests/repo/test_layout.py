@@ -35,9 +35,14 @@ def files() -> list[str]:
     return sorted(name for name in out.split("\0") if name and (ROOT / name).is_file())
 
 
+def engine_module(name: str) -> bool:
+    """One of the engine's modules, which [size.engine] measures."""
+    return name.startswith(LAYOUT["size"]["engine"]["root"]) and name.endswith(".js")
+
+
 def measured(name: str) -> bool:
     size = LAYOUT["size"]
-    return (
+    return engine_module(name) or (
         name.endswith(tuple(size["extensions"]))
         and not name.startswith(tuple(size["exempt"]))
         and not (name.startswith("engine/contract/") and name.endswith(".json"))
@@ -50,9 +55,10 @@ class Layout(unittest.TestCase):
         too_big = []
         for name in filter(measured, files()):
             lines = (ROOT / name).read_text(encoding="utf-8", errors="replace").count("\n")
-            if lines > size["fail"] and name not in exceptions:
-                too_big.append(f"{name}: {lines} lines")
-            elif lines > size["warn"]:
+            limit = size["engine"]["fail"] if engine_module(name) else size["fail"]
+            if lines > limit and name not in exceptions:
+                too_big.append(f"{name}: {lines} lines (over {limit})")
+            elif lines > size["warn"] and not engine_module(name):
                 warn(
                     f"{name} has {lines} lines (warning above {size['warn']}, failure above {size['fail']})"
                     + (f"; allowed: {exceptions[name]}" if name in exceptions else "")

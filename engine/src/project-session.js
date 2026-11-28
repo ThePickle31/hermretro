@@ -4,6 +4,7 @@ import path from "node:path";
 import { discoverProject, GameStudioProjectError, inventoryProject, } from "./project.js";
 import { ProjectWorldIndex } from "./project-world-index.js";
 import { assertSafePlatformPath } from "./platform.js";
+import { ENGINE_ROOT } from "./engine-root.js";
 export const BLANK_PROJECT_GAME_TYPES = ["TOPDOWN", "PLATFORM", "ADVENTURE", "SHMUP", "POINTNCLICK"];
 export const BLANK_PROJECT_COLOR_MODES = ["mono", "mixed", "color"];
 const EXCLUDED_TEMPLATE_DIRECTORIES = new Set([
@@ -204,7 +205,7 @@ export class ProjectSession {
     #transitioning = false;
     #worldIndex;
     constructor(options = {}) {
-        const runtimeRoot = options.runtimeRoot ?? process.env.GB_STUDIO_RUNTIME_ROOT ?? path.resolve(import.meta.dirname, "..");
+        const runtimeRoot = options.runtimeRoot ?? process.env.GB_STUDIO_RUNTIME_ROOT ?? ENGINE_ROOT;
         this.runtimeRoot = canonicalDirectory(runtimeRoot, "The runtime root");
         const pluginRoot = options.pluginRoot ?? process.env.GB_STUDIO_PLUGIN_ROOT;
         this.#bundleRoots = [...new Set([this.runtimeRoot,

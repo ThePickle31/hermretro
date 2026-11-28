@@ -34,8 +34,41 @@
 warn = 400
 fail = 600
 extensions = [".py", ".js", ".mjs", ".cjs"]
-# Generated, vendored, or the engine (its modules keep the size ModRetro's build gave them): never measured.
+# Generated, vendored, or the engine outside its modules: never measured by this rule ([size.engine] measures engine/src/).
 exempt = ["engine/", "desktop/plugin.js", "player/frame-shim.js", "page/app/rpc-names.js", "player/web/", "tools/npm/", "tools/engine/npm/"]
+
+# The engine's modules: a failure above `fail` lines, and no warning. The files over it when this rule came in are in
+# [exceptions]; the engine's reorganization splits each one and takes it off.
+[size.engine]
+root = "engine/src/"
+fail = 600
 
 [exceptions]
 # Files allowed above the size limit, each with its reason. Split the file instead when you can.
+"engine/src/assets.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/audio.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/build.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/chromatic.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/contact-sheet.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/device-capture/native-client.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/emulator.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/entry.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/native-device-capture.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/project-files.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/project-session.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/project-snapshot.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/project-world-index.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/project.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/recording-archive.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/scene-batch.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/scene-graphics.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/source-debug.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/sprites.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-annotations/flash.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-annotations/player.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-annotations/recording.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-annotations/view.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-build.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-preview-captures.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/web-preview.js" = "One of the engine's modules over the limit, split by the engine's reorganization"
+"engine/src/world-script-graph.js" = "One of the engine's modules over the limit, split by the engine's reorganization"

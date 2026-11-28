@@ -2990,7 +2990,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve5.call(this, root, ref);
+      let _sch = resolve4.call(this, root, ref);
       if (_sch === void 0) {
         const schema2 = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3017,7 +3017,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve5(root, ref) {
+    function resolve4(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3267,8 +3267,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path47) {
-      let input = path47;
+    function removeDotSegments(path48) {
+      let input = path48;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3673,8 +3673,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path47 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path47 && path47 !== "/" ? path47 : void 0;
+        const path48 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path48 && path48 !== "/" ? path48 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -3842,7 +3842,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve5(baseURI, relativeURI, options) {
+    function resolve4(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -4204,7 +4204,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve5,
+      resolve: resolve4,
       resolveComponent,
       equal,
       serialize,
@@ -9153,7 +9153,7 @@ var require_png = __commonJS({
     var Parser = require_parser_async();
     var Packer = require_packer_async();
     var PNGSync = require_png_sync();
-    var PNG13 = exports.PNG = function(options) {
+    var PNG12 = exports.PNG = function(options) {
       Stream.call(this);
       options = options || {};
       this.width = options.width | 0;
@@ -9182,9 +9182,9 @@ var require_png = __commonJS({
       this._parser.on("close", this._handleClose.bind(this));
       this._packer.on("error", this.emit.bind(this, "error"));
     };
-    util2.inherits(PNG13, Stream);
-    PNG13.sync = PNGSync;
-    PNG13.prototype.pack = function() {
+    util2.inherits(PNG12, Stream);
+    PNG12.sync = PNGSync;
+    PNG12.prototype.pack = function() {
       if (!this.data || !this.data.length) {
         this.emit("error", "No data provided");
         return this;
@@ -9196,7 +9196,7 @@ var require_png = __commonJS({
       );
       return this;
     };
-    PNG13.prototype.parse = function(data, callback) {
+    PNG12.prototype.parse = function(data, callback) {
       if (callback) {
         let onParsed, onError;
         onParsed = function(parsedData) {
@@ -9214,27 +9214,27 @@ var require_png = __commonJS({
       this.end(data);
       return this;
     };
-    PNG13.prototype.write = function(data) {
+    PNG12.prototype.write = function(data) {
       this._parser.write(data);
       return true;
     };
-    PNG13.prototype.end = function(data) {
+    PNG12.prototype.end = function(data) {
       this._parser.end(data);
     };
-    PNG13.prototype._metadata = function(metadata2) {
+    PNG12.prototype._metadata = function(metadata2) {
       this.width = metadata2.width;
       this.height = metadata2.height;
       this.emit("metadata", metadata2);
     };
-    PNG13.prototype._gamma = function(gamma) {
+    PNG12.prototype._gamma = function(gamma) {
       this.gamma = gamma;
     };
-    PNG13.prototype._handleClose = function() {
+    PNG12.prototype._handleClose = function() {
       if (!this._parser.writable && !this._packer.readable) {
         this.emit("close");
       }
     };
-    PNG13.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
+    PNG12.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
       srcX |= 0;
       srcY |= 0;
       width |= 0;
@@ -9256,11 +9256,11 @@ var require_png = __commonJS({
         );
       }
     };
-    PNG13.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
-      PNG13.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
+    PNG12.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
+      PNG12.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
       return this;
     };
-    PNG13.adjustGamma = function(src) {
+    PNG12.adjustGamma = function(src) {
       if (src.gamma) {
         for (let y = 0; y < src.height; y++) {
           for (let x = 0; x < src.width; x++) {
@@ -9275,8 +9275,8 @@ var require_png = __commonJS({
         src.gamma = 0;
       }
     };
-    PNG13.prototype.adjustGamma = function() {
-      PNG13.adjustGamma(this);
+    PNG12.prototype.adjustGamma = function() {
+      PNG12.adjustGamma(this);
     };
   }
 });
@@ -9284,8 +9284,8 @@ var require_png = __commonJS({
 // src/entry.js
 import { readFileSync as readFileSync3 } from "node:fs";
 import os7 from "node:os";
-import path46 from "node:path";
-import { fileURLToPath as fileURLToPath4, pathToFileURL as pathToFileURL2 } from "node:url";
+import path47 from "node:path";
+import { pathToFileURL as pathToFileURL2 } from "node:url";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -9765,8 +9765,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path47, errorMaps, issueData } = params;
-  const fullPath = [...path47, ...issueData.path || []];
+  const { data, path: path48, errorMaps, issueData } = params;
+  const fullPath = [...path48, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -9882,11 +9882,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path47, key) {
+  constructor(parent, value, path48, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path47;
+    this._path = path48;
     this._key = key;
   }
   get path() {
@@ -13523,10 +13523,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj2, path47) {
-  if (!path47)
+function getElementAtPath(obj2, path48) {
+  if (!path48)
     return obj2;
-  return path47.reduce((acc, key) => acc?.[key], obj2);
+  return path48.reduce((acc, key) => acc?.[key], obj2);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -13846,11 +13846,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path47, issues) {
+function prefixIssues(path48, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path47);
+    iss.path.unshift(path48);
     return iss;
   });
 }
@@ -17261,11 +17261,11 @@ function normalizeObjectSchema(schema2) {
   }
   return void 0;
 }
-function getDotPath(path47) {
-  if (path47.length === 0) {
+function getDotPath(path48) {
+  if (path48.length === 0) {
     return "object root";
   }
-  return path47.reduce((acc, seg, index) => {
+  return path48.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -21394,7 +21394,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
+        await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -21411,7 +21411,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve5, reject2) => {
+    return new Promise((resolve4, reject2) => {
       const earlyReject = (error2) => {
         reject2(error2);
       };
@@ -21489,7 +21489,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject2(parseResult.error);
           } else {
-            resolve5(parseResult.data);
+            resolve4(parseResult.data);
           }
         } catch (error2) {
           reject2(error2);
@@ -21750,12 +21750,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve5, reject2) => {
+    return new Promise((resolve4, reject2) => {
       if (signal.aborted) {
         reject2(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve5, interval);
+      const timeoutId = setTimeout(resolve4, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject2(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -22846,7 +22846,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
+      await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -23510,12 +23510,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message2) {
-    return new Promise((resolve5) => {
+    return new Promise((resolve4) => {
       const json2 = serializeMessage(message2);
       if (this._stdout.write(json2)) {
-        resolve5();
+        resolve4();
       } else {
-        this._stdout.once("drain", resolve5);
+        this._stdout.once("drain", resolve4);
       }
     });
   }
@@ -23549,7 +23549,7 @@ async function prepareToolchain(packageRoot, components, options = {}) {
 // src/project-snapshot.js
 import { createHash as createHash7 } from "node:crypto";
 import { readdir as readdir3, readFile as readFile4, realpath as realpath7 } from "node:fs/promises";
-import path11 from "node:path";
+import path12 from "node:path";
 
 // src/project-access.js
 var PROJECT_REVISION_ALGORITHM = "sha256-merkle-v2";
@@ -23601,7 +23601,7 @@ function isSemanticCursorCurrent(payload, current, query) {
 // src/project.js
 import { createHash as createHash5 } from "node:crypto";
 import { access as access2, lstat as lstat6, mkdir as mkdir2, open as open3, readdir as readdir2, readFile as readFile3, realpath as realpath6, rename as rename2, rm as rm2, stat as stat2 } from "node:fs/promises";
-import path9 from "node:path";
+import path10 from "node:path";
 
 // src/project-error.js
 var GameStudioProjectError = class extends Error {
@@ -23729,13 +23729,13 @@ function encodeResourceBytes(values) {
 }
 
 // src/event-catalog.js
-import path7 from "node:path";
+import path8 from "node:path";
 import { readdirSync, readFileSync, realpathSync as realpathSync2, statSync } from "node:fs";
 
 // src/world-script-graph.js
 import { createHash as createHash4 } from "node:crypto";
 import { readdir, readFile as readFile2, realpath as realpath5 } from "node:fs/promises";
-import path6 from "node:path";
+import path7 from "node:path";
 
 // src/project-files.js
 import { createHash, randomUUID } from "node:crypto";
@@ -24647,11 +24647,25 @@ import { createHash as createHash3 } from "node:crypto";
 import { createHash as createHash2 } from "node:crypto";
 import { constants as constants2 } from "node:fs";
 import { lstat as lstat4, open as open2, realpath as realpath4 } from "node:fs/promises";
-import path5 from "node:path";
+import path6 from "node:path";
 
 // src/compiler-selection.js
 import { access, lstat as lstat3, realpath as realpath3, stat } from "node:fs/promises";
+import path5 from "node:path";
+
+// src/engine-root.js
 import path4 from "node:path";
+import { fileURLToPath } from "node:url";
+var ENGINE_URL = new URL("../", import.meta.url);
+var ENGINE_ROOT = path4.resolve(fileURLToPath(ENGINE_URL));
+function engineUrl(relative6) {
+  return new URL(relative6, ENGINE_URL);
+}
+function enginePath(relative6) {
+  return fileURLToPath(engineUrl(relative6));
+}
+
+// src/compiler-selection.js
 function configuredEnvironmentValue(name3) {
   return readPlatformEnvironmentVariable(process.env, name3);
 }
@@ -24665,7 +24679,7 @@ async function exists(candidate) {
 }
 async function resolveExistingWithinRoot(root, input) {
   assertSafePlatformPath(input);
-  const absolute = path4.resolve(root, input);
+  const absolute = path5.resolve(root, input);
   if (!isPathWithinRoot(root, absolute))
     throw new Error(`Path escapes the project root: ${input}`);
   const canonical2 = await realpath3(absolute);
@@ -24680,12 +24694,12 @@ async function hasLocalToolchain(candidate) {
   const executables = runtimeExecutablePaths(candidate);
   const markers = [
     executables.gbdkCompiler,
-    path4.join(candidate, ".local", "apps", "GB Studio.app"),
-    path4.join(candidate, ".local", "apps", "GB Studio", "GB Studio.exe"),
-    path4.join(candidate, ".local", "apps", "GB Studio", "gb-studio.exe"),
-    path4.join(candidate, ".local", "apps", "GB Studio", "GB Studio-win32-x64", "gb-studio.exe"),
-    path4.join(candidate, ".local", "apps", "GB Studio", "win-unpacked", "GB Studio.exe"),
-    path4.join(candidate, ".local", "apps", "GB Studio", "app", "GB Studio.exe"),
+    path5.join(candidate, ".local", "apps", "GB Studio.app"),
+    path5.join(candidate, ".local", "apps", "GB Studio", "GB Studio.exe"),
+    path5.join(candidate, ".local", "apps", "GB Studio", "gb-studio.exe"),
+    path5.join(candidate, ".local", "apps", "GB Studio", "GB Studio-win32-x64", "gb-studio.exe"),
+    path5.join(candidate, ".local", "apps", "GB Studio", "win-unpacked", "GB Studio.exe"),
+    path5.join(candidate, ".local", "apps", "GB Studio", "app", "GB Studio.exe"),
     executables.emulatorPython,
     ...executables.cliCandidates
   ];
@@ -24693,20 +24707,20 @@ async function hasLocalToolchain(candidate) {
   return results.some(Boolean);
 }
 async function canonicalToolchainOwner(candidate) {
-  const root = await realpath3(path4.resolve(candidate));
+  const root = await realpath3(path5.resolve(candidate));
   if (!(await stat(root)).isDirectory()) {
     throw new Error("The selected game toolchain root must name an existing directory.");
   }
-  const localDirectory = path4.join(root, ".local");
+  const localDirectory = path5.join(root, ".local");
   try {
     if (!(await lstat3(localDirectory)).isSymbolicLink()) {
       return root;
     }
     const canonicalLocal = await realpath3(localDirectory);
-    if (path4.basename(canonicalLocal) !== ".local" || !(await stat(canonicalLocal)).isDirectory()) {
+    if (path5.basename(canonicalLocal) !== ".local" || !(await stat(canonicalLocal)).isDirectory()) {
       throw new Error("A linked game toolchain must resolve to an actual .local directory.");
     }
-    return path4.dirname(canonicalLocal);
+    return path5.dirname(canonicalLocal);
   } catch (error2) {
     if (error2 instanceof Error && "code" in error2 && error2.code === "ENOENT") {
       return root;
@@ -24724,13 +24738,13 @@ async function resolveToolchainRoot(projectRoot, configuredRoot) {
     if (await hasLocalToolchain(ancestor)) {
       return canonicalToolchainOwner(ancestor);
     }
-    const parent = path4.dirname(ancestor);
+    const parent = path5.dirname(ancestor);
     if (parent === ancestor) {
       break;
     }
     ancestor = parent;
   }
-  const packageRoot = await realpath3(path4.resolve(import.meta.dirname, ".."));
+  const packageRoot = await realpath3(ENGINE_ROOT);
   if (await hasLocalToolchain(packageRoot)) {
     return canonicalToolchainOwner(packageRoot);
   }
@@ -24747,7 +24761,7 @@ async function findGbStudioCli(toolchainRoot) {
 async function selectProjectCompiler(projectRoot, configuredRoot) {
   const toolchainRoot = await resolveToolchainRoot(projectRoot, configuredRoot);
   const cliPath = await findGbStudioCli(toolchainRoot);
-  return { toolchainRoot, cliPath, compilerRoot: cliPath ? path4.resolve(path4.dirname(cliPath), "..", "..") : null };
+  return { toolchainRoot, cliPath, compilerRoot: cliPath ? path5.resolve(path5.dirname(cliPath), "..", "..") : null };
 }
 
 // src/reviewed-compiler.js
@@ -24758,7 +24772,7 @@ function digest(value) {
   return createHash2("sha256").update(JSON.stringify(value)).digest("hex");
 }
 function compilerProfileValid(profile) {
-  return Boolean(profile.id) && profile.files.length > 0 && profile.files.length <= MAX_FILES && profile.files.some((file2) => file2.path === "out/cli/gb-studio-cli.js") && new Set(profile.files.map((file2) => file2.path)).size === profile.files.length && profile.files.every((file2) => file2.path.split("/").every((part) => part && part !== "." && part !== "..") && !/^[A-Za-z]:|[\\\0]/.test(file2.path) && !path5.isAbsolute(file2.path) && Number.isSafeInteger(file2.bytes) && file2.bytes >= 0 && file2.bytes <= MAX_FILE_BYTES && /^[a-f0-9]{64}$/.test(file2.sha256)) && profile.files.reduce((sum, file2) => sum + file2.bytes, 0) <= MAX_TOTAL_BYTES;
+  return Boolean(profile.id) && profile.files.length > 0 && profile.files.length <= MAX_FILES && profile.files.some((file2) => file2.path === "out/cli/gb-studio-cli.js") && new Set(profile.files.map((file2) => file2.path)).size === profile.files.length && profile.files.every((file2) => file2.path.split("/").every((part) => part && part !== "." && part !== "..") && !/^[A-Za-z]:|[\\\0]/.test(file2.path) && !path6.isAbsolute(file2.path) && Number.isSafeInteger(file2.bytes) && file2.bytes >= 0 && file2.bytes <= MAX_FILE_BYTES && /^[a-f0-9]{64}$/.test(file2.sha256)) && profile.files.reduce((sum, file2) => sum + file2.bytes, 0) <= MAX_TOTAL_BYTES;
 }
 function compilerDependenciesValid(files) {
   return compilerProfileValid({ id: "supplemental", files: [
@@ -24784,13 +24798,13 @@ async function observeReviewedCompiler(projectRoot, profiles, configuredRoot, de
     if (!selection.cliPath || !selection.compilerRoot)
       return incomplete("The ordinary compiler selection is unavailable");
     const root = selection.compilerRoot;
-    if (path5.join(root, "out", "cli", "gb-studio-cli.js") !== selection.cliPath)
+    if (path6.join(root, "out", "cli", "gb-studio-cli.js") !== selection.cliPath)
       return incomplete("Unsupported compiler layout");
     const names = /* @__PURE__ */ new Set([...profiles.flatMap((profile) => profile.files.map((file2) => file2.path)), ...dependencies.map((file2) => file2.path)]);
     if (names.size > MAX_FILES)
       return incomplete("Reviewed compiler input count exceeds its bound");
     for (const relative6 of [...names].sort()) {
-      const filename = path5.join(root, ...relative6.split("/"));
+      const filename = path6.join(root, ...relative6.split("/"));
       const before = await lstat4(filename);
       rows.push([relative6, identity6(before)]);
       if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1 || process.getuid !== void 0 && before.uid !== process.getuid() || (before.mode & 18) !== 0 || before.size > MAX_FILE_BYTES || totalBytes + before.size > MAX_TOTAL_BYTES || await realpath4(filename) !== filename)
@@ -24821,7 +24835,7 @@ async function observeReviewedCompiler(projectRoot, profiles, configuredRoot, de
       }
     }
     for (const [relative6, observed] of reads) {
-      if (identity6(await lstat4(path5.join(root, ...relative6.split("/")))) !== observed.identity || await realpath4(path5.join(root, ...relative6.split("/"))) !== path5.join(root, ...relative6.split("/")))
+      if (identity6(await lstat4(path6.join(root, ...relative6.split("/")))) !== observed.identity || await realpath4(path6.join(root, ...relative6.split("/"))) !== path6.join(root, ...relative6.split("/")))
         return incomplete("Reviewed compiler input changed during the complete observation");
     }
     selectionAfter = await selectProjectCompiler(projectRoot, configuredRoot);
@@ -25132,13 +25146,13 @@ async function resourceFiles(root, directory) {
   const result = [];
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     if (entry.isSymbolicLink()) {
-      await resolveProjectPath(root, path6.join(directory, entry.name), { mustExist: true });
+      await resolveProjectPath(root, path7.join(directory, entry.name), { mustExist: true });
       continue;
     }
     if (entry.isDirectory())
-      result.push(...await resourceFiles(root, path6.join(directory, entry.name)));
+      result.push(...await resourceFiles(root, path7.join(directory, entry.name)));
     else if (entry.isFile() && entry.name.endsWith(".gbsres"))
-      result.push(path6.join(directory, entry.name));
+      result.push(path7.join(directory, entry.name));
   }
   return result;
 }
@@ -25148,8 +25162,8 @@ async function supplementalResources(root, options) {
   if (options.filesByPath) {
     for (const [candidate, file2] of options.filesByPath) {
       if (candidate.endsWith(".gbsres") && file2.json) {
-        const relative6 = path6.isAbsolute(candidate) ? path6.relative(root, candidate) : candidate;
-        candidates.push([relative6.split(path6.sep).join("/"), file2.json]);
+        const relative6 = path7.isAbsolute(candidate) ? path7.relative(root, candidate) : candidate;
+        candidates.push([relative6.split(path7.sep).join("/"), file2.json]);
       }
     }
   } else {
@@ -25162,7 +25176,7 @@ async function supplementalResources(root, options) {
       "project/triggerPrefabs",
       "plugins"
     ]) {
-      for (const filename of await resourceFiles(root, path6.join(root, directory))) {
+      for (const filename of await resourceFiles(root, path7.join(root, directory))) {
         const safe = await resolveProjectPath(root, filename, { mustExist: true, allowRoot: false });
         let parsed;
         try {
@@ -25171,7 +25185,7 @@ async function supplementalResources(root, options) {
           continue;
         }
         if (isObject2(parsed))
-          candidates.push([path6.relative(root, safe).split(path6.sep).join("/"), parsed]);
+          candidates.push([path7.relative(root, safe).split(path7.sep).join("/"), parsed]);
       }
     }
   }
@@ -25190,7 +25204,7 @@ async function indexedProjectEngineFields(root, files) {
   if (!files)
     return void 0;
   const schemas = [...files].map(([name3, file2]) => [
-    (path6.isAbsolute(name3) ? path6.relative(root, name3) : name3).split(path6.sep).join("/"),
+    (path7.isAbsolute(name3) ? path7.relative(root, name3) : name3).split(path7.sep).join("/"),
     file2
   ]).filter(([name3]) => name3 === "assets/engine/engine.json" || /^plugins\/(?:[^/]+\/)*engine\/engine\.json$/.test(name3) && name3.split("/").every((part) => part && !part.startsWith(".")));
   if (schemas.length === 0 || schemas.length > 64)
@@ -25221,7 +25235,7 @@ async function indexedProjectEngineFields(root, files) {
 async function buildWorldScriptGraph(projectRoot, options = {}) {
   const registry2 = options.reviewedCustomEvents ?? REVIEWED_CUSTOM_EVENTS;
   const files = options.filesByPath && new Map([...options.filesByPath].map(([name3, file2]) => [
-    (path6.isAbsolute(name3) ? path6.relative(projectRoot, name3) : name3).split(path6.sep).join("/"),
+    (path7.isAbsolute(name3) ? path7.relative(projectRoot, name3) : name3).split(path7.sep).join("/"),
     file2
   ]));
   const resolution = registry2.resolve(files, options.reviewedCompiler);
@@ -25263,7 +25277,7 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
   const root = inventory.projectRoot ?? await realpath5(projectRoot);
   const engineFields = await indexedProjectEngineFields(root, options.filesByPath);
   const compilerResources = options.filesByPath && [...options.filesByPath].map(([name3, file2]) => ({
-    path: (path6.isAbsolute(name3) ? path6.relative(root, name3) : name3).split(path6.sep).join("/"),
+    path: (path7.isAbsolute(name3) ? path7.relative(root, name3) : name3).split(path7.sep).join("/"),
     type: file2.json?._resourceType,
     id: file2.json?.id
   })).filter((file2) => /^(?:project|assets|plugins)\/.+\.gbsres$/.test(file2.path));
@@ -25280,8 +25294,8 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
   const supplemental = await supplementalResources(root, options);
   const scriptResources = new Map(supplemental.filter((resource) => resource.type === "script").map((resource) => [resource.id, resource]));
   const prefabs = new Map(supplemental.filter((resource) => resource.type === "actorPrefab" || resource.type === "triggerPrefab").map((resource) => [resource.id, resource]));
-  const variablesPath = inventory.format === "legacy" ? path6.basename(inventory.projectPath) : "project/variables.gbsres";
-  let variables = inventory.format === "legacy" ? inventory.descriptor.variables : (options.filesByPath?.get(variablesPath) ?? options.filesByPath?.get(path6.join(root, variablesPath)))?.json?.variables;
+  const variablesPath = inventory.format === "legacy" ? path7.basename(inventory.projectPath) : "project/variables.gbsres";
+  let variables = inventory.format === "legacy" ? inventory.descriptor.variables : (options.filesByPath?.get(variablesPath) ?? options.filesByPath?.get(path7.join(root, variablesPath)))?.json?.variables;
   if (variables === void 0 && inventory.format !== "legacy" && !options.filesByPath) {
     try {
       const safe = await resolveProjectPath(root, variablesPath, { mustExist: true, allowRoot: false });
@@ -25310,7 +25324,7 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
   const settings = {
     type: "settings",
     id: "settings",
-    resourcePath: inventory.format === "legacy" ? path6.basename(inventory.projectPath) : "project/settings.gbsres",
+    resourcePath: inventory.format === "legacy" ? path7.basename(inventory.projectPath) : "project/settings.gbsres",
     resource: inventory.settings
   };
   authored.push(settings);
@@ -25915,7 +25929,7 @@ async function buildWorldScriptGraphInternal(projectRoot, options, resolution, o
 }
 
 // src/event-catalog.js
-var EVENT_CATALOG_URL = new URL("../src/gb-studio-events.json", import.meta.url);
+var EVENT_CATALOG_URL = engineUrl("src/gb-studio-events.json");
 var EVENT_LIST_LIMIT = 40;
 var EVENT_UNCATEGORIZED = "Uncategorized";
 var EVENT_FIELD_TYPES = {
@@ -25969,9 +25983,9 @@ function projectHasPluginEvents(projectRoot) {
     } catch {
       return false;
     }
-    const events = PLUGIN_EVENT_DIRECTORY.test(path7.basename(directory));
+    const events = PLUGIN_EVENT_DIRECTORY.test(path8.basename(directory));
     for (const entry of entries) {
-      const child = path7.join(directory, entry.name);
+      const child = path8.join(directory, entry.name);
       if (events && PLUGIN_EVENT_FILE.test(entry.name))
         return true;
       let folder = entry.isDirectory();
@@ -25987,7 +26001,7 @@ function projectHasPluginEvents(projectRoot) {
     }
     return false;
   };
-  return visit(path7.join(projectRoot, "plugins"));
+  return visit(path8.join(projectRoot, "plugins"));
 }
 function unbuildableEventMessage(command, where, project = {}) {
   const entry = typeof command === "string" && Object.hasOwn(eventCatalog().events, command) ? eventCatalog().events[command] : void 0;
@@ -26428,7 +26442,7 @@ async function authoringScripts(inventory) {
   if (inventory.format === "legacy") {
     for (const script of Array.isArray(inventory.descriptor?.customEvents) ? inventory.descriptor.customEvents : []) {
       if (isObject3(script) && typeof script.id === "string" && script.id && !scripts.has(script.id))
-        scripts.set(script.id, { type: "script", id: script.id, resourcePath: path7.basename(inventory.projectPath), resource: script });
+        scripts.set(script.id, { type: "script", id: script.id, resourcePath: path8.basename(inventory.projectPath), resource: script });
     }
   }
   const prefabs = new Map(supplemental.filter((resource) => resource.type === "actorPrefab" || resource.type === "triggerPrefab").map((resource) => [resource.id, resource]));
@@ -26699,7 +26713,7 @@ function findInvalidNativeScriptEvent(proposed, previous, options = {}) {
 
 // src/actors.js
 import { lstat as lstat5, unlink as unlink2 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 var IMMUTABLE_KEYS = /* @__PURE__ */ new Set(["id", "_resourceType", "_index", "symbol", "resourcePath"]);
 var DIRECTIONS = /* @__PURE__ */ new Set(["up", "down", "left", "right"]);
@@ -27051,7 +27065,7 @@ function assertResourceNotReferenced(inventory, kind, targetId, sceneId) {
   }
 }
 async function removeProjectResource(root, candidate) {
-  const absolute = path8.isAbsolute(candidate) ? candidate : path8.resolve(root, candidate);
+  const absolute = path9.isAbsolute(candidate) ? candidate : path9.resolve(root, candidate);
   const initial = await lstat5(absolute);
   if (initial.isSymbolicLink() || !initial.isFile()) {
     throw new GameStudioProjectError("UNSAFE_SYMLINK", `Refusing to delete a symbolic link or non-file native project resource: ${absolute}`, absolute);
@@ -27070,7 +27084,7 @@ async function inspectActor(projectPath, input, access4) {
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
   const selected = findSceneActor(scene, input.actorId, access4);
-  const target = path8.resolve(context.projectRoot, selected.resourcePath);
+  const target = path9.resolve(context.projectRoot, selected.resourcePath);
   const format = inventory?.format ?? access4.projectInspection().format;
   const loaded = await readProjectJsonWithRevision(context.projectRoot, target);
   if (format === "distributed")
@@ -27096,7 +27110,7 @@ async function updateActor(projectPath, input, access4) {
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
   const selected = findSceneActor(scene, input.actorId, access4);
-  const target = path8.resolve(context.projectRoot, selected.resourcePath);
+  const target = path9.resolve(context.projectRoot, selected.resourcePath);
   const format = inventory?.format ?? access4.projectInspection().format;
   return withProjectResourceWriteLock(context.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(context.projectRoot, target);
@@ -27139,7 +27153,7 @@ async function deleteActor(projectPath, input, access4) {
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
   const actor = findSceneActor(scene, input.actorId, access4);
-  const target = path8.resolve(context.projectRoot, actor.resourcePath);
+  const target = path9.resolve(context.projectRoot, actor.resourcePath);
   return withProjectResourceWriteLock(context.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(context.projectRoot, target);
     assertLoadedResourceRevision(context.projectRoot, target, loaded.revision, input.expectedRevision);
@@ -27284,17 +27298,17 @@ function asNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 function assertWithinRoot(root, candidate) {
-  const relative6 = path9.relative(root, candidate);
-  if (relative6 === ".." || relative6.startsWith(`..${path9.sep}`) || path9.isAbsolute(relative6)) {
+  const relative6 = path10.relative(root, candidate);
+  if (relative6 === ".." || relative6.startsWith(`..${path10.sep}`) || path10.isAbsolute(relative6)) {
     throw new GameStudioProjectError("PATH_OUTSIDE_PROJECT", `Refusing to access a path outside the native game project: ${candidate}`, candidate);
   }
 }
 function toRelative(root, candidate) {
   assertWithinRoot(root, candidate);
-  return path9.relative(root, candidate).split(path9.sep).join("/");
+  return path10.relative(root, candidate).split(path10.sep).join("/");
 }
 async function ensureSafeExistingPath(root, candidate) {
-  const absolute = path9.resolve(candidate);
+  const absolute = path10.resolve(candidate);
   assertWithinRoot(root, absolute);
   let canonical2;
   try {
@@ -27335,12 +27349,12 @@ async function readJson(root, candidate) {
   return parsed;
 }
 async function writeJsonAtomic(root, candidate, value) {
-  const absolute = path9.resolve(candidate);
+  const absolute = path10.resolve(candidate);
   assertWithinRoot(root, absolute);
-  const parent = path9.dirname(absolute);
+  const parent = path10.dirname(absolute);
   let existingAncestor = parent;
   while (!await exists2(existingAncestor)) {
-    existingAncestor = path9.dirname(existingAncestor);
+    existingAncestor = path10.dirname(existingAncestor);
   }
   await ensureSafeExistingPath(root, existingAncestor);
   await mkdir2(parent, { recursive: true });
@@ -27352,7 +27366,7 @@ async function writeJsonAtomic(root, candidate, value) {
     }
     await ensureSafeExistingPath(root, absolute);
   }
-  const temporary = path9.join(parent, `.${path9.basename(absolute)}.${process.pid}.${Date.now()}.tmp`);
+  const temporary = path10.join(parent, `.${path10.basename(absolute)}.${process.pid}.${Date.now()}.tmp`);
   let handle;
   try {
     handle = await open3(temporary, "wx", 384);
@@ -27412,7 +27426,7 @@ async function walkFiles(root, directory) {
   const entries = await readdir2(directory, { withFileTypes: true });
   entries.sort((left, right) => left.name.localeCompare(right.name));
   for (const entry of entries) {
-    const candidate = path9.join(directory, entry.name);
+    const candidate = path10.join(directory, entry.name);
     if (entry.isSymbolicLink()) {
       let destination;
       try {
@@ -27439,10 +27453,10 @@ async function descriptorsIn(directory) {
       return [];
     throw error2;
   }
-  return entries.filter((entry) => (entry.isFile() || entry.isSymbolicLink()) && entry.name.toLowerCase().endsWith(".gbsproj")).map((entry) => path9.join(directory, entry.name)).sort((left, right) => left.localeCompare(right));
+  return entries.filter((entry) => (entry.isFile() || entry.isSymbolicLink()) && entry.name.toLowerCase().endsWith(".gbsproj")).map((entry) => path10.join(directory, entry.name)).sort((left, right) => left.localeCompare(right));
 }
 async function discoverProject(startPath = process.cwd()) {
-  const requested = path9.resolve(startPath);
+  const requested = path10.resolve(startPath);
   let descriptorPath;
   if (requested.toLowerCase().endsWith(".gbsproj")) {
     descriptorPath = requested;
@@ -27450,7 +27464,7 @@ async function discoverProject(startPath = process.cwd()) {
     let directory = requested;
     try {
       if ((await stat2(requested)).isFile())
-        directory = path9.dirname(requested);
+        directory = path10.dirname(requested);
     } catch (error2) {
       if (isSystemError2(error2, "ENOENT")) {
         throw new GameStudioProjectError("PROJECT_NOT_FOUND", `Project search path does not exist: ${requested}`, requested);
@@ -27466,7 +27480,7 @@ async function discoverProject(startPath = process.cwd()) {
         descriptorPath = matches2[0];
         break;
       }
-      const parent = path9.dirname(directory);
+      const parent = path10.dirname(directory);
       if (parent === directory)
         break;
       directory = parent;
@@ -27477,15 +27491,15 @@ async function discoverProject(startPath = process.cwd()) {
   }
   let projectRoot;
   try {
-    projectRoot = await realpath6(path9.dirname(descriptorPath));
+    projectRoot = await realpath6(path10.dirname(descriptorPath));
   } catch (error2) {
     if (isSystemError2(error2, "ENOENT")) {
       throw new GameStudioProjectError("PROJECT_NOT_FOUND", `Native game project does not exist: ${descriptorPath}`, descriptorPath);
     }
     throw error2;
   }
-  const descriptor = await readJson(projectRoot, path9.join(projectRoot, path9.basename(descriptorPath)));
-  const projectPath = path9.join(projectRoot, path9.basename(descriptorPath));
+  const descriptor = await readJson(projectRoot, path10.join(projectRoot, path10.basename(descriptorPath)));
+  const projectPath = path10.join(projectRoot, path10.basename(descriptorPath));
   const format = Array.isArray(descriptor.scenes) ? "legacy" : "distributed";
   return {
     projectPath,
@@ -27535,21 +27549,21 @@ function assetType(folder, metadata2) {
   return lookup[folder] ?? folder;
 }
 async function collectAssets(discovery, diagnostics) {
-  const assetsRoot = path9.join(discovery.projectRoot, "assets");
+  const assetsRoot = path10.join(discovery.projectRoot, "assets");
   const files = await walkFiles(discovery.projectRoot, assetsRoot);
-  const physicalAssets = files.filter((file2) => ASSET_EXTENSIONS.has(path9.extname(file2).toLowerCase()));
+  const physicalAssets = files.filter((file2) => ASSET_EXTENSIONS.has(path10.extname(file2).toLowerCase()));
   const physicalSet = new Set(physicalAssets);
   const result = [];
   const physicalPngDimensions = /* @__PURE__ */ new Map();
   const legacyRootFilenames = new Map(["backgrounds", "sprites"].map((folder) => [folder, /* @__PURE__ */ new Set()]));
   for (const file2 of physicalAssets) {
-    if (path9.extname(file2).toLowerCase() !== ".png")
+    if (path10.extname(file2).toLowerCase() !== ".png")
       continue;
     const dimensions3 = await pngDimensions(file2);
     physicalPngDimensions.set(file2, dimensions3);
     if (!dimensions3 || dimensions3.width <= 0 || dimensions3.height <= 0)
       continue;
-    const [folder, ...filename] = path9.relative(assetsRoot, file2).split(path9.sep);
+    const [folder, ...filename] = path10.relative(assetsRoot, file2).split(path10.sep);
     if (folder)
       legacyRootFilenames.get(folder)?.add(filename.join("/"));
   }
@@ -27572,9 +27586,9 @@ async function collectAssets(discovery, diagnostics) {
     result.push({
       ...nativeMetadata ?? {},
       id: asString(nativeMetadata?.id),
-      name: asString(nativeMetadata?.name, path9.basename(file2, path9.extname(file2))),
+      name: asString(nativeMetadata?.name, path10.basename(file2, path10.extname(file2))),
       type: assetType(relativeParts[1] ?? "asset", metadata2),
-      filename: asString(nativeMetadata?.filename, path9.basename(file2)),
+      filename: asString(nativeMetadata?.filename, path10.basename(file2)),
       resourcePath: relative6,
       metadataPath: metadata2 ? toRelative(discovery.projectRoot, metadataFile) : null,
       hasMetadata: metadata2 !== null,
@@ -27583,8 +27597,8 @@ async function collectAssets(discovery, diagnostics) {
     });
   }
   for (const candidate of legacyPluginAssetCandidates(discovery)) {
-    const physical2 = path9.join(discovery.projectRoot, candidate.relativePath);
-    const folder = path9.join(discovery.projectRoot, ...candidate.relativePath.split("/").slice(0, 3));
+    const physical2 = path10.join(discovery.projectRoot, candidate.relativePath);
+    const folder = path10.join(discovery.projectRoot, ...candidate.relativePath.split("/").slice(0, 3));
     let canonical2;
     try {
       const entry = await lstat6(physical2);
@@ -27605,9 +27619,9 @@ async function collectAssets(discovery, diagnostics) {
     result.push({
       ...metadata2,
       id: asString(metadata2.id),
-      name: asString(metadata2.name, path9.basename(physical2, path9.extname(physical2))),
+      name: asString(metadata2.name, path10.basename(physical2, path10.extname(physical2))),
       type: assetType(candidate.folder, null),
-      filename: asString(metadata2.filename, path9.basename(physical2)),
+      filename: asString(metadata2.filename, path10.basename(physical2)),
       resourcePath: candidate.relativePath,
       metadataPath: null,
       hasMetadata: false,
@@ -27662,24 +27676,24 @@ async function inventoryProject(projectPath, indexedAccess) {
         palettes.push(materializeResource(palette, toRelative(projectRoot, discovery.projectPath)));
     }
   } else {
-    const projectResourcesRoot = path9.join(projectRoot, "project");
+    const projectResourcesRoot = path10.join(projectRoot, "project");
     if (!await exists2(projectResourcesRoot)) {
       diagnostics.push({ severity: "error", code: "PROJECT_RESOURCES_MISSING", message: "Distributed project is missing its project/ resource directory" });
     }
-    const settingsPath = path9.join(projectResourcesRoot, "settings.gbsres");
+    const settingsPath = path10.join(projectResourcesRoot, "settings.gbsres");
     if (await exists2(settingsPath))
       settings = await readJson(projectRoot, settingsPath);
     else
       diagnostics.push({ severity: "warning", code: "SETTINGS_MISSING", message: "Distributed project has no project/settings.gbsres resource" });
     const resourceFiles2 = await walkFiles(projectRoot, projectResourcesRoot);
-    const sceneFiles = resourceFiles2.filter((file2) => path9.basename(file2) === "scene.gbsres");
+    const sceneFiles = resourceFiles2.filter((file2) => path10.basename(file2) === "scene.gbsres");
     for (const sceneFile of sceneFiles) {
       const sceneData = await readJson(projectRoot, sceneFile);
-      const sceneDirectory = path9.dirname(sceneFile);
+      const sceneDirectory = path10.dirname(sceneFile);
       const actors2 = [];
       const triggers2 = [];
       for (const [kind, destination] of [["actors", actors2], ["triggers", triggers2]]) {
-        for (const resourceFile of await walkFiles(projectRoot, path9.join(sceneDirectory, kind))) {
+        for (const resourceFile of await walkFiles(projectRoot, path10.join(sceneDirectory, kind))) {
           if (!resourceFile.endsWith(".gbsres"))
             continue;
           const resource = await readJson(projectRoot, resourceFile);
@@ -27820,7 +27834,7 @@ async function inventoryProject(projectPath, indexedAccess) {
   const triggers = scenes.flatMap((scene) => scene.triggers);
   return {
     ...discovery,
-    name: asString(descriptor.name, path9.basename(discovery.projectPath, ".gbsproj")),
+    name: asString(descriptor.name, path10.basename(discovery.projectPath, ".gbsproj")),
     author: asString(descriptor.author),
     settings,
     scenes,
@@ -27850,7 +27864,7 @@ async function inspectProject(projectPath, options = {}, indexedAccess) {
   return inspectProjectSnapshot(snapshot, { diagnosticLimit: options.diagnosticLimit });
 }
 function assertIndexedProjectAccess(projectPath, indexedAccess) {
-  const requestedPath = path9.resolve(projectPath);
+  const requestedPath = path10.resolve(projectPath);
   if (requestedPath !== indexedAccess.projectPath && requestedPath !== indexedAccess.projectRoot) {
     throw new GameStudioProjectError("STALE_PROJECT", "Indexed project access does not belong to the requested native game project", requestedPath);
   }
@@ -27874,7 +27888,7 @@ async function authoringContext(projectPath, indexedAccess, options = {}) {
     } else if (legacy) {
       settings = isObject5(descriptor.settings) ? descriptor.settings : {};
     } else {
-      const settingsPath = path9.join(indexedAccess.projectRoot, "project", "settings.gbsres");
+      const settingsPath = path10.join(indexedAccess.projectRoot, "project", "settings.gbsres");
       settings = await exists2(settingsPath) ? await readJson(indexedAccess.projectRoot, settingsPath) : {};
     }
   }
@@ -27977,7 +27991,7 @@ function nextIndex(resources) {
 async function availablePath(root, parent, base, extension) {
   for (let index = 1; index < 1e4; index++) {
     const slug = index === 1 ? base : `${base}_${index}`;
-    const candidate = path9.join(parent, `${slug}${extension}`);
+    const candidate = path10.join(parent, `${slug}${extension}`);
     assertWithinRoot(root, candidate);
     if (!await exists2(candidate))
       return { absolute: candidate, slug };
@@ -28026,9 +28040,9 @@ async function createScene(projectPath, input, indexedAccess) {
       return { projectPath: inventory.projectPath, projectRoot: inventory.projectRoot, resourcePath: toRelative(inventory.projectRoot, target2), scene: scene2 };
     });
   }
-  const chosen = await availablePath(inventory.projectRoot, path9.join(inventory.projectRoot, "project", "scenes"), slugBase, "");
+  const chosen = await availablePath(inventory.projectRoot, path10.join(inventory.projectRoot, "project", "scenes"), slugBase, "");
   const { slug } = chosen;
-  const target = path9.join(chosen.absolute, "scene.gbsres");
+  const target = path10.join(chosen.absolute, "scene.gbsres");
   const id3 = input.id ?? stableId(inventory.descriptor.name ?? "project", "scene", slug);
   if (indexedAccess ? indexedAccess.scene(id3) !== void 0 : inventory.scenes.some((scene2) => scene2.id === id3)) {
     throw new GameStudioProjectError("DUPLICATE_RESOURCE_ID", `A scene with id ${id3} already exists`);
@@ -28054,7 +28068,7 @@ async function updateScene(projectPath, input, indexedAccess) {
     if (input[key] !== void 0)
       updates[key] = input[key];
   }
-  const target = path9.join(inventory.projectRoot, existing.resourcePath);
+  const target = path10.join(inventory.projectRoot, existing.resourcePath);
   const backgroundExists = (id3) => resolveNativeAssetIdentity(indexedAccess ?? inventory, id3)?.type === "background";
   return withProjectResourceWriteLock(inventory.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(inventory.projectRoot, target);
@@ -28132,7 +28146,7 @@ async function createActor(projectPath, input, indexedAccess) {
   const inventory = await authoringContext(projectPath, indexedAccess, { includeLegacyDescriptor: false });
   const scene = findScene(inventory, input.sceneId, indexedAccess);
   const base = safeSlug(input.name, "actor");
-  const owner3 = path9.join(inventory.projectRoot, scene.resourcePath);
+  const owner3 = path10.join(inventory.projectRoot, scene.resourcePath);
   return withProjectResourceWriteLock(inventory.projectRoot, owner3, async () => {
     const loaded = await readProjectJsonWithRevision(inventory.projectRoot, owner3);
     let target;
@@ -28144,7 +28158,7 @@ async function createActor(projectPath, input, indexedAccess) {
     if (inventory.format === "distributed") {
       if (loaded.json.id !== scene.id)
         throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${scene.id} disappeared during actor creation`);
-      const actorsDirectory = path9.join(path9.dirname(owner3), "actors");
+      const actorsDirectory = path10.join(path10.dirname(owner3), "actors");
       existingActors = await Promise.all((await walkFiles(inventory.projectRoot, actorsDirectory)).filter((filename) => filename.endsWith(".gbsres")).map(async (filename) => materializeResource(await readJson(inventory.projectRoot, filename), toRelative(inventory.projectRoot, filename))));
       const chosen = await availablePath(inventory.projectRoot, actorsDirectory, base, ".gbsres");
       target = chosen.absolute;
@@ -28244,7 +28258,7 @@ async function updateDialogue(projectPath, input, indexedAccess) {
   if (input.triggerId && !trigger)
     throw new GameStudioProjectError("TRIGGER_NOT_FOUND", `No trigger with id ${input.triggerId} exists in scene ${scene.id}`);
   const selected = actor ?? trigger ?? scene;
-  const target = path9.join(inventory.projectRoot, selected.resourcePath);
+  const target = path10.join(inventory.projectRoot, selected.resourcePath);
   return withProjectResourceWriteLock(inventory.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(inventory.projectRoot, target);
     const stale = () => {
@@ -28294,7 +28308,7 @@ async function updateSettings(projectPath, updates, indexedAccess) {
     throw new GameStudioProjectError("INVALID_INPUT", "Settings updates must be a JSON object");
   assertSafeObject(updates, "Settings updates", true);
   const inventory = await authoringContext(projectPath, indexedAccess, { includeSettings: true, includeLegacyDescriptor: false });
-  const target = inventory.format === "distributed" ? path9.join(inventory.projectRoot, "project", "settings.gbsres") : inventory.projectPath;
+  const target = inventory.format === "distributed" ? path10.join(inventory.projectRoot, "project", "settings.gbsres") : inventory.projectPath;
   if (inventory.format === "distributed" && !await exists2(target)) {
     const settings = mergeObjects({ _resourceType: "settings", ...inventory.settings }, updates);
     await writeJsonAtomic(inventory.projectRoot, target, settings);
@@ -28316,7 +28330,7 @@ async function updateSettings(projectPath, updates, indexedAccess) {
 
 // src/project-revision.js
 import { createHash as createHash6 } from "node:crypto";
-import path10 from "node:path";
+import path11 from "node:path";
 var SHA256_HEX2 = /^[a-f\d]{64}$/u;
 var ROOT_DOMAIN = Buffer.from(`codex-gb-studio\0${PROJECT_REVISION_ALGORITHM}\0root\0`, "utf8");
 var NODE_DOMAIN = Buffer.from(`codex-gb-studio\0${PROJECT_REVISION_ALGORITHM}\0node\0`, "utf8");
@@ -28333,7 +28347,7 @@ function updateLength(digest7, length) {
   digest7.update(encoded2);
 }
 function normalizeRelativePath(relativePath2) {
-  if (typeof relativePath2 !== "string" || relativePath2.length === 0 || relativePath2.includes("\0") || relativePath2.includes("\\") || path10.posix.isAbsolute(relativePath2) || path10.posix.normalize(relativePath2) !== relativePath2 || relativePath2 === "." || relativePath2 === ".." || relativePath2.startsWith("../")) {
+  if (typeof relativePath2 !== "string" || relativePath2.length === 0 || relativePath2.includes("\0") || relativePath2.includes("\\") || path11.posix.isAbsolute(relativePath2) || path11.posix.normalize(relativePath2) !== relativePath2 || relativePath2 === "." || relativePath2 === ".." || relativePath2.startsWith("../")) {
     throw new TypeError("Project revision paths must be normalized, project-relative POSIX paths");
   }
   return relativePath2;
@@ -28550,8 +28564,8 @@ function isObject6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function withinProject(root, candidate) {
-  const relative6 = path11.relative(root, candidate);
-  if (relative6 === ".." || relative6.startsWith(`..${path11.sep}`) || path11.isAbsolute(relative6)) {
+  const relative6 = path12.relative(root, candidate);
+  if (relative6 === ".." || relative6.startsWith(`..${path12.sep}`) || path12.isAbsolute(relative6)) {
     throw new GameStudioProjectError("PATH_OUTSIDE_PROJECT", `Refusing to access a path outside the native game project: ${candidate}`, candidate);
   }
 }
@@ -28582,7 +28596,7 @@ async function authoredFiles(root, directory) {
   entries.sort((left, right) => left.name.localeCompare(right.name));
   const files = [];
   for (const entry of entries) {
-    const candidate = path11.join(canonical2, entry.name);
+    const candidate = path12.join(canonical2, entry.name);
     if (entry.isSymbolicLink()) {
       let destination;
       try {
@@ -28612,8 +28626,8 @@ async function discoveryRevision(discovery, exclude = /* @__PURE__ */ new Set())
   }
   const files = [
     descriptor,
-    ...await authoredFiles(root, path11.join(root, "project")),
-    ...await authoredFiles(root, path11.join(root, "assets"))
+    ...await authoredFiles(root, path12.join(root, "project")),
+    ...await authoredFiles(root, path12.join(root, "assets"))
   ];
   const entries = [];
   for (const file2 of files) {
@@ -28622,7 +28636,7 @@ async function discoveryRevision(discovery, exclude = /* @__PURE__ */ new Set())
     if (canonical2 !== file2) {
       throw new GameStudioProjectError("STALE_PROJECT", "An authored project resource changed during collection", file2);
     }
-    const relative6 = path11.relative(root, file2).split(path11.sep).join("/");
+    const relative6 = path12.relative(root, file2).split(path12.sep).join("/");
     if (exclude.has(relative6))
       continue;
     const content = await readFile4(file2);
@@ -28634,7 +28648,7 @@ async function discoveryRevision(discovery, exclude = /* @__PURE__ */ new Set())
   return new ProjectRevisionTree(entries).revision();
 }
 function assertMatchingAccess(projectPath, access4) {
-  const requestedPath = path11.resolve(projectPath);
+  const requestedPath = path12.resolve(projectPath);
   if (requestedPath !== access4.projectPath && requestedPath !== access4.projectRoot) {
     throw new GameStudioProjectError("STALE_PROJECT", "Indexed project access does not belong to the requested native game project", requestedPath);
   }
@@ -28658,9 +28672,9 @@ async function projectVariables(inventory) {
   let resourcePath;
   if (inventory.format === "legacy") {
     entries = inventory.descriptor.variables;
-    resourcePath = path11.basename(inventory.projectPath);
+    resourcePath = path12.basename(inventory.projectPath);
   } else {
-    const filename = path11.join(inventory.projectRoot, "project", "variables.gbsres");
+    const filename = path12.join(inventory.projectRoot, "project", "variables.gbsres");
     let canonical2;
     try {
       canonical2 = await realpath7(filename);
@@ -29017,7 +29031,7 @@ function inventoryRecords(snapshot, options) {
       const diagnostic = snapshot.diagnostics[index];
       if (!diagnostic)
         continue;
-      if (scene && diagnostic.resourcePath && !diagnostic.resourcePath.startsWith(path11.dirname(scene.resourcePath)))
+      if (scene && diagnostic.resourcePath && !diagnostic.resourcePath.startsWith(path12.dirname(scene.resourcePath)))
         continue;
       records.push({
         kind: "diagnostic",
@@ -29138,21 +29152,21 @@ async function inventoryProjectNormalized(projectPath, options = {}, selectionGe
 // src/scene-batch.js
 import { createHash as createHash9 } from "node:crypto";
 import { lstat as lstat8, readFile as readFile5, rmdir as rmdir2, unlink as unlink4 } from "node:fs/promises";
-import path17 from "node:path";
+import path18 from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 // src/native-import-files.js
 import { createHash as createHash8, randomUUID as randomUUID2 } from "node:crypto";
 import { constants as constants3 } from "node:fs";
 import { link as link2, lstat as lstat7, mkdir as mkdir3, mkdtemp, open as open4, opendir, rename as rename3, rmdir, unlink as unlink3 } from "node:fs/promises";
-import path12 from "node:path";
+import path13 from "node:path";
 var hash = (bytes2) => createHash8("sha256").update(bytes2).digest("hex");
 var missing = (error2) => !!error2 && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
 var fail = (code, message2) => {
   throw new GameStudioProjectError(code, message2);
 };
 async function nativeImportPath(root, relative6, mustExist = false, allowHardLinks = false) {
-  if (!relative6 || relative6.length > 4096 || relative6.split("/").length > 64 || relative6.includes("\\") || /[\x00-\x1f]/.test(relative6) || path12.posix.isAbsolute(relative6) || path12.posix.normalize(relative6) !== relative6 || relative6 === "." || relative6 === ".." || relative6.startsWith("../")) {
+  if (!relative6 || relative6.length > 4096 || relative6.split("/").length > 64 || relative6.includes("\\") || /[\x00-\x1f]/.test(relative6) || path13.posix.isAbsolute(relative6) || path13.posix.normalize(relative6) !== relative6 || relative6 === "." || relative6 === ".." || relative6.startsWith("../")) {
     fail("INVALID_RESOURCE_PATH", "Native import paths must be normalized project-relative paths.");
   }
   let parent = root;
@@ -29174,7 +29188,7 @@ async function nativeImportPath(root, relative6, mustExist = false, allowHardLin
       if (entry.name !== component && entry.name.normalize("NFC").toLowerCase() === key)
         fail("RESOURCE_PATH_ALIAS", `Native import path has a case or Unicode alias: ${relative6}.`);
     }
-    parent = path12.join(parent, component);
+    parent = path13.join(parent, component);
     let info;
     try {
       info = await lstat7(parent);
@@ -29190,7 +29204,7 @@ async function nativeImportPath(root, relative6, mustExist = false, allowHardLin
     if (i === parts.length - 1 && !allowHardLinks && info.nlink !== 1)
       fail("RESOURCE_PATH_ALIAS", `Native import source has hard-link aliases: ${relative6}.`);
   }
-  const absolute = path12.join(root, relative6);
+  const absolute = path13.join(root, relative6);
   if (await resolveProjectPath(root, absolute, { mustExist, allowRoot: false }) !== absolute)
     fail("RESOURCE_PATH_ALIAS", "Native import path resolves through an alias.");
   return absolute;
@@ -29234,13 +29248,13 @@ var NativeImportFileError = class extends Error {
   }
 };
 var message = (error2) => error2 instanceof Error ? error2.message : String(error2);
-var relativePath = (root, file2) => path12.relative(root, file2).split(path12.sep).join("/");
+var relativePath = (root, file2) => path13.relative(root, file2).split(path13.sep).join("/");
 async function publishNativeImportFile(root, relative6, bytes2, published) {
   const absolute = await nativeImportPath(root, relative6);
-  await mkdir3(path12.dirname(absolute), { recursive: true });
+  await mkdir3(path13.dirname(absolute), { recursive: true });
   await nativeImportPath(root, relative6);
-  const directory = await mkdtemp(path12.join(path12.dirname(absolute), ".native-import-"));
-  const temporary = path12.join(directory, "payload");
+  const directory = await mkdtemp(path13.join(path13.dirname(absolute), ".native-import-"));
+  const temporary = path13.join(directory, "payload");
   let handle;
   let receipt;
   let failure;
@@ -29291,11 +29305,11 @@ var NativeRecoveryConflict = class extends Error {
   }
 };
 async function rollbackNativeImportFile(root, relative6, expected) {
-  const parent = path12.posix.dirname(relative6);
-  const absolute = path12.join(root, relative6);
+  const parent = path13.posix.dirname(relative6);
+  const absolute = path13.join(root, relative6);
   await nativeImportPath(root, `${parent}/.rollback-check-${randomUUID2()}`);
-  const directory = await mkdtemp(path12.join(path12.dirname(absolute), ".native-recovery-"));
-  const captured = path12.join(directory, "payload");
+  const directory = await mkdtemp(path13.join(path13.dirname(absolute), ".native-recovery-"));
+  const captured = path13.join(directory, "payload");
   let moved = false;
   let failure;
   try {
@@ -29335,7 +29349,7 @@ async function rollbackNativeImportFile(root, relative6, expected) {
         await unlink3(captured);
         moved = false;
       } catch {
-        retained.push(path12.relative(root, captured).split(path12.sep).join("/"));
+        retained.push(path13.relative(root, captured).split(path13.sep).join("/"));
       }
     }
     failure = new NativeRecoveryConflict(`${relative6}: ${message(error2)}`, retained);
@@ -29356,8 +29370,8 @@ function sameIdentity(actual, expected) {
 }
 async function replaceNativeImportFile(root, relative6, before, original, bytes2, published) {
   const absolute = await nativeImportPath(root, relative6, true);
-  const directory = await mkdtemp(path12.join(path12.dirname(absolute), ".native-replacement-"));
-  const payload = path12.join(directory, "payload"), backup = path12.join(directory, "original");
+  const directory = await mkdtemp(path13.join(path13.dirname(absolute), ".native-replacement-"));
+  const payload = path13.join(directory, "payload"), backup = path13.join(directory, "original");
   const backupPath = relativePath(root, backup), directoryPath = relativePath(root, directory);
   let captured = false, installed = false, handle;
   let payloadIdentity;
@@ -29451,7 +29465,7 @@ async function verifiedReplacementBackup(root, receipt) {
 }
 async function finalizeNativeReplacement(root, receipt) {
   await verifiedReplacementBackup(root, receipt);
-  await unlink3(path12.join(root, receipt.backupPath));
+  await unlink3(path13.join(root, receipt.backupPath));
   receipt.backupRemoved = true;
   try {
     await rmdir(receipt.directory);
@@ -29469,8 +29483,8 @@ async function rollbackNativeReplacement(root, relative6, receipt) {
   }
   try {
     await verifiedReplacementBackup(root, receipt);
-    await link2(path12.join(root, receipt.backupPath), path12.join(root, relative6));
-    await unlink3(path12.join(root, receipt.backupPath));
+    await link2(path13.join(root, receipt.backupPath), path13.join(root, relative6));
+    await unlink3(path13.join(root, receipt.backupPath));
     receipt.backupRemoved = true;
     await rmdir(receipt.directory);
   } catch (error2) {
@@ -29484,7 +29498,7 @@ async function readNativeProjectMetadata(root) {
     const relative6 = pending.pop();
     if (relative6.split("/").length > 64)
       fail("NATIVE_IMPORT_BOUNDS", "Native project metadata exceeds the directory depth limit.");
-    const absolute = path12.join(root, relative6);
+    const absolute = path13.join(root, relative6);
     let info;
     try {
       info = await lstat7(absolute);
@@ -29534,7 +29548,7 @@ async function readNativeProjectMetadata(root) {
 }
 
 // src/collisions.js
-import path13 from "node:path";
+import path14 from "node:path";
 var MAXIMUM_SCENE_DIMENSION = 255;
 var MAXIMUM_EDITS = 1024;
 var MAXIMUM_SAMPLES = 32;
@@ -29654,7 +29668,7 @@ async function locateScene(projectPath, sceneId, access4) {
   const selected = access4 ? access4.scene(sceneId) : completeInventory.scenes.find((scene) => scene.id === sceneId);
   if (!selected)
     throw new GameStudioProjectError("SCENE_NOT_FOUND", `No scene with id ${sceneId} exists`);
-  const filename = path13.join(inventory.projectRoot, selected.resourcePath);
+  const filename = path14.join(inventory.projectRoot, selected.resourcePath);
   return { inventory, selected, filename };
 }
 async function loadSelectedScene(location) {
@@ -29749,7 +29763,7 @@ async function editCollisions(projectPath, input, access4) {
 }
 
 // src/game-scripts.js
-import path14 from "node:path";
+import path15 from "node:path";
 var FORBIDDEN_KEYS2 = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 var VALID_DIRECTIONS = /* @__PURE__ */ new Set(["up", "down", "left", "right"]);
 var MAXIMUM_EVENT_DEPTH2 = 64;
@@ -29986,7 +30000,7 @@ async function locateResource(projectPath, target, access4, existingInventory) {
       throw new GameStudioProjectError("TRIGGER_NOT_FOUND", `No trigger with id ${target.triggerId} exists in scene ${scene.id}`);
     selected = trigger;
   }
-  const filename = path14.join(projectRoot, selected.resourcePath);
+  const filename = path15.join(projectRoot, selected.resourcePath);
   return {
     projectPath: selectedProjectPath,
     projectRoot,
@@ -30147,7 +30161,7 @@ async function createSceneTransition(projectPath, input, access4) {
 }
 
 // src/game-variables.js
-import path15 from "node:path";
+import path16 from "node:path";
 var MAXIMUM_AUTOMATIC_VARIABLE_ID = 511;
 var FORBIDDEN_KEYS3 = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 function isObject9(value) {
@@ -30262,10 +30276,10 @@ async function selectVariables(projectPath, access4) {
     const resource2 = await readProjectJson(projectRoot, selectedProjectPath);
     if (resource2.variables === void 0)
       resource2.variables = [];
-    return { ...context, filename: selectedProjectPath, resourcePath: path15.basename(selectedProjectPath), resource: resource2 };
+    return { ...context, filename: selectedProjectPath, resourcePath: path16.basename(selectedProjectPath), resource: resource2 };
   }
   const resourcePath = "project/variables.gbsres";
-  const filename = path15.join(projectRoot, resourcePath);
+  const filename = path16.join(projectRoot, resourcePath);
   const resource = await readProjectJson(projectRoot, filename);
   if (resource._resourceType !== "variables") {
     throw new GameStudioProjectError("INVALID_RESOURCE", "Distributed variable metadata must use the variables resource type", filename);
@@ -30360,7 +30374,7 @@ async function updateVariable(projectPath, input, access4) {
 }
 
 // src/triggers.js
-import path16 from "node:path";
+import path17 from "node:path";
 function findSceneTrigger(scene, triggerId, access4) {
   const trigger = access4 ? access4.trigger(scene.id, triggerId) : scene.triggers.find((candidate) => candidate.id === triggerId);
   if (!trigger) {
@@ -30432,7 +30446,7 @@ function validateTriggerResource(scene, trigger, previous, options = {}) {
 async function availableTriggerPath(root, parent, base) {
   for (let index = 1; index < 1e4; index++) {
     const slug = index === 1 ? base : `${base}_${index}`;
-    const candidate = path16.join(parent, `${slug}.gbsres`);
+    const candidate = path17.join(parent, `${slug}.gbsres`);
     if (!await projectPathExists(root, candidate))
       return { absolute: candidate, slug };
   }
@@ -30445,7 +30459,7 @@ async function inspectTrigger(projectPath, input, access4) {
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
   const selected = findSceneTrigger(scene, input.triggerId, access4);
-  const target = path16.resolve(context.projectRoot, selected.resourcePath);
+  const target = path17.resolve(context.projectRoot, selected.resourcePath);
   const format = inventory?.format ?? access4.projectInspection().format;
   const loaded = await readProjectJsonWithRevision(context.projectRoot, target);
   if (format === "distributed")
@@ -30477,7 +30491,7 @@ async function createTrigger(projectPath, input, access4) {
   const inventory = access4 ? void 0 : await inventoryProject(projectPath);
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
-  const sceneTarget = path16.resolve(context.projectRoot, scene.resourcePath);
+  const sceneTarget = path17.resolve(context.projectRoot, scene.resourcePath);
   const base = resourceSlug(input.name, "trigger");
   const format = inventory?.format ?? access4.projectInspection().format;
   return withProjectResourceWriteLock(context.projectRoot, sceneTarget, async () => {
@@ -30493,7 +30507,7 @@ async function createTrigger(projectPath, input, access4) {
     let slug = base;
     let target;
     if (format === "distributed") {
-      const chosen = await availableTriggerPath(context.projectRoot, path16.join(path16.dirname(sceneTarget), "triggers"), base);
+      const chosen = await availableTriggerPath(context.projectRoot, path17.join(path17.dirname(sceneTarget), "triggers"), base);
       slug = chosen.slug;
       target = chosen.absolute;
     } else {
@@ -30538,7 +30552,7 @@ async function updateTrigger(projectPath, input, access4) {
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
   const selected = findSceneTrigger(scene, input.triggerId, access4);
-  const target = path16.resolve(context.projectRoot, selected.resourcePath);
+  const target = path17.resolve(context.projectRoot, selected.resourcePath);
   const format = inventory?.format ?? access4.projectInspection().format;
   return withProjectResourceWriteLock(context.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(context.projectRoot, target);
@@ -30578,7 +30592,7 @@ async function deleteTrigger(projectPath, input, access4) {
   const context = access4 ?? inventory;
   const scene = findProjectScene(context, input.sceneId);
   const trigger = findSceneTrigger(scene, input.triggerId, access4);
-  const target = path16.resolve(context.projectRoot, trigger.resourcePath);
+  const target = path17.resolve(context.projectRoot, trigger.resourcePath);
   return withProjectResourceWriteLock(context.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(context.projectRoot, target);
     assertLoadedResourceRevision(context.projectRoot, target, loaded.revision, input.expectedRevision);
@@ -30648,7 +30662,7 @@ function projectError(code, message2) {
 function assertIndexedProjectAccess2(projectPath, indexedAccess) {
   if (!indexedAccess)
     return;
-  const requestedPath = path17.resolve(projectPath);
+  const requestedPath = path18.resolve(projectPath);
   if (requestedPath !== indexedAccess.projectPath && requestedPath !== indexedAccess.projectRoot) {
     projectError("STALE_PROJECT", "Indexed project access does not belong to the requested native game project");
   }
@@ -30721,8 +30735,8 @@ function toProjectResource(resource) {
 async function withProjectMutation(projectRoot, action, options = {}) {
   const previous = projectMutationQueues.get(projectRoot) ?? Promise.resolve();
   let release;
-  const pending = new Promise((resolve5) => {
-    release = resolve5;
+  const pending = new Promise((resolve4) => {
+    release = resolve4;
   });
   const tail = previous.catch(() => void 0).then(() => pending);
   projectMutationQueues.set(projectRoot, tail);
@@ -30876,7 +30890,7 @@ async function inspectScene(projectPath, input, indexedAccess) {
     revision2 = snapshot.revision;
     selected = findScene2(snapshot, sceneId);
   }
-  const format = path17.resolve(projectRoot, selected.resourcePath) === path17.resolve(selectedProjectPath) ? "legacy" : "distributed";
+  const format = path18.resolve(projectRoot, selected.resourcePath) === path18.resolve(selectedProjectPath) ? "legacy" : "distributed";
   const loaded = await readProjectJsonWithRevision(projectRoot, selected.resourcePath);
   const nativeScene = format === "legacy" ? Array.isArray(loaded.json.scenes) ? loaded.json.scenes.find((value) => isObject10(value) && value.id === sceneId) : void 0 : loaded.json;
   if (!isObject10(nativeScene) || nativeScene.id !== sceneId) {
@@ -30919,7 +30933,7 @@ async function stageFile(overlay, relativePath2, after) {
     existing.after = after;
     return;
   }
-  const absolutePath = path17.join(overlay.snapshot.projectRoot, relativePath2);
+  const absolutePath = path18.join(overlay.snapshot.projectRoot, relativePath2);
   await resolveProjectPath(overlay.snapshot.projectRoot, absolutePath, { mustExist: false });
   let before = null;
   if (await projectPathExists(overlay.snapshot.projectRoot, absolutePath)) {
@@ -31028,14 +31042,14 @@ function nextOverlayIndex(resources) {
 }
 async function chooseResourcePath(overlay, kind, name3) {
   const base = resourceSlug(name3, kind === "actors" ? "actor" : "trigger");
-  const folder = path17.join(path17.dirname(overlay.scene.relativePath), kind);
+  const folder = path18.join(path18.dirname(overlay.scene.relativePath), kind);
   for (let index = 1; index <= 1e4; index++) {
     const slug = index === 1 ? base : `${base}_${index}`;
-    const relativePath2 = path17.join(folder, `${slug}.gbsres`).split(path17.sep).join("/");
+    const relativePath2 = path18.join(folder, `${slug}.gbsres`).split(path18.sep).join("/");
     const staged = overlay.staged.get(relativePath2);
     if (staged?.after === null)
       continue;
-    if (staged || await projectPathExists(overlay.snapshot.projectRoot, path17.join(overlay.snapshot.projectRoot, relativePath2)))
+    if (staged || await projectPathExists(overlay.snapshot.projectRoot, path18.join(overlay.snapshot.projectRoot, relativePath2)))
       continue;
     return { relativePath: relativePath2, slug };
   }
@@ -31244,7 +31258,7 @@ async function loadVariablesResource(overlay) {
     return overlay.variables;
   }
   const relativePath2 = "project/variables.gbsres";
-  const absolutePath = path17.join(overlay.snapshot.projectRoot, relativePath2);
+  const absolutePath = path18.join(overlay.snapshot.projectRoot, relativePath2);
   const value = await projectPathExists(overlay.snapshot.projectRoot, absolutePath) ? await readProjectJson(overlay.snapshot.projectRoot, absolutePath) : { _resourceType: "variables", variables: [], constants: [] };
   overlay.variables = { id: "variables", relativePath: relativePath2, value };
   return overlay.variables;
@@ -31495,7 +31509,7 @@ async function withStagedResourceWriteLocks(projectRoot, staged, action) {
       await verifyStagedBeforeImage(projectRoot, entry);
       candidates.add(entry.absolutePath);
     } else if (/^project\/scenes\/[^/]+\/(?:actors|triggers)\//u.test(entry.relativePath)) {
-      const sceneOwner = path17.join(path17.dirname(path17.dirname(entry.absolutePath)), "scene.gbsres");
+      const sceneOwner = path18.join(path18.dirname(path18.dirname(entry.absolutePath)), "scene.gbsres");
       if (await projectPathExists(projectRoot, sceneOwner))
         candidates.add(sceneOwner);
     }
@@ -31632,7 +31646,7 @@ async function commitLockedStagedFiles(snapshot, ordered, indexedAccess, verifyS
       }
       for (const entry of applied)
         if (entry.createdIdentity?.temporaryDirectory)
-          retainedPaths.push(path17.relative(snapshot.projectRoot, entry.createdIdentity.temporaryDirectory).split(path17.sep).join("/"));
+          retainedPaths.push(path18.relative(snapshot.projectRoot, entry.createdIdentity.temporaryDirectory).split(path18.sep).join("/"));
       throw new ProjectTransactionError(recoveryFailures.length || error2 instanceof NativeRecoveryConflict ? "TRANSACTION_RECOVERY_CONFLICT" : original instanceof GameStudioProjectError ? original.code : "TRANSACTION_COMMIT_FAILED", original, {
         originalCause: { message: original instanceof Error ? original.message : String(original), ...original instanceof GameStudioProjectError ? { code: original.code } : {} },
         publishedPaths,
@@ -31659,14 +31673,14 @@ async function commitLockedStagedFiles(snapshot, ordered, indexedAccess, verifyS
   }
 }
 function normalizedPreparedPath(relativePath2) {
-  if (typeof relativePath2 !== "string" || relativePath2.length === 0 || relativePath2.includes("\0") || relativePath2.includes("\\") || path17.posix.isAbsolute(relativePath2) || path17.posix.normalize(relativePath2) !== relativePath2 || relativePath2 === "." || relativePath2 === ".." || relativePath2.startsWith("../")) {
+  if (typeof relativePath2 !== "string" || relativePath2.length === 0 || relativePath2.includes("\0") || relativePath2.includes("\\") || path18.posix.isAbsolute(relativePath2) || path18.posix.normalize(relativePath2) !== relativePath2 || relativePath2 === "." || relativePath2 === ".." || relativePath2.startsWith("../")) {
     projectError("INVALID_RESOURCE_PATH", "Prepared file paths must be normalized, project-relative POSIX paths");
   }
   return relativePath2;
 }
 async function preparedPath(projectRoot, relativePath2) {
   const normalized = normalizedPreparedPath(relativePath2);
-  const absolutePath = path17.join(projectRoot, normalized);
+  const absolutePath = path18.join(projectRoot, normalized);
   const resolved = await resolveProjectPath(projectRoot, absolutePath, { allowRoot: false });
   if (resolved !== absolutePath) {
     projectError("UNSAFE_SYMLINK", `Prepared resource ${relativePath2} resolves through an aliased project path`);
@@ -31674,7 +31688,7 @@ async function preparedPath(projectRoot, relativePath2) {
   let ancestor = projectRoot;
   const components = normalized.split("/");
   for (let index = 0; index < components.length; index++) {
-    ancestor = path17.join(ancestor, components[index]);
+    ancestor = path18.join(ancestor, components[index]);
     let entry;
     try {
       entry = await lstat8(ancestor);
@@ -31884,11 +31898,11 @@ async function applySceneBatch(projectPath, input, indexedAccess) {
 async function pruneEmptySceneDirectories(projectRoot, relativePaths) {
   const candidates = /* @__PURE__ */ new Set();
   for (const relativePath2 of relativePaths) {
-    let current = path17.dirname(path17.join(projectRoot, relativePath2));
-    const scenesRoot = path17.join(projectRoot, "project", "scenes");
-    while (current !== scenesRoot && current.startsWith(`${scenesRoot}${path17.sep}`)) {
+    let current = path18.dirname(path18.join(projectRoot, relativePath2));
+    const scenesRoot = path18.join(projectRoot, "project", "scenes");
+    while (current !== scenesRoot && current.startsWith(`${scenesRoot}${path18.sep}`)) {
       candidates.add(current);
-      current = path17.dirname(current);
+      current = path18.dirname(current);
     }
   }
   for (const candidate of [...candidates].sort((left, right) => right.length - left.length)) {
@@ -31950,7 +31964,7 @@ import { constants as constants5, writeFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import { access as access3, lstat as lstat10, mkdir as mkdir4, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile6, realpath as realpath9, rename as rename4, rm as rm3, stat as stat3, writeFile } from "node:fs/promises";
 import os from "node:os";
-import path19 from "node:path";
+import path20 from "node:path";
 import { setTimeout as delay2 } from "node:timers/promises";
 import { promisify as promisify2 } from "node:util";
 import { detectDependencies, probeDependencies } from "../scripts/dependency-doctor.mjs";
@@ -32266,7 +32280,7 @@ function decodeCurrentScene(manifest, bytes2) {
 import { createHash as createHash11 } from "node:crypto";
 import { constants as constants4 } from "node:fs";
 import { lstat as lstat9, open as open5, readdir as readdir4, realpath as realpath8 } from "node:fs/promises";
-import path18 from "node:path";
+import path19 from "node:path";
 var SOURCE_DIRECTORIES = ["project", "assets", "plugins"];
 var ENGINE_LAYOUT = "gbvm-farptr3-uword16-v1";
 var AUTHENTICATED_BUILDS = /* @__PURE__ */ new WeakMap();
@@ -32335,27 +32349,27 @@ async function collectSourceFiles(root, directory, entries, observation, signal)
   observeFile(observation, directory, metadata2);
   const children = (await readdir4(directory, { withFileTypes: true })).sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
   for (const child of children) {
-    const filename = path18.join(directory, child.name);
+    const filename = path19.join(directory, child.name);
     if (child.isDirectory())
       await collectSourceFiles(root, filename, entries, observation, signal);
     else
       entries.push({
-        relativePath: path18.relative(root, filename).split(path18.sep).join("/"),
+        relativePath: path19.relative(root, filename).split(path19.sep).join("/"),
         sha256: await hashRegularFile(filename, observation, signal)
       });
   }
 }
 async function captureBuildSourceProvenance(projectPath, compilerPath, signal) {
   signal?.throwIfAborted();
-  const project = await realpath8(path18.resolve(projectPath));
-  const root = path18.dirname(project);
+  const project = await realpath8(path19.resolve(projectPath));
+  const root = path19.dirname(project);
   const observation = createHash11("sha256").update("codex-gb-studio\0build-source-observation-v1\0");
-  const publicEntries = [{ relativePath: path18.basename(project), sha256: await hashRegularFile(project, observation, signal) }];
+  const publicEntries = [{ relativePath: path19.basename(project), sha256: await hashRegularFile(project, observation, signal) }];
   for (const directory of SOURCE_DIRECTORIES.slice(0, 2)) {
-    await collectSourceFiles(root, path18.join(root, directory), publicEntries, observation, signal);
+    await collectSourceFiles(root, path19.join(root, directory), publicEntries, observation, signal);
   }
   const plugins = [];
-  await collectSourceFiles(root, path18.join(root, "plugins"), plugins, observation, signal);
+  await collectSourceFiles(root, path19.join(root, "plugins"), plugins, observation, signal);
   const projectRevision2 = new ProjectRevisionTree(publicEntries).revision();
   const pluginRevision = new ProjectRevisionTree(plugins).revision();
   const sourceFingerprint2 = createHash11("sha256").update("codex-gb-studio\0build-source-v1\0").update(projectRevision2).update(pluginRevision).digest("hex");
@@ -32495,7 +32509,7 @@ var execFileAsync2 = promisify2(execFile2);
 var MAX_TIMEOUT_MS = 6e5;
 var DEFAULT_TIMEOUT_MS = 12e4;
 var SUCCESS_STDOUT_TAIL_LINES = 20;
-var BUILD_LOG_DIRECTORY = path19.join("build", "logs");
+var BUILD_LOG_DIRECTORY = path20.join("build", "logs");
 var HEADER_MINIMUM_BYTES = 336;
 var MAX_ROM_BYTES = 8 * 1024 * 1024;
 var NINTENDO_LOGO = Buffer.from("ce ed 66 66 cc 0d 00 0b 03 73 00 83 00 0c 00 0d 00 08 11 1f 88 89 00 0e dc cc 6e e6 dd dd d9 99 bb bb 67 63 6e 0e ec cc dd dc 99 9f bb b9 33 3e".replace(/\s+/g, ""), "hex");
@@ -32551,7 +32565,7 @@ function configuredEnvironmentValue2(name3) {
 }
 async function resolveExistingWithinRoot2(root, input) {
   assertSafePlatformPath(input);
-  const absolute = path19.resolve(root, input);
+  const absolute = path20.resolve(root, input);
   if (!isInside(root, absolute)) {
     throw new Error(`Path escapes the project root: ${input}`);
   }
@@ -32562,15 +32576,15 @@ async function resolveExistingWithinRoot2(root, input) {
   return canonical2;
 }
 async function resolveProjectBuildInput(projectRoot, projectPath) {
-  const project = await resolveExistingWithinRoot2(await realpath9(path19.resolve(projectRoot)), projectPath);
-  if (path19.extname(project).toLowerCase() !== ".gbsproj") {
+  const project = await resolveExistingWithinRoot2(await realpath9(path20.resolve(projectRoot)), projectPath);
+  if (path20.extname(project).toLowerCase() !== ".gbsproj") {
     throw new Error("Input must be a .gbsproj file.");
   }
   return project;
 }
 async function resolveOutputWithinRoot(root, input) {
   assertSafePlatformPath(input);
-  const absolute = path19.resolve(root, input);
+  const absolute = path20.resolve(root, input);
   if (!isInside(root, absolute)) {
     throw new Error(`Output path escapes the project root: ${input}`);
   }
@@ -32586,7 +32600,7 @@ async function resolveOutputWithinRoot(root, input) {
       if (!(error2 instanceof Error) || !("code" in error2) || error2.code !== "ENOENT") {
         throw error2;
       }
-      const parent = path19.dirname(ancestor);
+      const parent = path20.dirname(ancestor);
       if (parent === ancestor || !isInside(root, parent)) {
         throw new Error(`Output path escapes the project root: ${input}`);
       }
@@ -32609,7 +32623,7 @@ function isolatedCompilerEnvironment(temporaryDirectory) {
 }
 async function doctor(projectRoot, options = {}) {
   options.signal?.throwIfAborted();
-  const root = await realpath9(path19.resolve(projectRoot));
+  const root = await realpath9(path20.resolve(projectRoot));
   const report = Object.assign(await detectDependencies(options), { projectRoot: root });
   options.signal?.throwIfAborted();
   return options.probes?.length ? probeDependencies(report, { probes: options.probes, signal: options.signal }) : report;
@@ -32623,10 +32637,10 @@ function romSizeFromCode(code) {
 async function inspectRom(romPath, projectRoot) {
   let absolute;
   if (projectRoot) {
-    const root = await realpath9(path19.resolve(projectRoot));
+    const root = await realpath9(path20.resolve(projectRoot));
     absolute = await resolveExistingWithinRoot2(root, romPath);
   } else {
-    absolute = await realpath9(path19.resolve(romPath));
+    absolute = await realpath9(path20.resolve(romPath));
   }
   const before = await fs.lstat(absolute);
   if (!before.isFile() || before.size > MAX_ROM_BYTES) {
@@ -32763,7 +32777,7 @@ async function writeBuildLog(root, outputPath, { command, args, exitCode, stdout
     if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePlatformPath(await realpath9(directory), directory)) {
       throw new Error(`the log folder must be a real project-local directory: ${directory}`);
     }
-    logPath = path19.join(directory, `${path19.basename(outputPath)}.log`);
+    logPath = path20.join(directory, `${path20.basename(outputPath)}.log`);
     staged = `${logPath}.${process.pid}-${Date.now()}.tmp`;
     await writeFile(staged, text, { flag: "wx", mode: 420 });
     await rename4(staged, logPath);
@@ -32909,11 +32923,11 @@ function processRunning(child) {
 async function waitForProcessExit(child, timeoutMs) {
   if (!processRunning(child))
     return true;
-  return new Promise((resolve5) => {
+  return new Promise((resolve4) => {
     const finish = (exited) => {
       clearTimeout(timer);
       child.off("exit", exitedListener);
-      resolve5(exited);
+      resolve4(exited);
     };
     const exitedListener = () => finish(true);
     const timer = setTimeout(() => finish(!processRunning(child)), timeoutMs);
@@ -32970,7 +32984,7 @@ async function terminateBuildCommand(child, environment) {
     if (!systemRoot)
       throw new Error("No trusted Windows SystemRoot is available");
     const canonicalRoot = await realpath9(systemRoot);
-    const taskkill = path19.join(canonicalRoot, "System32", "taskkill.exe");
+    const taskkill = path20.join(canonicalRoot, "System32", "taskkill.exe");
     const metadata2 = await lstat10(taskkill);
     if (!metadata2.isFile() || metadata2.isSymbolicLink() || !samePlatformPath(taskkill, await realpath9(taskkill))) {
       throw new Error("The Windows process-tree terminator is not a real system executable");
@@ -33040,13 +33054,13 @@ async function runBuildCommand(command, args, options) {
   let closed = false;
   let forcedSettlement = false;
   let resolveClosed;
-  const childClosed = new Promise((resolve5) => {
-    resolveClosed = resolve5;
+  const childClosed = new Promise((resolve4) => {
+    resolveClosed = resolve4;
   });
   let resolveExecution;
   let rejectExecution;
-  const execution = new Promise((resolve5, reject2) => {
-    resolveExecution = resolve5;
+  const execution = new Promise((resolve4, reject2) => {
+    resolveExecution = resolve4;
     rejectExecution = reject2;
   });
   const finishExecution = (exitCode, signal, warning) => {
@@ -33177,9 +33191,9 @@ async function runBuildCommand(command, args, options) {
 async function trustedTemporaryParent(candidate, projectRoot) {
   try {
     assertSafePlatformPath(candidate);
-    const absolute = path19.resolve(candidate);
+    const absolute = path20.resolve(candidate);
     const requested = await lstat10(absolute);
-    if (requested.isSymbolicLink() && (process.platform === "win32" || absolute !== path19.resolve("/tmp")))
+    if (requested.isSymbolicLink() && (process.platform === "win32" || absolute !== path20.resolve("/tmp")))
       return null;
     const canonical2 = await realpath9(absolute);
     if (isInside(projectRoot, canonical2))
@@ -33201,9 +33215,9 @@ async function trustedTemporaryParent(candidate, projectRoot) {
 async function selectTrustedTemporaryParent(projectRoot) {
   const considered = /* @__PURE__ */ new Set();
   const localApplicationData = process.platform === "win32" ? configuredEnvironmentValue2("LOCALAPPDATA") : void 0;
-  const candidates = process.platform === "win32" ? [...localApplicationData ? [path19.join(localApplicationData, "Temp")] : [], os.tmpdir()] : [os.tmpdir(), "/tmp"];
+  const candidates = process.platform === "win32" ? [...localApplicationData ? [path20.join(localApplicationData, "Temp")] : [], os.tmpdir()] : [os.tmpdir(), "/tmp"];
   for (const candidate of candidates) {
-    const absolute = path19.resolve(candidate);
+    const absolute = path20.resolve(candidate);
     const deduplicated = process.platform === "win32" ? absolute.toLowerCase() : absolute;
     if (considered.has(deduplicated))
       continue;
@@ -33216,10 +33230,10 @@ async function selectTrustedTemporaryParent(projectRoot) {
 }
 async function createIsolatedBuildDirectory(projectRoot) {
   const temporaryParent = await selectTrustedTemporaryParent(projectRoot);
-  const temporaryDirectory = await mkdtemp2(path19.join(temporaryParent, "gbs-"));
+  const temporaryDirectory = await mkdtemp2(path20.join(temporaryParent, "gbs-"));
   try {
     const existing = await lstat10(temporaryDirectory);
-    if (existing.isSymbolicLink() || !existing.isDirectory() || !samePlatformPath(await realpath9(temporaryDirectory), temporaryDirectory) || !samePlatformPath(path19.dirname(temporaryDirectory), temporaryParent) || isInside(projectRoot, temporaryDirectory)) {
+    if (existing.isSymbolicLink() || !existing.isDirectory() || !samePlatformPath(await realpath9(temporaryDirectory), temporaryDirectory) || !samePlatformPath(path20.dirname(temporaryDirectory), temporaryParent) || isInside(projectRoot, temporaryDirectory)) {
       throw new Error(`game-build temporary build directory is not a secure owned system directory: ${temporaryDirectory}`);
     }
     return temporaryDirectory;
@@ -33230,9 +33244,9 @@ async function createIsolatedBuildDirectory(projectRoot) {
   }
 }
 async function removeIsolatedBuildDirectory(directory, projectRoot) {
-  const expectedParent = path19.dirname(directory);
+  const expectedParent = path20.dirname(directory);
   const trustedParent = await trustedTemporaryParent(expectedParent, projectRoot);
-  if (trustedParent === null || !samePlatformPath(trustedParent, expectedParent) || !/^gbs-[A-Za-z0-9]{6}$/.test(path19.basename(directory))) {
+  if (trustedParent === null || !samePlatformPath(trustedParent, expectedParent) || !/^gbs-[A-Za-z0-9]{6}$/.test(path20.basename(directory))) {
     throw new Error(`Refusing to remove an unexpected game-build temporary directory: ${directory}`);
   }
   const existing = await lstat10(directory);
@@ -33262,19 +33276,19 @@ function claimIsAlive(pid) {
 async function clearSharedBuildDirectory(directory) {
   for (const entry of await readdir5(directory)) {
     if (!sharedBuildKeeps(entry))
-      await rm3(path19.join(directory, entry), { recursive: true, force: true });
+      await rm3(path20.join(directory, entry), { recursive: true, force: true });
   }
 }
 async function gameBringsCompilerInput(projectDirectory) {
   try {
-    await lstat10(path19.join(projectDirectory, "assets", "engine"));
+    await lstat10(path20.join(projectDirectory, "assets", "engine"));
     return true;
   } catch (error2) {
     if (!isSystemError(error2, "ENOENT"))
       throw error2;
   }
   try {
-    return (await readdir5(path19.join(projectDirectory, "plugins"), { withFileTypes: true })).some((entry) => !entry.isFile());
+    return (await readdir5(path20.join(projectDirectory, "plugins"), { withFileTypes: true })).some((entry) => !entry.isFile());
   } catch (error2) {
     if (isSystemError(error2, "ENOENT"))
       return false;
@@ -33282,8 +33296,8 @@ async function gameBringsCompilerInput(projectDirectory) {
   }
 }
 async function sharedBuildToolchain(gbStudioCli) {
-  const studio = path19.resolve(path19.dirname(gbStudioCli), "..", "..");
-  const parts = [gbStudioCli, path19.join(path19.dirname(gbStudioCli), "buildWorker.js"), path19.join(studio, "appData", "engine"), path19.join(studio, "buildTools", `${process.platform}-${process.arch}`)];
+  const studio = path20.resolve(path20.dirname(gbStudioCli), "..", "..");
+  const parts = [gbStudioCli, path20.join(path20.dirname(gbStudioCli), "buildWorker.js"), path20.join(studio, "appData", "engine"), path20.join(studio, "buildTools", `${process.platform}-${process.arch}`)];
   const hash4 = createHash12("sha256");
   const add = async (candidate) => {
     const metadata2 = await lstat10(candidate);
@@ -33293,7 +33307,7 @@ async function sharedBuildToolchain(gbStudioCli) {
     if (metadata2.isDirectory()) {
       const entries = (await readdir5(candidate)).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
       for (const entry of entries) {
-        if (!await add(path19.join(candidate, entry)))
+        if (!await add(path20.join(candidate, entry)))
           return false;
       }
     } else if (metadata2.isFile()) {
@@ -33323,7 +33337,7 @@ async function sharedCacheState(directory, state3 = /* @__PURE__ */ new Map()) {
     throw error2;
   }
   for (const entry of entries) {
-    const candidate = path19.join(directory, entry.name);
+    const candidate = path20.join(directory, entry.name);
     if (entry.isDirectory()) {
       await sharedCacheState(candidate, state3);
     } else {
@@ -33334,7 +33348,7 @@ async function sharedCacheState(directory, state3 = /* @__PURE__ */ new Map()) {
   return state3;
 }
 async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) {
-  if (process.platform === "win32" || typeof process.getuid !== "function" || await gameBringsCompilerInput(path19.dirname(projectFile)))
+  if (process.platform === "win32" || typeof process.getuid !== "function" || await gameBringsCompilerInput(path20.dirname(projectFile)))
     return void 0;
   const toolchain = await sharedBuildToolchain(gbStudioCli);
   if (toolchain === void 0)
@@ -33342,7 +33356,7 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
   const uid = process.getuid();
   const temporaryParent = await selectTrustedTemporaryParent(projectRoot);
   const name3 = createHash12("sha256").update(`${uid}\0${projectFile}`).digest("hex").slice(0, 6);
-  const directory = path19.join(temporaryParent, `gbs_${name3}`);
+  const directory = path20.join(temporaryParent, `gbs_${name3}`);
   try {
     await mkdir4(directory, { mode: 448 });
   } catch (error2) {
@@ -33353,14 +33367,14 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
   if (existing.isSymbolicLink() || !existing.isDirectory() || existing.uid !== uid || (existing.mode & 63) !== 0 || !samePlatformPath(await realpath9(directory), directory) || isInside(projectRoot, directory)) {
     return void 0;
   }
-  const claim = path19.join(directory, `.claim-${process.pid}-${randomUUID3()}`);
+  const claim = path20.join(directory, `.claim-${process.pid}-${randomUUID3()}`);
   await writeFile(claim, "", { flag: "wx", mode: 384 });
   try {
     for (let others = true; others; ) {
       others = false;
       for (const entry of await readdir5(directory)) {
         const owner3 = SHARED_BUILD_CLAIM.exec(entry);
-        const other = path19.join(directory, entry);
+        const other = path20.join(directory, entry);
         if (!owner3 || other === claim)
           continue;
         others = true;
@@ -33371,16 +33385,16 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
         await rm3(other, { force: true });
       }
     }
-    const cache = path19.join(directory, SHARED_BUILD_CACHE);
-    const unfinished = await exists3(path19.join(directory, SHARED_BUILD_UNFINISHED));
-    const recorded = await readFile6(path19.join(directory, SHARED_BUILD_TOOLCHAIN), "utf8").catch(() => "");
+    const cache = path20.join(directory, SHARED_BUILD_CACHE);
+    const unfinished = await exists3(path20.join(directory, SHARED_BUILD_UNFINISHED));
+    const recorded = await readFile6(path20.join(directory, SHARED_BUILD_TOOLCHAIN), "utf8").catch(() => "");
     if (unfinished || recorded !== toolchain)
       await rm3(cache, { recursive: true, force: true });
     await clearSharedBuildDirectory(directory);
-    await writeFile(path19.join(directory, SHARED_BUILD_TOOLCHAIN), toolchain, { mode: 384 });
-    await writeFile(path19.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
-    const engineSources = path19.join(path19.dirname(gbStudioCli), "..", "..", "appData", "engine", "gbvm", "src");
-    return { directory, claim, projectDirectory: path19.dirname(projectFile), engineSources, cacheBefore: await sharedCacheState(cache) };
+    await writeFile(path20.join(directory, SHARED_BUILD_TOOLCHAIN), toolchain, { mode: 384 });
+    await writeFile(path20.join(directory, SHARED_BUILD_UNFINISHED), "", { mode: 384 });
+    const engineSources = path20.join(path20.dirname(gbStudioCli), "..", "..", "appData", "engine", "gbvm", "src");
+    return { directory, claim, projectDirectory: path20.dirname(projectFile), engineSources, cacheBefore: await sharedCacheState(cache) };
   } catch (error2) {
     await rm3(claim, { force: true }).catch(() => {
     });
@@ -33388,36 +33402,36 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
   }
 }
 function claimSharedBuildForCompiler(shared, pid) {
-  const claim = path19.join(shared.directory, `.claim-${pid}-${randomUUID3()}`);
+  const claim = path20.join(shared.directory, `.claim-${pid}-${randomUUID3()}`);
   writeFileSync(claim, "", { flag: "wx", mode: 384 });
   shared.compilerClaim = { claim, pid };
 }
 async function keepOnlyEngineObjects(shared) {
-  const build2 = path19.join(shared.directory, "_gbsbuild");
+  const build2 = path20.join(shared.directory, "_gbsbuild");
   const engineObjects = /* @__PURE__ */ new Set();
   const collect = async (relative6) => {
     let entries;
     try {
-      entries = await readdir5(path19.join(build2, "src", relative6), { withFileTypes: true });
+      entries = await readdir5(path20.join(build2, "src", relative6), { withFileTypes: true });
     } catch (error2) {
       if (isSystemError(error2, "ENOENT"))
         return;
       throw error2;
     }
     for (const entry of entries) {
-      const name3 = path19.join(relative6, entry.name);
+      const name3 = path20.join(relative6, entry.name);
       if (entry.isDirectory()) {
         if (name3 !== "data")
           await collect(name3);
-      } else if (/\.[cs]$/.test(entry.name) && await exists3(path19.join(shared.engineSources, name3))) {
-        const object7 = await readFile6(path19.join(build2, "obj", `${entry.name.slice(0, -2)}.o`)).catch(() => void 0);
+      } else if (/\.[cs]$/.test(entry.name) && await exists3(path20.join(shared.engineSources, name3))) {
+        const object7 = await readFile6(path20.join(build2, "obj", `${entry.name.slice(0, -2)}.o`)).catch(() => void 0);
         if (object7)
           engineObjects.add(object7.toString("base64"));
       }
     }
   };
   await collect("");
-  for (const file2 of (await sharedCacheState(path19.join(shared.directory, SHARED_BUILD_CACHE))).keys()) {
+  for (const file2 of (await sharedCacheState(path20.join(shared.directory, SHARED_BUILD_CACHE))).keys()) {
     if (!engineObjects.has((await readFile6(file2)).toString("base64")))
       await rm3(file2, { force: true });
   }
@@ -33434,11 +33448,11 @@ async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
     if (shared.compilerClaim && claimIsAlive(shared.compilerClaim.pid))
       return;
     if (compilerSucceeded && await gameBringsCompilerInput(shared.projectDirectory)) {
-      await rm3(path19.join(shared.directory, SHARED_BUILD_CACHE), { recursive: true, force: true });
+      await rm3(path20.join(shared.directory, SHARED_BUILD_CACHE), { recursive: true, force: true });
     } else if (compilerSucceeded) {
       await keepOnlyEngineObjects(shared);
     } else {
-      const cacheAfter = await sharedCacheState(path19.join(shared.directory, SHARED_BUILD_CACHE));
+      const cacheAfter = await sharedCacheState(path20.join(shared.directory, SHARED_BUILD_CACHE));
       for (const [file2, state3] of cacheAfter) {
         if (shared.cacheBefore.get(file2) !== state3)
           await rm3(file2, { force: true });
@@ -33452,7 +33466,7 @@ async function releaseSharedBuildDirectory(shared, compilerSucceeded) {
   }
 }
 async function secureInternalBuildFile(directory, filename) {
-  const candidate = path19.join(directory, filename);
+  const candidate = path20.join(directory, filename);
   let metadata2;
   try {
     metadata2 = await lstat10(candidate);
@@ -33497,7 +33511,7 @@ async function sameBuildLiveStateLayout(buildRoot) {
     for (const [file2, sha2563] of Object.entries(LIVE_STATE_ENGINE_SHA256)) {
       if (file2.startsWith("src/states/")) {
         try {
-          await lstat10(path19.join(buildRoot, file2));
+          await lstat10(path20.join(buildRoot, file2));
         } catch (error2) {
           if (error2 instanceof Error && "code" in error2 && error2.code === "ENOENT")
             continue;
@@ -33513,7 +33527,7 @@ async function sameBuildLiveStateLayout(buildRoot) {
   }
 }
 async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPath, builtRom = outputPath) {
-  const directory = path19.join(temporaryDirectory, "_gbsbuild", "build", "rom");
+  const directory = path20.join(temporaryDirectory, "_gbsbuild", "build", "rom");
   let metadata2;
   try {
     metadata2 = await lstat10(directory);
@@ -33531,7 +33545,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
     throw new Error("Official game compiler debug capture requires exactly one regular same-build internal ROM");
   }
   const internalRomFilename = candidates[0].name;
-  const stem = path19.basename(internalRomFilename, path19.extname(internalRomFilename));
+  const stem = path20.basename(internalRomFilename, path20.extname(internalRomFilename));
   const [internalRom, finalRom, noi, globals] = await Promise.all([
     secureInternalBuildFile(directory, internalRomFilename),
     readFile6(builtRom),
@@ -33545,13 +33559,13 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
   parseNoiDefinitions(noi.toString("utf8"));
   parseGlobalsDefinitions(globals.toString("utf8"));
   const artifactDirectory = await secureDebugArtifactDirectory(root, outputPath);
-  const noiPath = path19.join(artifactDirectory, "symbols.noi");
-  const globalsPath = path19.join(artifactDirectory, "globals.i");
+  const noiPath = path20.join(artifactDirectory, "symbols.noi");
+  const globalsPath = path20.join(artifactDirectory, "globals.i");
   await Promise.all([assertSafeDebugArtifactDestination(noiPath), assertSafeDebugArtifactDestination(globalsPath)]);
-  const stagingDirectory = await mkdtemp2(path19.join(artifactDirectory, ".capture-"));
+  const stagingDirectory = await mkdtemp2(path20.join(artifactDirectory, ".capture-"));
   try {
-    const stagedNoi = path19.join(stagingDirectory, "symbols.noi");
-    const stagedGlobals = path19.join(stagingDirectory, "globals.i");
+    const stagedNoi = path20.join(stagingDirectory, "symbols.noi");
+    const stagedGlobals = path20.join(stagingDirectory, "globals.i");
     await Promise.all([
       writeFile(stagedNoi, noi, { flag: "wx", mode: 384 }),
       writeFile(stagedGlobals, globals, { flag: "wx", mode: 384 })
@@ -33564,7 +33578,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
   let sourceDebugUnavailableReason;
   let liveStateLayout;
   try {
-    const include = path19.join(temporaryDirectory, "_gbsbuild", "include");
+    const include = path20.join(temporaryDirectory, "_gbsbuild", "include");
     const [bankdata, dataManager, vm] = await Promise.all([
       secureInternalBuildFile(include, "bankdata.h"),
       secureInternalBuildFile(include, "data_manager.h"),
@@ -33574,7 +33588,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
     if (!sourceDebugAbi)
       sourceDebugUnavailableReason = "The same-build engine headers do not match a supported scene-pointer and global-variable layout.";
     else
-      liveStateLayout = await sameBuildLiveStateLayout(path19.join(temporaryDirectory, "_gbsbuild"));
+      liveStateLayout = await sameBuildLiveStateLayout(path20.join(temporaryDirectory, "_gbsbuild"));
   } catch {
     sourceDebugUnavailableReason = "The official build did not preserve the engine headers needed to authenticate source-debug memory layouts.";
   }
@@ -33590,7 +33604,7 @@ async function captureSameBuildDebugArtifacts(root, temporaryDirectory, outputPa
   };
 }
 async function buildRom(options) {
-  const root = await realpath9(path19.resolve(options.projectRoot));
+  const root = await realpath9(path20.resolve(options.projectRoot));
   if (options.projectPath && options.sourcePath) {
     throw new Error("Provide either projectPath or sourcePath, not both.");
   }
@@ -33613,16 +33627,16 @@ async function buildRom(options) {
   }
   const source = await resolveExistingWithinRoot2(root, options.projectPath ?? options.sourcePath);
   const expectedInputExtension = options.projectPath ? ".gbsproj" : ".c";
-  if (path19.extname(source).toLowerCase() !== expectedInputExtension) {
+  if (path20.extname(source).toLowerCase() !== expectedInputExtension) {
     throw new Error(`Input must be a ${expectedInputExtension} file.`);
   }
   if (!(await stat3(source)).isFile()) {
     throw new Error(`Input is not a regular file: ${source}`);
   }
   const defaultExtension = colorMode === "dmg" ? ".gb" : ".gbc";
-  const defaultOutput = path19.join("build", `${path19.basename(source, expectedInputExtension)}${defaultExtension}`);
+  const defaultOutput = path20.join("build", `${path20.basename(source, expectedInputExtension)}${defaultExtension}`);
   const outputPath = await resolveOutputWithinRoot(root, options.outputPath ?? defaultOutput);
-  if (![".gb", ".gbc"].includes(path19.extname(outputPath).toLowerCase())) {
+  if (![".gb", ".gbc"].includes(path20.extname(outputPath).toLowerCase())) {
     throw new Error("ROM output must have a .gb or .gbc extension.");
   }
   if (samePlatformPath(source, outputPath)) {
@@ -33652,7 +33666,7 @@ async function buildRom(options) {
     romArguments = (rom) => [...colorFlags, "-o", rom, source];
     builder = "gbdk";
   }
-  await mkdir4(path19.dirname(outputPath), { recursive: true });
+  await mkdir4(path20.dirname(outputPath), { recursive: true });
   await resolveOutputWithinRoot(root, outputPath);
   try {
     const existing = await lstat10(outputPath);
@@ -33678,8 +33692,8 @@ async function buildRom(options) {
   const debugOptional = () => options.debugArtifactsOptional === true && options.signal?.aborted !== true;
   let stagingDirectory;
   try {
-    stagingDirectory = await mkdtemp2(path19.join(path19.dirname(outputPath), ".rom-build-"));
-    const builtRom = path19.join(stagingDirectory, path19.basename(outputPath));
+    stagingDirectory = await mkdtemp2(path20.join(path20.dirname(outputPath), ".rom-build-"));
+    const builtRom = path20.join(stagingDirectory, path20.basename(outputPath));
     const args = romArguments(builtRom);
     try {
       if (options.captureDebugArtifacts) {
@@ -33826,7 +33840,7 @@ async function buildRom(options) {
 import { createHash as createHash14, randomUUID as randomUUID5 } from "node:crypto";
 import { constants as constants7 } from "node:fs";
 import { lstat as lstat11, mkdir as mkdir5, open as open6, opendir as opendir2, realpath as realpath10 } from "node:fs/promises";
-import path21 from "node:path";
+import path22 from "node:path";
 import { CHROMATIC_VERSION, selectChromaticTarget } from "../scripts/chromatic-runtime.mjs";
 import { runChromaticCaptured, ChromaticNotStartedError, CHROMATIC_LIVE_DEFAULT_DURATION_SECONDS, CHROMATIC_LIVE_MIN_DURATION_SECONDS, CHROMATIC_LIVE_MAX_DURATION_SECONDS } from "../scripts/chromatic.mjs";
 
@@ -33835,7 +33849,7 @@ import { closeSync, constants as constants6, fstatSync, fsyncSync, ftruncateSync
 import fs2 from "node:fs";
 import { createHash as createHash13, randomUUID as randomUUID4 } from "node:crypto";
 import os2 from "node:os";
-import path20 from "node:path";
+import path21 from "node:path";
 var OWNER = "codex-gb-studio-chromatic-operations-v1";
 var RECORD_LIMIT = 8 * 1024 * 1024;
 var STREAM_LIMIT = 8 * 1024 * 1024;
@@ -33858,7 +33872,7 @@ function boundedRead(fd, size) {
   return bytes2;
 }
 function owned(filename, stat8, directory) {
-  if (stat8.isSymbolicLink() || (directory ? !stat8.isDirectory() : !stat8.isFile() || stat8.nlink !== 1) || realpathSync3(filename) !== path20.resolve(filename) || process.getuid && stat8.uid !== process.getuid() || process.platform !== "win32" && (stat8.mode & 511) !== (directory ? 448 : 384)) {
+  if (stat8.isSymbolicLink() || (directory ? !stat8.isDirectory() : !stat8.isFile() || stat8.nlink !== 1) || realpathSync3(filename) !== path21.resolve(filename) || process.getuid && stat8.uid !== process.getuid() || process.platform !== "win32" && (stat8.mode & 511) !== (directory ? 448 : 384)) {
     throw new Error(`Unsafe Chromatic operation journal identity: ${filename}`);
   }
 }
@@ -33919,7 +33933,7 @@ function createDirectory(parent, name3) {
   const parentStat = lstatSync2(parent);
   if (!parentStat.isDirectory() || parentStat.isSymbolicLink() || realpathSync3(parent) !== parent || process.getuid && parentStat.uid !== process.getuid() || process.platform !== "win32" && parentStat.mode & 18)
     throw new Error("Chromatic state parent must be an owned canonical directory");
-  const target = path20.join(parent, name3);
+  const target = path21.join(parent, name3);
   try {
     mkdirSync(target, { mode: 448 });
   } catch (error2) {
@@ -33944,14 +33958,14 @@ var ChromaticJournal = class {
   root;
   #custom;
   constructor(root) {
-    this.root = root ? path20.resolve(root) : path20.join(os2.homedir(), ".codex-gb-studio", "chromatic");
+    this.root = root ? path21.resolve(root) : path21.join(os2.homedir(), ".codex-gb-studio", "chromatic");
     this.#custom = root !== void 0;
   }
   #root(create) {
     if (create) {
       if (!this.#custom)
         createDirectory(realpathSync3(os2.homedir()), ".codex-gb-studio");
-      createDirectory(path20.dirname(this.root), path20.basename(this.root));
+      createDirectory(path21.dirname(this.root), path21.basename(this.root));
     }
     try {
       owned(this.root, lstatSync2(this.root), true);
@@ -33960,7 +33974,7 @@ var ChromaticJournal = class {
         return false;
       throw error2;
     }
-    const marker = path20.join(this.root, "owner.json");
+    const marker = path21.join(this.root, "owner.json");
     if (create && !readJson2(marker, 4096)) {
       if (readdirSync2(this.root).length)
         throw new Error("Chromatic journal directory is unowned");
@@ -33978,20 +33992,20 @@ var ChromaticJournal = class {
   current() {
     if (!this.#root(false))
       return void 0;
-    return readJson2(path20.join(this.root, "active.json"), 4096);
+    return readJson2(path21.join(this.root, "active.json"), 4096);
   }
   read(operationId) {
     if (!OPERATION_ID.test(operationId))
       throw new Error("Invalid Chromatic operation ID");
     if (!this.#root(false))
       return void 0;
-    let directory = path20.join(this.root, operationId);
+    let directory = path21.join(this.root, operationId);
     try {
       owned(directory, lstatSync2(directory), true);
     } catch (error2) {
       if (!absent(error2))
         throw error2;
-      directory = path20.join(this.root, OBSERVATION_DIRECTORY);
+      directory = path21.join(this.root, OBSERVATION_DIRECTORY);
       try {
         owned(directory, lstatSync2(directory), true);
       } catch (error3) {
@@ -34000,8 +34014,8 @@ var ChromaticJournal = class {
         throw error3;
       }
     }
-    const saved = readJson2(path20.join(directory, "operation.json"));
-    if (directory === path20.join(this.root, OBSERVATION_DIRECTORY) && saved?.operationId !== operationId)
+    const saved = readJson2(path21.join(directory, "operation.json"));
+    if (directory === path21.join(this.root, OBSERVATION_DIRECTORY) && saved?.operationId !== operationId)
       return void 0;
     if (!saved || saved.operationId !== operationId || !saved.operation || typeof saved.operation !== "object")
       throw new Error("Chromatic operation record is incomplete");
@@ -34016,8 +34030,8 @@ var ChromaticJournal = class {
         if (!command.streamFiles)
           return command;
         return { ...command, retainedPartialOutput: {
-          stdout: readOutput(path20.join(directory, `command-${index}.stdout`)),
-          stderr: readOutput(path20.join(directory, `command-${index}.stderr`))
+          stdout: readOutput(path21.join(directory, `command-${index}.stdout`)),
+          stderr: readOutput(path21.join(directory, `command-${index}.stderr`))
         } };
       });
     }
@@ -34039,13 +34053,13 @@ var ChromaticJournal = class {
     } finally {
       entries.closeSync();
     }
-    const lockPath = path20.join(this.root, "active.json");
+    const lockPath = path21.join(this.root, "active.json");
     const lockFd = openSync(lockPath, constants6.O_RDWR | constants6.O_CREAT | constants6.O_EXCL, 384);
     try {
       writeAll(lockFd, Buffer.from(JSON.stringify({ owner: OWNER, schemaVersion: 1, operationId, sessionId, pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() }) + "\n"));
       const lockIdentity = fstatSync(lockFd);
       const observation = initial.command === "observe_devices";
-      const directory = path20.join(this.root, observation ? OBSERVATION_DIRECTORY : operationId);
+      const directory = path21.join(this.root, observation ? OBSERVATION_DIRECTORY : operationId);
       if (observation)
         this.#clearObservation(directory);
       mkdirSync(directory, { mode: 448 });
@@ -34068,7 +34082,7 @@ var ChromaticJournal = class {
       throw error2;
     }
     owned(directory, before, true);
-    const saved = readJson2(path20.join(directory, "operation.json"));
+    const saved = readJson2(path21.join(directory, "operation.json"));
     const operation = saved?.operation;
     if (!operation || operation.command !== "observe_devices" || !["succeeded", "failed"].includes(String(operation.state))) {
       throw new Error("The previous Chromatic observation is not settled; preserve its record");
@@ -34077,7 +34091,7 @@ var ChromaticJournal = class {
     for (const name3 of names) {
       if (!["operation.json", "command-0.stdout", "command-0.stderr"].includes(name3))
         throw new Error("Unexpected Chromatic observation evidence; preserve it for review");
-      const filename = path20.join(directory, name3);
+      const filename = path21.join(directory, name3);
       owned(filename, lstatSync2(filename), false);
     }
     if (!unchanged(before, lstatSync2(directory)))
@@ -34087,7 +34101,7 @@ var ChromaticJournal = class {
       if (typeof id3 !== "string" || !OPERATION_ID.test(id3) || id3 === OBSERVATION_DIRECTORY) {
         throw new Error("Invalid failed Chromatic observation identity");
       }
-      const destination = path20.join(this.root, id3);
+      const destination = path21.join(this.root, id3);
       mkdirSync(destination, { mode: 448 });
       const reserved = lstatSync2(destination);
       owned(destination, reserved, true);
@@ -34095,12 +34109,12 @@ var ChromaticJournal = class {
         throw new Error("Chromatic observation changed before preservation");
       }
       for (const name3 of names)
-        renameSync(path20.join(directory, name3), path20.join(destination, name3));
+        renameSync(path21.join(directory, name3), path21.join(destination, name3));
       rmdirSync(directory);
       return;
     }
     for (const name3 of names)
-      unlinkSync(path20.join(directory, name3));
+      unlinkSync(path21.join(directory, name3));
     rmdirSync(directory);
   }
 };
@@ -34129,7 +34143,7 @@ var ChromaticJournalLease = class {
     const bytes2 = Buffer.from(JSON.stringify({ owner: OWNER, schemaVersion: 1, operationId: this.operationId, operation }) + "\n");
     if (bytes2.length > RECORD_LIMIT)
       throw new Error("Chromatic operation exceeds its durable record bound");
-    const destination = path20.join(this.directory, "operation.json");
+    const destination = path21.join(this.directory, "operation.json");
     if (this.#recordIdentity) {
       const current = lstatSync2(destination);
       owned(destination, current, false);
@@ -34137,7 +34151,7 @@ var ChromaticJournalLease = class {
         throw new Error("Chromatic operation checkpoint changed outside its owner");
     }
     owned(this.directory, lstatSync2(this.directory), true);
-    const temporary = path20.join(this.directory, `.checkpoint-${randomUUID4()}.json`);
+    const temporary = path21.join(this.directory, `.checkpoint-${randomUUID4()}.json`);
     try {
       const fd = openSync(temporary, constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL, 384);
       try {
@@ -34155,7 +34169,7 @@ var ChromaticJournalLease = class {
   prepareCommand(index) {
     const names = { stdout: `command-${index}.stdout`, stderr: `command-${index}.stderr` };
     for (const stream of ["stdout", "stderr"]) {
-      const fd = openSync(path20.join(this.directory, names[stream]), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL, 384);
+      const fd = openSync(path21.join(this.directory, names[stream]), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL, 384);
       this.#streams.set(`${index}:${stream}`, { fd, bytes: 0, observedBytes: 0, hash: createHash13("sha256") });
     }
     return names;
@@ -34469,7 +34483,7 @@ async function saveDirectory(filename) {
   return info;
 }
 async function saveMarker(directory, expected, create) {
-  const filename = path21.join(directory, SAVE_MARKER);
+  const filename = path22.join(directory, SAVE_MARKER);
   if (create) {
     const handle2 = await open6(filename, "wx", 384);
     try {
@@ -34501,12 +34515,12 @@ async function saveMarker(directory, expected, create) {
 }
 async function isolatedLiveSaves(root, sha2563, create) {
   try {
-    let current = path21.resolve(root);
+    let current = path22.resolve(root);
     await saveDirectory(current);
     for (const segment of ["artifacts", "chromatic-live-saves", sha2563]) {
       const parent = current;
       const parentInfo = await saveDirectory(parent);
-      current = path21.join(parent, segment);
+      current = path22.join(parent, segment);
       let created = false;
       if (create) {
         try {
@@ -34536,7 +34550,7 @@ async function isolatedLiveSaves(root, sha2563, create) {
       for await (const entry of await opendir2(directory)) {
         if (++entries > 256)
           throw new Error("Live-demo save directory exceeds its entry limit.");
-        const filename = path21.join(directory, entry.name);
+        const filename = path22.join(directory, entry.name);
         const info = await lstat11(filename);
         saveOwned(info, info.isDirectory());
         if (await realpath10(filename) !== filename)
@@ -35094,24 +35108,24 @@ var ChromaticService = class {
 };
 
 // src/contact-sheet.js
-import { createHash as createHash20, randomBytes } from "node:crypto";
 var import_pngjs5 = __toESM(require_png(), 1);
+import { createHash as createHash20 } from "node:crypto";
 
 // src/palettes.js
 import { createHash as createHash19 } from "node:crypto";
 import { realpath as realpath12 } from "node:fs/promises";
-import path28 from "node:path";
+import path29 from "node:path";
 
 // src/scene-graphics.js
 var import_pngjs4 = __toESM(require_png(), 1);
 import { createHash as createHash18 } from "node:crypto";
 import { mkdir as mkdir8, open as open11, readFile as readFile9 } from "node:fs/promises";
-import path27 from "node:path";
+import path28 from "node:path";
 
 // src/graphics.js
 var import_pngjs = __toESM(require_png(), 1);
 import { open as open7, realpath as realpath11 } from "node:fs/promises";
-import path22 from "node:path";
+import path23 from "node:path";
 
 // src/graphics-palette-packing.js
 var MAX_PALETTES = 8;
@@ -35265,8 +35279,8 @@ var MAX_QUANTIZATION_SAMPLES = 24;
 var MAX_DIAGNOSTICS = 24;
 var TILE_SIZE = 8;
 function isWithinRoot(root, candidate) {
-  const relativePath2 = path22.relative(root, candidate);
-  return relativePath2 !== ".." && !relativePath2.startsWith(`..${path22.sep}`) && !path22.isAbsolute(relativePath2);
+  const relativePath2 = path23.relative(root, candidate);
+  return relativePath2 !== ".." && !relativePath2.startsWith(`..${path23.sep}`) && !path23.isAbsolute(relativePath2);
 }
 function asHex(red, green, blue) {
   return `#${red.toString(16).padStart(2, "0")}${green.toString(16).padStart(2, "0")}${blue.toString(16).padStart(2, "0")}`;
@@ -35405,8 +35419,8 @@ function encodedPattern(pixels, indices) {
 }
 async function loadPng(projectRoot, assetPath) {
   const root = await realpath11(projectRoot);
-  const requestedPath = path22.resolve(root, assetPath);
-  const requestedRoot = path22.resolve(projectRoot);
+  const requestedPath = path23.resolve(root, assetPath);
+  const requestedRoot = path23.resolve(projectRoot);
   if (!isWithinRoot(root, requestedPath) && !isWithinRoot(requestedRoot, requestedPath)) {
     throw new Error(`Graphics asset must stay within the project root: ${assetPath}`);
   }
@@ -35414,7 +35428,7 @@ async function loadPng(projectRoot, assetPath) {
   if (!isWithinRoot(root, resolvedPath)) {
     throw new Error(`Graphics asset resolves outside the project root: ${assetPath}`);
   }
-  if (path22.extname(resolvedPath).toLowerCase() !== ".png") {
+  if (path23.extname(resolvedPath).toLowerCase() !== ".png") {
     throw new Error(`Graphics assets must be PNG files: ${assetPath}`);
   }
   const handle = await open7(resolvedPath, "r");
@@ -35439,7 +35453,7 @@ async function loadPng(projectRoot, assetPath) {
     const content = await handle.readFile();
     const image = import_pngjs.PNG.sync.read(content, { checkCRC: true });
     return {
-      assetPath: path22.relative(root, resolvedPath).split(path22.sep).join("/"),
+      assetPath: path23.relative(root, resolvedPath).split(path23.sep).join("/"),
       image
     };
   } finally {
@@ -35698,19 +35712,18 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
 var import_pngjs3 = __toESM(require_png(), 1);
 import { createHash as createHash17, randomUUID as randomUUID6 } from "node:crypto";
 import { mkdir as mkdir7, open as open10, readFile as readFile8 } from "node:fs/promises";
-import path26 from "node:path";
+import path27 from "node:path";
 
 // src/assets.js
 var import_pngjs2 = __toESM(require_png(), 1);
 import { createHash as createHash16 } from "node:crypto";
 import { mkdir as mkdir6, open as open9, rename as rename5, rm as rm5 } from "node:fs/promises";
-import path25 from "node:path";
+import path26 from "node:path";
 import { inflateSync } from "node:zlib";
 
 // src/audio.js
 import { readdir as readdir6, readFile as readFile7, open as open8, rm as rm4 } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import path23 from "node:path";
+import path24 from "node:path";
 import { gunzipSync } from "node:zlib";
 var AUDIO_FORMATS = {
   // The spellings GB Studio's loaders find (loadMusicData, loadSoundData): their globs match an all-lowercase or
@@ -35728,28 +35741,28 @@ var MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 var MAX_BANK_BYTES = 16384;
 var GB_FRAMES_PER_SECOND = 4194304 / 70224;
 var BUNDLED_TRACKS = ["bright-start", "meadow-walk", "cave-echo", "victory-lap"];
-var BUNDLED_MUSIC = fileURLToPath(new URL("../assets/music/", import.meta.url));
+var BUNDLED_MUSIC = enginePath("assets/music/");
 function isAudioKind(kind) {
   return kind === "music" || kind === "sound";
 }
 function audioDestination(root, assetPath, kind) {
   const format = AUDIO_FORMATS[kind];
-  if (!assetPath || !format.extensions.includes(path23.extname(assetPath))) {
+  if (!assetPath || !format.extensions.includes(path24.extname(assetPath))) {
     assetError("INVALID_ASSET_PATH", `A ${kind} destination must name a ${format.extensions.join(", ")} file; GB Studio skips or misreads other spellings.`);
   }
-  const folder = path23.join(root, "assets", format.folder);
-  const destination = path23.resolve(root, assetPath);
-  const relative6 = path23.relative(folder, destination);
-  if (!relative6 || relative6 === ".." || relative6.startsWith(`..${path23.sep}`) || path23.isAbsolute(relative6)) {
+  const folder = path24.join(root, "assets", format.folder);
+  const destination = path24.resolve(root, assetPath);
+  const relative6 = path24.relative(folder, destination);
+  if (!relative6 || relative6 === ".." || relative6.startsWith(`..${path24.sep}`) || path24.isAbsolute(relative6)) {
     assetError("INVALID_ASSET_PATH", `A ${kind} destination must remain inside assets/${format.folder}.`, destination);
   }
-  if (relative6.split(path23.sep).some((part) => part.startsWith("."))) {
+  if (relative6.split(path24.sep).some((part) => part.startsWith("."))) {
     assetError("INVALID_ASSET_PATH", `GB Studio does not load a file or folder whose name starts with a dot (${relative6}).`, destination);
   }
-  return { folder, destination, type: AUDIO_TYPES.get(path23.extname(assetPath).toLowerCase()) };
+  return { folder, destination, type: AUDIO_TYPES.get(path24.extname(assetPath).toLowerCase()) };
 }
 async function onDiskSpelling(root, folder, destination) {
-  const parts = path23.relative(folder, destination).split(path23.sep);
+  const parts = path24.relative(folder, destination).split(path24.sep);
   let current = folder;
   for (const [index, part] of parts.entries()) {
     const entries = await readdir6(current).catch((error2) => {
@@ -35757,11 +35770,11 @@ async function onDiskSpelling(root, folder, destination) {
         return void 0;
       throw error2;
     });
-    if (entries === void 0 || !entries.includes(part) && !await projectPathExists(root, path23.join(current, part))) {
-      return path23.join(current, ...parts.slice(index));
+    if (entries === void 0 || !entries.includes(part) && !await projectPathExists(root, path24.join(current, part))) {
+      return path24.join(current, ...parts.slice(index));
     }
     const folded = part.normalize("NFC").toLowerCase();
-    current = path23.join(current, entries.includes(part) ? part : entries.find((entry) => entry.normalize("NFC").toLowerCase() === folded) ?? part);
+    current = path24.join(current, entries.includes(part) ? part : entries.find((entry) => entry.normalize("NFC").toLowerCase() === folded) ?? part);
   }
   return current;
 }
@@ -36054,7 +36067,7 @@ function gbStudioSymbol(value) {
 async function discoveredAudio(root) {
   const found = [];
   for (const format of Object.values(AUDIO_FORMATS)) {
-    const folder = path23.join(root, "assets", format.folder);
+    const folder = path24.join(root, "assets", format.folder);
     const walk = async (directory) => {
       const entries = await readdir6(directory, { withFileTypes: true }).catch((error2) => {
         if (isSystemError3(error2, "ENOENT") || isSystemError3(error2, "ENOTDIR"))
@@ -36062,13 +36075,13 @@ async function discoveredAudio(root) {
         throw error2;
       });
       for (const entry of entries) {
-        const file2 = path23.join(directory, entry.name);
+        const file2 = path24.join(directory, entry.name);
         if (entry.name.startsWith("."))
           continue;
         if (entry.isDirectory()) {
           await walk(file2);
-        } else if (entry.isFile() && format.discovered.includes(path23.extname(entry.name))) {
-          const name3 = path23.relative(folder, file2).split(path23.sep).join("/");
+        } else if (entry.isFile() && format.discovered.includes(path24.extname(entry.name))) {
+          const name3 = path24.relative(folder, file2).split(path24.sep).join("/");
           const metadata2 = await projectPathExists(root, `${file2}.gbsres`) ? await readProjectJson(root, `${file2}.gbsres`).catch(() => void 0) : void 0;
           found.push({
             path: file2,
@@ -36150,7 +36163,7 @@ async function prepareAudioImport(root, input, context, access4) {
     assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} appears twice in this import.`, destination);
   }
   const source = await resolveProjectPath(root, input.sourcePath ?? destination, { mustExist: true });
-  if (path23.extname(source).toLowerCase() !== path23.extname(destination).toLowerCase()) {
+  if (path24.extname(source).toLowerCase() !== path24.extname(destination).toLowerCase()) {
     assetError("INVALID_ASSET_PATH", "The source and destination must have the same file extension.", source);
   }
   await resolveProjectPath(root, destination);
@@ -36163,9 +36176,9 @@ async function prepareAudioImport(root, input, context, access4) {
     assetError("ASSET_ALREADY_EXISTS", `${relativeDestination} is already registered (${relativeDestination}.gbsres).`, sidecar);
   }
   const bytes2 = await readBoundedAudio(root, source);
-  const details = inspectAudio(target.type, path23.extname(destination).toLowerCase(), bytes2);
-  const filename = path23.relative(target.folder, destination).split(path23.sep).join("/");
-  const name3 = ensureName(input.name ?? path23.basename(filename, path23.extname(filename)));
+  const details = inspectAudio(target.type, path24.extname(destination).toLowerCase(), bytes2);
+  const filename = path24.relative(target.folder, destination).split(path24.sep).join("/");
+  const name3 = ensureName(input.name ?? path24.basename(filename, path24.extname(filename)));
   const id3 = input.id ?? stableResourceId("asset", input.kind, relativeDestination);
   const symbol = await claimAudio(root, access4, context, { kind: input.kind, destination, id: id3, name: name3 });
   const metadata2 = audioMetadata(input.kind, { id: id3, name: name3, symbol, filename, type: target.type });
@@ -36417,7 +36430,7 @@ function encodeUge(song) {
 async function bundledTrack(name3) {
   if (!BUNDLED_TRACKS.includes(name3))
     composeError(`There is no bundled track "${name3}" (${BUNDLED_TRACKS.join(", ")}).`);
-  return JSON.parse(await readFile7(path23.join(BUNDLED_MUSIC, `${name3}.json`), "utf8"));
+  return JSON.parse(await readFile7(path24.join(BUNDLED_MUSIC, `${name3}.json`), "utf8"));
 }
 async function composeMusic(projectRoot, input, access4) {
   const root = await assertDistributedProject(projectRoot, access4);
@@ -36454,8 +36467,8 @@ async function composeMusic(projectRoot, input, access4) {
   const compiled = inspectUge(bytes2);
   if (compiled.romBytes > MAX_BANK_BYTES)
     composeError(`The song ${songTooLarge(compiled)}`);
-  const filename = path23.relative(target.folder, destination).split(path23.sep).join("/");
-  const name3 = ensureName(input.name ?? previous?.name ?? spec.title ?? path23.basename(filename, ".uge"));
+  const filename = path24.relative(target.folder, destination).split(path24.sep).join("/");
+  const name3 = ensureName(input.name ?? previous?.name ?? spec.title ?? path24.basename(filename, ".uge"));
   let metadata2;
   if (previous !== void 0) {
     metadata2 = { ...previous, name: name3, filename, type: "uge" };
@@ -36486,7 +36499,7 @@ async function composeMusic(projectRoot, input, access4) {
   });
 }
 async function inspectAudioAsset(loaded) {
-  const extension = path23.extname(loaded.assetPath).toLowerCase();
+  const extension = path24.extname(loaded.assetPath).toLowerCase();
   const type = AUDIO_TYPES.get(extension);
   if (type === void 0)
     assetError("UNSUPPORTED_ASSET_KIND", `${loaded.assetPath} is not a .uge, .mod, .wav, .vgm or .vgz file.`);
@@ -36495,7 +36508,7 @@ async function inspectAudioAsset(loaded) {
 }
 
 // src/engine-fields.js
-import path24 from "node:path";
+import path25 from "node:path";
 var MAX_ENGINE_FIELD_INSPECTION = 250;
 var MAX_ENGINE_FIELD_UPDATES = 100;
 var MAX_ENGINE_FIELD_STRING_LENGTH = 1024;
@@ -36536,7 +36549,7 @@ function fieldEntries(resource, legacy, filename) {
   return resource.engineFieldValues;
 }
 function assertIndexedProject(projectPath, access4) {
-  const requested = path24.resolve(projectPath);
+  const requested = path25.resolve(projectPath);
   if (requested !== access4.projectPath && requested !== access4.projectRoot) {
     throw new GameStudioProjectError("STALE_PROJECT", "Indexed project access does not belong to the requested native game project");
   }
@@ -36553,8 +36566,8 @@ async function selectEngineFields(projectPath, access4, authoritative = false) {
   const projectRoot = access4?.projectRoot ?? discovery.projectRoot;
   const selectedProjectPath = access4?.projectPath ?? discovery.projectPath;
   const legacy = (access4 ? access4.projectInspection().format : discovery.format) === "legacy";
-  const resourcePath = legacy ? path24.basename(selectedProjectPath) : ENGINE_FIELD_RESOURCE_PATH;
-  const filename = path24.join(projectRoot, resourcePath);
+  const resourcePath = legacy ? path25.basename(selectedProjectPath) : ENGINE_FIELD_RESOURCE_PATH;
+  const filename = path25.join(projectRoot, resourcePath);
   const cached2 = !authoritative ? access4?.authoredFile?.(resourcePath) : void 0;
   const loaded = cached2?.json ? { json: structuredClone(cached2.json), revision: cached2.sha256 } : await readProjectJsonWithRevision(projectRoot, filename);
   const resource = loaded.json;
@@ -37044,7 +37057,7 @@ function decodePngBytes(bytes2, resourcePath) {
 }
 async function readBoundedPng(projectRoot, filename) {
   const safePath = await resolveProjectPath(projectRoot, filename, { mustExist: true });
-  if (path25.extname(safePath).toLowerCase() !== ".png") {
+  if (path26.extname(safePath).toLowerCase() !== ".png") {
     assetError("INVALID_ASSET_PATH", "Native image assets must use the .png extension.", safePath);
   }
   const handle = await open9(safePath, "r");
@@ -37146,13 +37159,13 @@ async function assertDistributedProject(projectRoot, access4) {
   return project.projectRoot;
 }
 function normalizedDestination(root, assetPath, kind) {
-  if (!assetPath || path25.extname(assetPath).toLowerCase() !== ".png") {
+  if (!assetPath || path26.extname(assetPath).toLowerCase() !== ".png") {
     assetError("INVALID_ASSET_PATH", "An asset destination must name a .png file.");
   }
   const folder = kind === "background" ? "backgrounds" : "sprites";
-  const destination = path25.resolve(root, assetPath);
-  const relative6 = path25.relative(path25.join(root, "assets", folder), destination);
-  if (!relative6 || relative6 === ".." || relative6.startsWith(`..${path25.sep}`) || path25.isAbsolute(relative6)) {
+  const destination = path26.resolve(root, assetPath);
+  const relative6 = path26.relative(path26.join(root, "assets", folder), destination);
+  if (!relative6 || relative6 === ".." || relative6.startsWith(`..${path26.sep}`) || path26.isAbsolute(relative6)) {
     assetError("INVALID_ASSET_PATH", `A ${kind} destination must remain inside assets/${folder}.`, destination);
   }
   return destination;
@@ -37258,7 +37271,7 @@ async function importContext(root, access4) {
   };
 }
 async function topdownGridSize(root, access4) {
-  if (!await projectPathExists(root, path25.join(root, ENGINE_FIELD_RESOURCE_PATH)))
+  if (!await projectPathExists(root, path26.join(root, ENGINE_FIELD_RESOURCE_PATH)))
     return 8;
   const selected = await selectEngineFields(root, access4);
   const field = fieldEntries(selected.resource, selected.legacy, selected.filename).find((entry) => entry.id === "topdown_grid");
@@ -37314,8 +37327,8 @@ async function prepareImport(root, input, context, access4) {
     validateBackgroundPng(image, autoColor);
   else
     validatePixels(image, input.kind, autoColor);
-  const filename = path25.basename(destination);
-  const name3 = ensureName(input.name ?? path25.basename(filename, ".png"));
+  const filename = path26.basename(destination);
+  const name3 = ensureName(input.name ?? path26.basename(filename, ".png"));
   const id3 = input.id ?? stableResourceId("asset", input.kind, relativeDestination);
   const duplicate = context.claimedIds.has(id3) || (access4 ? access4.asset({ assetId: id3 }).status !== "missing" : (await inventoryProject(root)).assets.some((asset) => asset.id === id3));
   if (duplicate) {
@@ -37380,7 +37393,7 @@ async function writePreparedImports(prepared) {
   const created = [];
   try {
     for (const item of prepared) {
-      const parent = path25.dirname(item.destination);
+      const parent = path26.dirname(item.destination);
       await mkdir6(parent, { recursive: true });
       await resolveProjectPath(item.root, parent, { mustExist: true });
       if (item.copiesSource)
@@ -37409,7 +37422,7 @@ async function importNativeMetadata(projectRoot, input, access4) {
     await nativeImportPath(root, metadataPath);
     if (await projectPathExists(root, destination) || await projectPathExists(root, metadataPath))
       assetError("ASSET_ALREADY_EXISTS", "Native sprite import requires a new PNG and metadata sidecar.");
-    if (path25.extname(input.sourcePath).toLowerCase() !== ".png" || ![".json", ".gbsres"].includes(path25.extname(options.metadataPath).toLowerCase())) {
+    if (path26.extname(input.sourcePath).toLowerCase() !== ".png" || ![".json", ".gbsres"].includes(path26.extname(options.metadataPath).toLowerCase())) {
       assetError("INVALID_ASSET_PATH", "Native sprite sources require a PNG and a JSON or gbsres metadata file.");
     }
     const [png, metadata2] = await Promise.all([
@@ -37422,7 +37435,7 @@ async function importNativeMetadata(projectRoot, input, access4) {
     const image = decodePngBytes(png.bytes, input.sourcePath);
     validatePixels(image, "sprite", false);
     const id3 = (input.id ?? stableResourceId("asset", "sprite", input.assetPath)).toLowerCase();
-    const name3 = ensureName(input.name ?? path25.basename(input.assetPath, ".png"));
+    const name3 = ensureName(input.name ?? path26.basename(input.assetPath, ".png"));
     const existingIds = /* @__PURE__ */ new Set(), pending = [snapshot.inventory, [...snapshot.variablesById.values()], await readNativeProjectMetadata(root)];
     while (pending.length) {
       const node = pending.pop();
@@ -37439,7 +37452,7 @@ async function importNativeMetadata(projectRoot, input, access4) {
             pending.push(value2);
         }
     }
-    const created = createNativeSpriteMetadata(metadata2.bytes, png.bytes, image, { id: id3, name: name3, filename: path25.basename(input.assetPath) }, existingIds);
+    const created = createNativeSpriteMetadata(metadata2.bytes, png.bytes, image, { id: id3, name: name3, filename: path26.basename(input.assetPath) }, existingIds);
     const outputMetadata = Buffer.from(`${JSON.stringify(created.metadata, null, 2)}
 `);
     return {
@@ -38052,12 +38065,12 @@ function scaledImage(source, scale) {
   return image;
 }
 async function writePreview(root, relativeOutput, image) {
-  if (!relativeOutput || path26.extname(relativeOutput).toLowerCase() !== ".png") {
+  if (!relativeOutput || path27.extname(relativeOutput).toLowerCase() !== ".png") {
     spriteError("INVALID_INPUT", "Sprite previews require a project-local .png outputPath.");
   }
   const output = await resolveProjectPath(root, relativeOutput);
-  await mkdir7(path26.dirname(output), { recursive: true });
-  await resolveProjectPath(root, path26.dirname(output), { mustExist: true });
+  await mkdir7(path27.dirname(output), { recursive: true });
+  await resolveProjectPath(root, path27.dirname(output), { mustExist: true });
   const bytes2 = import_pngjs3.PNG.sync.write(image);
   const handle = await open10(output, "wx", 384).catch((error2) => {
     if (error2 instanceof Error && "code" in error2 && error2.code === "EEXIST") {
@@ -38327,7 +38340,7 @@ async function loadSceneGraphicsContext(projectPath, sceneId, access4) {
   if (background === void 0 || background.type !== "background" || background.metadataPath === null) {
     throw new GameStudioProjectError("BACKGROUND_NOT_FOUND", `Scene ${scene.name} has no readable native background asset.`);
   }
-  const metadata2 = await readProjectJson(inventory.projectRoot, path27.join(inventory.projectRoot, background.metadataPath));
+  const metadata2 = await readProjectJson(inventory.projectRoot, path28.join(inventory.projectRoot, background.metadataPath));
   const width = integer3(metadata2.width, Math.ceil((background.width ?? 0) / 8));
   const height = integer3(metadata2.height, Math.ceil((background.height ?? 0) / 8));
   const totalTiles = width * height;
@@ -38457,7 +38470,7 @@ async function analyzeSprites(context) {
     const asset = spriteAsset(id3);
     if (asset === null || asset.metadataPath === null)
       return null;
-    const metadata2 = await readProjectJson(context.inventory.projectRoot, path27.join(context.inventory.projectRoot, asset.metadataPath));
+    const metadata2 = await readProjectJson(context.inventory.projectRoot, path28.join(context.inventory.projectRoot, asset.metadataPath));
     const slots = /* @__PURE__ */ new Set();
     let maximumFrameObjects = 0;
     const maximumKnownObjectsByRelativeScanline = /* @__PURE__ */ new Map();
@@ -38951,7 +38964,7 @@ async function previewSceneGraphics(projectPath, input, access4) {
   if (input.displayMode !== void 0 && input.displayMode !== "color" && input.displayMode !== "mono") {
     throw new GameStudioProjectError("INVALID_DISPLAY_MODE", "Display mode must be color or mono.");
   }
-  if (path27.extname(input.outputPath).toLowerCase() !== ".png") {
+  if (path28.extname(input.outputPath).toLowerCase() !== ".png") {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene graphics previews must use the .png extension.");
   }
   const context = await loadSceneGraphicsContext(projectPath, input.sceneId, access4);
@@ -38966,7 +38979,7 @@ async function previewSceneGraphics(projectPath, input, access4) {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene previews must not overwrite authored background source artwork.");
   }
   const rendered = await renderSceneGraphics(context, sourcePath, input.displayMode ?? "color", input.colorCorrection);
-  await mkdir8(path27.dirname(outputPath), { recursive: true });
+  await mkdir8(path28.dirname(outputPath), { recursive: true });
   const confirmedOutput = await resolveProjectPath(context.inventory.projectRoot, outputPath, { allowRoot: false });
   const png = import_pngjs4.PNG.sync.write(scaledImage(rendered.image, magnification));
   const file2 = await open11(confirmedOutput, "wx", 384).catch((error2) => {
@@ -38990,7 +39003,7 @@ async function previewSceneContactSheet(projectPath, input, access4) {
   if (input.displayMode !== void 0 && input.displayMode !== "color" && input.displayMode !== "mono") {
     throw new GameStudioProjectError("INVALID_DISPLAY_MODE", "Display mode must be color or mono.");
   }
-  if (typeof input.outputPath !== "string" || path27.extname(input.outputPath).toLowerCase() !== ".png") {
+  if (typeof input.outputPath !== "string" || path28.extname(input.outputPath).toLowerCase() !== ".png") {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Scene contact sheets require a new project-local .png output.");
   }
   const columns = input.columns ?? Math.min(3, input.sceneIds.length);
@@ -39035,7 +39048,7 @@ async function previewSceneContactSheet(projectPath, input, access4) {
     title: "STATIC SCENE CONTACT SHEET",
     subtitle: "BACKGROUND ONLY / NOT RUNTIME"
   });
-  await mkdir8(path27.dirname(outputPath), { recursive: true });
+  await mkdir8(path28.dirname(outputPath), { recursive: true });
   const confirmedOutput = await resolveProjectPath(root, outputPath, { allowRoot: false });
   const file2 = await open11(confirmedOutput, "wx", 384);
   try {
@@ -39285,23 +39298,23 @@ async function createPalette(projectPath, input, access4) {
     return {
       projectPath: inventory.projectPath,
       projectRoot: inventory.projectRoot,
-      resourcePath: path28.basename(inventory.projectPath),
+      resourcePath: path29.basename(inventory.projectPath),
       palette,
       affectedSceneCount: 0
     };
   }
   const slug = resourceSlug(name3, "palette");
-  let resourcePath = path28.join("project", "palettes", `${slug}.gbsres`);
+  let resourcePath = path29.join("project", "palettes", `${slug}.gbsres`);
   let suffix = 2;
-  while (await projectPathExists(inventory.projectRoot, path28.join(inventory.projectRoot, resourcePath))) {
-    resourcePath = path28.join("project", "palettes", `${slug}_${suffix}.gbsres`);
+  while (await projectPathExists(inventory.projectRoot, path29.join(inventory.projectRoot, resourcePath))) {
+    resourcePath = path29.join("project", "palettes", `${slug}_${suffix}.gbsres`);
     suffix += 1;
   }
-  await writeProjectJsonAtomic(inventory.projectRoot, path28.join(inventory.projectRoot, resourcePath), palette);
+  await writeProjectJsonAtomic(inventory.projectRoot, path29.join(inventory.projectRoot, resourcePath), palette);
   return {
     projectPath: inventory.projectPath,
     projectRoot: inventory.projectRoot,
-    resourcePath: resourcePath.split(path28.sep).join("/"),
+    resourcePath: resourcePath.split(path29.sep).join("/"),
     palette,
     affectedSceneCount: 0
   };
@@ -39337,7 +39350,7 @@ async function updatePalette(projectPath, input, access4) {
     palette = changed;
     await writeProjectJsonAtomic(inventory.projectRoot, inventory.projectPath, descriptor);
   } else {
-    const absolute = path28.join(inventory.projectRoot, existing.resourcePath);
+    const absolute = path29.join(inventory.projectRoot, existing.resourcePath);
     palette = update(await readProjectJson(inventory.projectRoot, absolute));
     await writeProjectJsonAtomic(inventory.projectRoot, absolute, palette);
   }
@@ -39381,7 +39394,7 @@ async function assignScenePalette(projectPath, input, access4) {
     updated = changed;
     await writeProjectJsonAtomic(inventory.projectRoot, inventory.projectPath, descriptor);
   } else {
-    const absolute = path28.join(inventory.projectRoot, scene.resourcePath);
+    const absolute = path29.join(inventory.projectRoot, scene.resourcePath);
     updated = update(await readProjectJson(inventory.projectRoot, absolute));
     await writeProjectJsonAtomic(inventory.projectRoot, absolute, updated);
   }
@@ -39471,7 +39484,7 @@ async function paintBackgroundPalette(projectPath, input, access4) {
   if (scene !== void 0 && scene.backgroundId !== background.id) {
     throw new GameStudioProjectError("SCENE_BACKGROUND_MISMATCH", "The selected scene does not use the selected background.");
   }
-  const metadataPath = path28.join(inventory.projectRoot, background.metadataPath);
+  const metadataPath = path29.join(inventory.projectRoot, background.metadataPath);
   const metadata2 = await readProjectJson(inventory.projectRoot, metadataPath);
   const width = typeof metadata2.width === "number" ? metadata2.width : Math.ceil((background.width ?? 0) / 8);
   const height = typeof metadata2.height === "number" ? metadata2.height : Math.ceil((background.height ?? 0) / 8);
@@ -39794,7 +39807,7 @@ function renderContactSheetPng(options) {
 // src/dialogue.js
 var import_pngjs6 = __toESM(require_png(), 1);
 import { readFile as readFile10, realpath as realpath13, stat as stat4 } from "node:fs/promises";
-import path29 from "node:path";
+import path30 from "node:path";
 var TILE_SIZE2 = 8;
 var SCREEN_WIDTH = 160;
 var SCREEN_HEIGHT = 144;
@@ -39814,11 +39827,11 @@ function isObject12(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isInsideRoot(root, candidate) {
-  const relative6 = path29.relative(root, candidate);
-  return relative6 !== ".." && !relative6.startsWith(`..${path29.sep}`) && !path29.isAbsolute(relative6);
+  const relative6 = path30.relative(root, candidate);
+  return relative6 !== ".." && !relative6.startsWith(`..${path30.sep}`) && !path30.isAbsolute(relative6);
 }
 async function readBoundedProjectFile(projectRoot, resourcePath) {
-  const candidate = path29.resolve(projectRoot, resourcePath);
+  const candidate = path30.resolve(projectRoot, resourcePath);
   if (!isInsideRoot(projectRoot, candidate)) {
     throw new GameStudioProjectError("PATH_OUTSIDE_PROJECT", `Resource is outside the project: ${resourcePath}`, resourcePath);
   }
@@ -40099,7 +40112,7 @@ function focusedDialogueInventory(access4, input) {
   const inspection = access4.projectInspection();
   const indexedAccess = access4;
   const authoredSettings = indexedAccess.authoredFile?.("project/settings.gbsres")?.json;
-  const descriptorPath = path29.relative(access4.projectRoot, access4.projectPath).split(path29.sep).join("/");
+  const descriptorPath = path30.relative(access4.projectRoot, access4.projectPath).split(path30.sep).join("/");
   const descriptor = indexedAccess.authoredFile?.(descriptorPath)?.json;
   const legacySettings = isObject12(descriptor?.settings) ? descriptor.settings : void 0;
   const settings = indexedAccess.settings?.() ?? authoredSettings ?? legacySettings ?? inspection.settings;
@@ -40356,8 +40369,8 @@ async function analyzeDialogue(projectPath, input = {}, access4) {
 
 // src/recording-maintenance.js
 import { createHash as createHash24, randomUUID as randomUUID7 } from "node:crypto";
-import { closeSync as closeSync5, constants as constants11, fstatSync as fstatSync5, lstatSync as lstatSync6, mkdirSync as mkdirSync3, openSync as openSync5, readdirSync as readdirSync5, readSync as readSync5, realpathSync as realpathSync7, renameSync as renameSync2, unlinkSync as unlinkSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { dirname as dirname3, join as join4, relative as relative4, resolve as resolve3, sep as sep4 } from "node:path";
+import { closeSync as closeSync5, constants as constants11, fstatSync as fstatSync5, lstatSync as lstatSync6, mkdirSync as mkdirSync2, openSync as openSync5, readdirSync as readdirSync5, readSync as readSync5, realpathSync as realpathSync6, renameSync as renameSync2, unlinkSync as unlinkSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname2, join as join4, relative as relative4, resolve as resolve2, sep as sep4 } from "node:path";
 
 // src/recording-location.js
 import { createHash as createHash21 } from "node:crypto";
@@ -40366,7 +40379,7 @@ import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 var MAX_BYTES = 512 * 1024 * 1024;
 var MAX_ENTRIES = 2e4;
 var digest4 = (bytes2) => createHash21("sha256").update(bytes2).digest("hex");
-var inside = (root, path47) => path47 === root || path47.startsWith(root + sep);
+var inside = (root, path48) => path48 === root || path48.startsWith(root + sep);
 function unchanged2(a, b) {
   return ["dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtimeMs", "ctimeMs"].every((key) => a[key] === b[key]);
 }
@@ -40375,12 +40388,12 @@ function owned2(st) {
     throw new Error("Recording archive requires owned paths without special or writable-by-others permission bits");
   }
 }
-function bytes(path47, maximum) {
-  const before = lstatSync3(path47);
+function bytes(path48, maximum) {
+  const before = lstatSync3(path48);
   owned2(before);
   if (!before.isFile() || before.nlink !== 1 || before.size > maximum)
     throw new Error("Invalid archive metadata file");
-  const fd = openSync2(path47, constants8.O_RDONLY | (constants8.O_NOFOLLOW ?? 0) | (constants8.O_NONBLOCK ?? 0));
+  const fd = openSync2(path48, constants8.O_RDONLY | (constants8.O_NOFOLLOW ?? 0) | (constants8.O_NONBLOCK ?? 0));
   try {
     if (!unchanged2(before, fstatSync2(fd)))
       throw new Error("Archive metadata identity changed");
@@ -40392,7 +40405,7 @@ function bytes(path47, maximum) {
       if (size > before.size)
         throw new Error("Archive metadata grew");
     }
-    if (size !== before.size || !unchanged2(before, fstatSync2(fd)) || !unchanged2(before, lstatSync3(path47)))
+    if (size !== before.size || !unchanged2(before, fstatSync2(fd)) || !unchanged2(before, lstatSync3(path48)))
       throw new Error("Archive metadata changed");
     return out.subarray(0, size);
   } finally {
@@ -40405,23 +40418,23 @@ function recordingInventory(root, resolvePath) {
   const rows = [];
   let total = 0;
   let count3 = 0;
-  const visit = (path47) => {
-    const before = lstatSync3(path47);
+  const visit = (path48) => {
+    const before = lstatSync3(path48);
     owned2(before);
     if (++count3 > MAX_ENTRIES)
       throw new Error("Recording member limit exceeded");
-    const name3 = relative(root, path47);
+    const name3 = relative(root, path48);
     if (before.isDirectory()) {
       rows.push([name3, "directory", before.mode & 4095]);
-      for (const child of readdirSync3(path47).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b))))
-        visit(join(path47, child));
+      for (const child of readdirSync3(path48).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b))))
+        visit(join(path48, child));
     } else {
       if (!before.isFile() || before.nlink !== 1)
         throw new Error("Recording contains a linked or non-regular member");
       total += before.size;
       if (total > MAX_BYTES)
         throw new Error("Recording archive byte limit exceeded");
-      const fd = openSync2(path47, constants8.O_RDONLY | (constants8.O_NOFOLLOW ?? 0) | (constants8.O_NONBLOCK ?? 0));
+      const fd = openSync2(path48, constants8.O_RDONLY | (constants8.O_NOFOLLOW ?? 0) | (constants8.O_NONBLOCK ?? 0));
       try {
         if (!unchanged2(before, fstatSync2(fd)))
           throw new Error("Recording member identity changed");
@@ -40442,7 +40455,7 @@ function recordingInventory(root, resolvePath) {
         closeSync2(fd);
       }
     }
-    if (!unchanged2(before, lstatSync3(path47)))
+    if (!unchanged2(before, lstatSync3(path48)))
       throw new Error("Recording changed during inventory");
   };
   visit(root);
@@ -40491,20 +40504,18 @@ function recordingArchiveOrigin(root, resolvePath) {
 
 // src/recording-archive.js
 import { createHash as createHash23 } from "node:crypto";
-import { closeSync as closeSync4, constants as constants10, fstatSync as fstatSync4, lstatSync as lstatSync5, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync6 } from "node:fs";
-import { isAbsolute as isAbsolute3, join as join3, relative as relative3, resolve as resolve2, sep as sep3 } from "node:path";
+import { closeSync as closeSync4, constants as constants10, fstatSync as fstatSync4, lstatSync as lstatSync5, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync5 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join3, relative as relative3, resolve, sep as sep3 } from "node:path";
 
 // src/recording-common.js
-var import_pngjs7 = __toESM(require_png(), 1);
 import { createHash as createHash22 } from "node:crypto";
-import { closeSync as closeSync3, constants as constants9, fstatSync as fstatSync3, lstatSync as lstatSync4, mkdirSync as mkdirSync2, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4, realpathSync as realpathSync5, statSync as statSync2, writeSync as writeSync2 } from "node:fs";
-import { dirname as dirname2, isAbsolute as isAbsolute2, join as join2, relative as relative2, resolve, sep as sep2 } from "node:path";
+import { closeSync as closeSync3, constants as constants9, fstatSync as fstatSync3, lstatSync as lstatSync4, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4 } from "node:fs";
+import { isAbsolute as isAbsolute2, join as join2, relative as relative2, sep as sep2 } from "node:path";
 var MAX_FRAMES = 3600;
 var MAX_RECORDING_BYTES = 512 * 1024 * 1024;
 var MAX_RECORDING_FRAMES = 216e3;
 var MAX_RECORDING_WALL_MS = 36e5;
 var MAX_RECENT_FRAMES = 64;
-var MAX_STATE_BYTES = 16 * 1024 * 1024;
 var MAX_ROM_BYTES3 = 32 * 1024 * 1024;
 var MAX_RECORDING_EVENTS = 25e4;
 var MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
@@ -40708,16 +40719,16 @@ function digest5(value) {
   return createHash22("sha256").update(value).digest("hex");
 }
 function inside2(root, value) {
-  const path47 = relative2(root, value);
-  return path47 === "" || !isAbsolute2(path47) && path47 !== ".." && !path47.startsWith(`..${sep2}`);
+  const path48 = relative2(root, value);
+  return path48 === "" || !isAbsolute2(path48) && path48 !== ".." && !path48.startsWith(`..${sep2}`);
 }
-function boundedReadFile(path47, maximum, label = "Recording metadata") {
-  const before = lstatSync4(path47);
+function boundedReadFile(path48, maximum, label = "Recording metadata") {
+  const before = lstatSync4(path48);
   if (!before.isFile() || before.isSymbolicLink())
     throw new Error(`${label} must be a regular file`);
   if (before.size > maximum)
     throw new Error(`${label} exceeds its byte limit`);
-  const fd = openSync3(path47, constants9.O_RDONLY | (constants9.O_NOFOLLOW ?? 0) | (constants9.O_NONBLOCK ?? 0));
+  const fd = openSync3(path48, constants9.O_RDONLY | (constants9.O_NOFOLLOW ?? 0) | (constants9.O_NONBLOCK ?? 0));
   try {
     const opened = fstatSync3(fd);
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino)
@@ -40737,7 +40748,7 @@ function boundedReadFile(path47, maximum, label = "Recording metadata") {
       chunks.push(buffer.subarray(0, count3));
     }
     const after = fstatSync3(fd);
-    const pathAfter = lstatSync4(path47);
+    const pathAfter = lstatSync4(path48);
     if (after.size !== size || after.dev !== pathAfter.dev || after.ino !== pathAfter.ino || !pathAfter.isFile() || pathAfter.isSymbolicLink() || opened.size !== after.size || opened.mtimeMs !== after.mtimeMs) {
       throw new Error(`${label} changed while being read`);
     }
@@ -40754,15 +40765,15 @@ function directoryBytes(root) {
     if (!identity6.isDirectory() || identity6.isSymbolicLink())
       throw new Error("Recording files and directories must not be symbolic links");
     for (const name3 of readdirSync4(directory)) {
-      const path47 = join2(directory, name3);
-      const stat8 = lstatSync4(path47);
+      const path48 = join2(directory, name3);
+      const stat8 = lstatSync4(path48);
       count3 += 1;
       if (count3 > MAX_RECORDING_EVENTS)
         throw new RecordingLimitError("Recording storage exceeds the supported limit");
       if (stat8.isSymbolicLink())
         throw new Error("Recording files and directories must not be symbolic links");
       if (stat8.isDirectory())
-        walk(path47);
+        walk(path48);
       else if (stat8.isFile())
         total += stat8.size;
       else
@@ -40794,9 +40805,9 @@ function artifactUsage(root, resolvePath) {
     const bytes2 = boundedReadFile(ledger, 1024 * 1024, "The derived-artifact ledger");
     for (const line of bytes2.toString("utf8").split(/\r?\n/).filter(Boolean)) {
       const row = JSON.parse(line);
-      const path47 = resolvePath(row.path, { existing: false });
+      const path48 = resolvePath(row.path, { existing: false });
       const size = boundedInteger(row.bytes, "derived artifact size", 0, MAX_RECORDING_BYTES);
-      if (!inside2(root, path47) && !(originalRoot && inside2(originalRoot, path47)))
+      if (!inside2(root, path48) && !(originalRoot && inside2(originalRoot, path48)))
         total += size;
     }
   }
@@ -40841,14 +40852,14 @@ function sameFile(left, right) {
 }
 function guardDirectory(root, identity6, canonical2) {
   const current = lstatSync5(root);
-  if (current.isSymbolicLink() || !current.isDirectory() || !sameFile(identity6, current) || realpathSync6(root) !== canonical2) {
+  if (current.isSymbolicLink() || !current.isDirectory() || !sameFile(identity6, current) || realpathSync5(root) !== canonical2) {
     throw new Error("The recording directory changed while it was being read");
   }
 }
 function evidencePath(root, value, resolvePath, imported) {
   if (typeof value !== "string" || value.length === 0)
     throw new Error("Recorded frames require a file path");
-  const candidate = resolve2(root, value);
+  const candidate = resolve(root, value);
   const filename = resolvePath(candidate, { existing: true });
   const tail = relative3(root, filename);
   if (tail === ".." || tail.startsWith(".." + sep3) || isAbsolute3(tail)) {
@@ -40907,7 +40918,7 @@ function readRecording(root, resolvePath, options = {}) {
   const prefixPin = options.prefixPin === void 0 ? void 0 : recordingPrefixPin(options.prefixPin);
   checkCancel?.();
   const rootIdentity = lstatSync5(root);
-  const canonicalRoot = realpathSync6(root);
+  const canonicalRoot = realpathSync5(root);
   if (rootIdentity.isSymbolicLink() || !rootIdentity.isDirectory()) {
     throw new Error("The recording directory has no valid recording.json");
   }
@@ -41197,10 +41208,10 @@ function readRecording(root, resolvePath, options = {}) {
 // src/recording-maintenance.js
 var POINTER = ".recording-archive.json";
 var MAX_ENTRIES2 = 2e4;
-var inside3 = (root, path47) => path47 === root || path47.startsWith(root + sep4);
-var absent2 = (path47) => {
+var inside3 = (root, path48) => path48 === root || path48.startsWith(root + sep4);
+var absent2 = (path48) => {
   try {
-    lstatSync6(path47);
+    lstatSync6(path48);
     return false;
   } catch (error2) {
     if (error2.code === "ENOENT")
@@ -41216,15 +41227,15 @@ function owned3(entry) {
     throw new Error("Recording maintenance requires owned paths without special or writable-by-others permission bits");
   }
 }
-function file(path47, maximum, expected) {
-  const before = lstatSync6(path47);
+function file(path48, maximum, expected) {
+  const before = lstatSync6(path48);
   owned3(before);
   if (expected !== void 0 && !same(expected, before))
     throw new Error("Recording file changed before opening");
   if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1 || before.size > maximum) {
     throw new Error("Unsafe or oversized recording maintenance file");
   }
-  const fd = openSync5(path47, constants11.O_RDONLY | (constants11.O_NOFOLLOW ?? 0) | (constants11.O_NONBLOCK ?? 0));
+  const fd = openSync5(path48, constants11.O_RDONLY | (constants11.O_NOFOLLOW ?? 0) | (constants11.O_NONBLOCK ?? 0));
   try {
     if (!same(before, fstatSync5(fd)))
       throw new Error("Recording file identity changed");
@@ -41237,7 +41248,7 @@ function file(path47, maximum, expected) {
         throw new Error("Recording file grew");
     }
     const bytes2 = buffer.subarray(0, size);
-    if (bytes2.length !== before.size || !same(before, fstatSync5(fd)) || !same(before, lstatSync6(path47))) {
+    if (bytes2.length !== before.size || !same(before, fstatSync5(fd)) || !same(before, lstatSync6(path48))) {
       throw new Error("Recording file changed during reading");
     }
     return bytes2;
@@ -41288,7 +41299,7 @@ var RecordingMaintenance = class {
   #lastAcquisitionFailure;
   #savedLease;
   constructor(project) {
-    this.project = realpathSync7(project);
+    this.project = realpathSync6(project);
   }
   /** Observe only the fixed access metadata. Never acquires access, starts a worker, or reads a recording. */
   accessDiagnostic() {
@@ -41315,12 +41326,12 @@ var RecordingMaintenance = class {
     let stage = "authorized-root";
     const verifyDirectories = () => {
       for (const dir of directories) {
-        if (!same(dir.stat, lstatSync6(dir.path)) || realpathSync7(dir.path) !== dir.path)
+        if (!same(dir.stat, lstatSync6(dir.path)) || realpathSync6(dir.path) !== dir.path)
           throw new AccessSnapshotError("changed");
       }
     };
     try {
-      for (const [label, path48] of [
+      for (const [label, path49] of [
         ["authorized-root", this.project],
         ["artifacts", join4(this.project, "artifacts")],
         ["access-directory", join4(this.project, "artifacts", ".recording-access")]
@@ -41328,32 +41339,32 @@ var RecordingMaintenance = class {
         stage = label;
         let st2;
         try {
-          st2 = lstatSync6(path48);
+          st2 = lstatSync6(path49);
         } catch (error2) {
           if (error2.code !== "ENOENT" || label === "authorized-root")
             throw error2;
           verifyDirectories();
           return { ...common, lease: { status: "absent-observed", missing: label } };
         }
-        if (!st2.isDirectory() || st2.isSymbolicLink() || realpathSync7(path48) !== path48 || st2.uid !== process.getuid() || (st2.mode & 3602) !== 0)
+        if (!st2.isDirectory() || st2.isSymbolicLink() || realpathSync6(path49) !== path49 || st2.uid !== process.getuid() || (st2.mode & 3602) !== 0)
           throw new AccessSnapshotError("unsafe-path");
-        directories.push({ path: path48, stat: st2 });
+        directories.push({ path: path49, stat: st2 });
       }
       stage = "lease-file";
-      const path47 = join4(this.project, "artifacts", ".recording-access", "lease.json");
+      const path48 = join4(this.project, "artifacts", ".recording-access", "lease.json");
       let st;
       try {
-        st = lstatSync6(path47);
+        st = lstatSync6(path48);
       } catch (error2) {
         if (error2.code !== "ENOENT")
           throw error2;
         verifyDirectories();
         return { ...common, lease: { status: "absent-observed", missing: "lease-file" } };
       }
-      if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1 || st.uid !== process.getuid() || (st.mode & 4095) !== 384 || st.size > 4096 || realpathSync7(path47) !== path47)
+      if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1 || st.uid !== process.getuid() || (st.mode & 4095) !== 384 || st.size > 4096 || realpathSync6(path48) !== path48)
         throw new AccessSnapshotError("unsafe-file");
-      const raw = file(path47, 4096, st);
-      if (!same(st, lstatSync6(path47)))
+      const raw = file(path48, 4096, st);
+      if (!same(st, lstatSync6(path48)))
         throw new AccessSnapshotError("changed");
       stage = "lease-schema";
       let parsed;
@@ -41368,7 +41379,7 @@ var RecordingMaintenance = class {
       }
       const sha2563 = createHash24("sha256").update(raw).digest("hex");
       verifyDirectories();
-      if (!same(st, lstatSync6(path47)))
+      if (!same(st, lstatSync6(path48)))
         throw new AccessSnapshotError("changed");
       const matchesSavedLease = this.#leased && this.#savedLease !== void 0 && same(st, this.#savedLease.identity) && sha2563 === this.#savedLease.sha256;
       return { ...common, lease: {
@@ -41392,11 +41403,11 @@ var RecordingMaintenance = class {
   resolvePath = (value, { existing }) => {
     if (typeof value !== "string")
       throw new Error("A recording path is required");
-    const path47 = resolve3(this.project, value);
-    if (!inside3(this.project, path47))
+    const path48 = resolve2(this.project, value);
+    if (!inside3(this.project, path48))
       throw new Error("Recording path is outside the authorized project");
     let part = this.project;
-    for (const segment of relative4(this.project, path47).split(sep4).filter(Boolean)) {
+    for (const segment of relative4(this.project, path48).split(sep4).filter(Boolean)) {
       part = join4(part, segment);
       if (absent2(part)) {
         if (existing)
@@ -41405,23 +41416,23 @@ var RecordingMaintenance = class {
       }
       const st = lstatSync6(part);
       owned3(st);
-      if (st.isSymbolicLink() || realpathSync7(part) !== part)
+      if (st.isSymbolicLink() || realpathSync6(part) !== part)
         throw new Error("Recording path is redirected");
     }
-    return path47;
+    return path48;
   };
-  #directory(path47) {
-    this.resolvePath(path47, { existing: true });
-    if (!lstatSync6(path47).isDirectory())
+  #directory(path48) {
+    this.resolvePath(path48, { existing: true });
+    if (!lstatSync6(path48).isDirectory())
       throw new Error("Expected a recording directory");
   }
-  #protectedDirectory(path47) {
-    this.resolvePath(path47, { existing: false });
-    if (absent2(path47))
-      mkdirSync3(path47, { mode: 448 });
-    this.#directory(path47);
+  #protectedDirectory(path48) {
+    this.resolvePath(path48, { existing: false });
+    if (absent2(path48))
+      mkdirSync2(path48, { mode: 448 });
+    this.#directory(path48);
     for (const marker of [".gitignore", ".npmignore"]) {
-      const name3 = join4(path47, marker);
+      const name3 = join4(path48, marker);
       if (absent2(name3))
         writeFileSync2(name3, "*\n", { flag: "wx", mode: 384 });
       if (!file(name3, 2).equals(Buffer.from("*\n")))
@@ -41435,28 +41446,28 @@ var RecordingMaintenance = class {
     const artifacts = join4(this.project, "artifacts");
     this.resolvePath(artifacts, { existing: false });
     if (absent2(artifacts))
-      mkdirSync3(artifacts, { mode: 448 });
+      mkdirSync2(artifacts, { mode: 448 });
     this.#directory(artifacts);
     const root = join4(artifacts, ".recording-access");
     this.#protectedDirectory(root);
-    const path47 = join4(root, "lease.json");
+    const path48 = join4(root, "lease.json");
     const bytes2 = Buffer.from(JSON.stringify({ schemaVersion: 1, pid: process.pid, token: randomUUID7() }) + "\n");
     try {
-      writeFileSync2(path47, bytes2, { flag: "wx", mode: 384 });
+      writeFileSync2(path48, bytes2, { flag: "wx", mode: 384 });
     } catch (error2) {
       const failure = new RecordingAccessError(error2);
       this.#lastAcquisitionFailure = failure.failure;
       throw failure;
     }
-    const identity6 = lstatSync6(path47);
+    const identity6 = lstatSync6(path48);
     this.#leased = true;
     this.#savedLease = { identity: identity6, sha256: createHash24("sha256").update(bytes2).digest("hex"), acquiredAt: (/* @__PURE__ */ new Date()).toISOString() };
     return () => {
       if (this.#incomplete)
         throw new Error("Recording maintenance is incomplete; access lease retained for reconciliation");
-      if (!same(identity6, lstatSync6(path47)) || !file(path47, 4096).equals(bytes2))
+      if (!same(identity6, lstatSync6(path48)) || !file(path48, 4096).equals(bytes2))
         throw new Error("Recording access lease changed; closure is unresolved");
-      unlinkSync2(path47);
+      unlinkSync2(path48);
       this.#leased = false;
       this.#savedLease = void 0;
     };
@@ -41478,14 +41489,14 @@ var RecordingMaintenance = class {
     this.#directory(original);
     const raw = file(join4(original, POINTER), 4096);
     const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw));
-    if (value.schemaVersion !== 1 || value.originalPath !== original || typeof value.archivePath !== "string" || !/^[0-9a-f]{32}$/.test(value.sessionId) || !/^[0-9a-f]{64}$/.test(value.manifestSha256) || !inside3(this.#archiveRoot(), value.archivePath) || dirname3(dirname3(value.archivePath)) !== this.#archiveRoot() || !/^[0-9a-f-]{36}$/.test(relative4(this.#archiveRoot(), dirname3(value.archivePath))) || value.archivePath !== join4(dirname3(value.archivePath), "recording"))
+    if (value.schemaVersion !== 1 || value.originalPath !== original || typeof value.archivePath !== "string" || !/^[0-9a-f]{32}$/.test(value.sessionId) || !/^[0-9a-f]{64}$/.test(value.manifestSha256) || !inside3(this.#archiveRoot(), value.archivePath) || dirname2(dirname2(value.archivePath)) !== this.#archiveRoot() || !/^[0-9a-f-]{36}$/.test(relative4(this.#archiveRoot(), dirname2(value.archivePath))) || value.archivePath !== join4(dirname2(value.archivePath), "recording"))
       throw new Error("Invalid recording archive mapping");
     if (JSON.stringify(readdirSync5(original).sort()) !== JSON.stringify([".gitignore", ".npmignore", POINTER].sort()))
       throw new Error("Archive reference directory has unexpected content");
     for (const marker of [".gitignore", ".npmignore"])
       if (!file(join4(original, marker), 2).equals(Buffer.from("*\n")))
         throw new Error("Archive reference marker differs");
-    if (!file(join4(dirname3(value.archivePath), "mapping.json"), 4096).equals(raw))
+    if (!file(join4(dirname2(value.archivePath), "mapping.json"), 4096).equals(raw))
       throw new Error("Archive mapping copies differ");
     const current = this.#snapshot(value.archivePath);
     if (JSON.stringify(current) !== JSON.stringify(value.inventory))
@@ -41498,12 +41509,12 @@ var RecordingMaintenance = class {
   retrieve(recordingPath) {
     const original = this.resolvePath(recordingPath, { existing: true });
     const { value } = this.#mapping(original);
-    return { ...value, status: "archived", reservationReleasedFrom: dirname3(original), bytesReclaimed: 0 };
+    return { ...value, status: "archived", reservationReleasedFrom: dirname2(original), bytesReclaimed: 0 };
   }
   resolveRecording(recordingPath) {
     const original = this.resolvePath(recordingPath, { existing: true });
     if (this.isArchived(original)) {
-      const mapping = JSON.parse(file(join4(dirname3(original), "mapping.json"), 4096).toString("utf8"));
+      const mapping = JSON.parse(file(join4(dirname2(original), "mapping.json"), 4096).toString("utf8"));
       const verified = this.retrieve(mapping.originalPath);
       if (verified.archivePath !== original)
         throw new Error("Archive recording path differs");
@@ -41511,8 +41522,8 @@ var RecordingMaintenance = class {
     }
     return absent2(join4(original, POINTER)) ? original : this.retrieve(original).archivePath;
   }
-  isArchived(path47) {
-    return inside3(this.#archiveRoot(), path47);
+  isArchived(path48) {
+    return inside3(this.#archiveRoot(), path48);
   }
   archive(recordingPath) {
     if (!this.#leased)
@@ -41527,7 +41538,7 @@ var RecordingMaintenance = class {
     if (lstatSync6(original).dev !== lstatSync6(archiveRoot).dev)
       throw new Error("Archive must remain on the same filesystem");
     const container = join4(archiveRoot, randomUUID7());
-    mkdirSync3(container, { mode: 448 });
+    mkdirSync2(container, { mode: 448 });
     this.#protectedDirectory(container);
     const archivePath = join4(container, "recording");
     const value = {
@@ -41545,7 +41556,7 @@ var RecordingMaintenance = class {
     this.#incomplete = true;
     renameSync2(original, archivePath);
     try {
-      mkdirSync3(original, { mode: 448 });
+      mkdirSync2(original, { mode: 448 });
       this.#protectedDirectory(original);
       writeFileSync2(join4(original, POINTER), raw, { flag: "wx", mode: 384 });
       const result = this.retrieve(original);
@@ -41563,11 +41574,11 @@ var RecordingMaintenance = class {
     const restored = this.#closed(value.archivePath);
     let siblings = 0;
     let reserved = 0;
-    const neighbors = readdirSync5(dirname3(original));
+    const neighbors = readdirSync5(dirname2(original));
     if (neighbors.length > MAX_ENTRIES2)
       throw new Error("Recording neighbor inventory exceeds its limit");
     for (const name3 of neighbors) {
-      const sibling = join4(dirname3(original), name3);
+      const sibling = join4(dirname2(original), name3);
       const st = lstatSync6(sibling);
       if (!st.isDirectory() || st.isSymbolicLink() || absent2(join4(sibling, "recording.json")))
         continue;
@@ -41582,7 +41593,7 @@ var RecordingMaintenance = class {
     if (siblings >= MAX_SIBLING_RECORDINGS || reserved + restored.limits.maxBytes > MAX_SIBLING_RESERVED_BYTES) {
       throw new Error("Restoring this recording would exceed retained recording quota");
     }
-    const parked = join4(dirname3(value.archivePath), "original-reference");
+    const parked = join4(dirname2(value.archivePath), "original-reference");
     if (!absent2(parked))
       throw new Error("Recording restoration is already pending");
     if (!file(join4(original, POINTER), 4096).equals(raw))
@@ -41601,13 +41612,12 @@ var RecordingMaintenance = class {
 };
 
 // src/emulator.js
-var import_pngjs8 = __toESM(require_png(), 1);
+var import_pngjs7 = __toESM(require_png(), 1);
 import { spawn as spawn2 } from "node:child_process";
 import { createHash as createHash25, randomUUID as randomUUID8 } from "node:crypto";
-import { accessSync, appendFileSync, closeSync as closeSync6, constants as constants12, existsSync, fstatSync as fstatSync6, lstatSync as lstatSync7, openSync as openSync6, readFileSync as readFileSync2, readSync as readSync6, realpathSync as realpathSync8, statSync as statSync3 } from "node:fs";
-import { basename as basename2, dirname as dirname4, extname, isAbsolute as isAbsolute4, relative as relative5, resolve as resolve4 } from "node:path";
+import { accessSync, appendFileSync, closeSync as closeSync6, constants as constants12, existsSync, fstatSync as fstatSync6, lstatSync as lstatSync7, openSync as openSync6, readFileSync as readFileSync2, readSync as readSync6, realpathSync as realpathSync7, statSync as statSync2 } from "node:fs";
+import { basename as basename2, dirname as dirname3, extname, isAbsolute as isAbsolute4, relative as relative5, resolve as resolve3 } from "node:path";
 import { createInterface } from "node:readline";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
 var MAX_EMULATOR_FRAMES = 3600;
 var MAX_EMULATOR_TIMELINE_ACTIONS = 128;
 var MAX_EMULATOR_TIMELINE_CHECKPOINTS = 64;
@@ -41704,8 +41714,8 @@ var EmulatorService = class {
     this.#platform = options.platform ?? process.platform;
     const configuredRoot = options.projectRoot ?? process.env.GB_STUDIO_PROJECT_ROOT ?? process.cwd();
     try {
-      this.projectRoot = realpathSync8(resolve4(configuredRoot));
-      if (!statSync3(this.projectRoot).isDirectory()) {
+      this.projectRoot = realpathSync7(resolve3(configuredRoot));
+      if (!statSync2(this.projectRoot).isDirectory()) {
         throw new Error("not a directory");
       }
     } catch (error2) {
@@ -41714,30 +41724,30 @@ var EmulatorService = class {
       });
     }
     this.#recordingMaintenance = new RecordingMaintenance(this.projectRoot);
-    const bundledWorker = fileURLToPath2(new URL("../scripts/emulator_worker.py", import.meta.url));
-    this.#workerPath = resolve4(options.workerPath ?? bundledWorker);
-    const packageRoot = dirname4(dirname4(bundledWorker));
+    const bundledWorker = enginePath("scripts/emulator_worker.py");
+    this.#workerPath = resolve3(options.workerPath ?? bundledWorker);
+    const packageRoot = dirname3(dirname3(bundledWorker));
     const configuredToolchain = options.toolchainRoot ?? process.env.GB_STUDIO_TOOLCHAIN_ROOT;
     let toolchainRoot = packageRoot;
     if (configuredToolchain) {
       try {
-        toolchainRoot = realpathSync8(resolve4(configuredToolchain));
-        if (!statSync3(toolchainRoot).isDirectory()) {
+        toolchainRoot = realpathSync7(resolve3(configuredToolchain));
+        if (!statSync2(toolchainRoot).isDirectory()) {
           throw new Error("not a directory");
         }
-        const localDirectory = resolve4(toolchainRoot, ".local");
+        const localDirectory = resolve3(toolchainRoot, ".local");
         if (existsSync(localDirectory)) {
-          const canonicalLocal = realpathSync8(localDirectory);
+          const canonicalLocal = realpathSync7(localDirectory);
           if (canonicalLocal !== localDirectory) {
-            if (basename2(canonicalLocal) !== ".local" || !statSync3(canonicalLocal).isDirectory()) {
+            if (basename2(canonicalLocal) !== ".local" || !statSync2(canonicalLocal).isDirectory()) {
               throw new Error("invalid linked .local directory");
             }
-            toolchainRoot = dirname4(canonicalLocal);
+            toolchainRoot = dirname3(canonicalLocal);
           }
         }
       } catch (error2) {
         if (error2 && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT") {
-          toolchainRoot = resolve4(configuredToolchain);
+          toolchainRoot = resolve3(configuredToolchain);
         } else {
           throw new EmulatorError(`The emulator toolchain root is invalid: ${configuredToolchain}`, { cause: error2 });
         }
@@ -41750,7 +41760,7 @@ var EmulatorService = class {
     if (this.#platform === "win32" && extname(configuredPython).toLowerCase() !== ".exe") {
       throw new EmulatorError("The Windows emulator Python executable must be an absolute .exe path");
     }
-    this.#pythonPath = resolve4(configuredPython);
+    this.#pythonPath = resolve3(configuredPython);
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 6e4;
     if (!Number.isSafeInteger(this.#requestTimeoutMs) || this.#requestTimeoutMs < 1) {
       throw new EmulatorError("Emulator requestTimeoutMs must be a positive integer");
@@ -42331,7 +42341,7 @@ var EmulatorService = class {
       if (bytes2.toString("base64") !== sample.pngBase64 || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash25("sha256").update(bytes2).digest("hex") !== sample.sha256) {
         throw new EmulatorError("The stepped observation failed PNG dimension or SHA-256 verification");
       }
-      const decoded = import_pngjs8.PNG.sync.read(bytes2, { checkCRC: true });
+      const decoded = import_pngjs7.PNG.sync.read(bytes2, { checkCRC: true });
       if (createHash25("sha256").update(decoded.data).digest("hex") !== sample.rgbaSha256) {
         throw new EmulatorError("The stepped observation failed RGBA framebuffer verification");
       }
@@ -42582,28 +42592,28 @@ var EmulatorService = class {
   /** Recordings, archives and archive references are inventoried byte for byte: a new recording goes outside them. */
   #assertRecordingDestination(outputPath) {
     const refused = new EmulatorError("A recording output directory must not be inside another recording, the recording archives or an archived recording's reference");
-    if (this.#recordingMaintenance.isArchived(outputPath) || isPathWithinRoot(resolve4(this.projectRoot, "artifacts", ".recording-access"), outputPath, this.#platform))
+    if (this.#recordingMaintenance.isArchived(outputPath) || isPathWithinRoot(resolve3(this.projectRoot, "artifacts", ".recording-access"), outputPath, this.#platform))
       throw refused;
-    for (let folder = dirname4(outputPath); isPathWithinRoot(this.projectRoot, folder, this.#platform); folder = dirname4(folder)) {
-      if (existsSync(resolve4(folder, "recording.json")) || existsSync(resolve4(folder, ".recording-archive.json")))
+    for (let folder = dirname3(outputPath); isPathWithinRoot(this.projectRoot, folder, this.#platform); folder = dirname3(folder)) {
+      if (existsSync(resolve3(folder, "recording.json")) || existsSync(resolve3(folder, ".recording-archive.json")))
         throw refused;
       if (folder === this.projectRoot)
         break;
     }
   }
-  #resolveDirectory(path47) {
-    const resolved = this.#resolvePath(path47, { existing: false });
-    if (!existsSync(resolved) || !statSync3(resolved).isDirectory()) {
+  #resolveDirectory(path48) {
+    const resolved = this.#resolvePath(path48, { existing: false });
+    if (!existsSync(resolved) || !statSync2(resolved).isDirectory()) {
       throw new EmulatorError("recordingPath must name an existing recording directory");
     }
-    return existsSync(resolve4(resolved, ".recording-archive.json")) || this.#recordingMaintenance.isArchived(resolved) ? this.#recordingMaintenance.resolveRecording(resolved) : resolved;
+    return existsSync(resolve3(resolved, ".recording-archive.json")) || this.#recordingMaintenance.isArchived(resolved) ? this.#recordingMaintenance.resolveRecording(resolved) : resolved;
   }
   #assertRecordingPackageProtection(recordingRoot) {
     try {
       for (const name3 of [".gitignore", ".npmignore"]) {
-        const path47 = resolve4(recordingRoot, name3);
-        const entry = lstatSync7(path47);
-        if (entry.isSymbolicLink() || !entry.isFile() || entry.size !== 2 || !readFileSync2(path47).equals(Buffer.from("*\n"))) {
+        const path48 = resolve3(recordingRoot, name3);
+        const entry = lstatSync7(path48);
+        if (entry.isSymbolicLink() || !entry.isFile() || entry.size !== 2 || !readFileSync2(path48).equals(Buffer.from("*\n"))) {
           throw new Error("recording package-protection marker changed");
         }
       }
@@ -42612,7 +42622,7 @@ var EmulatorService = class {
     }
   }
   #unredirectedArtifactsRoot() {
-    const lexicalRoot = resolve4(this.projectRoot, "artifacts");
+    const lexicalRoot = resolve3(this.projectRoot, "artifacts");
     try {
       const entry = lstatSync7(lexicalRoot);
       if (entry.isSymbolicLink() || !entry.isDirectory()) {
@@ -42671,12 +42681,12 @@ var EmulatorService = class {
     if (!this.#recordingRequested || root === void 0)
       return;
     try {
-      if (!existsSync(root) || realpathSync8(root) !== root || !statSync3(root).isDirectory())
+      if (!existsSync(root) || realpathSync7(root) !== root || !statSync2(root).isDirectory())
         return;
-      const path47 = resolve4(root, "worker-failures.jsonl");
-      if (existsSync(path47) && (lstatSync7(path47).isSymbolicLink() || statSync3(path47).size > 8192))
+      const path48 = resolve3(root, "worker-failures.jsonl");
+      if (existsSync(path48) && (lstatSync7(path48).isSymbolicLink() || statSync2(path48).size > 8192))
         return;
-      appendFileSync(path47, `${JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), message: message2.slice(0, 2e3) })}
+      appendFileSync(path48, `${JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), message: message2.slice(0, 2e3) })}
 `, { mode: 384 });
     } catch {
     }
@@ -42740,35 +42750,35 @@ var EmulatorService = class {
       }
     }
   }
-  #resolvePath(path47, options) {
-    if (typeof path47 !== "string" || path47.trim().length === 0) {
+  #resolvePath(path48, options) {
+    if (typeof path48 !== "string" || path48.trim().length === 0) {
       throw new EmulatorError("An emulator ROM or output path must be a non-empty string");
     }
     try {
-      assertSafePlatformPath(path47, this.#platform);
+      assertSafePlatformPath(path48, this.#platform);
     } catch (error2) {
       const reason = error2 instanceof Error ? error2.message : String(error2);
       throw new EmulatorError(`The emulator path is not safe: ${reason}`, { cause: error2 });
     }
-    const candidate = resolve4(this.projectRoot, path47);
+    const candidate = resolve3(this.projectRoot, path48);
     let resolvedPath;
     try {
       if (options.existing) {
-        resolvedPath = realpathSync8(candidate);
-        if (!statSync3(resolvedPath).isFile()) {
+        resolvedPath = realpathSync7(candidate);
+        if (!statSync2(resolvedPath).isFile()) {
           throw new Error("not a regular file");
         }
       } else {
         let ancestor = candidate;
         while (!existsSync(ancestor)) {
-          const parent = dirname4(ancestor);
+          const parent = dirname3(ancestor);
           if (parent === ancestor) {
             throw new Error("no existing parent directory");
           }
           ancestor = parent;
         }
-        const resolvedAncestor = realpathSync8(ancestor);
-        resolvedPath = resolve4(resolvedAncestor, relative5(ancestor, candidate));
+        const resolvedAncestor = realpathSync7(ancestor);
+        resolvedPath = resolve3(resolvedAncestor, relative5(ancestor, candidate));
       }
     } catch (error2) {
       throw new EmulatorError(`The emulator path is not accessible: ${candidate}`, {
@@ -42800,7 +42810,7 @@ var EmulatorService = class {
     if (process.getuid)
       this.#releaseRecordingAccess ??= this.#recordingMaintenance.acquire();
     const worker = spawn2(this.#pythonPath, ["-I", "-B", "-u", this.#workerPath, "--root", this.projectRoot], {
-      cwd: dirname4(this.#workerPath),
+      cwd: dirname3(this.#workerPath),
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
@@ -42939,9 +42949,9 @@ var EmulatorService = class {
 };
 
 // src/mcp-path-privacy.js
-import { realpathSync as realpathSync9 } from "node:fs";
-import path30 from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { realpathSync as realpathSync8 } from "node:fs";
+import path31 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 var REDACTED_MCP_PATH = "[path outside authorized workspace]";
 var PATH_BODY = String.raw`[^\s"'\x60<>[\]{}(),;|]*`;
 var PATH_TOKEN = new RegExp(String.raw`(?:file:(?:\/\/|\\\/\\\/)(?:localhost)?(?:\/|\\\/)?|(?<![A-Za-z\d_.:\/-])(?:[A-Za-z]:[\\/]|\\?\/|%2F))${PATH_BODY}`, "gu");
@@ -42953,14 +42963,14 @@ function physicallyResolved(candidate, platform) {
   const paths = platformPath(candidate, platform);
   if (!paths.isAbsolute(candidate))
     return void 0;
-  if (platform === "win32" && process.platform !== "win32" && paths === path30.win32) {
+  if (platform === "win32" && process.platform !== "win32" && paths === path31.win32) {
     return paths.normalize(paths.resolve(candidate));
   }
   const missing2 = [];
   let existing = paths.resolve(candidate);
   while (true) {
     try {
-      const resolved = realpathSync9.native(existing);
+      const resolved = realpathSync8.native(existing);
       return paths.resolve(resolved, ...missing2.reverse());
     } catch (error2) {
       if (!(error2 instanceof Error) || !("code" in error2) || error2.code !== "ENOENT" && error2.code !== "ENOTDIR") {
@@ -42999,7 +43009,7 @@ function candidatePath(value, platform) {
   let decoded = value.replaceAll("\\/", "/");
   if (decoded.toLowerCase().startsWith("file://")) {
     try {
-      decoded = fileURLToPath3(decoded, { windows: platform === "win32" });
+      decoded = fileURLToPath2(decoded, { windows: platform === "win32" });
     } catch {
       decoded = decoded.replace(/^file:\/\/(?:localhost)?/, "");
     }
@@ -43132,19 +43142,19 @@ var PlaytestError = class extends Error {
 };
 
 // src/project-session.js
-import { realpathSync as realpathSync10, statSync as statSync4 } from "node:fs";
+import { realpathSync as realpathSync9, statSync as statSync3 } from "node:fs";
 import { lstat as lstat13, mkdir as mkdir9, open as open12, readdir as readdir8, readFile as readFile12, realpath as realpath15, rmdir as rmdir3, stat as stat6, unlink as unlink5 } from "node:fs/promises";
-import path33 from "node:path";
+import path34 from "node:path";
 
 // src/project-world-index.js
 import { createHash as createHash26 } from "node:crypto";
 import { lstat as lstat12, readdir as readdir7, readFile as readFile11, realpath as realpath14, stat as stat5 } from "node:fs/promises";
-import path32 from "node:path";
+import path33 from "node:path";
 
 // src/project-tree-watcher.js
 import { EventEmitter } from "node:events";
 import { lstatSync as lstatSync8, readdirSync as readdirSync6, watch } from "node:fs";
-import path31 from "node:path";
+import path32 from "node:path";
 function vanishedProjectTreeEntry(error2) {
   return typeof error2 === "object" && error2 !== null && (error2.code === "ENOENT" || error2.code === "ENOTDIR");
 }
@@ -43158,7 +43168,7 @@ var ProjectTreeWatcher = class extends EventEmitter {
   #closed = false;
   constructor(root, options, listener) {
     super();
-    this.#root = path31.resolve(root);
+    this.#root = path32.resolve(root);
     this.#persistent = options.persistent ?? true;
     this.on("change", listener);
     try {
@@ -43204,7 +43214,7 @@ var ProjectTreeWatcher = class extends EventEmitter {
       return;
     }
     for (const entry of entries) {
-      const file2 = path31.join(folder, entry.name);
+      const file2 = path32.join(folder, entry.name);
       if (report)
         this.#report("rename", file2);
       if (entry.isDirectory() && !this.#folders.has(file2))
@@ -43223,9 +43233,9 @@ var ProjectTreeWatcher = class extends EventEmitter {
         this.emit("change", eventType, null);
         return;
       }
-      const file2 = path31.join(folder, name3.toString());
+      const file2 = path32.join(folder, name3.toString());
       const current = this.#folderAt(file2);
-      const aboutItself = name3.toString() === path31.basename(folder) && current === void 0 && !this.#exists(file2);
+      const aboutItself = name3.toString() === path32.basename(folder) && current === void 0 && !this.#exists(file2);
       if (aboutItself || !sameProjectTreeFolder(watched, this.#folderAt(folder))) {
         this.#watchAgain(folder);
         return;
@@ -43270,7 +43280,7 @@ var ProjectTreeWatcher = class extends EventEmitter {
     }
   }
   #forget(folder) {
-    const below = folder + path31.sep;
+    const below = folder + path32.sep;
     for (const [watched, { watcher }] of this.#folders) {
       if (watched === folder || watched.startsWith(below)) {
         watcher.close();
@@ -43279,7 +43289,7 @@ var ProjectTreeWatcher = class extends EventEmitter {
     }
   }
   #report(eventType, file2) {
-    this.emit("change", eventType, path31.relative(this.#root, file2));
+    this.emit("change", eventType, path32.relative(this.#root, file2));
   }
   #fail(error2) {
     if (this.#closed)
@@ -43473,13 +43483,13 @@ var ProjectWorldIndex = class {
     fallbackFullRebuilds: 0
   };
   constructor(projectPath, selectionGeneration = 0, options = {}) {
-    this.#requestedPath = path32.resolve(projectPath);
+    this.#requestedPath = path33.resolve(projectPath);
     this.#watcherFactory = options.watcherFactory ?? watchProjectTree;
     this.#platform = options.platform ?? process.platform;
     this.#reviewedCustomEvents = options.reviewedCustomEvents ?? REVIEWED_CUSTOM_EVENTS;
     this.#toolchainRoot = options.toolchainRoot;
     this.projectPath = this.#requestedPath;
-    this.projectRoot = this.#requestedPath.toLowerCase().endsWith(".gbsproj") ? path32.dirname(this.#requestedPath) : this.#requestedPath;
+    this.projectRoot = this.#requestedPath.toLowerCase().endsWith(".gbsproj") ? path33.dirname(this.#requestedPath) : this.#requestedPath;
     this.selectionGeneration = selectionGeneration;
   }
   async ensureFresh() {
@@ -43557,7 +43567,7 @@ var ProjectWorldIndex = class {
       const assets = [...referencedAssetIds].flatMap((id3) => this.#assetsById.get(id3) ?? []);
       const wantsVariables = selectedKinds.has("variable");
       const wantsDiagnostics = selectedKinds.has("diagnostic");
-      const prefix2 = path32.posix.dirname(scene.resourcePath);
+      const prefix2 = path33.posix.dirname(scene.resourcePath);
       const diagnostics = wantsDiagnostics ? snapshot.diagnostics.filter((item) => !item.resourcePath || item.resourcePath.startsWith(prefix2)) : [];
       selected = {
         ...snapshot,
@@ -43716,8 +43726,8 @@ var ProjectWorldIndex = class {
     await this.ensureFresh();
     for (const candidate of paths) {
       assertWithinProject(this.projectRoot, candidate, this.#platform);
-      const platformCandidate2 = this.#platform === "win32" ? candidate.replace(/\\/g, path32.sep) : candidate;
-      const absolute = path32.isAbsolute(platformCandidate2) ? platformCandidate2 : path32.join(this.projectRoot, platformCandidate2);
+      const platformCandidate2 = this.#platform === "win32" ? candidate.replace(/\\/g, path33.sep) : candidate;
+      const absolute = path33.isAbsolute(platformCandidate2) ? platformCandidate2 : path33.join(this.projectRoot, platformCandidate2);
       assertWithinProject(this.projectRoot, absolute, this.#platform);
       const relative6 = this.#canonicalRelativePath(projectRelativePath(this.projectRoot, absolute, this.#platform));
       if (this.#isObserved(relative6))
@@ -43831,11 +43841,11 @@ var ProjectWorldIndex = class {
     if (!relative6 || relative6.includes("\0") || relative6 === ".")
       return false;
     const observed = this.#platform === "win32" ? relative6.toLowerCase() : relative6;
-    const descriptor = this.#platform === "win32" ? path32.basename(this.projectPath).toLowerCase() : path32.basename(this.projectPath);
+    const descriptor = this.#platform === "win32" ? path33.basename(this.projectPath).toLowerCase() : path33.basename(this.projectPath);
     return observed === descriptor || observed.startsWith("project/") || observed.startsWith("assets/") || observed.startsWith("plugins/") || observed === "project" || observed === "assets" || observed === "plugins";
   }
   #canonicalRelativePath(candidate) {
-    const normalized = this.#platform === "win32" ? candidate.replace(/\\/g, "/") : candidate.split(path32.sep).join("/");
+    const normalized = this.#platform === "win32" ? candidate.replace(/\\/g, "/") : candidate.split(path33.sep).join("/");
     if (this.#platform !== "win32")
       return normalized;
     return this.#windowsPaths.get(normalized.toLowerCase()) ?? normalized;
@@ -43869,7 +43879,7 @@ var ProjectWorldIndex = class {
     this.#counters.directoryReads += 1;
     entries.sort((left, right) => left.name.localeCompare(right.name));
     for (const entry of entries) {
-      const candidate = path32.join(canonical2, entry.name);
+      const candidate = path33.join(canonical2, entry.name);
       if (entry.isSymbolicLink()) {
         let destination;
         try {
@@ -43898,7 +43908,7 @@ var ProjectWorldIndex = class {
     this.#counters.authoredFileReads += 1;
     this.#counters.authoredBytesRead += bytes2.byteLength;
     const relativePath2 = projectRelativePath(this.projectRoot, canonical2, this.#platform);
-    const fileCategory = category(relativePath2, path32.basename(this.projectPath));
+    const fileCategory = category(relativePath2, path33.basename(this.projectPath));
     const semanticResource = relativePath2.endsWith(".gbsproj") || relativePath2.endsWith(".gbsres");
     const optionalJson = relativePath2.endsWith(".json") && relativePath2.startsWith("assets/fonts/");
     const parseJson2 = semanticResource || optionalJson;
@@ -43966,14 +43976,14 @@ var ProjectWorldIndex = class {
     const descriptorFile = await this.#readFile(descriptor);
     discovered.set(descriptorFile.relativePath, descriptorFile);
     for (const folder of ["project", "assets", "plugins"]) {
-      await this.#walk(path32.join(root, folder), discovered);
+      await this.#walk(path33.join(root, folder), discovered);
     }
     const previousPluginHashes = new Map([...this.#files].filter(([name3]) => name3.startsWith("plugins/")).map(([name3, item]) => [name3, item.sha256]));
     this.#files.clear();
     this.#windowsPaths.clear();
     for (const [relative6, item] of discovered)
       this.#setIndexedFile(relative6, item);
-    const descriptorRelative = path32.basename(this.projectPath);
+    const descriptorRelative = path33.basename(this.projectPath);
     this.#tree = new ProjectRevisionTree([...discovered.values()].filter((item) => isPublicProjectRevisionPath(item.relativePath, descriptorRelative)));
     this.#counters.fullHashPasses += 1;
     this.#counters.fullInventoryBuilds += 1;
@@ -44017,11 +44027,11 @@ var ProjectWorldIndex = class {
   async #applyDirty(dirty) {
     let semanticChange = false;
     const changedPaths = /* @__PURE__ */ new Set();
-    const descriptorRelative = path32.basename(this.projectPath);
+    const descriptorRelative = path33.basename(this.projectPath);
     for (const observed of new Set(dirty)) {
       this.#dirty.delete(observed);
       let relative6 = this.#canonicalRelativePath(observed);
-      let absolute = path32.join(this.projectRoot, relative6);
+      let absolute = path33.join(this.projectRoot, relative6);
       assertWithinProject(this.projectRoot, absolute, this.#platform);
       let entry;
       try {
@@ -44107,7 +44117,7 @@ var ProjectWorldIndex = class {
    * file or another folder leaves nothing of what was there before. Returns whether a plugin file went.
    */
   #dropIndexed(relative6, keep, changedPaths) {
-    const descriptorRelative = path32.basename(this.projectPath);
+    const descriptorRelative = path33.basename(this.projectPath);
     let pluginChanged = false;
     for (const existing of [...this.#files.keys()]) {
       if (existing !== relative6 && !existing.startsWith(`${relative6}/`) || keep(existing))
@@ -44126,7 +44136,7 @@ var ProjectWorldIndex = class {
     const discovery = this.#discovery;
     if (!discovery)
       throw new GameStudioProjectError("STALE_PROJECT", "The project selection is unavailable");
-    const descriptorFile = this.#files.get(path32.basename(this.projectPath));
+    const descriptorFile = this.#files.get(path33.basename(this.projectPath));
     if (!descriptorFile?.json)
       throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor is unavailable");
     const descriptor = descriptorFile.json;
@@ -44181,7 +44191,7 @@ var ProjectWorldIndex = class {
       return false;
     if (!this.#reviewedCustomEvents.needsDependencyRefresh(this.#files, changedPaths) && changedPaths.every((relative6) => {
       const file2 = this.#files.get(relative6);
-      return file2 ? file2.category === "other" : !relative6.endsWith(".gbsres") && !ASSET_EXTENSIONS2.has(path32.extname(relative6).toLowerCase());
+      return file2 ? file2.category === "other" : !relative6.endsWith(".gbsres") && !ASSET_EXTENSIONS2.has(path33.extname(relative6).toLowerCase());
     })) {
       this.revision = this.#tree.revision();
       this.#snapshot = { ...previousSnapshot, revision: this.revision };
@@ -44429,12 +44439,12 @@ var ProjectWorldIndex = class {
       settings = isObject14(descriptor.settings) ? descriptor.settings : {};
       for (const candidate of Array.isArray(descriptor.customEvents) ? descriptor.customEvents : []) {
         if (isObject14(candidate))
-          scripts.push(scriptSymbolRecord(candidate, path32.basename(this.projectPath)));
+          scripts.push(scriptSymbolRecord(candidate, path33.basename(this.projectPath)));
       }
       for (const candidate of Array.isArray(descriptor.scenes) ? descriptor.scenes : []) {
         if (!isObject14(candidate))
           continue;
-        const resourcePath = path32.basename(this.projectPath);
+        const resourcePath = path33.basename(this.projectPath);
         scenes.push({
           ...materialize(candidate, resourcePath),
           actors: (Array.isArray(candidate.actors) ? candidate.actors : []).filter(isObject14).map((actor) => materialize(actor, resourcePath)),
@@ -44443,7 +44453,7 @@ var ProjectWorldIndex = class {
       }
       for (const item of Array.isArray(descriptor.palettes) ? descriptor.palettes : []) {
         if (isObject14(item))
-          palettes.push(materialize(item, path32.basename(this.projectPath)));
+          palettes.push(materialize(item, path33.basename(this.projectPath)));
       }
     } else {
       if (projectFiles.length === 0)
@@ -44474,7 +44484,7 @@ var ProjectWorldIndex = class {
       for (const sceneFile of sceneFiles) {
         if (!sceneFile.json)
           continue;
-        const directory = path32.posix.dirname(sceneFile.relativePath);
+        const directory = path33.posix.dirname(sceneFile.relativePath);
         const actors2 = (actorsBySceneDirectory.get(directory) ?? []).map((item) => materialize(item.json, item.relativePath));
         const triggers2 = (triggersBySceneDirectory.get(directory) ?? []).map((item) => materialize(item.json, item.relativePath));
         scenes.push({ ...materialize(sceneFile.json, sceneFile.relativePath), actors: actors2, triggers: triggers2 });
@@ -44496,7 +44506,7 @@ var ProjectWorldIndex = class {
       }
     }
     const files = [...this.#files.values()].filter((item) => item.relativePath.startsWith("assets/")).sort((left, right) => left.relativePath.localeCompare(right.relativePath));
-    const physical2 = files.filter((item) => ASSET_EXTENSIONS2.has(path32.extname(item.relativePath).toLowerCase()));
+    const physical2 = files.filter((item) => ASSET_EXTENSIONS2.has(path33.extname(item.relativePath).toLowerCase()));
     const physicalPaths = new Set(physical2.map((item) => item.relativePath));
     const assets = [];
     const legacyRootMetadata = /* @__PURE__ */ new Map();
@@ -44518,13 +44528,13 @@ var ProjectWorldIndex = class {
           message: `Asset ${file2.relativePath} has no .gbsres metadata yet; the game editor can import it on refresh`,
           resourcePath: file2.relativePath
         });
-      const extension = path32.extname(file2.relativePath);
+      const extension = path33.extname(file2.relativePath);
       assets.push({
         ...nativeMetadata,
         id: asString2(nativeMetadata?.id),
-        name: asString2(nativeMetadata?.name, path32.basename(file2.relativePath, extension)),
+        name: asString2(nativeMetadata?.name, path33.basename(file2.relativePath, extension)),
         type: assetType2(parts[1] ?? "asset", metadata2),
-        filename: asString2(nativeMetadata?.filename, path32.basename(file2.relativePath)),
+        filename: asString2(nativeMetadata?.filename, path33.basename(file2.relativePath)),
         resourcePath: file2.relativePath,
         metadataPath: metadata2 ? `${file2.relativePath}.gbsres` : null,
         hasMetadata: Boolean(metadata2),
@@ -44537,13 +44547,13 @@ var ProjectWorldIndex = class {
       if (!file2 || !isPhysicalPng(file2))
         continue;
       const { metadata: metadata2, folder } = candidate;
-      const extension = path32.posix.extname(file2.relativePath);
+      const extension = path33.posix.extname(file2.relativePath);
       assets.push({
         ...metadata2,
         id: asString2(metadata2.id),
-        name: asString2(metadata2.name, path32.posix.basename(file2.relativePath, extension)),
+        name: asString2(metadata2.name, path33.posix.basename(file2.relativePath, extension)),
         type: assetType2(folder, void 0),
-        filename: asString2(metadata2.filename, path32.posix.basename(file2.relativePath)),
+        filename: asString2(metadata2.filename, path33.posix.basename(file2.relativePath)),
         resourcePath: file2.relativePath,
         metadataPath: null,
         hasMetadata: false,
@@ -44623,7 +44633,7 @@ var ProjectWorldIndex = class {
         }
       }
     }
-    const settingsPath = format === "distributed" ? "project/settings.gbsres" : path32.basename(this.projectPath);
+    const settingsPath = format === "distributed" ? "project/settings.gbsres" : path33.basename(this.projectPath);
     const startSceneId = asString2(settings.startSceneId);
     const startScene = scenes.find((scene) => scene.id === startSceneId);
     if (startSceneId && !startScene)
@@ -44668,7 +44678,7 @@ var ProjectWorldIndex = class {
     const triggers = scenes.flatMap((scene) => scene.triggers);
     return {
       ...discovery,
-      name: asString2(descriptor.name, path32.basename(discovery.projectPath, ".gbsproj")),
+      name: asString2(descriptor.name, path33.basename(discovery.projectPath, ".gbsproj")),
       author: asString2(descriptor.author),
       settings,
       scenes,
@@ -44695,8 +44705,8 @@ var EXCLUDED_TEMPLATE_DIRECTORIES = /* @__PURE__ */ new Set([
   "node_modules"
 ]);
 function isWithin(root, candidate) {
-  const relative6 = path33.relative(root, candidate);
-  return relative6 === "" || !relative6.startsWith(`..${path33.sep}`) && relative6 !== ".." && !path33.isAbsolute(relative6);
+  const relative6 = path34.relative(root, candidate);
+  return relative6 === "" || !relative6.startsWith(`..${path34.sep}`) && relative6 !== ".." && !path34.isAbsolute(relative6);
 }
 function assertWithin(root, candidate) {
   if (!isWithin(root, candidate)) {
@@ -44710,10 +44720,10 @@ function nonEmptyPath(value, label) {
   return value.trim();
 }
 function canonicalDirectory(value, label) {
-  const requested = path33.resolve(nonEmptyPath(value, label));
+  const requested = path34.resolve(nonEmptyPath(value, label));
   try {
-    const canonical2 = realpathSync10(requested);
-    if (!statSync4(canonical2).isDirectory()) {
+    const canonical2 = realpathSync9(requested);
+    if (!statSync3(canonical2).isDirectory()) {
       throw new Error("not a directory");
     }
     return canonical2;
@@ -44792,7 +44802,7 @@ async function assertCompleteCreation(entries) {
       throw new GameStudioProjectError("PROJECT_BUSY", "A newly created project entry changed during copying.", entry.path);
     }
     if (entry.identity.isDirectory()) {
-      const expected = entries.filter((child) => path33.dirname(child.path) === entry.path).map((child) => path33.basename(child.path)).sort();
+      const expected = entries.filter((child) => path34.dirname(child.path) === entry.path).map((child) => path34.basename(child.path)).sort();
       const actual = (await readdir8(entry.path)).sort();
       if (expected.length !== actual.length || expected.some((name3, index) => name3 !== actual[index])) {
         throw new GameStudioProjectError("PROJECT_BUSY", "Another writer added or removed project entries during creation.", entry.path);
@@ -44806,8 +44816,8 @@ async function copyTrustedTemplate(source, destination, descriptorPath, createdE
   for (const entry of entries) {
     if (isExcludedTemplateEntry(entry.name, entry.isDirectory()))
       continue;
-    const sourcePath = path33.join(source, entry.name);
-    const destinationPath = path33.join(destination, entry.name);
+    const sourcePath = path34.join(source, entry.name);
+    const destinationPath = path34.join(destination, entry.name);
     const details = await lstat13(sourcePath);
     if (details.isSymbolicLink()) {
       throw new GameStudioProjectError("UNSAFE_SYMLINK", `The starter template must not contain symbolic links: ${sourcePath}`, sourcePath);
@@ -44838,8 +44848,8 @@ async function blankProjectOverrides(template, configuration) {
   if (inventory.diagnostics.some((diagnostic) => diagnostic.severity === "error") || !hasAsset(scene.backgroundId, "background") || !hasAsset(playerId, "sprite") || !hasAsset(inventory.settings.defaultFontId, "font")) {
     throw new GameStudioProjectError("INVALID_BLANK_TEMPLATE", "The blank starter must provide valid background, player and font resources for the requested game type.");
   }
-  const settingsPath = path33.join(template, "project", "settings.gbsres");
-  const scenePath = path33.join(template, scene.resourcePath);
+  const settingsPath = path34.join(template, "project", "settings.gbsres");
+  const scenePath = path34.join(template, scene.resourcePath);
   const { actors: _actors, triggers: _triggers, resourcePath: _resourcePath, ...sceneData } = scene;
   const json2 = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}
 `, "utf8");
@@ -44862,7 +44872,7 @@ var ProjectSession = class {
   #transitioning = false;
   #worldIndex;
   constructor(options = {}) {
-    const runtimeRoot = options.runtimeRoot ?? process.env.GB_STUDIO_RUNTIME_ROOT ?? path33.resolve(import.meta.dirname, "..");
+    const runtimeRoot = options.runtimeRoot ?? process.env.GB_STUDIO_RUNTIME_ROOT ?? ENGINE_ROOT;
     this.runtimeRoot = canonicalDirectory(runtimeRoot, "The runtime root");
     const pluginRoot = options.pluginRoot ?? process.env.GB_STUDIO_PLUGIN_ROOT;
     this.#bundleRoots = [.../* @__PURE__ */ new Set([
@@ -44878,7 +44888,7 @@ var ProjectSession = class {
     if (explicitWorkspace?.trim()) {
       this.#workspaceRoot = canonicalDirectory(explicitWorkspace, "The authorized workspace root");
     } else if (this.#configuredProject !== void 0) {
-      const projectDirectory = this.#configuredProject.toLowerCase().endsWith(".gbsproj") ? path33.dirname(path33.resolve(this.#configuredProject)) : this.#configuredProject;
+      const projectDirectory = this.#configuredProject.toLowerCase().endsWith(".gbsproj") ? path34.dirname(path34.resolve(this.#configuredProject)) : this.#configuredProject;
       this.#workspaceRoot = canonicalDirectory(projectDirectory, "The configured project root");
     }
   }
@@ -44927,7 +44937,7 @@ var ProjectSession = class {
     this.#transitioning = true;
     try {
       const candidate = nonEmptyPath(input.projectPath, "The project path");
-      if (this.#workspaceRoot === void 0 && !path33.isAbsolute(candidate)) {
+      if (this.#workspaceRoot === void 0 && !path34.isAbsolute(candidate)) {
         throw new GameStudioProjectError("PROJECT_SELECTION_REQUIRED", "The first selected project must be an absolute path when no workspace is configured.", candidate);
       }
       const discovered = this.#workspaceRoot === void 0 ? await this.#discoverExactProject(candidate) : await this.#discoverBounded(candidate, this.#workspaceRoot);
@@ -44971,7 +44981,7 @@ var ProjectSession = class {
       if (input.author !== void 0 && (typeof input.author !== "string" || input.author.trim().length === 0)) {
         throw new GameStudioProjectError("INVALID_INPUT", "The project author must be a non-empty string when provided.");
       }
-      const template = path33.join(this.runtimeRoot, "examples", input.template);
+      const template = path34.join(this.runtimeRoot, "examples", input.template);
       let templateDetails;
       try {
         templateDetails = await lstat13(template);
@@ -45002,7 +45012,7 @@ var ProjectSession = class {
       }
       await rememberCreatedDirectory(destination, createdEntries);
       await copyTrustedTemplate(template, destination, templateProject.projectPath, createdEntries, overrides);
-      await writeCreatedFile(path33.join(destination, path33.basename(templateProject.projectPath)), `${JSON.stringify(descriptor, null, 2)}
+      await writeCreatedFile(path34.join(destination, path34.basename(templateProject.projectPath)), `${JSON.stringify(descriptor, null, 2)}
 `, createdEntries);
       await assertCompleteCreation(createdEntries);
       const created = await this.#discoverBounded(destination, this.#workspaceRoot ?? destination);
@@ -45090,7 +45100,7 @@ var ProjectSession = class {
     if (allowed)
       return;
     try {
-      const starter = await realpath15(path33.join(this.runtimeRoot, "examples", "starter"));
+      const starter = await realpath15(path34.join(this.runtimeRoot, "examples", "starter"));
       if (starter === projectRoot) {
         throw new GameStudioProjectError("STARTER_SELECTION_REQUIRES_OPT_IN", "Selecting the bundled starter requires allowStarter: true.", projectRoot);
       }
@@ -45100,13 +45110,13 @@ var ProjectSession = class {
     }
   }
   #enclosesBundledExamples(candidate) {
-    return this.#bundleRoots.some((root) => isWithin(candidate, path33.join(root, "examples")));
+    return this.#bundleRoots.some((root) => isWithin(candidate, path34.join(root, "examples")));
   }
   #bundledExamplesError(candidate) {
     return new GameStudioProjectError("BUNDLED_TEMPLATE_READ_ONLY", "This folder encloses the engine's read-only bundled examples. Use a workspace or project outside them; to change a bundled example, create a project from the starter with project_create and edit that copy.", candidate);
   }
   async #discoverExactProject(candidate) {
-    const requested = path33.resolve(candidate);
+    const requested = path34.resolve(candidate);
     let canonical2;
     try {
       canonical2 = await realpath15(requested);
@@ -45122,10 +45132,10 @@ var ProjectSession = class {
     if (!details.isFile() || !canonical2.toLowerCase().endsWith(".gbsproj")) {
       throw new GameStudioProjectError("INVALID_INPUT", "Select a project directory or an exact .gbsproj descriptor.", requested);
     }
-    return this.#discoverBounded(canonical2, path33.dirname(canonical2));
+    return this.#discoverBounded(canonical2, path34.dirname(canonical2));
   }
   async #discoverBounded(candidate, workspaceRoot) {
-    const requested = path33.resolve(workspaceRoot, nonEmptyPath(candidate, "The project path"));
+    const requested = path34.resolve(workspaceRoot, nonEmptyPath(candidate, "The project path"));
     assertWithin(workspaceRoot, requested);
     let canonical2;
     try {
@@ -45148,7 +45158,7 @@ var ProjectSession = class {
       let directory = canonical2;
       while (true) {
         const entries = await readdir8(directory, { withFileTypes: true });
-        const matches2 = entries.filter((entry) => (entry.isFile() || entry.isSymbolicLink()) && entry.name.toLowerCase().endsWith(".gbsproj")).map((entry) => path33.join(directory, entry.name)).sort((left, right) => left.localeCompare(right));
+        const matches2 = entries.filter((entry) => (entry.isFile() || entry.isSymbolicLink()) && entry.name.toLowerCase().endsWith(".gbsproj")).map((entry) => path34.join(directory, entry.name)).sort((left, right) => left.localeCompare(right));
         if (matches2.length > 1) {
           throw new GameStudioProjectError("AMBIGUOUS_PROJECT", `More than one .gbsproj file exists in ${directory}; select an explicit descriptor.`, directory);
         }
@@ -45159,7 +45169,7 @@ var ProjectSession = class {
         }
         if (directory === workspaceRoot)
           break;
-        directory = path33.dirname(directory);
+        directory = path34.dirname(directory);
         assertWithin(workspaceRoot, directory);
       }
     }
@@ -45174,7 +45184,7 @@ var ProjectSession = class {
   }
   #assertOutsideTemplates(destination) {
     for (const root of this.#bundleRoots) {
-      if (isWithin(path33.join(root, "examples", "starter"), destination)) {
+      if (isWithin(path34.join(root, "examples", "starter"), destination)) {
         throw new GameStudioProjectError("INVALID_INPUT", "The project destination must not be inside a bundled template.", destination);
       }
     }
@@ -45188,11 +45198,11 @@ var ProjectSession = class {
       throw new GameStudioProjectError("INVALID_INPUT", error2 instanceof Error ? error2.message : "The destination path is unsafe.");
     }
     if (workspaceRoot === void 0) {
-      if (!path33.isAbsolute(requested) || process.platform === "win32" && !/^[A-Za-z]:[\\/]/u.test(requested)) {
+      if (!path34.isAbsolute(requested) || process.platform === "win32" && !/^[A-Za-z]:[\\/]/u.test(requested)) {
         throw new GameStudioProjectError("PROJECT_SELECTION_REQUIRED", "The first project_create destination must be an absolute path to a new directory under an existing real parent when no workspace is configured.");
       }
-      const destination2 = path33.resolve(requested);
-      const parent2 = path33.dirname(destination2);
+      const destination2 = path34.resolve(requested);
+      const parent2 = path34.dirname(destination2);
       let canonicalParent;
       try {
         canonicalParent = await realpath15(parent2);
@@ -45211,17 +45221,17 @@ var ProjectSession = class {
       this.#assertOutsideTemplates(destination2);
       return destination2;
     }
-    const destination = path33.resolve(workspaceRoot, requested);
+    const destination = path34.resolve(workspaceRoot, requested);
     assertWithin(workspaceRoot, destination);
     if (destination === workspaceRoot) {
       throw new GameStudioProjectError("INVALID_INPUT", "The project destination must be a new directory inside the workspace.", destination);
     }
     this.#assertOutsideTemplates(destination);
-    const parent = path33.dirname(destination);
-    const segments = path33.relative(workspaceRoot, parent).split(path33.sep).filter(Boolean);
+    const parent = path34.dirname(destination);
+    const segments = path34.relative(workspaceRoot, parent).split(path34.sep).filter(Boolean);
     let current = workspaceRoot;
     for (const segment of segments) {
-      current = path33.join(current, segment);
+      current = path34.join(current, segment);
       try {
         const details = await lstat13(current);
         if (details.isSymbolicLink()) {
@@ -45256,7 +45266,7 @@ var ProjectSession = class {
 // src/source-debug.js
 import { constants as constants13 } from "node:fs";
 import { lstat as lstat14, open as open13, realpath as realpath16 } from "node:fs/promises";
-import path34 from "node:path";
+import path35 from "node:path";
 
 // src/world-queries.js
 import { createHash as createHash27 } from "node:crypto";
@@ -45952,7 +45962,7 @@ var SourceDebugContext = class _SourceDebugContext {
       fail3("SOURCE_DEBUG_UNAVAILABLE", "Source debugging requires a successful official captureDebugArtifacts build retained by this MCP session. A supplied ROM or copied manifest is ROM-only.");
     if (!receipt.abi)
       fail3("SOURCE_DEBUG_ABI_UNSUPPORTED", receipt.artifacts.sourceDebugUnavailableReason ?? "The same-build engine layout is unsupported for source debugging.");
-    if (options.projectPath && !samePath2(await realpath16(path34.resolve(path34.dirname(receipt.source.projectPath), options.projectPath)), receipt.source.projectPath)) {
+    if (options.projectPath && !samePath2(await realpath16(path35.resolve(path35.dirname(receipt.source.projectPath), options.projectPath)), receipt.source.projectPath)) {
       fail3("SOURCE_DEBUG_PROJECT_MISMATCH", "The captured build belongs to a different selected project.");
     }
     if (options.access) {
@@ -45968,7 +45978,7 @@ var SourceDebugContext = class _SourceDebugContext {
     if (snapshot.revision !== receipt.source.projectRevision || !sameBuildSourceProvenance(receipt.source, current)) {
       fail3("SOURCE_DEBUG_STALE_SOURCE", "Authored sources or project plugins changed after this build. Rebuild before enabling source-aware debugging.");
     }
-    const root = path34.dirname(receipt.source.projectPath);
+    const root = path35.dirname(receipt.source.projectPath);
     const [rom, noi, globals] = await Promise.all([
       authenticatedFile(root, receipt.outputPath, receipt.artifacts.romSha256),
       authenticatedFile(root, receipt.artifacts.noiPath, receipt.artifacts.noiSha256),
@@ -46033,7 +46043,7 @@ var SourceDebugContext = class _SourceDebugContext {
       fail3("SOURCE_DEBUG_ROM_MISMATCH", "The running emulator does not contain the exact ROM bytes from this source-debug build.");
     }
     await this.#validateSource();
-    const root = path34.dirname(this.projectPath);
+    const root = path35.dirname(this.projectPath);
     await Promise.all([
       authenticatedFile(root, this.#receipt.outputPath, this.#receipt.artifacts.romSha256),
       authenticatedFile(root, this.#receipt.artifacts.noiPath, this.#receipt.artifacts.noiSha256),
@@ -46731,13 +46741,13 @@ var domainSchemas = {
 };
 
 // src/tool-domains/register.js
-import path37 from "node:path";
+import path38 from "node:path";
 
 // src/dialogue-preview.js
-var import_pngjs9 = __toESM(require_png(), 1);
+var import_pngjs8 = __toESM(require_png(), 1);
 import { createHash as createHash28 } from "node:crypto";
 import { lstat as lstat15, mkdir as mkdir10, open as open14, readFile as readFile13, realpath as realpath17 } from "node:fs/promises";
-import path35 from "node:path";
+import path36 from "node:path";
 var SCREEN_WIDTH2 = 160;
 var SCREEN_HEIGHT2 = 144;
 var TILE_SIZE3 = 8;
@@ -46746,8 +46756,8 @@ var MAX_DIMENSION = 1024;
 var MAX_PREVIEW_PAGES = 64;
 var LABEL_HEIGHT = 16;
 function insideRoot(root, candidate) {
-  const relative6 = path35.relative(root, candidate);
-  return relative6 !== ".." && !relative6.startsWith(`..${path35.sep}`) && !path35.isAbsolute(relative6);
+  const relative6 = path36.relative(root, candidate);
+  return relative6 !== ".." && !relative6.startsWith(`..${path36.sep}`) && !path36.isAbsolute(relative6);
 }
 function assertInsideRoot(root, candidate) {
   if (!insideRoot(root, candidate)) {
@@ -46755,7 +46765,7 @@ function assertInsideRoot(root, candidate) {
   }
 }
 async function loadImage(root, resourcePath, expectedType) {
-  const candidate = path35.resolve(root, resourcePath);
+  const candidate = path36.resolve(root, resourcePath);
   assertInsideRoot(root, candidate);
   let canonical2;
   try {
@@ -46774,7 +46784,7 @@ async function loadImage(root, resourcePath, expectedType) {
     throw new GameStudioProjectError("INVALID_RESOURCE", `${expectedType} PNG has unsupported dimensions: ${resourcePath}`, resourcePath);
   }
   try {
-    return import_pngjs9.PNG.sync.read(bytes2);
+    return import_pngjs8.PNG.sync.read(bytes2);
   } catch (error2) {
     throw new GameStudioProjectError("INVALID_RESOURCE", `${expectedType} PNG could not be decoded: ${resourcePath}`, resourcePath);
   }
@@ -46877,7 +46887,7 @@ function avatarAsset(inventory, id3) {
 }
 async function renderPage(inventory, font, frame3, page, event, overrideAvatarId, maxVisibleLines) {
   const palette = resolveUiPalette(inventory).colors.map(colorFromHex);
-  const image = new import_pngjs9.PNG({ width: SCREEN_WIDTH2, height: SCREEN_HEIGHT2 });
+  const image = new import_pngjs8.PNG({ width: SCREEN_WIDTH2, height: SCREEN_HEIGHT2 });
   fill2(image, palette[3]);
   const scene = inventory.scenes.find((candidate) => candidate.id === page.sceneId);
   const background = inventory.assets.find((candidate) => candidate.type === "background" && candidate.id === scene?.backgroundId);
@@ -46936,12 +46946,12 @@ function scaledCopy(destination, source, startX, startY, scale) {
   }
 }
 async function resolveOutputPath(projectRoot, outputPath) {
-  if (typeof outputPath !== "string" || outputPath.trim().length === 0 || path35.extname(outputPath).toLowerCase() !== ".png") {
+  if (typeof outputPath !== "string" || outputPath.trim().length === 0 || path36.extname(outputPath).toLowerCase() !== ".png") {
     throw new GameStudioProjectError("INVALID_PREVIEW_PATH", "Dialogue previews require a nonempty .png output path");
   }
-  const candidate = path35.resolve(projectRoot, outputPath);
+  const candidate = path36.resolve(projectRoot, outputPath);
   assertInsideRoot(projectRoot, candidate);
-  const parent = path35.dirname(candidate);
+  const parent = path36.dirname(candidate);
   let ancestor = parent;
   while (true) {
     try {
@@ -46950,7 +46960,7 @@ async function resolveOutputPath(projectRoot, outputPath) {
     } catch (error2) {
       if (!(error2 instanceof Error) || !("code" in error2) || error2.code !== "ENOENT")
         throw error2;
-      const next = path35.dirname(ancestor);
+      const next = path36.dirname(ancestor);
       if (next === ancestor)
         throw new GameStudioProjectError("INVALID_PREVIEW_PATH", `Dialogue output has no accessible parent: ${outputPath}`);
       ancestor = next;
@@ -46960,7 +46970,7 @@ async function resolveOutputPath(projectRoot, outputPath) {
   await mkdir10(parent, { recursive: true });
   const canonicalParent = await realpath17(parent);
   assertInsideRoot(projectRoot, canonicalParent);
-  const destination = path35.join(canonicalParent, path35.basename(candidate));
+  const destination = path36.join(canonicalParent, path36.basename(candidate));
   try {
     const existing = await lstat15(destination);
     if (existing.isSymbolicLink() || !existing.isFile())
@@ -46996,14 +47006,14 @@ async function previewDialogue(projectPath, input, access4) {
   const rows = Math.ceil(pages.length / actualColumns);
   const labeled = pages.length > 1;
   const tileHeight = SCREEN_HEIGHT2 + (labeled ? LABEL_HEIGHT : 0);
-  const output = new import_pngjs9.PNG({ width: SCREEN_WIDTH2 * actualColumns * scale, height: tileHeight * rows * scale });
+  const output = new import_pngjs8.PNG({ width: SCREEN_WIDTH2 * actualColumns * scale, height: tileHeight * rows * scale });
   const palette = resolveUiPalette(prepared.inventory).colors.map(colorFromHex);
   fill2(output, palette[3]);
   for (let index = 0; index < pages.length; index += 1) {
     const x = index % actualColumns * SCREEN_WIDTH2 * scale;
     const y = Math.floor(index / actualColumns) * tileHeight * scale;
     if (labeled) {
-      const label = new import_pngjs9.PNG({ width: SCREEN_WIDTH2, height: LABEL_HEIGHT });
+      const label = new import_pngjs8.PNG({ width: SCREEN_WIDTH2, height: LABEL_HEIGHT });
       fill2(label, palette[0]);
       drawText3(label, prepared.font, `PAGE ${indices[index] + 1}/${allPages.length}`, 4, 4, palette, SCREEN_WIDTH2 - 8);
       scaledCopy(output, label, x, y, scale);
@@ -47011,7 +47021,7 @@ async function previewDialogue(projectPath, input, access4) {
     scaledCopy(output, pages[index], x, y + (labeled ? LABEL_HEIGHT * scale : 0), scale);
   }
   const destination = await resolveOutputPath(prepared.inventory.projectRoot, input.outputPath);
-  const bytes2 = import_pngjs9.PNG.sync.write(output);
+  const bytes2 = import_pngjs8.PNG.sync.write(output);
   const handle = await open14(destination, "w");
   try {
     await handle.writeFile(bytes2);
@@ -47022,7 +47032,7 @@ async function previewDialogue(projectPath, input, access4) {
     provenance: "static-dialogue-preview",
     genuineEmulatorFrame: false,
     runtimeVerified: false,
-    path: path35.relative(prepared.inventory.projectRoot, destination).split(path35.sep).join("/"),
+    path: path36.relative(prepared.inventory.projectRoot, destination).split(path36.sep).join("/"),
     sha256: createHash28("sha256").update(bytes2).digest("hex"),
     width: output.width,
     height: output.height,
@@ -47032,14 +47042,14 @@ async function previewDialogue(projectPath, input, access4) {
 }
 
 // src/tilemaps.js
-var import_pngjs11 = __toESM(require_png(), 1);
+var import_pngjs10 = __toESM(require_png(), 1);
 import { constants as constants14 } from "node:fs";
 import { lstat as lstat16, open as open15 } from "node:fs/promises";
-import path36 from "node:path";
+import path37 from "node:path";
 import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
 // src/tilemap-compose.js
-var import_pngjs10 = __toESM(require_png(), 1);
+var import_pngjs9 = __toESM(require_png(), 1);
 import { createHash as createHash29 } from "node:crypto";
 
 // src/tilemap-schema.js
@@ -47289,7 +47299,7 @@ function validateRoomCells(room, atlas) {
 }
 function renderTilemap(room, atlas) {
   validateRoomCells(room, atlas);
-  const image = new import_pngjs10.PNG({ width: room.width * TILEMAP_TILE_SIZE, height: room.height * TILEMAP_TILE_SIZE });
+  const image = new import_pngjs9.PNG({ width: room.width * TILEMAP_TILE_SIZE, height: room.height * TILEMAP_TILE_SIZE });
   for (let index = 0; index < room.cells.length; index++) {
     const tile2 = atlas.tiles.get(room.cells[index].tileId);
     const x = index % room.width;
@@ -47467,16 +47477,16 @@ function parse4(schema2, value) {
 async function ownedPath(root, candidate, kind) {
   const prefix2 = kind === "background" ? "assets/backgrounds/" : "project/tilemaps/";
   const suffix = kind === "atlas" ? ".atlas.json" : kind === "recipe" ? ".room.json" : ".png";
-  if (path36.isAbsolute(candidate) || candidate.includes("\\") || candidate.includes(":") || !candidate.startsWith(prefix2) || !candidate.endsWith(suffix) || candidate.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+  if (path37.isAbsolute(candidate) || candidate.includes("\\") || candidate.includes(":") || !candidate.startsWith(prefix2) || !candidate.endsWith(suffix) || candidate.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
     tilemapError("INVALID_TILEMAP_PATH", `${kind} paths must be normalized project-relative ${prefix2}\u2026${suffix} paths.`);
   }
-  const absolute = path36.resolve(root, candidate);
+  const absolute = path37.resolve(root, candidate);
   const resolved = await resolveProjectPath(root, absolute);
   if (absolute !== resolved)
     tilemapError("UNSAFE_SYMLINK", "Tilemap ownership paths cannot use symbolic-link aliases.");
   let current = root;
   for (const segment of candidate.split("/")) {
-    current = path36.join(current, segment);
+    current = path37.join(current, segment);
     try {
       if ((await lstat16(current)).isSymbolicLink())
         tilemapError("UNSAFE_SYMLINK", "Tilemap ownership paths cannot contain symbolic links.");
@@ -47491,7 +47501,7 @@ async function ownedPath(root, candidate, kind) {
 async function readBytes(root, candidate, maximum) {
   const filename = await resolveProjectPath(root, candidate, { mustExist: true });
   const before = await lstat16(filename);
-  if (filename !== path36.resolve(root, candidate) || before.isSymbolicLink()) {
+  if (filename !== path37.resolve(root, candidate) || before.isSymbolicLink()) {
     tilemapError("UNSAFE_SYMLINK", "Tilemap inputs cannot use untracked symbolic-link aliases.");
   }
   if (!before.isFile() || before.size > maximum)
@@ -47712,7 +47722,7 @@ async function createTilemapIndexed(projectPath, rawInput, access4) {
     const backgroundId = stableResourceId("asset", "background", input.backgroundPath);
     if (snapshot.inventory.assets.some((asset2) => asset2.id === backgroundId))
       tilemapError("DUPLICATE_RESOURCE_ID", "The output background identity already exists.");
-    const nativeMetadata = createBackgroundMetadata({ id: backgroundId, name: input.name, filename: path36.basename(input.backgroundPath), widthPx: width * 8, heightPx: height * 8 });
+    const nativeMetadata = createBackgroundMetadata({ id: backgroundId, name: input.name, filename: path37.basename(input.backgroundPath), widthPx: width * 8, heightPx: height * 8 });
     const metadata2 = input.base.type === "existing" ? { ...existing.metadata, ...nativeMetadata } : nativeMetadata;
     metadata2.symbol = `bg_tilemap_${backgroundId.replaceAll("-", "")}`;
     const existingResources = [...snapshot.inventory.scenes, ...snapshot.inventory.actors, ...snapshot.inventory.triggers, ...snapshot.inventory.palettes];
@@ -47749,7 +47759,7 @@ async function createTilemapIndexed(projectPath, rawInput, access4) {
     validateRoomCells(room, pixels);
     const image = renderTilemap(room, pixels);
     const analysis = sourceAnalysis(snapshot, scene, room, image);
-    const png = input.base.type === "existing" ? existing.pngBytes : import_pngjs11.PNG.sync.write(image);
+    const png = input.base.type === "existing" ? existing.pngBytes : import_pngjs10.PNG.sync.write(image);
     if (input.base.type === "existing")
       metadata2.tileColors = existing.metadata.tileColors;
     else {
@@ -47758,7 +47768,7 @@ async function createTilemapIndexed(projectPath, rawInput, access4) {
     }
     const metadataBytes = jsonBytes(metadata2);
     room = { ...room, native: { ...room.native, pngSha256: sha256(png), metadataSha256: sha256(metadataBytes) } };
-    const asset = { id: backgroundId, name: input.name, type: "background", filename: path36.basename(input.backgroundPath), resourcePath: input.backgroundPath, metadataPath: `${input.backgroundPath}.gbsres`, hasMetadata: true, width: width * 8, height: height * 8 };
+    const asset = { id: backgroundId, name: input.name, type: "background", filename: path37.basename(input.backgroundPath), resourcePath: input.backgroundPath, metadataPath: `${input.backgroundPath}.gbsres`, hasMetadata: true, width: width * 8, height: height * 8 };
     return {
       files: [
         { relativePath: input.recipePath, before: null, after: jsonBytes(room) },
@@ -47915,7 +47925,7 @@ async function compileRoom(projectPath, input, operations, access4) {
     const difference = tilemapDiff(bound.room.cells, room.cells, room.width, pixels);
     const image = renderTilemap(room, pixels);
     const analysis = sourceAnalysis(snapshot, bound.scene, room, image);
-    const png = difference.pixelTiles === 0 ? bound.background.pngBytes : import_pngjs11.PNG.sync.write(image);
+    const png = difference.pixelTiles === 0 ? bound.background.pngBytes : import_pngjs10.PNG.sync.write(image);
     const paletteEdits = room.cells.flatMap((cell, index) => cell.paletteByte === bound.room.cells[index].paletteByte ? [] : [{ x: index % room.width, y: Math.floor(index / room.width), slot: cell.paletteByte }]);
     let metadata2 = bound.background.metadata;
     for (let start = 0; start < paletteEdits.length; start += 1024) {
@@ -47981,7 +47991,7 @@ async function inspectTilemapIndexed(projectPath, rawInput, access4) {
 }
 async function withTilemapIndex(projectPath, access4, action) {
   if (access4) {
-    const requested = path36.resolve(projectPath);
+    const requested = path37.resolve(projectPath);
     if (requested !== access4.projectPath && requested !== access4.projectRoot)
       tilemapError("STALE_PROJECT", "Indexed access belongs to another project.");
     return action(access4);
@@ -48092,8 +48102,8 @@ function registerProjectDomains(server, context) {
   }
   function authoredOutput(result, project) {
     const outputPath = "outputPath" in result ? result.outputPath : result.path;
-    const relative6 = path37.relative(project.projectRoot, path37.resolve(project.projectRoot, outputPath));
-    const normalized = relative6.split(path37.sep).join("/");
+    const relative6 = path38.relative(project.projectRoot, path38.resolve(project.projectRoot, outputPath));
+    const normalized = relative6.split(path38.sep).join("/");
     return normalized.startsWith("project/") || normalized.startsWith("assets/") ? [relative6] : [];
   }
   server.registerTool("scene_inspect", {
@@ -48530,12 +48540,12 @@ var recordingReviewToolSchema = external_exports.object({
 }).strict();
 async function reviewedImage(frame3, authorizedRoot) {
   const root = await realpath18(authorizedRoot);
-  const path47 = await realpath18(frame3.path);
+  const path48 = await realpath18(frame3.path);
   const entry = await lstat17(frame3.path);
-  if (!isPathWithinRoot(root, path47) || entry.isSymbolicLink() || !entry.isFile() || entry.size > 1024 * 1024) {
+  if (!isPathWithinRoot(root, path48) || entry.isSymbolicLink() || !entry.isFile() || entry.size > 1024 * 1024) {
     throw new Error("Review images must be bounded regular files inside the authorized workspace.");
   }
-  const file2 = await open16(path47, constants15.O_RDONLY | (constants15.O_NOFOLLOW ?? 0) | (constants15.O_NONBLOCK ?? 0));
+  const file2 = await open16(path48, constants15.O_RDONLY | (constants15.O_NOFOLLOW ?? 0) | (constants15.O_NONBLOCK ?? 0));
   try {
     const before = await file2.stat();
     if (!before.isFile() || before.size > 1024 * 1024)
@@ -48549,7 +48559,7 @@ async function reviewedImage(frame3, authorizedRoot) {
       count3 += read.bytesRead;
     }
     const after = await file2.stat();
-    if (count3 !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs || await realpath18(frame3.path) !== path47)
+    if (count3 !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs || await realpath18(frame3.path) !== path48)
       throw new Error("The recorded review image changed while being read.");
     const bytes2 = buffer.subarray(0, count3);
     if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash30("sha256").update(bytes2).digest("hex") !== frame3.sha256) {
@@ -48738,11 +48748,11 @@ function registerPlaytestTools(context) {
 }
 
 // src/web-build.js
-import { createHash as createHash31, createHmac, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+import { createHash as createHash31, createHmac, randomBytes, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
 import { constants as constants16, createReadStream } from "node:fs";
 import { link as link3, lstat as lstat18, mkdir as mkdir11, mkdtemp as mkdtemp3, open as open17, readFile as readFile14, readdir as readdir9, realpath as realpath19, rename as rename6, rm as rm6, stat as stat7, unlink as unlink6, writeFile as writeFile2 } from "node:fs/promises";
 import os3 from "node:os";
-import path38 from "node:path";
+import path39 from "node:path";
 var DEFAULT_TIMEOUT_MS2 = 12e4;
 var MAX_TIMEOUT_MS2 = 6e5;
 var MAX_ARTIFACT_FILES = 4096;
@@ -48750,7 +48760,7 @@ var MAX_ARTIFACT_BYTES = 128 * 1024 * 1024;
 var MANIFEST_FILENAME = ".codex-web-build.json";
 var WASM_MAGIC = Buffer.from([0, 97, 115, 109]);
 var BUILD_LOCKS = /* @__PURE__ */ new Map();
-var PROCESS_WEB_BUILD_ATTESTATION_KEY = randomBytes2(32);
+var PROCESS_WEB_BUILD_ATTESTATION_KEY = randomBytes(32);
 var TRUSTED_WEB_BUILD_KEYS = /* @__PURE__ */ new Map();
 var MAX_WINDOWS_PUBLISH_RETRIES = 6;
 function isInside2(root, candidate, platform = process.platform) {
@@ -48758,7 +48768,7 @@ function isInside2(root, candidate, platform = process.platform) {
 }
 function samePath3(left, right, platform = process.platform) {
   if (platform === "win32") {
-    return path38.win32.normalize(left).toLowerCase() === path38.win32.normalize(right).toLowerCase();
+    return path39.win32.normalize(left).toLowerCase() === path39.win32.normalize(right).toLowerCase();
   }
   return left === right;
 }
@@ -48795,7 +48805,7 @@ async function exists4(candidate) {
 }
 async function resolveExistingFile(root, input, runtime) {
   assertSafePlatformPath(input, runtime.platform);
-  const candidate = path38.resolve(root, input);
+  const candidate = path39.resolve(root, input);
   if (!isInside2(root, candidate, runtime.platform))
     throw new Error(`Project input escapes the project root: ${input}`);
   const metadata2 = await lstat18(candidate);
@@ -48820,7 +48830,7 @@ async function resolveExistingAncestor(root, candidate, runtime) {
     } catch (error2) {
       if (!isSystemError4(error2, "ENOENT"))
         throw error2;
-      const parent = path38.dirname(ancestor);
+      const parent = path39.dirname(ancestor);
       if (samePath3(parent, ancestor, runtime.platform) || !isInside2(root, parent, runtime.platform)) {
         throw new Error(`Web output escapes the project root: ${candidate}`);
       }
@@ -48833,8 +48843,8 @@ async function resolveOutput(root, input, runtime) {
     throw new Error("Web output must name a non-empty project-relative build directory.");
   }
   assertSafePlatformPath(input, runtime.platform);
-  const output = path38.resolve(root, input);
-  const buildRoot = path38.join(root, "build");
+  const output = path39.resolve(root, input);
+  const buildRoot = path39.join(root, "build");
   if (samePath3(output, buildRoot, runtime.platform) || !isInside2(buildRoot, output, runtime.platform)) {
     throw new Error("Web output must be a directory inside the selected project's build directory.");
   }
@@ -48851,19 +48861,19 @@ function cliCandidates(root, runtime) {
   return runtimeExecutablePaths(root, runtime.platform).cliCandidates;
 }
 async function canonicalToolchainRoot(candidate) {
-  const root = await realpath19(path38.resolve(candidate));
+  const root = await realpath19(path39.resolve(candidate));
   if (!(await stat7(root)).isDirectory()) {
     throw new Error("The selected game toolchain root must name an existing directory.");
   }
-  const local = path38.join(root, ".local");
+  const local = path39.join(root, ".local");
   if (await exists4(local)) {
     const metadata2 = await lstat18(local);
     if (metadata2.isSymbolicLink()) {
       const canonical2 = await realpath19(local);
-      if (path38.basename(canonical2) !== ".local" || !(await stat7(canonical2)).isDirectory()) {
+      if (path39.basename(canonical2) !== ".local" || !(await stat7(canonical2)).isDirectory()) {
         throw new Error("A linked game toolchain must resolve to an actual .local directory.");
       }
-      return path38.dirname(canonical2);
+      return path39.dirname(canonical2);
     }
   }
   return root;
@@ -48877,12 +48887,12 @@ async function discoverToolchainRoot(projectRoot, runtime, configuredRoot) {
     if ((await Promise.all(cliCandidates(current, runtime).map((candidate) => exists4(candidate)))).some(Boolean)) {
       return canonicalToolchainRoot(current);
     }
-    const parent = path38.dirname(current);
+    const parent = path39.dirname(current);
     if (parent === current)
       break;
     current = parent;
   }
-  const packageRoot = await realpath19(path38.resolve(import.meta.dirname, ".."));
+  const packageRoot = await realpath19(ENGINE_ROOT);
   if ((await Promise.all(cliCandidates(packageRoot, runtime).map((candidate) => exists4(candidate)))).some(Boolean)) {
     return canonicalToolchainRoot(packageRoot);
   }
@@ -48927,7 +48937,7 @@ async function windowsSigningDirectory(toolchainRoot, projectRoot, runtime) {
   let localDirectory;
   try {
     assertSafePlatformPath(configured, runtime.platform);
-    const requested = path38.resolve(configured);
+    const requested = path39.resolve(configured);
     const requestedMetadata = await lstat18(requested);
     if (requestedMetadata.isSymbolicLink() || !requestedMetadata.isDirectory())
       return null;
@@ -48939,10 +48949,10 @@ async function windowsSigningDirectory(toolchainRoot, projectRoot, runtime) {
   } catch {
     return null;
   }
-  const toolchainIdentity = createHash31("sha256").update(path38.win32.normalize(toolchainRoot).toLowerCase()).digest("hex");
+  const toolchainIdentity = createHash31("sha256").update(path39.win32.normalize(toolchainRoot).toLowerCase()).digest("hex");
   let current = localDirectory;
   for (const segment of ["Codex", "GBStudio", "WebPreview", toolchainIdentity]) {
-    current = path38.join(current, segment);
+    current = path39.join(current, segment);
     if (isInside2(projectRoot, current, runtime.platform))
       return null;
     try {
@@ -48966,13 +48976,13 @@ async function loadTrustedSigningKey(toolchainRoot, projectRoot, runtime) {
   const uid = !windows && typeof process.getuid === "function" ? process.getuid() : void 0;
   if (!windows && uid === void 0)
     return null;
-  const localDirectory = windows ? void 0 : path38.join(toolchainRoot, ".local");
+  const localDirectory = windows ? void 0 : path39.join(toolchainRoot, ".local");
   if (!windows && !await trustedOwnedDirectory(localDirectory, uid, false))
     return null;
-  const keyDirectory = windows ? await windowsSigningDirectory(toolchainRoot, projectRoot, runtime) : path38.join(localDirectory, ".codex-web-cache");
+  const keyDirectory = windows ? await windowsSigningDirectory(toolchainRoot, projectRoot, runtime) : path39.join(localDirectory, ".codex-web-cache");
   if (!keyDirectory)
     return null;
-  const keyPath = path38.join(keyDirectory, "attestation.key");
+  const keyPath = path39.join(keyDirectory, "attestation.key");
   try {
     if (!windows) {
       try {
@@ -48985,11 +48995,11 @@ async function loadTrustedSigningKey(toolchainRoot, projectRoot, runtime) {
         return null;
     }
     if (!await exists4(keyPath)) {
-      const temporaryPath = path38.join(keyDirectory, `.attestation-${randomBytes2(12).toString("hex")}`);
+      const temporaryPath = path39.join(keyDirectory, `.attestation-${randomBytes(12).toString("hex")}`);
       let created;
       try {
         created = await open17(temporaryPath, constants16.O_WRONLY | constants16.O_CREAT | constants16.O_EXCL | (windows ? 0 : constants16.O_NOFOLLOW ?? 0), 384);
-        await created.writeFile(randomBytes2(32));
+        await created.writeFile(randomBytes(32));
         await created.sync();
       } finally {
         await created?.close();
@@ -49047,7 +49057,7 @@ async function hashFile(filePath2) {
 }
 async function compilerBoundKey(attestationKey, cliPath) {
   const digest7 = createHash31("sha256").update("codex-gb-studio\0compiler\0v1\0");
-  for (const file2 of [cliPath, path38.join(path38.dirname(cliPath), "buildWorker.js")])
+  for (const file2 of [cliPath, path39.join(path39.dirname(cliPath), "buildWorker.js")])
     updateHash(digest7, await hashFile(file2).catch(() => "missing"));
   return createHmac("sha256", attestationKey).update("codex-gb-studio\0compiler-bound\0v1\0").update(digest7.digest()).digest();
 }
@@ -49066,19 +49076,19 @@ async function hashSourceDirectory(root, directory, digest7) {
   }
   const entries = (await readdir9(directory, { withFileTypes: true })).sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
   for (const entry of entries) {
-    const candidate = path38.join(directory, entry.name);
+    const candidate = path39.join(directory, entry.name);
     const entryMetadata = await lstat18(candidate);
     if (entryMetadata.isSymbolicLink()) {
-      throw new Error(`game source fingerprint refuses symbolic links: ${path38.relative(root, candidate)}`);
+      throw new Error(`game source fingerprint refuses symbolic links: ${path39.relative(root, candidate)}`);
     }
     if (entryMetadata.isDirectory()) {
       await hashSourceDirectory(root, candidate, digest7);
       continue;
     }
     if (!entryMetadata.isFile()) {
-      throw new Error(`game source fingerprint refuses non-regular files: ${path38.relative(root, candidate)}`);
+      throw new Error(`game source fingerprint refuses non-regular files: ${path39.relative(root, candidate)}`);
     }
-    updateHash(digest7, path38.relative(root, candidate).split(path38.sep).join("/"));
+    updateHash(digest7, path39.relative(root, candidate).split(path39.sep).join("/"));
     updateHash(digest7, await hashFile(candidate));
   }
 }
@@ -49091,13 +49101,13 @@ async function sourceFingerprint(root, projectPath, revision2) {
     updateHash(digest7, "indexed-revision");
     updateHash(digest7, revision2);
   } else {
-    updateHash(digest7, path38.relative(root, projectPath).split(path38.sep).join("/"));
+    updateHash(digest7, path39.relative(root, projectPath).split(path39.sep).join("/"));
     updateHash(digest7, await hashFile(projectPath));
-    await hashSourceDirectory(root, path38.join(root, "project"), digest7);
-    await hashSourceDirectory(root, path38.join(root, "assets"), digest7);
+    await hashSourceDirectory(root, path39.join(root, "project"), digest7);
+    await hashSourceDirectory(root, path39.join(root, "assets"), digest7);
   }
   updateHash(digest7, "project-plugins");
-  await hashSourceDirectory(root, path38.join(root, "plugins"), digest7);
+  await hashSourceDirectory(root, path39.join(root, "plugins"), digest7);
   return digest7.digest("hex");
 }
 async function collectArtifacts(root) {
@@ -49106,8 +49116,8 @@ async function collectArtifacts(root) {
   async function visit(directory) {
     const entries = (await readdir9(directory, { withFileTypes: true })).sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
     for (const entry of entries) {
-      const candidate = path38.join(directory, entry.name);
-      const relative6 = path38.relative(root, candidate).split(path38.sep).join("/");
+      const candidate = path39.join(directory, entry.name);
+      const relative6 = path39.relative(root, candidate).split(path39.sep).join("/");
       if (relative6 === MANIFEST_FILENAME)
         continue;
       const metadata2 = await lstat18(candidate);
@@ -49142,7 +49152,7 @@ async function validateArtifacts(root, sourceRevision, attestationKey) {
   const wasmFiles = files.filter((entry) => entry.path.toLowerCase().endsWith(".wasm") && entry.sizeBytes >= 8);
   let validWasm = false;
   for (const candidate of wasmFiles) {
-    const bytes2 = await readFile14(path38.join(root, candidate.path));
+    const bytes2 = await readFile14(path39.join(root, candidate.path));
     if (bytes2.subarray(0, WASM_MAGIC.length).equals(WASM_MAGIC)) {
       validWasm = true;
       break;
@@ -49155,7 +49165,7 @@ async function validateArtifacts(root, sourceRevision, attestationKey) {
     throw new Error("Official game web export must contain exactly one genuine Game Boy ROM.");
   }
   const rom = roms[0];
-  const metadata2 = await inspectRom(path38.join(root, rom.path), root);
+  const metadata2 = await inspectRom(path39.join(root, rom.path), root);
   if (!metadata2.valid)
     throw new Error("Official game web export contains an invalid Game Boy ROM.");
   const unsigned = {
@@ -49170,7 +49180,7 @@ async function validateArtifacts(root, sourceRevision, attestationKey) {
   return { ...unsigned, signature };
 }
 async function readCachedManifest(root, sourceRevision, attestationKey) {
-  const manifestPath = path38.join(root, MANIFEST_FILENAME);
+  const manifestPath = path39.join(root, MANIFEST_FILENAME);
   try {
     const metadata2 = await lstat18(manifestPath);
     if (metadata2.isSymbolicLink() || !metadata2.isFile() || metadata2.size > MAX_ARTIFACT_BYTES)
@@ -49189,12 +49199,12 @@ async function readCachedManifest(root, sourceRevision, attestationKey) {
 async function trustedCompilerTemporaryParent(projectRoot, runtime) {
   const uid = typeof process.getuid === "function" ? process.getuid() : void 0;
   const localData = runtime.localAppData ?? environmentValue(process.env, "LOCALAPPDATA", runtime.platform);
-  const candidates = runtime.platform === "win32" ? [...localData ? [path38.join(localData, "Temp")] : [], os3.tmpdir()] : [os3.tmpdir(), "/tmp"];
+  const candidates = runtime.platform === "win32" ? [...localData ? [path39.join(localData, "Temp")] : [], os3.tmpdir()] : [os3.tmpdir(), "/tmp"];
   const inspected = /* @__PURE__ */ new Set();
   for (const candidate of candidates) {
     try {
       assertSafePlatformPath(candidate, runtime.platform);
-      const provided = path38.resolve(candidate);
+      const provided = path39.resolve(candidate);
       const entry = await lstat18(provided);
       if (entry.isSymbolicLink() && (runtime.platform === "win32" || provided !== "/tmp"))
         continue;
@@ -49222,11 +49232,11 @@ async function trustedCompilerTemporaryParent(projectRoot, runtime) {
 }
 async function createIsolatedCompilerDirectory(projectRoot, runtime, resources) {
   const parent = await trustedCompilerTemporaryParent(projectRoot, runtime);
-  const directory = await mkdtemp3(path38.join(parent, "gbs-web-"));
+  const directory = await mkdtemp3(path39.join(parent, "gbs-web-"));
   resources.allocations.push({ kind: "temporary", path: directory, returnedAt: (/* @__PURE__ */ new Date()).toISOString() });
   resources.temporary = await resourceIdentity(directory);
   const metadata2 = await lstat18(directory);
-  if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePath3(await realpath19(directory), directory, runtime.platform) || !samePath3(path38.dirname(directory), parent, runtime.platform) || isInside2(projectRoot, directory, runtime.platform) || runtime.platform === "win32" && !await windowsPrivatePath(directory, runtime, "temporary")) {
+  if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePath3(await realpath19(directory), directory, runtime.platform) || !samePath3(path39.dirname(directory), parent, runtime.platform) || isInside2(projectRoot, directory, runtime.platform) || runtime.platform === "win32" && !await windowsPrivatePath(directory, runtime, "temporary")) {
     throw new Error("The official game web compiler temporary directory is unsafe.");
   }
   return { directory, parent };
@@ -49235,7 +49245,7 @@ async function removeIsolatedCompilerDirectory(directory, parent, runtime, expec
   if (!samePath3(await realpath19(parent), parent, runtime.platform)) {
     throw new Error("Refusing to remove a game web compiler directory from an altered temporary parent.");
   }
-  if (!samePath3(path38.dirname(directory), parent, runtime.platform) || !/^gbs-web-[A-Za-z\d]{6}$/u.test(path38.basename(directory))) {
+  if (!samePath3(path39.dirname(directory), parent, runtime.platform) || !/^gbs-web-[A-Za-z\d]{6}$/u.test(path39.basename(directory))) {
     throw new Error("Refusing to remove an unexpected game web compiler temporary directory.");
   }
   const metadata2 = await lstat18(directory);
@@ -49278,7 +49288,7 @@ async function sampleResource(resource) {
         throw new Error("Resource sample byte limit reached.");
       if (entry.isDirectory() && !entry.isSymbolicLink()) {
         for (const name3 of await readdir9(candidate))
-          await visit(path38.join(candidate, name3));
+          await visit(path39.join(candidate, name3));
       }
     };
     await visit(resource.path);
@@ -49345,7 +49355,7 @@ async function retryPlatformRename(projectRoot, source, destination, runtime, ex
         if (!isInside2(projectRoot, candidate, runtime.platform)) {
           throw new Error("Refusing to publish a web export outside the selected project.");
         }
-        const parent = path38.dirname(candidate);
+        const parent = path39.dirname(candidate);
         const parentMetadata = await lstat18(parent);
         if (parentMetadata.isSymbolicLink() || !parentMetadata.isDirectory() || !samePath3(await realpath19(parent), parent, runtime.platform) || !isInside2(projectRoot, parent, runtime.platform)) {
           throw new Error("Refusing to publish through a relocated or reparse-point web output parent.");
@@ -49370,12 +49380,12 @@ async function retryPlatformRename(projectRoot, source, destination, runtime, ex
         throw error2;
       const delay3 = runtime.retryDelayMs * (attempt + 1);
       if (delay3 > 0)
-        await new Promise((resolve5) => setTimeout(resolve5, delay3));
+        await new Promise((resolve4) => setTimeout(resolve4, delay3));
     }
   }
 }
 async function replaceOutput(root, staged, output, runtime, resources) {
-  await resolveExistingAncestor(root, path38.dirname(output), runtime);
+  await resolveExistingAncestor(root, path39.dirname(output), runtime);
   const staging = resources.staging;
   if (!staging || staging.path !== staged)
     throw new Error("Web publication has no matching staging allocation.");
@@ -49389,7 +49399,7 @@ async function replaceOutput(root, staged, output, runtime, resources) {
   if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePath3(await realpath19(output), output, runtime.platform)) {
     throw new Error("Refusing to replace a relocated or symbolic-link game web output.");
   }
-  const backup = await mkdtemp3(path38.join(path38.dirname(output), ".web-previous-"));
+  const backup = await mkdtemp3(path39.join(path39.dirname(output), ".web-previous-"));
   resources.allocations.push({ kind: "previous", path: backup, returnedAt: (/* @__PURE__ */ new Date()).toISOString() });
   resources.previous = await resourceIdentity(backup);
   await verifyResource(resources.previous);
@@ -49432,17 +49442,17 @@ async function withOutputLock(output, operation) {
       BUILD_LOCKS.delete(output);
   }
 }
-var NATIVE_ROM_RECEIPT = path38.join("build", ".codex-rom-build.json");
+var NATIVE_ROM_RECEIPT = path39.join("build", ".codex-rom-build.json");
 async function nativeRomRevision(projectRoot, projectPath) {
-  const root = await realpath19(path38.resolve(projectRoot));
+  const root = await realpath19(path39.resolve(projectRoot));
   return { root, revision: await sourceFingerprint(root, await realpath19(projectPath)) };
 }
 function nativeRomSignature(attestationKey, receipt) {
   return createHmac("sha256", attestationKey).update("codex-gb-studio\0native-rom-receipt\0v1\0").update(JSON.stringify(receipt)).digest("hex");
 }
 async function batterylessProject(root) {
-  const read = async (file2) => JSON.parse(await readFile14(path38.join(root, file2), "utf8"));
-  const settings = await read(path38.join("project", "settings.gbsres")).catch(() => null);
+  const read = async (file2) => JSON.parse(await readFile14(path39.join(root, file2), "utf8"));
+  const settings = await read(path39.join("project", "settings.gbsres")).catch(() => null);
   if (settings && typeof settings === "object")
     return settings.batterylessEnabled === true;
   const descriptor = (await readdir9(root)).find((name3) => name3.toLowerCase().endsWith(".gbsproj"));
@@ -49450,10 +49460,10 @@ async function batterylessProject(root) {
   return project?.settings?.batterylessEnabled === true;
 }
 async function rememberNativeRom(before, projectPath, rom, toolchainRoot) {
-  const receiptPath = path38.join(before.root, NATIVE_ROM_RECEIPT);
+  const receiptPath = path39.join(before.root, NATIVE_ROM_RECEIPT);
   await rm6(receiptPath, { force: true });
-  const romPath = path38.relative(before.root, rom.path).split(path38.sep).join("/");
-  if (romPath.startsWith("../") || path38.isAbsolute(romPath) || !/^[a-f\d]{64}$/u.test(rom.sha256 ?? ""))
+  const romPath = path39.relative(before.root, rom.path).split(path39.sep).join("/");
+  if (romPath.startsWith("../") || path39.isAbsolute(romPath) || !/^[a-f\d]{64}$/u.test(rom.sha256 ?? ""))
     return;
   if ((await nativeRomRevision(before.root, projectPath)).revision !== before.revision)
     return;
@@ -49462,7 +49472,7 @@ async function rememberNativeRom(before, projectPath, rom, toolchainRoot) {
   const receipt = { version: 1, sourceRevision: before.revision, romPath, sha256: rom.sha256 };
   const key = await compilerBoundKey(await signingKey(before.root, official.toolchainRoot, runtime), official.cliPath);
   const signature = nativeRomSignature(key, receipt);
-  await mkdir11(path38.dirname(receiptPath), { recursive: true });
+  await mkdir11(path39.dirname(receiptPath), { recursive: true });
   const temporary = `${receiptPath}.${process.pid}-${Date.now()}`;
   await writeFile2(temporary, JSON.stringify({ ...receipt, signature }) + "\n", { flag: "wx", mode: 384 });
   await rename6(temporary, receiptPath);
@@ -49471,12 +49481,12 @@ async function nativeRomFor(root, sourceRevision, attestationKey) {
   try {
     if (await batterylessProject(root))
       return null;
-    const { signature, ...receipt } = JSON.parse(await readFile14(path38.join(root, NATIVE_ROM_RECEIPT), "utf8"));
+    const { signature, ...receipt } = JSON.parse(await readFile14(path39.join(root, NATIVE_ROM_RECEIPT), "utf8"));
     if (receipt.version !== 1 || receipt.sourceRevision !== sourceRevision || typeof receipt.romPath !== "string" || typeof receipt.sha256 !== "string" || typeof signature !== "string" || !/^[a-f\d]{64}$/u.test(signature))
       return null;
     if (!timingSafeEqual2(Buffer.from(signature, "hex"), Buffer.from(nativeRomSignature(attestationKey, receipt), "hex")))
       return null;
-    const romPath = path38.resolve(root, receipt.romPath);
+    const romPath = path39.resolve(root, receipt.romPath);
     if (!isInside2(root, romPath))
       return null;
     const bytes2 = await readFile14(romPath);
@@ -49489,12 +49499,12 @@ async function adoptNativeRom(staging, native) {
   const roms = (await collectArtifacts(staging)).filter((entry) => /\.(?:gb|gbc)$/iu.test(entry.path));
   if (roms.length !== 1)
     throw new Error("Official game web export must contain exactly one genuine Game Boy ROM.");
-  await writeFile2(path38.join(staging, roms[0].path), native.bytes);
+  await writeFile2(path39.join(staging, roms[0].path), native.bytes);
 }
 async function buildWeb(options, platformOptions = {}) {
   const runtime = runtimeOptions(platformOptions);
   assertSafePlatformPath(options.projectRoot, runtime.platform);
-  const root = await realpath19(path38.resolve(options.projectRoot));
+  const root = await realpath19(path39.resolve(options.projectRoot));
   if (!(await stat7(root)).isDirectory())
     throw new Error("The selected project root must be a real directory.");
   if (options.force !== void 0 && typeof options.force !== "boolean") {
@@ -49505,10 +49515,10 @@ async function buildWeb(options, platformOptions = {}) {
     throw new Error(`timeoutMs must be an integer between 1000 and ${MAX_TIMEOUT_MS2}.`);
   }
   const source = await resolveExistingFile(root, options.projectPath, runtime);
-  if (path38.extname(source).toLowerCase() !== ".gbsproj") {
+  if (path39.extname(source).toLowerCase() !== ".gbsproj") {
     throw new Error("The official game web exporter requires a .gbsproj project file.");
   }
-  const outputPath = await resolveOutput(root, options.outputPath ?? path38.join("build", "web"), runtime);
+  const outputPath = await resolveOutput(root, options.outputPath ?? path39.join("build", "web"), runtime);
   return withOutputLock(outputPath, async () => {
     const sourceRevision = await sourceFingerprint(root, source, options.revision);
     const official = await findOfficialCli(root, runtime, options.toolchainRoot);
@@ -49562,17 +49572,17 @@ async function buildWeb(options, platformOptions = {}) {
           }
           result.success = true;
           result.cached = true;
-          result.indexPath = path38.join(outputPath, cached2.indexPath);
-          result.romPath = path38.join(outputPath, cached2.romPath);
+          result.indexPath = path39.join(outputPath, cached2.indexPath);
+          result.romPath = path39.join(outputPath, cached2.romPath);
           result.exportIdentity = exportIdentity(cached2);
           return result;
         }
       }
       if (options.cacheOnly)
         throw new Error("No unchanged, verified web export is available. Cache-only preview will not compile or replace it.");
-      await mkdir11(path38.dirname(outputPath), { recursive: true });
-      await resolveExistingAncestor(root, path38.dirname(outputPath), runtime);
-      const staging = await mkdtemp3(path38.join(path38.dirname(outputPath), ".web-stage-"));
+      await mkdir11(path39.dirname(outputPath), { recursive: true });
+      await resolveExistingAncestor(root, path39.dirname(outputPath), runtime);
+      const staging = await mkdtemp3(path39.join(path39.dirname(outputPath), ".web-stage-"));
       resources.allocations.push({ kind: "staging", path: staging, returnedAt: (/* @__PURE__ */ new Date()).toISOString() });
       resources.staging = await resourceIdentity(staging);
       temporary = await createIsolatedCompilerDirectory(root, runtime, resources);
@@ -49601,7 +49611,7 @@ async function buildWeb(options, platformOptions = {}) {
       if (native)
         await adoptNativeRom(staging, native);
       const manifest = await validateArtifacts(staging, sourceRevision, attestationKey);
-      await writeFile2(path38.join(staging, MANIFEST_FILENAME), JSON.stringify(manifest, null, 2) + "\n", {
+      await writeFile2(path39.join(staging, MANIFEST_FILENAME), JSON.stringify(manifest, null, 2) + "\n", {
         encoding: "utf8",
         flag: "wx",
         mode: 384
@@ -49609,8 +49619,8 @@ async function buildWeb(options, platformOptions = {}) {
       await sampleResource(resources.staging);
       await replaceOutput(root, staging, outputPath, runtime, resources);
       result.success = true;
-      result.indexPath = path38.join(outputPath, manifest.indexPath);
-      result.romPath = path38.join(outputPath, manifest.romPath);
+      result.indexPath = path39.join(outputPath, manifest.indexPath);
+      result.romPath = path39.join(outputPath, manifest.romPath);
       result.exportIdentity = exportIdentity(manifest);
       return result;
     } catch (error2) {
@@ -49635,7 +49645,7 @@ async function buildWeb(options, platformOptions = {}) {
           await sampleResource(resource);
           await verifyResource(resource);
           if (kind === "temporary") {
-            await removeIsolatedCompilerDirectory(resource.path, temporary?.parent ?? path38.dirname(resource.path), runtime, resource);
+            await removeIsolatedCompilerDirectory(resource.path, temporary?.parent ?? path39.dirname(resource.path), runtime, resource);
           } else
             await rm6(resource.path, { recursive: true, force: true });
           resource.cleanup = "removed";
@@ -49736,7 +49746,7 @@ var PreviewInputBroker = class {
     if (signal?.aborted)
       throw new PreviewInputError("INPUT_CANCELLED", "Input was cancelled before admission.");
     const command = { id: randomUUID9(), generation, buttons: inputButtons(buttons), durationMs: inputDuration(duration4), deliverBy: Date.now() + 2e3, leaseUntil: 0 };
-    return new Promise((resolve5, reject2) => {
+    return new Promise((resolve4, reject2) => {
       const abort = () => this.cancel("The caller cancelled the browser input command.");
       const op = {
         viewId,
@@ -49744,7 +49754,7 @@ var PreviewInputBroker = class {
         delivered: false,
         cancelled: false,
         uncertain: false,
-        resolve: resolve5,
+        resolve: resolve4,
         reject: reject2,
         detach: () => signal?.removeEventListener("abort", abort),
         drains: []
@@ -49853,11 +49863,11 @@ var PreviewInputBroker = class {
       return;
     if (op.uncertain)
       throw new PreviewInputError("INPUT_RELEASE_UNKNOWN", "The original browser has unresolved input release; its owner is retained.", op.command.id);
-    await new Promise((resolve5, reject2) => {
+    await new Promise((resolve4, reject2) => {
       const timer = setTimeout(() => this.expire(op), 1500);
       op.drains.push({ resolve: () => {
         clearTimeout(timer);
-        resolve5();
+        resolve4();
       }, reject: (error2) => {
         clearTimeout(timer);
         reject2(error2);
@@ -49872,7 +49882,7 @@ import { randomUUID as randomUUID11 } from "node:crypto";
 // src/web-preview-recording-journal.js
 import { constants as constants17 } from "node:fs";
 import { lstat as lstat19, mkdir as mkdir12, open as open18, opendir as opendir3, realpath as realpath20, rename as rename7, unlink as unlink7, link as link4 } from "node:fs/promises";
-import path39 from "node:path";
+import path40 from "node:path";
 import { randomUUID as randomUUID10 } from "node:crypto";
 
 // src/web-annotations/recording-protocol.js
@@ -50035,13 +50045,13 @@ var RecordingJournal = class {
   pin;
   constructor(root) {
     this.root = root;
-    this.directory = path39.join(path39.resolve(root), "captures", ".browser-recordings");
+    this.directory = path40.join(path40.resolve(root), "captures", ".browser-recordings");
   }
   async directorySafe(create = false) {
-    const root = path39.resolve(this.root);
+    const root = path40.resolve(this.root);
     if (await realpath20(root) !== root)
       throw new Error("Recording project must be a canonical directory.");
-    for (const dir of [root, path39.dirname(this.directory), this.directory]) {
+    for (const dir of [root, path40.dirname(this.directory), this.directory]) {
       if (create && dir !== root)
         await mkdir12(dir, { mode: 448 }).catch((error2) => {
           if (error2.code !== "EEXIST")
@@ -50058,7 +50068,7 @@ var RecordingJournal = class {
     }
   }
   async readFile(name3) {
-    const file2 = path39.join(this.directory, name3);
+    const file2 = path40.join(this.directory, name3);
     const before = await lstat19(file2);
     if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1 || before.size > LIMIT || typeof process.getuid === "function" && before.uid !== process.getuid())
       throw new Error("Unsafe recording journal entry.");
@@ -50127,7 +50137,7 @@ var RecordingJournal = class {
   async reserve(id3, value) {
     recordingId(id3);
     await this.directorySafe(true);
-    const lock = await open18(path39.join(this.directory, "active.json"), constants17.O_CREAT | constants17.O_EXCL | constants17.O_WRONLY | constants17.O_NOFOLLOW, 384);
+    const lock = await open18(path40.join(this.directory, "active.json"), constants17.O_CREAT | constants17.O_EXCL | constants17.O_WRONLY | constants17.O_NOFOLLOW, 384);
     try {
       await lock.writeFile(JSON.stringify({ id: id3 }));
       await lock.sync();
@@ -50146,10 +50156,10 @@ var RecordingJournal = class {
       const data = JSON.stringify(parseRecordingJob(value)) + "\n";
       if (Buffer.byteLength(data) > LIMIT)
         throw new Error("Recording journal entry exceeds 32 KiB.");
-      const target = path39.join(this.directory, `${id3}.json`);
+      const target = path40.join(this.directory, `${id3}.json`);
       if (!initial)
         await this.readFile(`${id3}.json`);
-      const temporary = path39.join(this.directory, `${id3}.${randomUUID10()}.tmp`);
+      const temporary = path40.join(this.directory, `${id3}.${randomUUID10()}.tmp`);
       const handle = await open18(temporary, constants17.O_WRONLY | constants17.O_CREAT | constants17.O_EXCL | constants17.O_NOFOLLOW, 384);
       try {
         await handle.writeFile(data);
@@ -50188,7 +50198,7 @@ var RecordingJournal = class {
     if (lock.id !== id3)
       throw new Error("Recording journal lock changed.");
     await this.directorySafe();
-    await unlink7(path39.join(this.directory, "active.json"));
+    await unlink7(path40.join(this.directory, "active.json"));
     await this.syncDirectory();
   }
   async activeId() {
@@ -50630,7 +50640,7 @@ var PreviewRecordingBroker = class {
           return;
         if (this.mono() >= close.deadline)
           throw new Error("Browser recording close acknowledgement is UNKNOWN.");
-        await new Promise((resolve5) => setTimeout(resolve5, 50));
+        await new Promise((resolve4) => setTimeout(resolve4, 50));
       }
     };
     try {
@@ -50659,11 +50669,11 @@ var PreviewRecordingBroker = class {
 };
 
 // src/web-preview.js
-import { createHash as createHash35, randomBytes as randomBytes3, timingSafeEqual as timingSafeEqual3 } from "node:crypto";
+import { createHash as createHash35, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 import { constants as constants20 } from "node:fs";
 import { lstat as lstat22, open as open21, realpath as realpath23 } from "node:fs/promises";
 import { createServer } from "node:http";
-import path40 from "node:path";
+import path41 from "node:path";
 import { pipeline } from "node:stream/promises";
 
 // src/web-preview-states.js
@@ -51133,7 +51143,7 @@ var PreviewStateStore = class {
 };
 
 // src/web-preview-captures.js
-var import_pngjs12 = __toESM(require_png(), 1);
+var import_pngjs11 = __toESM(require_png(), 1);
 import { createHash as createHash33, randomUUID as randomUUID13 } from "node:crypto";
 import { constants as constants19, openAsBlob } from "node:fs";
 import { link as link6, lstat as lstat21, mkdir as mkdir14, open as open20, realpath as realpath22, unlink as unlink9 } from "node:fs/promises";
@@ -51301,7 +51311,7 @@ function validatePng(bytes2, metadata2) {
   if (!ended)
     fail4("INVALID_MEDIA", "The PNG screenshot has no complete ending.");
   try {
-    import_pngjs12.PNG.sync.read(bytes2, { checkCRC: true });
+    import_pngjs11.PNG.sync.read(bytes2, { checkCRC: true });
   } catch {
     fail4("INVALID_MEDIA", "The PNG screenshot is incomplete or corrupt.");
   }
@@ -52019,12 +52029,12 @@ var PreviewPlayerControl = class {
     const command = { id: randomUUID14(), action };
     if (savedState !== void 0)
       command.state = savedState;
-    return new Promise((resolve5, reject2) => {
+    return new Promise((resolve4, reject2) => {
       const pending = {
         command,
         delivered: false,
         deadline: Date.now() + timeoutMs,
-        resolve: resolve5,
+        resolve: resolve4,
         reject: reject2,
         timer: setTimeout(() => {
           this.timeout(view, pending);
@@ -52441,10 +52451,10 @@ import { Readable } from "node:stream";
 
 // src/loopback-listener.js
 async function listenLoopback(server, closedPort) {
-  const listen = (port) => new Promise((resolve5, reject2) => {
+  const listen = (port) => new Promise((resolve4, reject2) => {
     const ready = () => {
       server.off("error", failed);
-      resolve5();
+      resolve4();
     };
     const failed = (error2) => {
       server.off("error", failed);
@@ -52532,7 +52542,7 @@ function recordingResult(value, active) {
 function pathsMatch(left, right, platform) {
   if (platform !== "win32")
     return left === right;
-  return path40.win32.normalize(left).toLowerCase() === path40.win32.normalize(right).toLowerCase();
+  return path41.win32.normalize(left).toLowerCase() === path41.win32.normalize(right).toLowerCase();
 }
 function secureHeaders(response) {
   response.setHeader("X-Content-Type-Options", "nosniff");
@@ -52612,14 +52622,14 @@ function relativeAssetPath(target, capability, platform) {
     }
     decoded.push(value);
   }
-  return decoded.join(path40.sep);
+  return decoded.join(path41.sep);
 }
 function assetContentType(relative6) {
-  const extension = path40.extname(relative6).toLowerCase();
+  const extension = path41.extname(relative6).toLowerCase();
   if (extension === ".html" && relative6 !== "index.html")
     return void 0;
   if (extension === ".json") {
-    const basename3 = path40.basename(relative6).toLowerCase();
+    const basename3 = path41.basename(relative6).toLowerCase();
     if (basename3 !== "gbstudio.json" && basename3 !== "manifest.json")
       return void 0;
   }
@@ -52636,9 +52646,9 @@ async function verifyAssetPath(root, relative6, platform) {
       return null;
     }
     let candidate = root;
-    const components = relative6.split(path40.sep);
+    const components = relative6.split(path41.sep);
     for (let index = 0; index < components.length; index += 1) {
-      candidate = path40.join(candidate, components[index]);
+      candidate = path41.join(candidate, components[index]);
       if (!isPathWithinRoot(root, candidate, platform))
         return null;
       const metadata2 = await lstat22(candidate);
@@ -52695,7 +52705,7 @@ function annotationContext(options, platform) {
     throw new Error("Annotations require a trusted compiled assets directory.");
   }
   const { romPath, romSha256, sourceRevision } = options;
-  if (typeof romPath !== "string" || romPath.length === 0 || romPath.length > 1024 || /[\\:%?#\u0000-\u001f]/u.test(romPath) || path40.posix.isAbsolute(romPath) || path40.win32.isAbsolute(romPath) || romPath.split("/").length > MAX_PATH_SEGMENTS || romPath.split("/").some((part) => !part || part.startsWith(".") || part.length > 255) || !/\.(?:gb|gbc)$/iu.test(romPath)) {
+  if (typeof romPath !== "string" || romPath.length === 0 || romPath.length > 1024 || /[\\:%?#\u0000-\u001f]/u.test(romPath) || path41.posix.isAbsolute(romPath) || path41.win32.isAbsolute(romPath) || romPath.split("/").length > MAX_PATH_SEGMENTS || romPath.split("/").some((part) => !part || part.startsWith(".") || part.length > 255) || !/\.(?:gb|gbc)$/iu.test(romPath)) {
     throw new Error("Annotation ROM path must name a web-export-relative .gb or .gbc file.");
   }
   if (platform === "win32")
@@ -52713,7 +52723,7 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
     ...annotationContext(options, platform),
     ...options.projectRoot ? { playerPath: PLAYER_MOUNT } : {}
   };
-  const assetsRoot = path40.resolve(options.assetsRoot);
+  const assetsRoot = path41.resolve(options.assetsRoot);
   if (platform === "win32")
     assertSafePlatformPath(assetsRoot, platform);
   const directory = await lstat22(assetsRoot);
@@ -52729,7 +52739,7 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
     assetHashes.push({ path: filename, sha256: sha2563 });
   }
   if (options.deviceAssetsRoot !== void 0) {
-    const deviceRoot = path40.resolve(options.deviceAssetsRoot);
+    const deviceRoot = path41.resolve(options.deviceAssetsRoot);
     for (const filename of DEVICE_IMAGES) {
       const bytes3 = await readAnnotationFile(deviceRoot, deviceArtworkFile(filename), platform, MAX_DEVICE_IMAGE_BYTES);
       if (!bytes3 || bytes3.length > MAX_DEVICE_IMAGE_BYTES)
@@ -52755,8 +52765,8 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
         context.deviceCaptureAvailability = deviceCaptureAvailability;
     }
     const [rom, runtime] = await Promise.all([
-      readAnnotationFile(outputRoot, context.romPath.split("/").join(path40.sep), platform, 8 * 1024 * 1024),
-      readAnnotationFile(outputRoot, path40.join("js", "binjgb.wasm"), platform, 16 * 1024 * 1024)
+      readAnnotationFile(outputRoot, context.romPath.split("/").join(path41.sep), platform, 8 * 1024 * 1024),
+      readAnnotationFile(outputRoot, path41.join("js", "binjgb.wasm"), platform, 16 * 1024 * 1024)
     ]);
     if (rom.length < 336 || createHash35("sha256").update(rom).digest("hex") !== context.romSha256) {
       throw new Error("Saved states require the verified exported cartridge.");
@@ -52764,11 +52774,11 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
     if (flashEnabled) {
       if (options.romSizeBytes !== rom.length)
         throw new Error("Device flashing requires the exact verified export size.");
-      context.flash = { generation: randomBytes3(16).toString("hex") };
+      context.flash = { generation: randomBytes2(16).toString("hex") };
       flash = {
         generation: context.flash.generation,
-        projectRoot: path40.resolve(options.projectRoot),
-        romPath: path40.join(outputRoot, ...context.romPath.split("/")),
+        projectRoot: path41.resolve(options.projectRoot),
+        romPath: path41.join(outputRoot, ...context.romPath.split("/")),
         romSha256: context.romSha256,
         romSizeBytes: rom.length
       };
@@ -52789,7 +52799,7 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
       }
     });
     captureCartridgeType = rom[327];
-    context.captures = { generation: randomBytes3(16).toString("hex") };
+    context.captures = { generation: randomBytes2(16).toString("hex") };
     captures = { generation: context.captures.generation, store: new PreviewCaptureStore({
       projectRoot: options.projectRoot,
       platform,
@@ -52833,7 +52843,7 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
     assets,
     ...flash ? { flash } : {},
     ...captures ? { captures } : {},
-    ...states ? { states, players: new PreviewPlayerControl({ romSha256: context.romSha256, sourceRevision: context.sourceRevision, runtimeSha256: context.runtimeSha256 }, path40.resolve(options.projectRoot), captureCartridgeType), projectRoot: path40.resolve(options.projectRoot) } : {},
+    ...states ? { states, players: new PreviewPlayerControl({ romSha256: context.romSha256, sourceRevision: context.sourceRevision, runtimeSha256: context.runtimeSha256 }, path41.resolve(options.projectRoot), captureCartridgeType), projectRoot: path41.resolve(options.projectRoot) } : {},
     index: { bytes: bytes2, etag: `"annotations-${fingerprint2}"`, contentType: "text/html; charset=utf-8" }
   };
 }
@@ -53053,7 +53063,7 @@ async function serveHistory(request, response, active, relative6) {
     stateResponse(request, response, 200, { states: listed });
     return;
   }
-  const name3 = relative6.startsWith(`${STATE_MOUNT}${path40.sep}`) ? relative6.slice(STATE_MOUNT.length + path40.sep.length) : "";
+  const name3 = relative6.startsWith(`${STATE_MOUNT}${path41.sep}`) ? relative6.slice(STATE_MOUNT.length + path41.sep.length) : "";
   const match = /^([a-f0-9]{64})\.gbstate\.json$/.exec(name3);
   const text = match ? await states.read(match[1]) : null;
   if (!current()) {
@@ -53183,7 +53193,7 @@ async function serveCaptures(request, response, active, relative6) {
     reject(response, 400, "Request body not allowed");
     return;
   }
-  const parts = relative6.split(path40.sep);
+  const parts = relative6.split(path41.sep);
   if (parts.length !== 3 || parts[0] !== CAPTURE_MOUNT || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(parts[1]) || parts[2] !== "media" && parts[2] !== "metadata") {
     reject(response, 404, "Not found");
     return;
@@ -53203,7 +53213,7 @@ async function serveCaptures(request, response, active, relative6) {
     response.setHeader("Content-Type", file2.mimeType);
     response.setHeader("Accept-Ranges", "bytes");
     response.setHeader("ETag", `"sha256-${file2.sha256}"`);
-    const filename = path40.basename(parts[2] === "metadata" ? file2.record.metadataPath : file2.record.path);
+    const filename = path41.basename(parts[2] === "metadata" ? file2.record.metadataPath : file2.record.path);
     const download = parts[2] === "media" && file2.record.kind === "video" || new URL(request.url, active.status.url).searchParams.get("download") === "1";
     response.setHeader("Content-Disposition", `${download ? "attachment" : "inline"}; filename="${filename}"`);
     let start = 0, end = file2.bytes - 1;
@@ -53256,13 +53266,13 @@ async function serveAsset(request, response, active) {
     return;
   }
   const foldedRelative = relative6.toLowerCase();
-  if (foldedRelative === DEVICE_VIEW_MOUNT || foldedRelative.startsWith(`${DEVICE_VIEW_MOUNT}${path40.sep}`)) {
+  if (foldedRelative === DEVICE_VIEW_MOUNT || foldedRelative.startsWith(`${DEVICE_VIEW_MOUNT}${path41.sep}`)) {
     const projectRoot = active.annotations?.projectRoot;
-    if (!active.serveDeviceView || !projectRoot || !active.acceptingStateRequests || !active.isProjectSelected(projectRoot) || !relative6.startsWith(`${DEVICE_VIEW_MOUNT}${path40.sep}`)) {
+    if (!active.serveDeviceView || !projectRoot || !active.acceptingStateRequests || !active.isProjectSelected(projectRoot) || !relative6.startsWith(`${DEVICE_VIEW_MOUNT}${path41.sep}`)) {
       reject(response, 409, "The selected game preview is unavailable.");
       return;
     }
-    const operation = active.serveDeviceView(request, response, projectRoot, relative6.slice(DEVICE_VIEW_MOUNT.length + 1).split(path40.sep).join("/"), `http://${LOOPBACK_ADDRESS}:${active.status.port}`);
+    const operation = active.serveDeviceView(request, response, projectRoot, relative6.slice(DEVICE_VIEW_MOUNT.length + 1).split(path41.sep).join("/"), `http://${LOOPBACK_ADDRESS}:${active.status.port}`);
     active.stateWrites.add(operation);
     try {
       await operation;
@@ -53271,11 +53281,11 @@ async function serveAsset(request, response, active) {
     }
     return;
   }
-  if (foldedRelative === ACTIVATION_MOUNT || foldedRelative.startsWith(`${ACTIVATION_MOUNT}${path40.sep}`)) {
+  if (foldedRelative === ACTIVATION_MOUNT || foldedRelative.startsWith(`${ACTIVATION_MOUNT}${path41.sep}`)) {
     reject(response, 404, "Not found");
     return;
   }
-  if (foldedRelative === CAPTURE_MOUNT || foldedRelative.startsWith(`${CAPTURE_MOUNT}${path40.sep}`)) {
+  if (foldedRelative === CAPTURE_MOUNT || foldedRelative.startsWith(`${CAPTURE_MOUNT}${path41.sep}`)) {
     const operation = serveCaptures(request, response, active, relative6);
     active.stateWrites.add(operation);
     try {
@@ -53285,15 +53295,15 @@ async function serveAsset(request, response, active) {
     }
     return;
   }
-  if (foldedRelative === DEVICE_MOUNT || foldedRelative.startsWith(`${DEVICE_MOUNT}${path40.sep}`)) {
+  if (foldedRelative === DEVICE_MOUNT || foldedRelative.startsWith(`${DEVICE_MOUNT}${path41.sep}`)) {
     await serveDevice(request, response, active, relative6);
     return;
   }
-  if (foldedRelative === STATE_MOUNT || foldedRelative.startsWith(`${STATE_MOUNT}${path40.sep}`)) {
+  if (foldedRelative === STATE_MOUNT || foldedRelative.startsWith(`${STATE_MOUNT}${path41.sep}`)) {
     await serveHistory(request, response, active, relative6);
     return;
   }
-  if (foldedRelative === PLAYER_MOUNT || foldedRelative.startsWith(`${PLAYER_MOUNT}${path40.sep}`)) {
+  if (foldedRelative === PLAYER_MOUNT || foldedRelative.startsWith(`${PLAYER_MOUNT}${path41.sep}`)) {
     await servePlayer(request, response, active, relative6);
     return;
   }
@@ -53305,9 +53315,9 @@ async function serveAsset(request, response, active) {
     reject(response, 400, "Request body not allowed");
     return;
   }
-  if (active.annotations && (foldedRelative === ANNOTATION_MOUNT || foldedRelative.startsWith(`${ANNOTATION_MOUNT}${path40.sep}`))) {
-    const canonicalMount = relative6.startsWith(`${ANNOTATION_MOUNT}${path40.sep}`);
-    const asset = canonicalMount ? active.annotations.assets.get(relative6.slice(ANNOTATION_MOUNT.length + path40.sep.length)) : void 0;
+  if (active.annotations && (foldedRelative === ANNOTATION_MOUNT || foldedRelative.startsWith(`${ANNOTATION_MOUNT}${path41.sep}`))) {
+    const canonicalMount = relative6.startsWith(`${ANNOTATION_MOUNT}${path41.sep}`);
+    const asset = canonicalMount ? active.annotations.assets.get(relative6.slice(ANNOTATION_MOUNT.length + path41.sep.length)) : void 0;
     if (asset)
       serveBufferedAsset(request, response, asset);
     else
@@ -53407,13 +53417,13 @@ var WebPreviewService = class {
   async control(input) {
     const active = this.#active;
     const annotations = active?.annotations;
-    if ((!active || annotations?.projectRoot !== path40.resolve(input.projectRoot)) && ["recording_status", "read_capture"].includes(input.action)) {
+    if ((!active || annotations?.projectRoot !== path41.resolve(input.projectRoot)) && ["recording_status", "read_capture"].includes(input.action)) {
       const recording = await new PreviewRecordingBroker(input.projectRoot).read(input.recordingId);
       if (input.action === "read_capture")
         await verifyRecordingCapture(input.projectRoot, recording);
       return { success: true, action: input.action, recording: recordingResult(recording) };
     }
-    if (!active || !annotations?.states || !annotations.players || !pathsMatch(path40.resolve(input.projectRoot), annotations.projectRoot, this.#platform)) {
+    if (!active || !annotations?.states || !annotations.players || !pathsMatch(path41.resolve(input.projectRoot), annotations.projectRoot, this.#platform)) {
       throw new Error("Open a browser preview for the selected project first.");
     }
     const { states, players } = annotations;
@@ -53508,7 +53518,7 @@ var WebPreviewService = class {
       }
       if (this.#platform === "win32")
         assertSafePlatformPath(outputRoot, this.#platform);
-      const candidate = path40.resolve(outputRoot);
+      const candidate = path41.resolve(outputRoot);
       if (this.#platform === "win32")
         assertSafePlatformPath(candidate, this.#platform);
       const requested = await lstat22(candidate);
@@ -53560,7 +53570,7 @@ var WebPreviewService = class {
       }
       await this.#stopActive();
       this.#assertOpen();
-      const capability = randomBytes3(CAPABILITY_BYTES).toString("hex");
+      const capability = randomBytes2(CAPABILITY_BYTES).toString("hex");
       let active;
       const server = createServer((request, response) => {
         void serveAsset(request, response, active).catch(() => reject(response, 500, "Internal server error"));
@@ -53572,7 +53582,7 @@ var WebPreviewService = class {
       await listenLoopback(server, this.#closedPort);
       const address = server.address();
       if (address === null || typeof address === "string" || address.address !== LOOPBACK_ADDRESS) {
-        await new Promise((resolve5) => server.close(() => resolve5()));
+        await new Promise((resolve4) => server.close(() => resolve4()));
         throw new Error("The game web preview could not bind its loopback listener.");
       }
       const status = {
@@ -53580,7 +53590,7 @@ var WebPreviewService = class {
         port: address.port,
         outputRoot: root,
         reused: false,
-        listenerId: randomBytes3(16).toString("hex"),
+        listenerId: randomBytes2(16).toString("hex"),
         startedAt: (/* @__PURE__ */ new Date()).toISOString(),
         kind: "in-process-http",
         listening: true,
@@ -53652,8 +53662,8 @@ var WebPreviewService = class {
   async #serialize(operation) {
     const previous = this.#operation;
     let release;
-    this.#operation = new Promise((resolve5) => {
-      release = resolve5;
+    this.#operation = new Promise((resolve4) => {
+      release = resolve4;
     });
     await previous;
     try {
@@ -53736,9 +53746,9 @@ var WebPreviewService = class {
       if (this.#disposed)
         active.annotations?.players?.recording?.dispose();
     }
-    const listener = new Promise((resolve5, rejectStop) => {
+    const listener = new Promise((resolve4, rejectStop) => {
       active.server.close((error2) => {
-        error2 ? rejectStop(error2) : resolve5();
+        error2 ? rejectStop(error2) : resolve4();
       });
       active.server.closeAllConnections();
     });
@@ -53932,10 +53942,10 @@ var nativeResponseSchema = external_exports.union([
 ]);
 
 // src/native-device-capture.js
-import { randomBytes as randomBytes4, randomUUID as randomUUID18, timingSafeEqual as timingSafeEqual4 } from "node:crypto";
+import { randomBytes as randomBytes3, randomUUID as randomUUID18, timingSafeEqual as timingSafeEqual4 } from "node:crypto";
 import { createServer as createServer2 } from "node:http";
 import { readFile as readFile15 } from "node:fs/promises";
-import path45 from "node:path";
+import path46 from "node:path";
 import { pipeline as pipeline2 } from "node:stream/promises";
 
 // src/web-annotations/device-colors.js
@@ -54123,7 +54133,7 @@ import { createHash as createHash36, randomUUID as randomUUID16 } from "node:cry
 import { constants as constants21 } from "node:fs";
 import { lstat as lstat23, open as open22, realpath as realpath24 } from "node:fs/promises";
 import os4 from "node:os";
-import path41 from "node:path";
+import path42 from "node:path";
 var MAX_LINE = 64 * 1024;
 var MAX_REQUEST = 8192;
 var MAX_STDERR = 8192;
@@ -54137,7 +54147,7 @@ var NativeHelperError = class extends Error {
   }
 };
 async function verifyExecutable(filename, expectedSha256) {
-  if (!path41.isAbsolute(filename) || await realpath24(filename) !== filename || !/^[a-f0-9]{64}$/.test(expectedSha256))
+  if (!path42.isAbsolute(filename) || await realpath24(filename) !== filename || !/^[a-f0-9]{64}$/.test(expectedSha256))
     throw new Error("Native capture helper must have a pinned canonical executable.");
   const named = await lstat23(filename);
   if (!named.isFile() || named.nlink !== 1 || named.size < 1 || named.size > 16 * 1024 * 1024 || !(named.mode & 73) || named.mode & 18)
@@ -54190,12 +54200,12 @@ var NativeHelperProcess = class _NativeHelperProcess {
       throw new Error("Native device capture is currently available on macOS only. Emulator capture remains available.");
     await verifyExecutable(options.executable, options.sha256);
     const temporaryRoot = await realpath24(os4.tmpdir());
-    const child = spawn3(options.executable, ["--stdio"], { stdio: ["pipe", "pipe", "pipe"], shell: false, cwd: path41.dirname(options.executable), env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", TMPDIR: temporaryRoot } });
+    const child = spawn3(options.executable, ["--stdio"], { stdio: ["pipe", "pipe", "pipe"], shell: false, cwd: path42.dirname(options.executable), env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", TMPDIR: temporaryRoot } });
     return _NativeHelperProcess.attach(child, options.onEvent);
   }
   /** Test seam accepts an inert in-memory process adapter; production uses only launch(). */
   static async attach(child, onEvent) {
-    return new Promise((resolve5, reject2) => {
+    return new Promise((resolve4, reject2) => {
       let owner3, startup = Buffer.alloc(0), startupStderr = 0, settled = false, exited = false;
       let exitCode = null, exitSignal = null;
       const fail6 = (error2) => {
@@ -54289,7 +54299,7 @@ var NativeHelperProcess = class _NativeHelperProcess {
           clearTimeout(timer);
           if (exited)
             owner3.observeExit(exitCode, exitSignal);
-          resolve5(owner3);
+          resolve4(owner3);
           if (startup.length > newline + 1)
             owner3.consume(startup.subarray(newline + 1));
         } catch {
@@ -54405,12 +54415,12 @@ var NativeHelperProcess = class _NativeHelperProcess {
     const bytes2 = Buffer.from(JSON.stringify({ requestId: requestId2, action, ...fields2 }) + "\n");
     if (bytes2.length > MAX_REQUEST)
       throw new Error("Native capture request exceeds its bound.");
-    return new Promise((resolve5, reject2) => {
+    return new Promise((resolve4, reject2) => {
       const timer = setTimeout(() => {
         this.fail(new NativeHelperError("Native capture operation timed out; it will not be replayed. Check the original session result.", true));
       }, action === "request_permission" ? 6e4 : 3e4);
       timer.unref?.();
-      this.pending = { id: requestId2, resolve: resolve5, reject: reject2, timer };
+      this.pending = { id: requestId2, resolve: resolve4, reject: reject2, timer };
       this.child.stdin.write(bytes2, (error2) => {
         if (error2)
           this.fail(new NativeHelperError("Native capture request could not be delivered.", true));
@@ -54463,15 +54473,15 @@ var NativeHelperProcess = class _NativeHelperProcess {
       }
       this.child.stdin.end();
       if (!this.processClosed)
-        await new Promise((resolve5) => {
+        await new Promise((resolve4) => {
           const completed = () => {
             clearTimeout(timer);
-            resolve5();
+            resolve4();
           };
           const timer = setTimeout(() => {
             this.child.removeListener("close", completed);
             this.fail(new NativeHelperError("Native capture shutdown was not confirmed.", true));
-            resolve5();
+            resolve4();
           }, 5e3);
           timer.unref?.();
           this.child.once("close", completed);
@@ -54487,13 +54497,13 @@ import { createHash as createHash40, randomUUID as randomUUID17 } from "node:cry
 import { constants as constants24 } from "node:fs";
 import { lstat as lstat26, mkdtemp as mkdtemp4, open as open25, realpath as realpath27, unlink as unlink10 } from "node:fs/promises";
 import os6 from "node:os";
-import path44 from "node:path";
+import path45 from "node:path";
 
 // src/device-capture/native-files.js
 import { createHash as createHash37 } from "node:crypto";
 import { constants as constants22 } from "node:fs";
 import { lstat as lstat24, open as open23, realpath as realpath25 } from "node:fs/promises";
-import path42 from "node:path";
+import path43 from "node:path";
 import os5 from "node:os";
 
 // src/device-capture/native-jpeg.js
@@ -54694,10 +54704,10 @@ var NativeCaptureFiles = class _NativeCaptureFiles {
     this.identity = identity6;
   }
   static async create(directory) {
-    if (!path42.isAbsolute(directory) || path42.resolve(directory) !== directory || await realpath25(directory) !== directory)
+    if (!path43.isAbsolute(directory) || path43.resolve(directory) !== directory || await realpath25(directory) !== directory)
       throw new Error("Native capture directory is not canonical.");
     const temporaryRoot = await realpath25(os5.tmpdir());
-    if (path42.dirname(directory) !== temporaryRoot || !/^chromatic-native-capture-[A-Za-z0-9-]+$/.test(path42.basename(directory)))
+    if (path43.dirname(directory) !== temporaryRoot || !/^chromatic-native-capture-[A-Za-z0-9-]+$/.test(path43.basename(directory)))
       throw new Error("Native capture directory must be a generated session under the local temporary directory.");
     const stat8 = await lstat24(directory);
     if (!stat8.isDirectory() || !owner2(stat8) || (stat8.mode & 511) !== 448)
@@ -54716,7 +54726,7 @@ var NativeCaptureFiles = class _NativeCaptureFiles {
     if (!artifact.basename || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,104}$/.test(artifact.basename) || artifact.basename.includes("..") || !artifact.sha256 || !/^[a-f0-9]{64}$/.test(artifact.sha256) || !Number.isSafeInteger(artifact.bytes) || artifact.bytes < 1 || artifact.bytes > NATIVE_LIMITS.maxRecordingBytes)
       throw new Error("Invalid native artifact reference.");
     await this.checkDirectory();
-    const filename = path42.join(this.directory, artifact.basename);
+    const filename = path43.join(this.directory, artifact.basename);
     const named = await lstat24(filename);
     if (!named.isFile() || named.nlink !== 1 || !owner2(named) || (named.mode & 511) !== 384 || named.size !== artifact.bytes)
       throw new Error("Native artifact is not a private regular file of the expected size.");
@@ -54761,7 +54771,7 @@ var NativeCaptureFiles = class _NativeCaptureFiles {
   }
 };
 async function readBoundedCaptureAsset(filename, maximum) {
-  if (await realpath25(filename) !== path42.resolve(filename))
+  if (await realpath25(filename) !== path43.resolve(filename))
     throw new Error("Capture assets must not use symbolic links.");
   const file2 = await open23(filename, constants22.O_RDONLY | constants22.O_NOFOLLOW);
   try {
@@ -54789,7 +54799,7 @@ async function readBoundedCaptureAsset(filename, maximum) {
 import { createHash as createHash38 } from "node:crypto";
 import { constants as constants23 } from "node:fs";
 import { lstat as lstat25, open as open24, readdir as readdir10, realpath as realpath26 } from "node:fs/promises";
-import path43 from "node:path";
+import path44 from "node:path";
 var SYSFS = "/sys/class/video4linux";
 function identity5(stat8) {
   return [stat8.dev, stat8.ino, stat8.rdev, stat8.uid, stat8.gid, stat8.mode, stat8.ctimeNs].join(":");
@@ -54818,20 +54828,20 @@ function isMissing2(error2) {
 async function describe(name3) {
   if (!/^video\d{1,4}$/.test(name3))
     return void 0;
-  const sysfs = await realpath26(path43.join(SYSFS, name3));
+  const sysfs = await realpath26(path44.join(SYSFS, name3));
   if (!sysfs.startsWith("/sys/devices/"))
     throw new Error("Linux video node has an unexpected sysfs target.");
-  const label = await attribute(path43.join(sysfs, "name"));
+  const label = await attribute(path44.join(sysfs, "name"));
   const match = /^Chromatic - Player (0[1-9]|[1-9][0-9])$/.exec(label);
   if (!match)
     return void 0;
   const player2 = match[1];
   let parent = sysfs, usb;
-  for (let depth = 0; depth < 12 && parent.startsWith("/sys/devices/"); depth++, parent = path43.dirname(parent)) {
+  for (let depth = 0; depth < 12 && parent.startsWith("/sys/devices/"); depth++, parent = path44.dirname(parent)) {
     let vendor, product;
     try {
-      vendor = await attribute(path43.join(parent, "idVendor"));
-      product = await attribute(path43.join(parent, "idProduct"));
+      vendor = await attribute(path44.join(parent, "idVendor"));
+      product = await attribute(path44.join(parent, "idProduct"));
     } catch (error2) {
       if (isMissing2(error2))
         continue;
@@ -54844,15 +54854,15 @@ async function describe(name3) {
   }
   if (!usb)
     return void 0;
-  const [bus, deviceNumber] = await Promise.all([attribute(path43.join(usb, "busnum")), attribute(path43.join(usb, "devnum"))]);
+  const [bus, deviceNumber] = await Promise.all([attribute(path44.join(usb, "busnum")), attribute(path44.join(usb, "devnum"))]);
   if (![bus, deviceNumber].every((value) => /^\d{1,6}$/.test(value) && Number(value) > 0))
     throw new Error("Linux USB instance metadata is invalid.");
-  const device = /^(\d+):(\d+)$/.exec(await attribute(path43.join(sysfs, "dev")));
+  const device = /^(\d+):(\d+)$/.exec(await attribute(path44.join(sysfs, "dev")));
   if (!device)
     throw new Error("Linux video node has an invalid device number.");
   const major = BigInt(device[1]), minor = BigInt(device[2]);
   const rdev = (major & 0xfffn) << 8n | (major & ~0xfffn) << 32n | minor & 0xffn | (minor & ~0xffn) << 12n;
-  const filename = path43.join("/dev", name3), stat8 = await lstat25(filename, { bigint: true });
+  const filename = path44.join("/dev", name3), stat8 = await lstat25(filename, { bigint: true });
   if (!stat8.isCharacterDevice() || stat8.rdev !== rdev)
     throw new Error("Linux video device does not match its sysfs identity.");
   return { name: name3, label, player: player2, filename, sysfs, usb, usbInstance: `${bus}:${deviceNumber}`, identity: identity5(stat8) };
@@ -55099,11 +55109,11 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
       this.record.signal = signal;
       this.record.exitedAt = (/* @__PURE__ */ new Date()).toISOString();
     });
-    const close = new Promise((resolve5) => child.once("close", () => {
+    const close = new Promise((resolve4) => child.once("close", () => {
       this.closed = true;
       this.record.closedAt = (/* @__PURE__ */ new Date()).toISOString();
       clearTimeout(this.escalation);
-      resolve5();
+      resolve4();
     }));
     let stderrBytes = 0;
     const consumers = { ...pipes, 2: (bytes2) => {
@@ -55162,10 +55172,10 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
   async wait(maximumMs) {
     let timer;
     try {
-      return await Promise.race([this.finished, new Promise((resolve5, reject2) => {
+      return await Promise.race([this.finished, new Promise((resolve4, reject2) => {
         timer = setTimeout(() => {
           this.abort(new Error("Linux capture operation timed out."));
-          this.stop().then(resolve5, reject2);
+          this.stop().then(resolve4, reject2);
         }, maximumMs);
       })]);
     } finally {
@@ -55242,7 +55252,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
     if (process.platform !== "linux")
       throw new Error("The Linux capture backend requires a Linux host.");
     await verifyExecutable(options.executable, options.sha256);
-    const directory = await mkdtemp4(path44.join(await realpath27(os6.tmpdir()), "chromatic-native-capture-"));
+    const directory = await mkdtemp4(path45.join(await realpath27(os6.tmpdir()), "chromatic-native-capture-"));
     await NativeCaptureFiles.create(directory);
     return new _LinuxNativeHelper(options.executable, directory, options.onEvent);
   }
@@ -55361,8 +55371,8 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
       throw new Error("The previous Linux producer must close before another can start.");
     const node = this.node, fd = await this.io.open(node);
     let resolveFirst;
-    const first = new Promise((resolve5) => {
-      resolveFirst = resolve5;
+    const first = new Promise((resolve4) => {
+      resolveFirst = resolve4;
     });
     let producer;
     const preview = new LinuxFrameStream((frame3) => {
@@ -55540,7 +55550,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
       bytes2 = Buffer.concat(chunks);
     }
     const basename3 = `${png ? "snapshot" : "preview"}-${randomUUID17()}.${png ? "png" : "jpeg"}`;
-    const file2 = await open25(path44.join(this.ready.sessionDir, basename3), constants24.O_WRONLY | constants24.O_CREAT | constants24.O_EXCL | constants24.O_NOFOLLOW, 384);
+    const file2 = await open25(path45.join(this.ready.sessionDir, basename3), constants24.O_WRONLY | constants24.O_CREAT | constants24.O_EXCL | constants24.O_NOFOLLOW, 384);
     let stat8;
     try {
       await file2.writeFile(bytes2);
@@ -55551,7 +55561,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
     if (!png) {
       this.previewFiles.push({ name: basename3, stat: stat8 });
       while (this.previewFiles.length > 2) {
-        const old = this.previewFiles.shift(), filename = path44.join(this.ready.sessionDir, old.name), current = await lstat26(filename);
+        const old = this.previewFiles.shift(), filename = path45.join(this.ready.sessionDir, old.name), current = await lstat26(filename);
         if (current.ino !== old.stat.ino || current.dev !== old.stat.dev || !current.isFile() || current.nlink !== 1)
           throw new Error("Owned preview file changed before retirement.");
         await unlink10(filename);
@@ -55620,7 +55630,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
       this.assertOpen();
       if (performance.now() >= expires)
         throw new Error("Recording deadline expired during preview closure.");
-      const basename3 = `capture-${id3}.webm`, file2 = await open25(path44.join(this.ready.sessionDir, basename3), constants24.O_WRONLY | constants24.O_CREAT | constants24.O_EXCL | constants24.O_NOFOLLOW, 384);
+      const basename3 = `capture-${id3}.webm`, file2 = await open25(path45.join(this.ready.sessionDir, basename3), constants24.O_WRONLY | constants24.O_CREAT | constants24.O_EXCL | constants24.O_NOFOLLOW, 384);
       const r = { id: id3, basename: basename3, file: file2, bytes: 0, digest: createHash40("sha256"), stats: new LinuxPacketStats(), requested: Number(duration4), started, deadline, expires, reason: "stop" };
       this.recording = r;
       this.recordings++;
@@ -56152,10 +56162,10 @@ var NativeDeviceCaptureService = class {
         throw new Error("Select a project first.");
       const assets = /* @__PURE__ */ new Map();
       for (const name3 of ASSETS)
-        assets.set(name3, await readFile15(path45.join(this.options.assetsRoot, name3)));
-      const artRoot = this.options.deviceAssetsRoot ?? path45.resolve(this.options.assetsRoot, "../assets/devices");
+        assets.set(name3, await readFile15(path46.join(this.options.assetsRoot, name3)));
+      const artRoot = this.options.deviceAssetsRoot ?? path46.resolve(this.options.assetsRoot, "../assets/devices");
       for (const name3 of DEVICE_CAPTURE_IMAGES) {
-        const data = await readBoundedCaptureAsset(path45.join(artRoot, deviceArtworkFile(path45.basename(name3))), 3 * 1024 * 1024);
+        const data = await readBoundedCaptureAsset(path46.join(artRoot, deviceArtworkFile(path46.basename(name3))), 3 * 1024 * 1024);
         if (!data || data.length > 3 * 1024 * 1024 || data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" && (data.toString("ascii", 0, 4) !== "RIFF" || data.toString("ascii", 8, 12) !== "WEBP"))
           throw new Error("Device artwork is invalid.");
         assets.set(name3, data);
@@ -56196,9 +56206,9 @@ var NativeDeviceCaptureService = class {
       if (!address || typeof address === "string")
         throw new Error("Could not open local capture view.");
       const sessionId = randomUUID18();
-      a = { server, port: address.port, token: randomBytes4(32).toString("hex"), sessionId, generation, projectRoot, assets, store: new PreviewCaptureStore({ projectRoot, identity: { source: "physical-uvc", sessionId, generation } }), enabled: !this.permissionRequired, diagnosticTraceEnabled: diagnosticTrace === true, enableGeneration: 0, revokePending: false, settingsTab: "connection", working: false, revoked: false, settingsRequest: 0, requests: 0, reads: 0, totalBytes: 0, captures: /* @__PURE__ */ new Map(), recordings: /* @__PURE__ */ new Map(), frames: /* @__PURE__ */ new Map(), frameWaiters: /* @__PURE__ */ new Set() };
+      a = { server, port: address.port, token: randomBytes3(32).toString("hex"), sessionId, generation, projectRoot, assets, store: new PreviewCaptureStore({ projectRoot, identity: { source: "physical-uvc", sessionId, generation } }), enabled: !this.permissionRequired, diagnosticTraceEnabled: diagnosticTrace === true, enableGeneration: 0, revokePending: false, settingsTab: "connection", working: false, revoked: false, settingsRequest: 0, requests: 0, reads: 0, totalBytes: 0, captures: /* @__PURE__ */ new Map(), recordings: /* @__PURE__ */ new Map(), frames: /* @__PURE__ */ new Map(), frameWaiters: /* @__PURE__ */ new Set() };
       if (this.disposed || !this.options.isSelected(projectRoot, generation)) {
-        await new Promise((resolve5) => server.close(() => resolve5()));
+        await new Promise((resolve4) => server.close(() => resolve4()));
         throw new Error("Capture selection changed while opening.");
       }
       this.active = a;
@@ -56323,7 +56333,7 @@ var NativeDeviceCaptureService = class {
         const bytes2 = await readBoundedCaptureAsset(this.options.linuxHelperManifest, 4096);
         const manifest = external_exports.object({ protocolVersion: external_exports.literal(1), architectures: external_exports.object({ arm64: pin("arm64/ffmpeg"), x64: pin("x64/ffmpeg") }).strict() }).strict().parse(JSON.parse(bytes2.toString("utf8")));
         const selected = manifest.architectures[process.arch];
-        a.helper = await LinuxNativeHelper.launch({ executable: path45.join(path45.dirname(this.options.linuxHelperManifest), selected.file), sha256: selected.sha256, onEvent });
+        a.helper = await LinuxNativeHelper.launch({ executable: path46.join(path46.dirname(this.options.linuxHelperManifest), selected.file), sha256: selected.sha256, onEvent });
       } else {
         if ((this.options.platform ?? process.platform) !== "darwin")
           throw new Error("Native device capture is currently available on macOS only. Emulator capture remains available.");
@@ -56331,7 +56341,7 @@ var NativeDeviceCaptureService = class {
           throw new Error("The verified native capture helper is not included in this build.");
         const bytes2 = await readBoundedCaptureAsset(this.options.helperManifest, 4096);
         const manifest = external_exports.object({ protocolVersion: external_exports.literal(1), file: external_exports.literal("chromatic-capture-helper"), sha256: external_exports.string().regex(/^[a-f0-9]{64}$/) }).strict().parse(JSON.parse(bytes2.toString("utf8")));
-        a.helper = await NativeHelperProcess.launch({ executable: path45.join(path45.dirname(this.options.helperManifest), manifest.file), sha256: manifest.sha256, onEvent });
+        a.helper = await NativeHelperProcess.launch({ executable: path46.join(path46.dirname(this.options.helperManifest), manifest.file), sha256: manifest.sha256, onEvent });
       }
       try {
         a.files = await NativeCaptureFiles.create(a.helper.ready.sessionDir);
@@ -56625,7 +56635,7 @@ var NativeDeviceCaptureService = class {
   waitFrameChange(a, req, res, delay3) {
     if (a.frameWaiters.size >= MAX_FRAME_WAITERS)
       throw new HttpError(429, "Too many pending frame requests.");
-    return new Promise((resolve5) => {
+    return new Promise((resolve4) => {
       let settled = false, timer;
       const socket = req.socket;
       const finish = (open26) => {
@@ -56638,7 +56648,7 @@ var NativeDeviceCaptureService = class {
         res.off("close", closed);
         req.off("aborted", closed);
         socket.off("close", closed);
-        resolve5(open26);
+        resolve4(open26);
       };
       const changed = () => finish(true), closed = () => finish(false);
       a.frameWaiters.add(changed);
@@ -57024,8 +57034,8 @@ var NativeDeviceCaptureService = class {
     if (a.closing)
       return a.closing;
     let ready;
-    a.closeReady = new Promise((resolve5) => {
-      ready = resolve5;
+    a.closeReady = new Promise((resolve4) => {
+      ready = resolve4;
     });
     a.closing = (async () => {
       if (a.polling)
@@ -57073,7 +57083,7 @@ var NativeDeviceCaptureService = class {
       } catch (error2) {
         remember(error2);
       }
-      const listenerClosed = new Promise((resolve5) => {
+      const listenerClosed = new Promise((resolve4) => {
         const timer = setTimeout(() => a.server.closeAllConnections(), 5e3);
         timer.unref?.();
         try {
@@ -57081,12 +57091,12 @@ var NativeDeviceCaptureService = class {
             clearTimeout(timer);
             if (error2)
               remember(error2);
-            resolve5();
+            resolve4();
           });
         } catch (error2) {
           clearTimeout(timer);
           remember(error2);
-          resolve5();
+          resolve4();
         }
         try {
           a.server.closeIdleConnections();
@@ -57228,7 +57238,7 @@ var NativeDeviceCaptureService = class {
             res.setHeader("Content-Type", file2.mimeType);
             res.setHeader("Content-Length", file2.bytes);
             if (file2.record.kind === "video" && part !== "metadata")
-              res.setHeader("Content-Disposition", `attachment; filename="${path45.basename(file2.record.path)}"`);
+              res.setHeader("Content-Disposition", `attachment; filename="${path46.basename(file2.record.path)}"`);
             if (req.method === "HEAD")
               res.end();
             else
@@ -57289,9 +57299,9 @@ var NativeDeviceCaptureService = class {
 // src/entry.js
 var SERVER_NAME = "hermretro-engine";
 var SERVER_TITLE = "hermretro engine";
-var SERVER_VERSION = JSON.parse(readFileSync3(new URL("../package.json", import.meta.url), "utf8")).version;
-var WEB_ANNOTATION_ASSETS = fileURLToPath4(new URL("../src/web-annotations/", import.meta.url));
-var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path46.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath4(new URL("../../player/skins/", import.meta.url));
+var SERVER_VERSION = JSON.parse(readFileSync3(engineUrl("package.json"), "utf8")).version;
+var WEB_ANNOTATION_ASSETS = enginePath("src/web-annotations/");
+var DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path47.resolve(process.env.CHROMATIC_DEVICE_SKINS) : enginePath("../player/skins/");
 var readOnly3 = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -57582,10 +57592,10 @@ function createGbStudioServer(options = {}) {
   });
   const deviceCapture = new NativeDeviceCaptureService({
     ...options.deviceCapture,
-    helperManifest: fileURLToPath4(new URL("../native/capture/macos/manifest.json", import.meta.url)),
-    linuxHelperManifest: fileURLToPath4(new URL("../native/capture/linux/manifest.json", import.meta.url)),
+    helperManifest: enginePath("native/capture/macos/manifest.json"),
+    linuxHelperManifest: enginePath("native/capture/linux/manifest.json"),
     deviceAssetsRoot: DEVICE_ASSETS,
-    assetsRoot: fileURLToPath4(new URL("../src/", import.meta.url)),
+    assetsRoot: enginePath("src/"),
     isSelected: (root, generation) => session.selectedProject?.projectRoot === root && session.selectionGeneration === generation
   });
   let initialSelectionError;
@@ -57726,7 +57736,7 @@ function createGbStudioServer(options = {}) {
     }
     return performProjectArtifact(async (project, access4) => {
       const projectPath = input.projectPath ?? project.projectPath;
-      const selected = path46.resolve(project.projectRoot, projectPath) === path46.resolve(project.projectPath);
+      const selected = path47.resolve(project.projectRoot, projectPath) === path47.resolve(project.projectPath);
       const before = selected ? await nativeRomRevision(project.projectRoot, project.projectPath).catch(() => null) : null;
       if (selected)
         await access4.strongRefresh();
@@ -57739,7 +57749,7 @@ function createGbStudioServer(options = {}) {
       if (before && result.success !== false && typeof result.outputPath === "string" && result.rom)
         await rememberNativeRom(before, project.projectPath, { path: result.outputPath, sha256: result.rom.sha256 }, configuredToolchain).catch(() => {
         });
-      const relative6 = path46.relative(project.projectRoot, result.outputPath).split(path46.sep).join("/");
+      const relative6 = path47.relative(project.projectRoot, result.outputPath).split(path47.sep).join("/");
       if (relative6.startsWith("project/") || relative6.startsWith("assets/"))
         await access4.noteCommittedPaths([result.outputPath]);
       if (result.success && result.debugArtifacts)
@@ -58767,7 +58777,7 @@ async function main() {
   await server.connect(transport);
 }
 var entrypoint = process.argv[1];
-if (entrypoint && import.meta.url === pathToFileURL2(path46.resolve(entrypoint)).href) {
+if (entrypoint && import.meta.url === pathToFileURL2(path47.resolve(entrypoint)).href) {
   main().catch((error2) => {
     const message2 = error2 instanceof Error ? error2.message : String(error2);
     process.stderr.write(`${SERVER_NAME}: ${message2}
