@@ -9,9 +9,9 @@ lands on a listed file passes. Each page's entry scripts, read with an HTML pars
 capture page's built export, the preview's template), are resolved the same way from the page's URL. A listed name
 must be one the routers serve.
 
-Its limit: the preview's page is assembled at run time from a game's web export (`prepareAnnotations`), so its entry
-script is read from the template in `web-preview.js`, not from a served page. Requesting the assembled page from a
-running preview with a fixture export belongs to the engine's own tests."""
+The preview's page is assembled at run time from a game's web export (`prepareAnnotations`), so here its entry script
+is read from the template in `web-preview.js`; tests/engine/web-preview.test.mjs requests the assembled page from a
+running preview on a fixture export and follows every import its scripts make."""
 
 from __future__ import annotations
 
