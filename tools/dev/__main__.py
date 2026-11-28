@@ -13,6 +13,9 @@
   ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
   mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
                     FOLDER/gallery.html
+  remote HOST [CHECK ...]
+                    this checkout's HEAD checked on another machine over ssh (default: unit), for a change that
+                    must hold on a system this one is not
   review VERB       a pull request's review (tools/review/README.md): prepare, take and record a pass's briefs,
                     findings and answers (--pass N), or say where it stands (status)
   bench VERB        the benchmark: every game in tools/dev/bench_games/ made at once by a one-shot chat in the
@@ -41,6 +44,7 @@ import bench  # noqa: E402 - this folder, put on the path just above
 import bench_compare  # noqa: E402
 import local_hermes as hermes  # noqa: E402
 import mockup  # noqa: E402
+import remote  # noqa: E402
 import review  # noqa: E402
 import studio  # noqa: E402
 import studio_states  # noqa: E402
@@ -309,6 +313,10 @@ def cmd_mockup(args) -> int:
     return 0
 
 
+def cmd_remote(args) -> int:
+    return remote.run(TOP, args.host, args.checks or ["unit"])
+
+
 def cmd_review(args) -> int:
     branch = review.Review(Path.cwd())
     if args.verb == "status":
@@ -416,6 +424,10 @@ def parser() -> argparse.ArgumentParser:
     round_.add_argument("--only", help="these mockups only (ids, comma-separated); today's page is always shot")
     round_.add_argument("--desktop", help="Hermes Desktop's source folder (default $HERMES_SOURCE/apps/desktop)")
     round_.set_defaults(run=cmd_mockup)
+    elsewhere = commands.add_parser("remote")
+    elsewhere.add_argument("host", help="the machine, as ssh names it")
+    elsewhere.add_argument("checks", nargs="*", help="tools/check.py's checks to run there (default: unit)")
+    elsewhere.set_defaults(run=cmd_remote)
     reviewing = commands.add_parser("review")
     reviewing.add_argument("verb", choices=["prepare", "take", "record", "status"])
     reviewing.add_argument("--pass", dest="pass_", type=int, help="the pass (prepare, take, record)")

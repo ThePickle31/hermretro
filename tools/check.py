@@ -9,7 +9,7 @@ Checks: unit (Python unit tests), bundle (generated files match page/), engine (
 its modules build), lint (ESLint over page/: the boundaries between pages and a few correctness rules; ruff over the
 Python: likely bugs, then one formatting for everyone, from .dev/py, made by python tools/py/setup.py), page (page
 tests in jsdom), scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance
-(real engine, compiler and emulator; needs the toolchain from setup).
+(real engine, compiler and emulator; needs a toolchain: tools/ci/prepare_toolchain.py).
 
 Every failure ends with a line starting "FIX:". In GitHub Actions the results also go to the run summary.
 Options: --hermes-source DIR (a hermes-agent checkout for the scan; default $HERMES_SOURCE, then
@@ -35,6 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HELPERS = str(Path(__file__).resolve().parent / "py")  # check.py's helpers
 if HELPERS not in sys.path:
     sys.path.insert(0, HELPERS)
+import dev_toolchain  # noqa: E402 - tools/py/ goes on sys.path first
 import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import unit_shards  # noqa: E402 - tools/py/ goes on sys.path first
@@ -348,27 +349,32 @@ def check_scan(args) -> str:
 ACCEPTANCE_MINUTES = 30
 
 
-def acceptance_env(paths) -> dict:
-    """The suite's environment: a short TMPDIR, and the toolchain folders absolute as this process resolved them
-    (from the caller's folder), since the suite runs from the checkout root."""
-    env = {**os.environ, "TMPDIR": short_tmp()}
+def acceptance_env(paths) -> tuple[dict, Path]:
+    """The suite's environment and the toolchain it runs on: a short TMPDIR, and the toolchain folders absolute as
+    this process resolved them (from the caller's folder), since the suite runs from the checkout root. With neither
+    folder named, this machine's development toolchain (tools/py/dev_toolchain.py) when it has one, otherwise the
+    one the hermretro page installed."""
+    env, toolchain = {**os.environ, "TMPDIR": short_tmp()}, paths.setup_root()
+    if env.get("GB_STUDIO_SETUP_ROOT"):
+        env["GB_STUDIO_SETUP_ROOT"] = str(toolchain.absolute())
     if env.get("HERMRETRO_DEPS_ROOT"):
         env["HERMRETRO_DEPS_ROOT"] = str(paths.DEPS_ROOT)
-    if env.get("GB_STUDIO_SETUP_ROOT"):
-        env["GB_STUDIO_SETUP_ROOT"] = str(paths.setup_root().absolute())
-    return env
+    elif not env.get("GB_STUDIO_SETUP_ROOT") and (dev_toolchain.DEPS_ROOT / "toolchain").is_dir():
+        env["HERMRETRO_DEPS_ROOT"] = str(dev_toolchain.DEPS_ROOT)
+        toolchain = dev_toolchain.DEPS_ROOT / "toolchain"
+    return env, toolchain
 
 
 def check_acceptance(args) -> str:
     sys.path.insert(0, str(ROOT))
     from backend.system import paths  # noqa: E402 - the backend decides where setup put the toolchain
 
-    if not paths.setup_root().is_dir():
+    env, toolchain = acceptance_env(paths)
+    if not toolchain.is_dir():
         raise Skip(
-            f"no toolchain at {paths.setup_root()}; install it from the hermretro page, or make one with "
-            "HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py and run this with the same HERMRETRO_DEPS_ROOT"
+            f"no toolchain at {toolchain}\nFIX: python tools/ci/prepare_toolchain.py, once (about 700 MB): it makes "
+            "the development toolchain every checkout uses, or the one HERMRETRO_DEPS_ROOT names when it is set"
         )
-    env = acceptance_env(paths)
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     try:
         result = run(

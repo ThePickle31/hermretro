@@ -11,8 +11,9 @@ request into `dev` and CI.
 3. `python tools/dev setup` (ruff, the Python linter and formatter, the page tools and the engine's build tools;
    development only).
 4. `python tools/check.py` must pass before you push. For backend or engine changes also run
-   `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py` once (the toolchain, into a folder of your
-   own), then `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full`.
+   `python tools/ci/prepare_toolchain.py` once (the toolchain, about 700 MB, into `~/.cache/hermretro-dev`, shared
+   by every checkout), then `python tools/check.py full`. A change to the engine is recorded with
+   `python tools/engine/bump.py "<files>: what changed and why"`.
 
 
 ## Trying a change in Hermes Desktop

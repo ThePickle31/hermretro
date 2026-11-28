@@ -1,7 +1,7 @@
 """Install the game toolchain the way the hermretro page does (the broker's install), and wait for it.
 
-    HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py   # on a developer machine
-    python tools/ci/prepare_toolchain.py                                # in GitHub Actions: the hermretro home
+    python tools/ci/prepare_toolchain.py                                # on a developer machine, or in CI
+    HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py   # into a folder of your choosing
 
 For CI and fresh checkouts that need the toolchain for `python tools/check.py acceptance`. Downloads about
 700 MB the first time (pinned, every archive checked against its SHA-256); does nothing when it is already
@@ -11,9 +11,10 @@ The install runs in a broker of its own, started in a new private folder and sto
 already running (the one an installed hermretro's chats use) is never reused, replaced or stopped. This process keeps
 the broker's own process and stops it on every way out (the end, a failure, Ctrl-C, SIGTERM or SIGHUP), confirming it
 exited before removing its folder. Everything the install writes (the toolchain, its journal, the prepared engine)
-lands in the destination. Outside GitHub Actions that has to be named with HERMRETRO_DEPS_ROOT, then given to the
-acceptance run the same way: the default, `<hermretro home>/.cache`, belongs to the installed plugin, whose page
-installs it. GB_STUDIO_SETUP_ROOT, which would move the toolchain out of the destination, is refused.
+lands in the destination: in GitHub Actions the hermretro home's `.cache` (a throwaway machine's), anywhere else this
+machine's development toolchain (tools/py/dev_toolchain.py), which `python tools/check.py acceptance` finds by itself,
+never the installed plugin's `.cache`, which its page installs. HERMRETRO_DEPS_ROOT names another; the acceptance run is
+then given the same one. GB_STUDIO_SETUP_ROOT, which would move the toolchain out of the destination, is refused.
 """
 
 from __future__ import annotations
@@ -30,7 +31,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "py"))
 
+import dev_toolchain  # noqa: E402 - tools/py/ goes on sys.path first
 import backend.hermes  # noqa: E402, F401 - tells backend.system how to ask Hermes for its home
 from backend.broker import client  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import paths  # noqa: E402 - the repository root goes on sys.path first
@@ -101,21 +104,16 @@ def folder_bytes(folder: Path) -> int:
 
 
 def destination(environ) -> Path:
-    """The folder the install writes: HERMRETRO_DEPS_ROOT, resolved from this process's folder, or the default."""
+    """The folder the install writes: HERMRETRO_DEPS_ROOT, resolved from this process's folder; with none, in
+    GitHub Actions the default (a throwaway machine's home is the run's own), anywhere else the development one."""
     named = environ.get("HERMRETRO_DEPS_ROOT")
-    return Path(named).resolve() if named else paths.DEPS_ROOT
+    if named:
+        return Path(named).resolve()
+    return paths.DEPS_ROOT if environ.get("GITHUB_ACTIONS") == "true" else dev_toolchain.DEPS_ROOT
 
 
 def refusal(environ, deps: Path) -> str | None:
-    """Why this run must not start, or None. GitHub Actions runs on a throwaway machine, so its default home is
-    the run's own; anywhere else the destination must be named, and nothing may move the toolchain out of it."""
-    if environ.get("GITHUB_ACTIONS") != "true" and not environ.get("HERMRETRO_DEPS_ROOT"):
-        return (
-            f"refusing to install into {deps}: outside CI the toolchain goes in a folder you name, "
-            "never the installed hermretro's own (its page installs that one)\n"
-            "FIX: HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py, "
-            "then HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance"
-        )
+    """Why this run must not start, or None: nothing may move the toolchain out of the destination."""
     if environ.get("GB_STUDIO_SETUP_ROOT"):
         return (
             f"refusing to install into {environ['GB_STUDIO_SETUP_ROOT']}: GB_STUDIO_SETUP_ROOT would move the "
@@ -240,7 +238,7 @@ def main() -> int:
     if reason:
         print(reason, file=sys.stderr)
         return 2
-    if os.environ.get("HERMRETRO_DEPS_ROOT"):
+    if deps != paths.DEPS_ROOT:
         # Absolute, as this process resolved it: the broker runs from the plugin folder and reads it again.
         os.environ["HERMRETRO_DEPS_ROOT"] = str(deps)
     print(f"toolchain: {deps / 'toolchain'}", flush=True)
