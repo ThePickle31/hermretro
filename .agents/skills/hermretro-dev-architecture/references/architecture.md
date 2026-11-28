@@ -143,7 +143,7 @@ pull request body. The rest log through `host.logger` and keep its name.
 
 Other modules worth knowing: `backend/hermes/contracts.py` (pinned tool contracts → Hermes schemas),
 `backend/hermes/results.py` (a broker answer → a tool result, images saved), `backend/setup/provision.py`
-(ModRetro's CLI, pinned SHA-256; the prepared engine copy), `backend/setup/downloads.py` (removing downloads), `backend/broker/broker.py` (the single authority: identity,
+(ModRetro's CLI, pinned SHA-256; making a prepared engine copy), `backend/setup/prepared_copies.py` (choosing the copy a worker starts from, remaking this engine's, removing the copies no worker runs in), `backend/setup/downloads.py` (removing downloads), `backend/broker/broker.py` (the single authority: identity,
 admission, the hardware gate), `lane.py` (a conversation's engine worker and writer leases), `selection.py` (which projects it may open, ownership), `installed.py` (installed games' conversations, `test_build`), `control.py`
 (control ops, the page's install), `lifecycle.py` (admission, shutdown, retirement, notices), `server.py` (the user-only Unix socket), `client.py` (finds or starts the
 broker; refuses a stale one), `backend/system/paths.py` (every location, the code fingerprint, the version).

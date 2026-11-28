@@ -191,9 +191,3 @@ def summary() -> dict:
         "engine_root": str(selection["root"]),
         "device_cli": provision.device_cli_status(selection),
     }
-
-
-if __name__ == "__main__":
-    # Read-only on purpose: installing goes through the chromatic_studio_device_cli tool, which
-    # asks the person for approval.
-    print(json.dumps(summary(), indent=2))

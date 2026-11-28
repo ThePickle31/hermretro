@@ -414,3 +414,11 @@ def _prepare(
         **{key: value for key, value in dates.items() if value},
     }
     paths.write_json_atomic(paths.DEVICE_CLI_RECEIPT, receipt)
+
+
+if __name__ == "__main__":
+    # Read-only on purpose: installing goes through the chromatic_studio_device_cli tool, which
+    # asks the person for approval. Imported here only, so importing provision never imports prepared_copies.
+    from .prepared_copies import summary
+
+    print(json.dumps(summary(), indent=2))
