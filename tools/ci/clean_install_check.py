@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--inside", nargs=2, metavar=("PHASE", "OUT"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.inside:  # run by Hermes's own Python inside the throwaway home
-        return _update_check().inside(*args.inside)
+        return _sibling("update_inside").inside(*args.inside)
     hermes = [args.hermes_python, "-I", "-m", "hermes_cli.main"] if args.hermes_python else ["hermes"]
 
     # Never under ~/.hermes: Hermes treats a home inside its real root as the real root itself.
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         root.mkdir()
         (Path(tmp) / "home").mkdir()
         if args.update_from:
-            return _update_check().update(args, hermes, Path(tmp).resolve(), root)
+            return _sibling("update_check").update(args, hermes, Path(tmp).resolve(), root)
         studio = root / "profiles" / "hermretro"
         run = runner(hermes, Path(tmp), {"HERMRETRO_HOME": str(Path(tmp) / "hermretro")})
 
@@ -112,11 +112,10 @@ def work_parent(env, real_root: Path) -> Path:
     return Path("/tmp")
 
 
-def _update_check():
+def _sibling(name: str):
+    """update_check.py (the update, driven from here) or update_inside.py (its half that runs inside Hermes)."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))  # python -I leaves the script's folder out
-    import update_check
-
-    return update_check
+    return __import__(name)
 
 
 def environment(tmp: Path, home: Path, extra: dict | None = None) -> dict:
