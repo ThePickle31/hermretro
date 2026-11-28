@@ -138,10 +138,11 @@ def check_engine(args) -> str:
         )
     tested = run([node, *ENGINE_TESTS])
     said = (tested.stdout + tested.stderr).strip()
-    counts = dict(re.findall(r"^\u2139 (pass|fail) (\d+)$", said, re.M))
+    counts = dict(re.findall(r"^\u2139 (pass|fail|skipped) (\d+)$", said, re.M))
     if tested.returncode:
         raise AssertionError(tail(said, 40) + f"\nFIX: {shlex.join(['node', *ENGINE_TESTS])}, and fix what fails")
-    return f"{built}; {counts.get('pass', '?')} engine tests passed"
+    skipped = f", {counts['skipped']} skipped" if counts.get("skipped", "0") != "0" else ""
+    return f"{built}; {counts.get('pass', '?')} engine tests passed{skipped}"
 
 
 def start(cmd: list[str]) -> subprocess.Popen:
