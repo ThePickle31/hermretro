@@ -25,6 +25,7 @@ import {
   sanitizeSubprocessEnvironment,
 } from "./platform.js";
 import { enginePath } from "./engine-root.js";
+import { PNG_SIGNATURE } from "./shared/bytes.js";
 export const MAX_EMULATOR_FRAMES = 3_600;
 export const MAX_EMULATOR_TIMELINE_ACTIONS = 128;
 export const MAX_EMULATOR_TIMELINE_CHECKPOINTS = 64;
@@ -340,7 +341,7 @@ export class EmulatorService {
         !Number.isSafeInteger(sample.frame) ||
         bytes.length < 24 ||
         bytes.length > MAX_EMULATOR_SAMPLE_BYTES ||
-        !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+        !bytes.subarray(0, 8).equals(PNG_SIGNATURE) ||
         bytes.readUInt32BE(16) !== 160 ||
         bytes.readUInt32BE(20) !== 144 ||
         createHash("sha256").update(bytes).digest("hex") !== sample.sha256
@@ -965,7 +966,7 @@ export class EmulatorService {
         bytes.toString("base64") !== sample.pngBase64 ||
         bytes.length < 24 ||
         bytes.length > MAX_EMULATOR_SAMPLE_BYTES ||
-        !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+        !bytes.subarray(0, 8).equals(PNG_SIGNATURE) ||
         bytes.readUInt32BE(16) !== 160 ||
         bytes.readUInt32BE(20) !== 144 ||
         createHash("sha256").update(bytes).digest("hex") !== sample.sha256

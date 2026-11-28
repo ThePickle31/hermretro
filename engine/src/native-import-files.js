@@ -1,10 +1,10 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, mkdtemp, open, opendir, rename, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { GameStudioProjectError } from "./project.js";
 import { resolveProjectPath } from "./project-files.js";
-const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+import { sha256Hex } from "./shared/bytes.js";
 const missing = (error) => !!error && typeof error === "object" && "code" in error && error.code === "ENOENT";
 const fail = (code, message) => {
   throw new GameStudioProjectError(code, message);
@@ -111,7 +111,7 @@ export async function readNativeImportSnapshot(root, relative, maximum) {
         dev: String(before.dev),
         ino: String(before.ino),
         size: count,
-        sha256: hash(content),
+        sha256: sha256Hex(content),
         mode: Number(before.mode & 4095n),
       },
     };
@@ -154,7 +154,7 @@ export async function publishNativeImportFile(root, relative, bytes, published) 
       dev: String(info.dev),
       ino: String(info.ino),
       size: bytes.length,
-      sha256: hash(bytes),
+      sha256: sha256Hex(bytes),
       temporaryDirectory: directory,
     };
     await nativeImportPath(root, relative);
@@ -254,7 +254,7 @@ export async function rollbackNativeImportFile(root, relative, expected) {
           (expected.mode === undefined ||
             (Number(info.mode & 4095n) === expected.mode && info.mode === after.mode && info.mode === current.mode)) &&
           count === expected.size &&
-          hash(bytes.subarray(0, count)) === expected.sha256;
+          sha256Hex(bytes.subarray(0, count)) === expected.sha256;
       } finally {
         await handle.close();
       }
@@ -330,7 +330,7 @@ export async function replaceNativeImportFile(root, relative, before, original, 
       dev: String(created.dev),
       ino: String(created.ino),
       size: 0,
-      sha256: hash(Buffer.alloc(0)),
+      sha256: sha256Hex(Buffer.alloc(0)),
       mode: 0o600,
     };
     await handle.writeFile(bytes);
@@ -341,7 +341,7 @@ export async function replaceNativeImportFile(root, relative, before, original, 
       dev: String(info.dev),
       ino: String(info.ino),
       size: bytes.length,
-      sha256: hash(bytes),
+      sha256: sha256Hex(bytes),
       mode: original.mode,
     };
     await handle.close();

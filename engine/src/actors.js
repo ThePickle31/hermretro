@@ -16,12 +16,10 @@ import {
   findInvalidNativeScriptEvent,
   withNativeScriptEventIds,
 } from "./native-script-events.js";
+import { isObject } from "./shared/values.js";
 const UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 export const IMMUTABLE_KEYS = new Set(["id", "_resourceType", "_index", "symbol", "resourcePath"]);
 const DIRECTIONS = new Set(["up", "down", "left", "right"]);
-export function isJsonObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 const EMITTED_LABEL_SUFFIXES = {
   scene: ["init", "p_hit1", "p_hit2", "p_hit3", "collisions", "actors", "triggers", "sprites", "projectiles"],
   actor: ["interact", "update", "hit1", "hit2", "hit3"],
@@ -130,7 +128,7 @@ export function assertSafeResourceProperties(value, label, root = true) {
     for (const child of value) assertSafeResourceProperties(child, label, false);
     return;
   }
-  if (!isJsonObject(value)) return;
+  if (!isObject(value)) return;
   for (const [key, child] of Object.entries(value)) {
     if (UNSAFE_KEYS.has(key) || (root && IMMUTABLE_KEYS.has(key))) {
       throw new GameStudioProjectError("INVALID_PROPERTY", reservedPropertyMessage(label, key));
@@ -147,7 +145,7 @@ export function mergeResourceObjects(existing, changes) {
   const merged = { ...existing };
   for (const [key, value] of Object.entries(changes)) {
     const previous = merged[key];
-    merged[key] = isJsonObject(previous) && isJsonObject(value) ? mergeResourceObjects(previous, value) : value;
+    merged[key] = isObject(previous) && isObject(value) ? mergeResourceObjects(previous, value) : value;
   }
   return merged;
 }
@@ -209,7 +207,7 @@ export function createActorResource(input, id, index, symbol) {
 }
 export function mergeActorChanges(existing, input) {
   if (input.properties !== undefined) {
-    if (!isJsonObject(input.properties)) {
+    if (!isObject(input.properties)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Actor properties must be a JSON object");
     }
     assertSafeResourceProperties(input.properties, "Actor properties");
@@ -318,10 +316,10 @@ export function legacyDescriptorScenes(descriptor, resourcePath) {
     name: typeof resource.name === "string" ? resource.name : "",
     resourcePath,
   });
-  return (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).filter(isJsonObject).map((scene) => ({
+  return (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).filter(isObject).map((scene) => ({
     ...materialize(scene),
-    actors: (Array.isArray(scene.actors) ? scene.actors : []).filter(isJsonObject).map(materialize),
-    triggers: (Array.isArray(scene.triggers) ? scene.triggers : []).filter(isJsonObject).map(materialize),
+    actors: (Array.isArray(scene.actors) ? scene.actors : []).filter(isObject).map(materialize),
+    triggers: (Array.isArray(scene.triggers) ? scene.triggers : []).filter(isObject).map(materialize),
   }));
 }
 export function findLegacyProjectScene(descriptor, resourcePath, sceneId) {
@@ -331,14 +329,14 @@ export function findLegacyProjectScene(descriptor, resourcePath, sceneId) {
 }
 export function findLegacySceneCollectionResource(descriptor, sceneId, kind, resourceId) {
   const scene = (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).find(
-    (candidate) => isJsonObject(candidate) && candidate.id === sceneId,
+    (candidate) => isObject(candidate) && candidate.id === sceneId,
   );
-  if (!isJsonObject(scene))
+  if (!isObject(scene))
     throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${sceneId} disappeared during update`);
   const resource = (Array.isArray(scene[kind]) ? scene[kind] : []).find(
-    (candidate) => isJsonObject(candidate) && candidate.id === resourceId,
+    (candidate) => isObject(candidate) && candidate.id === resourceId,
   );
-  if (!isJsonObject(resource)) {
+  if (!isObject(resource)) {
     const name = kind === "actors" ? "actor" : "trigger";
     throw new GameStudioProjectError(
       kind === "actors" ? "ACTOR_NOT_FOUND" : "TRIGGER_NOT_FOUND",
@@ -359,9 +357,9 @@ export function rewriteLegacySceneCollection(inventory, sceneId, kind, transform
   const scenes = Array.isArray(inventory.descriptor.scenes) ? inventory.descriptor.scenes : [];
   let found = false;
   const rewritten = scenes.map((entry) => {
-    if (!isJsonObject(entry) || entry.id !== sceneId) return entry;
+    if (!isObject(entry) || entry.id !== sceneId) return entry;
     found = true;
-    const resources = Array.isArray(entry[kind]) ? entry[kind].filter(isJsonObject) : [];
+    const resources = Array.isArray(entry[kind]) ? entry[kind].filter(isObject) : [];
     return { ...entry, [kind]: transform(resources) };
   });
   if (!found) {
@@ -371,12 +369,12 @@ export function rewriteLegacySceneCollection(inventory, sceneId, kind, transform
 }
 function containsReference(value, targetId, keys) {
   if (Array.isArray(value)) return value.some((child) => containsReference(child, targetId, keys));
-  if (!isJsonObject(value)) return false;
+  if (!isObject(value)) return false;
   for (const [key, child] of Object.entries(value)) {
     if (keys.has(key)) {
       if (child === targetId) return true;
       if (Array.isArray(child) && child.includes(targetId)) return true;
-      if (isJsonObject(child) && (child.id === targetId || child.value === targetId)) return true;
+      if (isObject(child) && (child.id === targetId || child.value === targetId)) return true;
     }
     if (containsReference(child, targetId, keys)) return true;
   }

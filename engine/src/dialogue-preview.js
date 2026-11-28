@@ -5,6 +5,7 @@ import { PNG } from "pngjs";
 import { prepareDialogue } from "./dialogue.js";
 import { resolveUiPalette } from "./palettes.js";
 import { GameStudioProjectError } from "./project.js";
+import { PNG_SIGNATURE } from "./shared/bytes.js";
 const SCREEN_WIDTH = 160;
 const SCREEN_HEIGHT = 144;
 const TILE_SIZE = 8;
@@ -40,11 +41,7 @@ async function loadImage(root, resourcePath, expectedType) {
   }
   assertInsideRoot(root, canonical);
   const bytes = await readFile(canonical);
-  if (
-    bytes.length > MAX_IMAGE_BYTES ||
-    bytes.length < 24 ||
-    !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  ) {
+  if (bytes.length > MAX_IMAGE_BYTES || bytes.length < 24 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new GameStudioProjectError(
       "INVALID_RESOURCE",
       `${expectedType} is not a bounded PNG: ${resourcePath}`,

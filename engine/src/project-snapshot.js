@@ -4,6 +4,8 @@ import path from "node:path";
 import { PROJECT_REVISION_ALGORITHM } from "./project-access.js";
 import { discoverProject, GameStudioProjectError, inventoryProject } from "./project.js";
 import { ProjectRevisionTree } from "./project-revision.js";
+import { isSystemError } from "./shared/files.js";
+import { FrozenMap, deepFreeze, isObject } from "./shared/values.js";
 const RESOURCE_ORDER = ["scene", "actor", "trigger", "palette", "asset", "variable", "diagnostic"];
 const RESOURCE_KINDS = new Set(RESOURCE_ORDER);
 const MAXIMUM_PAGE_BYTES = 32 * 1024;
@@ -53,40 +55,6 @@ const INSPECTION_SETTINGS = [
   "defaultPlayerSprites",
   "compilerPreset",
 ];
-class FrozenMap {
-  #entries;
-  constructor(entries) {
-    this.#entries = new Map(entries);
-    Object.freeze(this);
-  }
-  get size() {
-    return this.#entries.size;
-  }
-  get(key) {
-    return this.#entries.get(key);
-  }
-  has(key) {
-    return this.#entries.has(key);
-  }
-  entries() {
-    return this.#entries.entries();
-  }
-  keys() {
-    return this.#entries.keys();
-  }
-  values() {
-    return this.#entries.values();
-  }
-  [Symbol.iterator]() {
-    return this.#entries[Symbol.iterator]();
-  }
-  forEach(callbackfn, thisArg) {
-    this.#entries.forEach((value, key) => callbackfn.call(thisArg, value, key, this));
-  }
-}
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function withinProject(root, candidate) {
   const relative = path.relative(root, candidate);
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
@@ -97,14 +65,6 @@ function withinProject(root, candidate) {
     );
   }
 }
-function systemError(error, code) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
-function deepFreeze(value) {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) deepFreeze(child);
-  return Object.freeze(value);
-}
 function mapResources(resources) {
   return new FrozenMap(resources.filter((resource) => resource.id).map((resource) => [resource.id, resource]));
 }
@@ -113,7 +73,7 @@ async function authoredFiles(root, directory) {
   try {
     canonical = await realpath(directory);
   } catch (error) {
-    if (systemError(error, "ENOENT")) return [];
+    if (isSystemError(error, "ENOENT")) return [];
     throw error;
   }
   withinProject(root, canonical);
@@ -222,7 +182,7 @@ async function projectVariables(inventory) {
     try {
       canonical = await realpath(filename);
     } catch (error) {
-      if (systemError(error, "ENOENT")) return [];
+      if (isSystemError(error, "ENOENT")) return [];
       throw error;
     }
     withinProject(inventory.projectRoot, canonical);
@@ -299,7 +259,8 @@ export async function loadProjectSnapshot(projectPath, options = {}, access) {
       after = await discoveryRevision(discovery);
     } catch (error) {
       if (
-        (systemError(error, "ENOENT") || (error instanceof GameStudioProjectError && error.code === "STALE_PROJECT")) &&
+        (isSystemError(error, "ENOENT") ||
+          (error instanceof GameStudioProjectError && error.code === "STALE_PROJECT")) &&
         attempt + 1 < attempts
       ) {
         continue;

@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { sha256Hex } from "./shared/bytes.js";
 const MAX_BYTES = 512 * 1024 * 1024;
 const MAX_ENTRIES = 20_000;
-const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const inside = (root, path) => path === root || path.startsWith(root + sep);
 function unchanged(a, b) {
   return ["dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtimeMs", "ctimeMs"].every((key) => a[key] === b[key]);
@@ -78,7 +78,7 @@ export function recordingInventory(root, resolvePath) {
   for (const marker of [".gitignore", ".npmignore"])
     if (!bytes(join(root, marker), 2).equals(Buffer.from("*\n")))
       throw new Error("Recording package-protection marker differs");
-  return { digest: digest(JSON.stringify(rows)), bytes: total, entries: count };
+  return { digest: sha256Hex(JSON.stringify(rows)), bytes: total, entries: count };
 }
 /** A mapping is not a generic accounting override: authenticate both copies,
  * the original reference, manifest, and every retained byte/mode first. */
@@ -141,7 +141,10 @@ export function recordingArchiveOrigin(root, resolvePath) {
   if (JSON.stringify(inventory) !== JSON.stringify(value.inventory))
     throw new Error("Archived recording bytes or modes changed");
   const manifest = bytes(join(root, "recording.json"), 1024 * 1024);
-  if (digest(manifest) !== value.manifestSha256 || JSON.parse(manifest.toString("utf8")).sessionId !== value.sessionId)
+  if (
+    sha256Hex(manifest) !== value.manifestSha256 ||
+    JSON.parse(manifest.toString("utf8")).sessionId !== value.sessionId
+  )
     throw new Error("Archived recording provenance changed");
   if (
     !unchanged(before, lstatSync(original)) ||

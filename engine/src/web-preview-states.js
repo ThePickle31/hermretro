@@ -1,8 +1,10 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, open, opendir, realpath, unlink } from "node:fs/promises";
 import { assertSafePlatformPath, isPathWithinRoot, platformPath } from "./platform.js";
 import { MAX_SAVE_STATE_FILE_BYTES, parseSaveState, serializeSaveState } from "./web-annotations/save-state.js";
+import { sha256Hex } from "./shared/bytes.js";
+import { sameFile } from "./shared/files.js";
 export const MAX_PREVIEW_STATES = 8;
 const MAX_DIRECTORY_ENTRIES = 64;
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -25,14 +27,8 @@ function unsafe() {
 function isError(error, code) {
   return error?.code === code;
 }
-function sameFile(a, b) {
-  return a.dev === b.dev && a.ino === b.ino;
-}
 function sameVersion(a, b) {
   return sameFile(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
-}
-function digest(text) {
-  return createHash("sha256").update(text).digest("hex");
 }
 function metadata(id, file) {
   return { id, title: file.title, frame: file.frame, createdAt: file.createdAt };
@@ -84,7 +80,7 @@ export class PreviewStateStore {
       sourceRevision: build.sourceRevision,
       cartridgeType: build.cartridgeType,
     };
-    this.directory = this.paths.join(this.root, "save-states", digest(JSON.stringify(this.identity)));
+    this.directory = this.paths.join(this.root, "save-states", sha256Hex(JSON.stringify(this.identity)));
   }
   async list() {
     return this.serialized(async () => {
@@ -112,7 +108,7 @@ export class PreviewStateStore {
     // Validate all bounds, build identity and checksums before creating any paths.
     const { file } = await parseSaveState(text, this.identity);
     const canonical = serializeSaveState(file);
-    const id = digest(canonical);
+    const id = sha256Hex(canonical);
     return this.serialized(async () => {
       const directories = await this.directories(true);
       const existing = await this.readState(id, directories);
@@ -302,7 +298,7 @@ export class PreviewStateStore {
     } finally {
       await handle.close();
     }
-    if (digest(text) !== id) return null;
+    if (sha256Hex(text) !== id) return null;
     try {
       const { file } = await parseSaveState(text, this.identity);
       return serializeSaveState(file) === text ? { text, metadata: metadata(id, file), stat: named } : null;

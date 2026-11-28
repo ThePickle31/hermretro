@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { recordingArchiveOrigin } from "./recording-location.js";
+import { isObject } from "./shared/values.js";
 export const MAX_FRAMES = 3_600;
 export const MAX_OAM_OBJECTS = 40;
 export const MAX_RECORDING_BYTES = 512 * 1024 * 1024;
@@ -31,9 +31,6 @@ export const DEFAULT_RECORDING_LIMITS = {
 };
 export const BUTTONS = new Set(["a", "b", "up", "down", "left", "right", "start", "select"]);
 export class RecordingLimitError extends Error {}
-export function isObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 export function boundedInteger(value, name, minimum, maximum) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
     throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
@@ -206,9 +203,6 @@ export function canonicalEventPayload(line) {
   whitespace();
   if (offset !== source.length) throw new Error("Unexpected trailing recording JSON bytes");
   return Buffer.from(result, "utf8");
-}
-export function digest(value) {
-  return createHash("sha256").update(value).digest("hex");
 }
 export function sameJson(left, right) {
   return encoded(left).equals(encoded(right));

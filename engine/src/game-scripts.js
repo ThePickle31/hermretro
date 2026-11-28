@@ -11,13 +11,11 @@ import {
   explicitlyPatchedNativeScriptValues,
   findInvalidNativeScriptEvent,
 } from "./native-script-events.js";
+import { isObject } from "./shared/values.js";
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 const VALID_DIRECTIONS = new Set(["up", "down", "left", "right"]);
 const MAXIMUM_EVENT_DEPTH = 64;
 const MAXIMUM_EVENT_COUNT = 10_000;
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function assertSafeJson(value, label, depth = 0) {
   if (depth > MAXIMUM_EVENT_DEPTH) {
     throw new GameStudioProjectError("INVALID_INPUT", `${label} exceeds the maximum nesting depth`);

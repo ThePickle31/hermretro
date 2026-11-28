@@ -1,12 +1,10 @@
 import path from "node:path";
 import { GameStudioProjectError, inventoryProject } from "./project.js";
 import { readProjectJson, resourceRevision, resourceSlug, writeProjectJsonAtomic } from "./project-files.js";
+import { isObject } from "./shared/values.js";
 // Match the stock editor's default choices without treating them as a metadata limit.
 const MAXIMUM_AUTOMATIC_VARIABLE_ID = 511;
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function assertVariableId(value) {
   const numericId = Number(value);
   // The official compiler normalizes global IDs with String(parseInt(id)).

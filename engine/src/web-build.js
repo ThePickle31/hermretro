@@ -27,6 +27,7 @@ import {
   verifyWindowsPrivatePath,
 } from "./platform.js";
 import { ENGINE_ROOT } from "./engine-root.js";
+import { isSystemError } from "./shared/files.js";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 600_000;
 const MAX_ARTIFACT_FILES = 4_096;
@@ -65,9 +66,6 @@ function runtimeOptions(options) {
 function environmentValue(environment, name, platform) {
   const value = readPlatformEnvironmentVariable(environment, name, platform);
   return typeof value === "string" && value.trim() ? value : undefined;
-}
-function isSystemError(error, code) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 async function exists(candidate) {
   try {

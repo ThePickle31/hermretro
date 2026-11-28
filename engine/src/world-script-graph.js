@@ -5,6 +5,7 @@ import { PROJECT_RESPONSE_LIMITS } from "./project-access.js";
 import { resolveProjectPath } from "./project-files.js";
 import { inventoryProject } from "./project.js";
 import { extractReviewedEvent, REVIEWED_CUSTOM_EVENTS } from "./custom-event-dependencies.js";
+import { isObject } from "./shared/values.js";
 const SCRIPT_KEY = /^(?:script|[A-Za-z][A-Za-z0-9]*Script)$/;
 const FORMAL_VARIABLE = /^V\d+$/;
 const LOCAL_VARIABLE = /^L\d+$/;
@@ -68,9 +69,6 @@ const NATIVE_EVENT_COMMANDS = new Set(
     .trim()
     .split(/\s+/u),
 );
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function nonempty(value) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }

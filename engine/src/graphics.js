@@ -2,7 +2,7 @@ import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { includesPalette, MAX_PALETTES, packTilePalettes } from "./graphics-palette-packing.js";
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+import { PNG_SIGNATURE } from "./shared/bytes.js";
 const MAX_IMAGE_BYTES = 24 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 4096;
 const MAX_IMAGE_PIXELS = 4096 * 1024;

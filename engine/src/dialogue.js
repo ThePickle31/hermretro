@@ -4,6 +4,8 @@ import { PNG } from "pngjs";
 import { GameStudioProjectError } from "./project.js";
 import { PROJECT_RESPONSE_LIMITS } from "./project-access.js";
 import { loadProjectSnapshot } from "./project-snapshot.js";
+import { isObject } from "./shared/values.js";
+import { PNG_SIGNATURE } from "./shared/bytes.js";
 const TILE_SIZE = 8;
 const SCREEN_WIDTH = 160;
 const SCREEN_HEIGHT = 144;
@@ -19,9 +21,6 @@ const DEFAULT_PROJECTED_EVENTS = 50;
 const DEFAULT_PROJECTED_PAGES = 50;
 const CONTROL_TOKEN = /\$[^$\r\n]+\$|@[^@\r\n]+@|\{\{[^{}\r\n]+\}\}|\\[A-Za-z][A-Za-z0-9]*(?:\[[^\]\r\n]*\])?/gu;
 const indexedFontCache = new WeakMap();
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isInsideRoot(root, candidate) {
   const relative = path.relative(root, candidate);
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
@@ -63,7 +62,7 @@ async function readBoundedProjectFile(projectRoot, resourcePath) {
   return readFile(canonical);
 }
 function decodeFontImage(bytes, resourcePath) {
-  if (bytes.length < 24 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+  if (bytes.length < 24 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new GameStudioProjectError("INVALID_FONT", `Font is not a valid PNG: ${resourcePath}`, resourcePath);
   }
   const width = bytes.readUInt32BE(16);

@@ -6,6 +6,7 @@ import {
   PROJECT_RESPONSE_LIMITS,
 } from "./project-access.js";
 import { GameStudioProjectError } from "./project.js";
+import { isObject } from "./shared/values.js";
 const MAXIMUM_RELATIONS = 32;
 const MAXIMUM_TRAVERSED_REFERENCES = 100_000;
 const VALID_NODE_TYPES = new Set([
@@ -20,9 +21,6 @@ const VALID_NODE_TYPES = new Set([
   "triggerPrefab",
   "settings",
 ]);
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function invalidInput(message) {
   throw new GameStudioProjectError("INVALID_INPUT", message);
 }

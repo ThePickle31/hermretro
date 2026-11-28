@@ -1067,10 +1067,10 @@ var require_util = __commonJS({
     var codegen_1 = require_codegen();
     var code_1 = require_code();
     function toHash(arr) {
-      const hash4 = {};
+      const hash2 = {};
       for (const item of arr)
-        hash4[item] = true;
-      return hash4;
+        hash2[item] = true;
+      return hash2;
     }
     exports.toHash = toHash;
     function alwaysValidSchema(it, schema2) {
@@ -9431,10 +9431,10 @@ var util;
       return obj2[e];
     });
   };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj2) => Object.keys(obj2) : (object7) => {
+  util2.objectKeys = typeof Object.keys === "function" ? (obj2) => Object.keys(obj2) : (object6) => {
     const keys = [];
-    for (const key in object7) {
-      if (Object.prototype.hasOwnProperty.call(object7, key)) {
+    for (const key in object6) {
+      if (Object.prototype.hasOwnProperty.call(object6, key)) {
         keys.push(key);
       }
     }
@@ -13188,13 +13188,13 @@ var ZodPipeline = class _ZodPipeline extends ZodType {
 var ZodReadonly = class extends ZodType {
   _parse(input) {
     const result = this._def.innerType._parse(input);
-    const freeze2 = (data) => {
+    const freeze = (data) => {
       if (isValid(data)) {
         data.value = Object.freeze(data.value);
       }
       return data;
     };
-    return isAsync(result) ? result.then((data) => freeze2(data)) : freeze2(result);
+    return isAsync(result) ? result.then((data) => freeze(data)) : freeze(result);
   }
   unwrap() {
     return this._def.innerType;
@@ -13495,19 +13495,19 @@ function floatSafeRemainder2(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function defineLazy(object7, key, getter) {
+function defineLazy(object6, key, getter) {
   const set = false;
-  Object.defineProperty(object7, key, {
+  Object.defineProperty(object6, key, {
     get() {
       if (!set) {
         const value = getter();
-        object7[key] = value;
+        object6[key] = value;
         return value;
       }
       throw new Error("cached value already set");
     },
     set(v) {
-      Object.defineProperty(object7, key, {
+      Object.defineProperty(object6, key, {
         value: v
         // configurable: true,
       });
@@ -15137,7 +15137,7 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
     return (payload, ctx) => fn(shape, payload, ctx);
   };
   let fastpass;
-  const isObject16 = isObject;
+  const isObject3 = isObject;
   const jit = !globalConfig.jitless;
   const allowsEval2 = allowsEval;
   const fastEnabled = jit && allowsEval2.value;
@@ -15146,7 +15146,7 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
   inst._zod.parse = (payload, ctx) => {
     value ?? (value = _normalized.value);
     const input = payload.value;
-    if (!isObject16(input)) {
+    if (!isObject3(input)) {
       payload.issues.push({
         expected: "object",
         code: "invalid_type",
@@ -20298,11 +20298,11 @@ function parseMapDef(def, refs) {
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
 function parseNativeEnumDef(def) {
-  const object7 = def.values;
+  const object6 = def.values;
   const actualKeys = Object.keys(def.values).filter((key) => {
-    return typeof object7[object7[key]] !== "number";
+    return typeof object6[object6[key]] !== "number";
   });
-  const actualValues = actualKeys.map((key) => object7[key]);
+  const actualValues = actualKeys.map((key) => object6[key]);
   const parsedTypes = Array.from(new Set(actualValues.map((values) => typeof values)));
   return {
     type: parsedTypes.length === 1 ? parsedTypes[0] === "string" ? "string" : "number" : ["string", "number"],
@@ -23559,7 +23559,7 @@ async function prepareToolchain(packageRoot, components, options = {}) {
 }
 
 // src/project-snapshot.js
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 import { readdir as readdir3, readFile as readFile4, realpath as realpath7 } from "node:fs/promises";
 import path12 from "node:path";
 
@@ -23608,7 +23608,7 @@ function isSemanticCursorCurrent(payload, current, query) {
 }
 
 // src/project.js
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 import { access as access2, lstat as lstat6, mkdir as mkdir2, open as open3, readdir as readdir2, readFile as readFile3, realpath as realpath6, rename as rename2, rm as rm2, stat as stat2 } from "node:fs/promises";
 import path10 from "node:path";
 
@@ -24079,10 +24079,15 @@ async function verifyWindowsPrivatePath(candidate, options = {}) {
   }
 }
 
-// src/project-files.js
+// src/shared/files.js
 function isSystemError(error2, code) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
 }
+function sameFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+// src/project-files.js
 function validateProjectPath(candidate, platform) {
   try {
     assertSafePlatformPath(candidate, platform);
@@ -24300,9 +24305,6 @@ async function resourceLockFile(lockPath, resourcePath, uid, maximumLinks = 1n) 
     throw error2;
   }
 }
-function sameResourceLock(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
-}
 function projectLockRecord(scope, token) {
   return { version: 2, scope, token, pid: process.pid, hostname: hostname2(), acquiredAt: (/* @__PURE__ */ new Date()).toISOString() };
 }
@@ -24310,10 +24312,10 @@ function parseRecoverableProjectLockRecord(content, scope) {
   try {
     const value = JSON.parse(content.toString("utf8"));
     if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
-    const record7 = value;
-    if (record7.version !== 2 || record7.scope !== scope || typeof record7.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record7.token) || typeof record7.pid !== "number" || !Number.isSafeInteger(record7.pid) || record7.pid < 1 || record7.pid > 2147483647 || typeof record7.hostname !== "string" || record7.hostname.length < 1 || record7.hostname !== hostname2() || typeof record7.acquiredAt !== "string" || !Number.isFinite(Date.parse(record7.acquiredAt)) || new Date(record7.acquiredAt).toISOString() !== record7.acquiredAt)
+    const record4 = value;
+    if (record4.version !== 2 || record4.scope !== scope || typeof record4.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record4.token) || typeof record4.pid !== "number" || !Number.isSafeInteger(record4.pid) || record4.pid < 1 || record4.pid > 2147483647 || typeof record4.hostname !== "string" || record4.hostname.length < 1 || record4.hostname !== hostname2() || typeof record4.acquiredAt !== "string" || !Number.isFinite(Date.parse(record4.acquiredAt)) || new Date(record4.acquiredAt).toISOString() !== record4.acquiredAt)
       return void 0;
-    return record7;
+    return record4;
   } catch {
     return void 0;
   }
@@ -24334,39 +24336,39 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
   }
   try {
     const opened = await handle.stat({ bigint: true });
-    if (!sameResourceLock(initial, opened) || opened.size !== initial.size || opened.mtimeNs !== initial.mtimeNs || opened.ctimeNs !== initial.ctimeNs)
+    if (!sameFile(initial, opened) || opened.size !== initial.size || opened.mtimeNs !== initial.mtimeNs || opened.ctimeNs !== initial.ctimeNs)
       return void 0;
     const content = Buffer.alloc(PROJECT_LOCK_RECORD_MAX_BYTES + 1);
     const { bytesRead } = await handle.read(content, 0, content.length, 0);
     const closed = await handle.stat({ bigint: true });
-    if (!sameResourceLock(opened, closed) || closed.size !== BigInt(bytesRead) || opened.mtimeNs !== closed.mtimeNs || opened.ctimeNs !== closed.ctimeNs)
+    if (!sameFile(opened, closed) || closed.size !== BigInt(bytesRead) || opened.mtimeNs !== closed.mtimeNs || opened.ctimeNs !== closed.ctimeNs)
       return void 0;
-    const record7 = parseRecoverableProjectLockRecord(content.subarray(0, bytesRead), scope);
-    if (!record7) return void 0;
+    const record4 = parseRecoverableProjectLockRecord(content.subarray(0, bytesRead), scope);
+    if (!record4) return void 0;
     const current = await resourceLockFile(lockPath, resourcePath, uid, maximumLinks);
-    if (!current || !sameResourceLock(closed, current) || current.size !== closed.size || current.mtimeNs !== closed.mtimeNs || current.ctimeNs !== closed.ctimeNs)
+    if (!current || !sameFile(closed, current) || current.size !== closed.size || current.mtimeNs !== closed.mtimeNs || current.ctimeNs !== closed.ctimeNs)
       return void 0;
     if (current.nlink === 2n) {
       const staging = await resourceLockFile(
-        projectRecoveryPendingPath(lockPath, record7.token),
+        projectRecoveryPendingPath(lockPath, record4.token),
         resourcePath,
         uid,
         maximumLinks
       );
-      if (!staging || !sameResourceLock(current, staging)) return void 0;
+      if (!staging || !sameFile(current, staging)) return void 0;
     }
-    return { entry: current, record: record7 };
+    return { entry: current, record: record4 };
   } finally {
     await handle.close();
   }
 }
 function sameRecoverableProjectLock(left, right) {
-  return sameResourceLock(left.entry, right.entry) && left.record.scope === right.record.scope && left.record.token === right.record.token && left.record.pid === right.record.pid && left.record.hostname === right.record.hostname && left.record.acquiredAt === right.record.acquiredAt;
+  return sameFile(left.entry, right.entry) && left.record.scope === right.record.scope && left.record.token === right.record.token && left.record.pid === right.record.pid && left.record.hostname === right.record.hostname && left.record.acquiredAt === right.record.acquiredAt;
 }
-function projectLockOwnerIsDead(record7) {
-  if (record7.hostname !== hostname2() || record7.pid === process.pid) return false;
+function projectLockOwnerIsDead(record4) {
+  if (record4.hostname !== hostname2() || record4.pid === process.pid) return false;
   try {
-    process.kill(record7.pid, 0);
+    process.kill(record4.pid, 0);
     return false;
   } catch (error2) {
     return isSystemError(error2, "ESRCH");
@@ -24412,7 +24414,7 @@ async function publishRecoverableProjectLock(lockPath, resourcePath, scope) {
       if (published && pending) {
         const held = await pending.stat({ bigint: true });
         const current = await readRecoverableProjectLock(lockPath, resourcePath, resourceLockOwner().uid, scope);
-        if (current?.record.token === token && sameResourceLock(held, current.entry)) {
+        if (current?.record.token === token && sameFile(held, current.entry)) {
           try {
             await unlink(lockPath);
           } catch (releaseError) {
@@ -24466,7 +24468,7 @@ async function removeVerifiedDeadProjectLock(lockPath, resourcePath, uid, stale)
   }
   const pendingPath = projectRecoveryPendingPath(lockPath, stale.record.token);
   const pending = await resourceLockFile(pendingPath, resourcePath, uid);
-  if (pending && sameResourceLock(pending, confirmed.entry)) {
+  if (pending && sameFile(pending, confirmed.entry)) {
     try {
       await unlink(pendingPath);
     } catch (error2) {
@@ -24512,7 +24514,7 @@ async function releaseResourceLock(handle, lockPath, resourcePath, uid, token) {
     await handle.close();
   }
   const current = await resourceLockFile(lockPath, resourcePath, uid);
-  if (!current || !sameResourceLock(held, current)) {
+  if (!current || !sameFile(held, current)) {
     throw resourceLockError(resourcePath, "The project-resource lock changed before this writer could release it.");
   }
   if (token !== void 0) {
@@ -24527,7 +24529,7 @@ async function releaseResourceLock(handle, lockPath, resourcePath, uid, token) {
     }
     try {
       const observed = await disk.stat({ bigint: true });
-      if (!sameResourceLock(held, observed) || JSON.parse(await disk.readFile("utf8")).token !== token) {
+      if (!sameFile(held, observed) || JSON.parse(await disk.readFile("utf8")).token !== token) {
         throw resourceLockError(resourcePath, "The project-resource lock ownership changed before release.");
       }
     } catch (error2) {
@@ -24540,7 +24542,7 @@ async function releaseResourceLock(handle, lockPath, resourcePath, uid, token) {
       await disk.close();
     }
     const rechecked = await resourceLockFile(lockPath, resourcePath, uid);
-    if (!rechecked || !sameResourceLock(held, rechecked)) {
+    if (!rechecked || !sameFile(held, rechecked)) {
       throw resourceLockError(resourcePath, "The project-resource lock changed while this writer was releasing it.");
     }
   }
@@ -24947,6 +24949,53 @@ async function observeReviewedCompiler(projectRoot, profiles, configuredRoot, de
   }
 }
 
+// src/shared/values.js
+function isObject2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function asString(value, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+function asNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function deepFreeze(value) {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
+}
+var FrozenMap = class {
+  #entries;
+  constructor(entries) {
+    this.#entries = new Map(entries);
+    Object.freeze(this);
+  }
+  get size() {
+    return this.#entries.size;
+  }
+  get(key) {
+    return this.#entries.get(key);
+  }
+  has(key) {
+    return this.#entries.has(key);
+  }
+  entries() {
+    return this.#entries.entries();
+  }
+  keys() {
+    return this.#entries.keys();
+  }
+  values() {
+    return this.#entries.values();
+  }
+  [Symbol.iterator]() {
+    return this.#entries[Symbol.iterator]();
+  }
+  forEach(callback, receiver) {
+    this.#entries.forEach((value, key) => callback.call(receiver, value, key, this));
+  }
+};
+
 // src/custom-event-dependencies.js
 var CUSTOM_EVENT_RESOLUTION_PROFILE = "gb-studio-4.3.2/project-event-exports/v1";
 var EVENT_FILE = /^plugins\/[^/]+\/(?:[^/]+\/)*events\/event[^/]*\.js$/;
@@ -24969,11 +25018,6 @@ var isEventInput = (name3, file2) => EVENT_INPUT_PREFIXES.some((prefix2) => name
 function digest2(value) {
   return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
 }
-function freeze(value) {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) freeze(child);
-  return Object.freeze(value);
-}
 function bindingValid(binding) {
   return (/^(?:plugins|project|assets)\//.test(binding.path) || /^[^/]+\.gbsproj$/.test(binding.path)) && binding.path.split("/").every((part) => part !== "" && part !== "." && part !== "..") && !/[\\\0]/.test(binding.path) && Number.isSafeInteger(binding.bytes) && binding.bytes >= 0 && SHA256.test(binding.sha256);
 }
@@ -24992,7 +25036,7 @@ var ReviewedEventRegistry = class {
         )) || contract.closedResourceTypes !== void 0 && (contract.closedResourceTypes.length > MAX_BINDINGS || contract.closedResourceTypes.some((type) => !/^[a-zA-Z][a-zA-Z0-9]*$/.test(type))) || contract.fields.length > MAX_BINDINGS || contract.fields.some((field) => !field.key || !field.type) || new Set(contract.fields.map((field) => field.key)).size !== contract.fields.length || typeof contract.extract !== "function")
           throw new Error("Invalid reviewed event contract");
         const { extract, ...metadata2 } = contract;
-        return freeze({ ...structuredClone(metadata2), extract });
+        return deepFreeze({ ...structuredClone(metadata2), extract });
       })
     );
     this.fingerprint = digest2(
@@ -25134,7 +25178,7 @@ function extractReviewedEvent(contract, args, children, context) {
     return incomplete("An input field is outside the reviewed handler contract");
   }
   try {
-    const result = contract.extract(freeze(structuredClone(input)), freeze(structuredClone(context)));
+    const result = contract.extract(deepFreeze(structuredClone(input)), deepFreeze(structuredClone(context)));
     if (result?.status !== "complete")
       return incomplete(result?.status === "incomplete" ? result.reason : "No complete effect result was returned");
     if (!Array.isArray(result.effects) || result.effects.length > MAX_EFFECTS || !Array.isArray(result.childBranches) || result.childBranches.length > MAX_BINDINGS || new Set(result.childBranches).size !== result.childBranches.length)
@@ -25235,9 +25279,6 @@ var NATIVE_EVENT_COMMANDS = new Set(
   EVENT_WEAPON_ATTACK
 `.trim().split(/\s+/u)
 );
-function isObject2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function nonempty(value) {
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
@@ -26188,7 +26229,7 @@ function unknownEventMessage(command, where) {
   return `${where} uses ${command}, which is not a GB Studio ${eventCatalog().gbStudioVersion} event or one of the project's plugin events. Nearest events: ${nearestEvents(command).join(", ")} (event_describe describes them).`;
 }
 function legacyMigrationConverts(command, descriptor) {
-  if (command !== "EVENT_WEAPON_ATTACK" || !isObject3(descriptor) || descriptor._resourceType === "project")
+  if (command !== "EVENT_WEAPON_ATTACK" || !isObject2(descriptor) || descriptor._resourceType === "project")
     return false;
   const version2 = descriptor._version === "1" ? "1.0.0" : descriptor._version || "1.0.0";
   if (["1.0.0", "1.1.0", "1.2.0"].includes(version2)) return true;
@@ -26375,8 +26416,8 @@ function catalogHolds(condition, args) {
   if ("set" in condition && Boolean(value) !== condition.set) return false;
   return true;
 }
-function catalogShown(record7, args) {
-  return (record7.whenAny ?? [record7.when ?? []]).some(
+function catalogShown(record4, args) {
+  return (record4.whenAny ?? [record4.when ?? []]).some(
     (alternative) => alternative.every((condition) => catalogHolds(condition, args))
   );
 }
@@ -26403,14 +26444,14 @@ function playerPositions(inventory, owners, scripts) {
   };
   const settings = inventory.settings ?? {};
   add(settings.startSceneId, Number(settings.startX), Number(settings.startY));
-  const numberOf = (value) => isObject3(value) && value.type === "number" ? Number(value.value) : typeof value === "number" ? value : NaN;
+  const numberOf = (value) => isObject2(value) && value.type === "number" ? Number(value.value) : typeof value === "number" ? value : NaN;
   const walk = (events, depth) => {
     if (!Array.isArray(events) || depth > MAXIMUM_EVENT_DEPTH) return;
     for (const event of events) {
-      if (!isObject3(event)) continue;
-      if (event.command === "EVENT_SWITCH_SCENE" && isObject3(event.args))
+      if (!isObject2(event)) continue;
+      if (event.command === "EVENT_SWITCH_SCENE" && isObject2(event.args))
         add(event.args.sceneId, numberOf(event.args.x), numberOf(event.args.y));
-      if (isObject3(event.children)) for (const branch of Object.values(event.children)) walk(branch, depth + 1);
+      if (isObject2(event.children)) for (const branch of Object.values(event.children)) walk(branch, depth + 1);
     }
   };
   for (const owner3 of owners)
@@ -26454,7 +26495,7 @@ function authoringWarnings(inventory, shared = {}) {
             ...place,
             where,
             resourcePath: inherited?.resourcePath ?? resource.resourcePath,
-            ...inherited && isObject3(resource.prefabScriptOverrides) ? { overrides: resource.prefabScriptOverrides } : {}
+            ...inherited && isObject2(resource.prefabScriptOverrides) ? { overrides: resource.prefabScriptOverrides } : {}
           },
           resource: inherited?.resource ?? resource
         });
@@ -26554,7 +26595,7 @@ function authoringWarnings(inventory, shared = {}) {
     if (event.command === "EVENT_HIDE_SPRITES") return true;
     if (event.command === "EVENT_SHOW_SPRITES") return false;
     if (event.command === "EVENT_CALL_CUSTOM_EVENT") return callScript(place, args, hidden, depth);
-    const branches = compiledBranches(entry, args, isObject3(event.children) ? event.children : {});
+    const branches = compiledBranches(entry, args, isObject2(event.children) ? event.children : {});
     if (branches.length === 0) return hidden;
     if (DEFERRED_SCRIPT_EVENTS.has(event.command)) {
       for (const [, events] of branches) visit(place, events, false, depth + 1);
@@ -26572,10 +26613,10 @@ function authoringWarnings(inventory, shared = {}) {
     if (!Array.isArray(events) || depth > MAXIMUM_EVENT_DEPTH) return hidden;
     for (const event of events) {
       if (--budget < 0) return hidden;
-      if (!isObject3(event) || typeof event.command !== "string") continue;
-      let args = isObject3(event.args) ? event.args : {};
+      if (!isObject2(event) || typeof event.command !== "string") continue;
+      let args = isObject2(event.args) ? event.args : {};
       const override = place.overrides?.[event.id];
-      if (isObject3(override) && isObject3(override.args)) args = { ...args, ...override.args };
+      if (isObject2(override) && isObject2(override.args)) args = { ...args, ...override.args };
       if (args.__comment) continue;
       const entry = catalog[event.command];
       if (entry) check2(place, event, args, entry, hidden);
@@ -26626,7 +26667,7 @@ async function authoringScripts(inventory) {
   );
   if (inventory.format === "legacy") {
     for (const script of Array.isArray(inventory.descriptor?.customEvents) ? inventory.descriptor.customEvents : []) {
-      if (isObject3(script) && typeof script.id === "string" && script.id && !scripts.has(script.id))
+      if (isObject2(script) && typeof script.id === "string" && script.id && !scripts.has(script.id))
         scripts.set(script.id, {
           type: "script",
           id: script.id,
@@ -26696,11 +26737,8 @@ var TYPED_EVENT_ARGUMENTS = /* @__PURE__ */ new Map([
 ]);
 var REQUIRED_EVENT_ARGUMENTS = /* @__PURE__ */ new Set(["direction"]);
 var SCRIPT_DIRECTIONS = /* @__PURE__ */ new Set(["up", "down", "left", "right"]);
-function isObject3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isNativeScriptValue(value, depth = 0) {
-  if (depth > MAXIMUM_SCRIPT_VALUE_DEPTH || !isObject3(value)) return false;
+  if (depth > MAXIMUM_SCRIPT_VALUE_DEPTH || !isObject2(value)) return false;
   const type = value.type;
   if (typeof type !== "string") return false;
   switch (type) {
@@ -26751,10 +26789,10 @@ function indexScriptEvents(resource, strict = false) {
         }
         return;
       }
-      if (!isObject3(event)) continue;
+      if (!isObject2(event)) continue;
       orderedEvents.push(event);
       if (typeof event.id === "string" && !indexed.has(event.id)) indexed.set(event.id, event);
-      if (!isObject3(event.children)) continue;
+      if (!isObject2(event.children)) continue;
       for (const branch of Object.values(event.children)) {
         if (Array.isArray(branch)) visit(branch, depth + 1);
       }
@@ -26770,7 +26808,7 @@ function explicitlyPatchedNativeScriptValues(patch) {
   for (const event of indexScriptEvents(patch).orderedEvents) {
     const eventId = typeof event.id === "string" && event.id ? event.id : "unknown";
     const values = patched.get(eventId) ?? /* @__PURE__ */ new Set();
-    for (const key of isObject3(event.args) ? Object.keys(event.args) : []) values.add(key);
+    for (const key of isObject2(event.args) ? Object.keys(event.args) : []) values.add(key);
     patched.set(eventId, values);
   }
   return patched;
@@ -26781,7 +26819,7 @@ function assignNativeScriptEventIds(resource) {
   function assign(events, location, depth) {
     if (depth > MAXIMUM_EVENT_DEPTH) return;
     events.forEach((event, index) => {
-      if (!isObject3(event)) return;
+      if (!isObject2(event)) return;
       const position2 = `${location}/${index}`;
       if (typeof event.id !== "string" || !event.id) {
         const parts = [ownerId, position2, typeof event.command === "string" ? event.command : "event"];
@@ -26790,7 +26828,7 @@ function assignNativeScriptEventIds(resource) {
         taken.add(id3);
         event.id = id3;
       }
-      if (!isObject3(event.children)) return;
+      if (!isObject2(event.children)) return;
       for (const [branch, children] of Object.entries(event.children)) {
         if (Array.isArray(children)) assign(children, `${position2}/${branch}`, depth + 1);
       }
@@ -26809,7 +26847,7 @@ function equivalentJson(left, right) {
   if (Array.isArray(left) || Array.isArray(right)) {
     return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => equivalentJson(value, right[index]));
   }
-  if (!isObject3(left) || !isObject3(right)) return false;
+  if (!isObject2(left) || !isObject2(right)) return false;
   const leftKeys = Object.keys(left).sort();
   const rightKeys = Object.keys(right).sort();
   return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && equivalentJson(left[key], right[key]));
@@ -26817,11 +26855,11 @@ function equivalentJson(left, right) {
 function withoutEventIds(event) {
   const stripped = { ...event };
   delete stripped.id;
-  if (!isObject3(event.children)) return stripped;
+  if (!isObject2(event.children)) return stripped;
   stripped.children = Object.fromEntries(
     Object.entries(event.children).map(([branch, children]) => [
       branch,
-      Array.isArray(children) ? children.map((child) => isObject3(child) ? withoutEventIds(child) : child) : children
+      Array.isArray(children) ? children.map((child) => isObject2(child) ? withoutEventIds(child) : child) : children
     ])
   );
   return stripped;
@@ -26834,7 +26872,7 @@ function typedArgumentMessage(event, eventId, key) {
   if (event.command === "EVENT_SWITCH_SCENE") {
     return `Event ${eventId} transition coordinate ${key} must be an official typed ScriptValue; use script_transition to create a valid scene transition`;
   }
-  const value = isObject3(event.args) ? event.args[key] : void 0;
+  const value = isObject2(event.args) ? event.args[key] : void 0;
   const example = key === "direction" ? '{"type":"direction","value":"up"}' : '{"type":"number","value":3}';
   if (value === void 0) return `Event ${eventId} (${event.command}) needs a ${key} argument such as ${example}`;
   if (isNativeScriptValue(value))
@@ -26852,11 +26890,11 @@ function findInvalidNativeScriptEvent(proposed, previous, options = {}) {
   const proposedEvents = indexScriptEvents(proposed, true);
   if (proposedEvents.error) return proposedEvents.error;
   for (const event of proposedEvents.orderedEvents) {
-    const args = isObject3(event.args) ? event.args : {};
+    const args = isObject2(event.args) ? event.args : {};
     if (args.__comment) continue;
     const eventId = typeof event.id === "string" && event.id ? event.id : "unknown";
     const prior = (eventId === "unknown" ? void 0 : existingEvents.get(eventId)) ?? historicalMatch(event);
-    const priorArguments = isObject3(prior?.args) ? prior.args : {};
+    const priorArguments = isObject2(prior?.args) ? prior.args : {};
     const revalidate = !prior || prior.command !== event.command || Boolean(priorArguments.__comment);
     const edited = options.explicitlyPatchedValues?.has(eventId) === true || !equivalentJson(priorArguments, args);
     const unbuildable = revalidate || edited ? unbuildableEventMessage(event.command, `Event ${eventId}`, options) : void 0;
@@ -26882,9 +26920,6 @@ import path9 from "node:path";
 var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 var IMMUTABLE_KEYS = /* @__PURE__ */ new Set(["id", "_resourceType", "_index", "symbol", "resourcePath"]);
 var DIRECTIONS = /* @__PURE__ */ new Set(["up", "down", "left", "right"]);
-function isJsonObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 var EMITTED_LABEL_SUFFIXES = {
   scene: ["init", "p_hit1", "p_hit2", "p_hit3", "collisions", "actors", "triggers", "sprites", "projectiles"],
   actor: ["interact", "update", "hit1", "hit2", "hit3"],
@@ -26982,7 +27017,7 @@ function assertSafeResourceProperties(value, label, root = true) {
     for (const child of value) assertSafeResourceProperties(child, label, false);
     return;
   }
-  if (!isJsonObject(value)) return;
+  if (!isObject2(value)) return;
   for (const [key, child] of Object.entries(value)) {
     if (UNSAFE_KEYS.has(key) || root && IMMUTABLE_KEYS.has(key)) {
       throw new GameStudioProjectError("INVALID_PROPERTY", reservedPropertyMessage(label, key));
@@ -26997,7 +27032,7 @@ function mergeResourceObjects(existing, changes) {
   const merged = { ...existing };
   for (const [key, value] of Object.entries(changes)) {
     const previous = merged[key];
-    merged[key] = isJsonObject(previous) && isJsonObject(value) ? mergeResourceObjects(previous, value) : value;
+    merged[key] = isObject2(previous) && isObject2(value) ? mergeResourceObjects(previous, value) : value;
   }
   return merged;
 }
@@ -27057,7 +27092,7 @@ function createActorResource(input, id3, index, symbol) {
 }
 function mergeActorChanges(existing, input) {
   if (input.properties !== void 0) {
-    if (!isJsonObject(input.properties)) {
+    if (!isObject2(input.properties)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Actor properties must be a JSON object");
     }
     assertSafeResourceProperties(input.properties, "Actor properties");
@@ -27148,10 +27183,10 @@ function legacyDescriptorScenes(descriptor, resourcePath) {
     name: typeof resource.name === "string" ? resource.name : "",
     resourcePath
   });
-  return (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).filter(isJsonObject).map((scene) => ({
+  return (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).filter(isObject2).map((scene) => ({
     ...materialize2(scene),
-    actors: (Array.isArray(scene.actors) ? scene.actors : []).filter(isJsonObject).map(materialize2),
-    triggers: (Array.isArray(scene.triggers) ? scene.triggers : []).filter(isJsonObject).map(materialize2)
+    actors: (Array.isArray(scene.actors) ? scene.actors : []).filter(isObject2).map(materialize2),
+    triggers: (Array.isArray(scene.triggers) ? scene.triggers : []).filter(isObject2).map(materialize2)
   }));
 }
 function findLegacyProjectScene(descriptor, resourcePath, sceneId) {
@@ -27161,14 +27196,14 @@ function findLegacyProjectScene(descriptor, resourcePath, sceneId) {
 }
 function findLegacySceneCollectionResource(descriptor, sceneId, kind, resourceId2) {
   const scene = (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).find(
-    (candidate) => isJsonObject(candidate) && candidate.id === sceneId
+    (candidate) => isObject2(candidate) && candidate.id === sceneId
   );
-  if (!isJsonObject(scene))
+  if (!isObject2(scene))
     throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${sceneId} disappeared during update`);
   const resource = (Array.isArray(scene[kind]) ? scene[kind] : []).find(
-    (candidate) => isJsonObject(candidate) && candidate.id === resourceId2
+    (candidate) => isObject2(candidate) && candidate.id === resourceId2
   );
-  if (!isJsonObject(resource)) {
+  if (!isObject2(resource)) {
     const name3 = kind === "actors" ? "actor" : "trigger";
     throw new GameStudioProjectError(
       kind === "actors" ? "ACTOR_NOT_FOUND" : "TRIGGER_NOT_FOUND",
@@ -27189,9 +27224,9 @@ function rewriteLegacySceneCollection(inventory, sceneId, kind, transform2) {
   const scenes = Array.isArray(inventory.descriptor.scenes) ? inventory.descriptor.scenes : [];
   let found = false;
   const rewritten = scenes.map((entry) => {
-    if (!isJsonObject(entry) || entry.id !== sceneId) return entry;
+    if (!isObject2(entry) || entry.id !== sceneId) return entry;
     found = true;
-    const resources = Array.isArray(entry[kind]) ? entry[kind].filter(isJsonObject) : [];
+    const resources = Array.isArray(entry[kind]) ? entry[kind].filter(isObject2) : [];
     return { ...entry, [kind]: transform2(resources) };
   });
   if (!found) {
@@ -27201,12 +27236,12 @@ function rewriteLegacySceneCollection(inventory, sceneId, kind, transform2) {
 }
 function containsReference(value, targetId, keys) {
   if (Array.isArray(value)) return value.some((child) => containsReference(child, targetId, keys));
-  if (!isJsonObject(value)) return false;
+  if (!isObject2(value)) return false;
   for (const [key, child] of Object.entries(value)) {
     if (keys.has(key)) {
       if (child === targetId) return true;
       if (Array.isArray(child) && child.includes(targetId)) return true;
-      if (isJsonObject(child) && (child.id === targetId || child.value === targetId)) return true;
+      if (isObject2(child) && (child.id === targetId || child.value === targetId)) return true;
     }
     if (containsReference(child, targetId, keys)) return true;
   }
@@ -27386,9 +27421,6 @@ async function deleteActor(projectPath, input, access4) {
 }
 
 // src/legacy-project-assets.js
-function isObject4(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isAssetFolder(folder) {
   return folder === "backgrounds" || folder === "sprites";
 }
@@ -27407,7 +27439,7 @@ function collection(discovery, folder) {
   return Array.isArray(items) ? items : [];
 }
 function namedAsset(value) {
-  return isObject4(value) && typeof value.id === "string" && value.id.length > 0 && typeof value.filename === "string";
+  return isObject2(value) && typeof value.id === "string" && value.id.length > 0 && typeof value.filename === "string";
 }
 function legacyPhysicalAssetMetadataLookup(discovery, folder, plugin, physicalFilenames) {
   if (!isAssetFolder(folder) || plugin !== void 0 && !safeSegment(plugin)) return () => null;
@@ -27453,6 +27485,13 @@ function legacyPluginAssetCandidates(discovery) {
   return [...paths.values()].flatMap((candidates) => candidates.length === 1 ? candidates : []);
 }
 
+// src/shared/bytes.js
+import { createHash as createHash5 } from "node:crypto";
+var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+function sha256Hex(value) {
+  return createHash5("sha256").update(value).digest("hex");
+}
+
 // src/project.js
 function resolveNativeAssetIdentity(source, id3) {
   const indexed = "asset" in source ? source.asset({ assetId: id3 }) : void 0;
@@ -27465,15 +27504,6 @@ function resolveNativeAssetIdentity(source, id3) {
 var FORBIDDEN_KEYS = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
 var IMMUTABLE_RESOURCE_KEYS = /* @__PURE__ */ new Set(["id", "_resourceType", "_index"]);
 var ASSET_EXTENSIONS = /* @__PURE__ */ new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
-function isObject5(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function asString(value, fallback = "") {
-  return typeof value === "string" ? value : fallback;
-}
-function asNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
 function assertWithinRoot(root, candidate) {
   const relative6 = path10.relative(root, candidate);
   if (relative6 === ".." || relative6.startsWith(`..${path10.sep}`) || path10.isAbsolute(relative6)) {
@@ -27504,7 +27534,7 @@ async function ensureSafeExistingPath(root, candidate) {
   return canonical2;
 }
 function isSystemError2(error2, code) {
-  return isObject5(error2) && error2.code === code;
+  return isObject2(error2) && error2.code === code;
 }
 async function exists2(candidate) {
   try {
@@ -27527,7 +27557,7 @@ async function readJson(root, candidate) {
       safePath
     );
   }
-  if (!isObject5(parsed)) {
+  if (!isObject2(parsed)) {
     throw new GameStudioProjectError(
       "INVALID_RESOURCE",
       `Native project resource must contain a JSON object: ${safePath}`,
@@ -27575,7 +27605,7 @@ function safeSlug(value, fallback) {
   return slug || fallback;
 }
 function stableId(...parts) {
-  const bytes2 = createHash5("sha256").update(parts.join("\0")).digest();
+  const bytes2 = createHash6("sha256").update(parts.join("\0")).digest();
   bytes2[6] = (bytes2[6] ?? 0) & 15 | 80;
   bytes2[8] = (bytes2[8] ?? 0) & 63 | 128;
   const hex = bytes2.subarray(0, 16).toString("hex");
@@ -27586,7 +27616,7 @@ function assertSafeObject(value, label, disallowImmutable = false) {
     if (FORBIDDEN_KEYS.has(key) || disallowImmutable && IMMUTABLE_RESOURCE_KEYS.has(key)) {
       throw new GameStudioProjectError("INVALID_PROPERTY", `${label} cannot modify reserved property ${key}`);
     }
-    if (isObject5(child)) assertSafeObject(child, label);
+    if (isObject2(child)) assertSafeObject(child, label);
   }
 }
 function mergeObjects(existing, updates) {
@@ -27594,7 +27624,7 @@ function mergeObjects(existing, updates) {
   const result = { ...existing };
   for (const [key, value] of Object.entries(updates)) {
     const original = result[key];
-    result[key] = isObject5(original) && isObject5(value) ? mergeObjects(original, value) : value;
+    result[key] = isObject2(original) && isObject2(value) ? mergeObjects(original, value) : value;
   }
   return result;
 }
@@ -27725,8 +27755,7 @@ async function pngDimensions(filename) {
   try {
     const header = Buffer.alloc(24);
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
-    const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    if (bytesRead < 24 || !header.subarray(0, 8).equals(signature)) return null;
+    if (bytesRead < 24 || !header.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
     return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
   } finally {
     await handle.close();
@@ -27854,21 +27883,21 @@ async function inventoryProject(projectPath, indexedAccess) {
   const palettes = [];
   let settings = {};
   if (format === "legacy") {
-    settings = isObject5(descriptor.settings) ? descriptor.settings : {};
+    settings = isObject2(descriptor.settings) ? descriptor.settings : {};
     for (const value of Array.isArray(descriptor.customEvents) ? descriptor.customEvents : []) {
-      if (isObject5(value)) scripts.push(scriptSymbolRecord(value, toRelative(projectRoot, discovery.projectPath)));
+      if (isObject2(value)) scripts.push(scriptSymbolRecord(value, toRelative(projectRoot, discovery.projectPath)));
     }
     for (const value of Array.isArray(descriptor.scenes) ? descriptor.scenes : []) {
-      if (!isObject5(value)) continue;
+      if (!isObject2(value)) continue;
       const scene = materializeResource(value, toRelative(projectRoot, discovery.projectPath));
       scenes.push({
         ...scene,
-        actors: (Array.isArray(value.actors) ? value.actors : []).filter(isObject5).map((actor) => materializeResource(actor, scene.resourcePath)),
-        triggers: (Array.isArray(value.triggers) ? value.triggers : []).filter(isObject5).map((trigger) => materializeResource(trigger, scene.resourcePath))
+        actors: (Array.isArray(value.actors) ? value.actors : []).filter(isObject2).map((actor) => materializeResource(actor, scene.resourcePath)),
+        triggers: (Array.isArray(value.triggers) ? value.triggers : []).filter(isObject2).map((trigger) => materializeResource(trigger, scene.resourcePath))
       });
     }
     for (const palette of Array.isArray(descriptor.palettes) ? descriptor.palettes : []) {
-      if (isObject5(palette))
+      if (isObject2(palette))
         palettes.push(materializeResource(palette, toRelative(projectRoot, discovery.projectPath)));
     }
   } else {
@@ -27915,7 +27944,7 @@ async function inventoryProject(projectPath, indexedAccess) {
       (file2) => toRelative(projectRoot, file2).startsWith("project/scripts/") && file2.endsWith(".gbsres")
     )) {
       const script = await readJson(projectRoot, scriptFile);
-      if (isObject5(script)) scripts.push(scriptSymbolRecord(script, toRelative(projectRoot, scriptFile)));
+      if (isObject2(script)) scripts.push(scriptSymbolRecord(script, toRelative(projectRoot, scriptFile)));
     }
     for (const file2 of resourceFiles2.filter((candidate) => {
       const relative6 = toRelative(projectRoot, candidate);
@@ -28027,7 +28056,7 @@ async function inventoryProject(projectPath, indexedAccess) {
         resourcePath: startScene.resourcePath
       });
     }
-    const mappings = isObject5(settings.defaultPlayerSprites) ? settings.defaultPlayerSprites : {};
+    const mappings = isObject2(settings.defaultPlayerSprites) ? settings.defaultPlayerSprites : {};
     const sceneType = asString(startScene.type, asString(settings.defaultSceneTypeId, "TOPDOWN"));
     const effectiveSpriteId = asString(mappings[sceneType]);
     if (!effectiveSpriteId || !spriteIds.has(effectiveSpriteId)) {
@@ -28120,7 +28149,7 @@ async function authoringContext(projectPath, indexedAccess, options = {}) {
     if (typeof cachedSettings === "function") {
       settings = cachedSettings.call(indexedAccess);
     } else if (legacy) {
-      settings = isObject5(descriptor.settings) ? descriptor.settings : {};
+      settings = isObject2(descriptor.settings) ? descriptor.settings : {};
     } else {
       const settingsPath = path10.join(indexedAccess.projectRoot, "project", "settings.gbsres");
       settings = await exists2(settingsPath) ? await readJson(indexedAccess.projectRoot, settingsPath) : {};
@@ -28210,7 +28239,7 @@ function validateNativeSceneUpdate(previous, updated, changes, backgroundExists,
   });
   if (invalid3) throw new GameStudioProjectError("INVALID_EVENT", invalid3.message);
   for (const kind of ["actors", "triggers"]) {
-    for (const resource of Array.isArray(changes[kind]) ? changes[kind].filter(isObject5) : []) {
+    for (const resource of Array.isArray(changes[kind]) ? changes[kind].filter(isObject2) : []) {
       if (kind === "actors") assertNoActorPalette(resource, void 0, resource);
       const invalid4 = findInvalidNativeScriptEvent(resource, void 0, project);
       if (invalid4) throw new GameStudioProjectError("INVALID_EVENT", invalid4.message);
@@ -28244,8 +28273,8 @@ async function createScene(projectPath, input, indexedAccess) {
     return withProjectResourceWriteLock(inventory.projectRoot, target2, async () => {
       const loaded = await readProjectJsonWithRevision(inventory.projectRoot, target2);
       const originalScenes = Array.isArray(loaded.json.scenes) ? loaded.json.scenes : [];
-      const scenes = originalScenes.filter(isObject5).map((scene3) => materializeResource(scene3, toRelative(inventory.projectRoot, target2)));
-      const settings = isObject5(loaded.json.settings) ? loaded.json.settings : {};
+      const scenes = originalScenes.filter(isObject2).map((scene3) => materializeResource(scene3, toRelative(inventory.projectRoot, target2)));
+      const settings = isObject2(loaded.json.settings) ? loaded.json.settings : {};
       const projectName = asString(loaded.json.name, "project");
       let slug2 = slugBase;
       let suffix = 1;
@@ -28333,8 +28362,8 @@ async function updateScene(projectPath, input, indexedAccess) {
       owner3 = scene;
     } else {
       const originalScenes = Array.isArray(loaded.json.scenes) ? loaded.json.scenes : [];
-      const original = originalScenes.find((value) => isObject5(value) && value.id === input.sceneId);
-      if (!isObject5(original))
+      const original = originalScenes.find((value) => isObject2(value) && value.id === input.sceneId);
+      if (!isObject2(original))
         throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${input.sceneId} disappeared during update`);
       const updated = withNativeScriptEventIds(mergeObjects(original, updates));
       validateNativeSceneUpdate(original, updated, updates, backgroundExists, {
@@ -28439,11 +28468,11 @@ async function createActor(projectPath, input, indexedAccess) {
     } else {
       target = owner3;
       const originalScenes = Array.isArray(loaded.json.scenes) ? loaded.json.scenes : [];
-      const original = originalScenes.find((value) => isObject5(value) && value.id === scene.id);
-      if (!isObject5(original))
+      const original = originalScenes.find((value) => isObject2(value) && value.id === scene.id);
+      if (!isObject2(original))
         throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${scene.id} disappeared during actor creation`);
       const originalActors = Array.isArray(original.actors) ? original.actors : [];
-      existingActors = originalActors.filter(isObject5).map((actor2) => materializeResource(actor2, scene.resourcePath));
+      existingActors = originalActors.filter(isObject2).map((actor2) => materializeResource(actor2, scene.resourcePath));
       let suffix = 1;
       while (existingActors.some(
         (actor2) => safeSlug(actor2.name, "actor") === slug || actor2.symbol === `actor_${slug}` || input.id === void 0 && actor2.id === stableId(scene.id, "actor", slug)
@@ -28451,7 +28480,7 @@ async function createActor(projectPath, input, indexedAccess) {
         slug = `${base}_${++suffix}`;
       ownerScene = { ...scene, ...original, actors: existingActors };
       existingId = (id4) => originalScenes.some(
-        (value) => isObject5(value) && Array.isArray(value.actors) && value.actors.some((actor2) => isObject5(actor2) && actor2.id === id4)
+        (value) => isObject2(value) && Array.isArray(value.actors) && value.actors.some((actor2) => isObject2(actor2) && actor2.id === id4)
       );
       ownerWithActor = (actor2) => ({
         ...loaded.json,
@@ -28494,7 +28523,7 @@ async function createActor(projectPath, input, indexedAccess) {
 }
 function findTextEvent(events, eventId) {
   for (const value of events) {
-    if (!isObject5(value)) continue;
+    if (!isObject2(value)) continue;
     if (eventId && value.id === eventId) {
       if (value.command !== "EVENT_TEXT") {
         throw new GameStudioProjectError(
@@ -28505,7 +28534,7 @@ function findTextEvent(events, eventId) {
       return value;
     }
     if (!eventId && value.command === "EVENT_TEXT") return value;
-    if (isObject5(value.children)) {
+    if (isObject2(value.children)) {
       for (const child of Object.values(value.children)) {
         if (Array.isArray(child)) {
           const nested = findTextEvent(child, eventId);
@@ -28542,7 +28571,7 @@ function applyDialogue(target, input) {
     script.push(event);
     assignNativeScriptEventIds(target);
   } else {
-    event.args = { ...isObject5(event.args) ? event.args : {}, text: input.text };
+    event.args = { ...isObject2(event.args) ? event.args : {}, text: input.text };
   }
   return { event, created };
 }
@@ -28585,17 +28614,17 @@ async function updateDialogue(projectPath, input, indexedAccess) {
       result = applyDialogue(owner3, input);
     } else {
       const existingScene = (Array.isArray(owner3.scenes) ? owner3.scenes : []).find(
-        (candidate) => isObject5(candidate) && candidate.id === scene.id
+        (candidate) => isObject2(candidate) && candidate.id === scene.id
       );
-      if (!isObject5(existingScene))
+      if (!isObject2(existingScene))
         throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${scene.id} disappeared during update`);
       let selectedResource = existingScene;
       if (actor || trigger) {
         const collection2 = existingScene[actor ? "actors" : "triggers"];
         const matching = (Array.isArray(collection2) ? collection2 : []).find(
-          (candidate) => isObject5(candidate) && candidate.id === selected.id
+          (candidate) => isObject2(candidate) && candidate.id === selected.id
         );
-        if (!isObject5(matching))
+        if (!isObject2(matching))
           throw new GameStudioProjectError("RESOURCE_NOT_FOUND", `Resource ${selected.id} disappeared during update`);
         selectedResource = matching;
       }
@@ -28605,7 +28634,7 @@ async function updateDialogue(projectPath, input, indexedAccess) {
 `, "utf8");
     if (await resourceRevision(inventory.projectRoot, target) !== loaded.revision) stale();
     await writeProjectBytesAtomic(inventory.projectRoot, target, output);
-    const revision2 = createHash5("sha256").update(output).digest("hex");
+    const revision2 = createHash6("sha256").update(output).digest("hex");
     await indexedAccess?.noteCommittedPaths([target]);
     return {
       projectPath: inventory.projectPath,
@@ -28620,7 +28649,7 @@ async function updateDialogue(projectPath, input, indexedAccess) {
   });
 }
 async function updateSettings(projectPath, updates, indexedAccess) {
-  if (!isObject5(updates)) throw new GameStudioProjectError("INVALID_INPUT", "Settings updates must be a JSON object");
+  if (!isObject2(updates)) throw new GameStudioProjectError("INVALID_INPUT", "Settings updates must be a JSON object");
   assertSafeObject(updates, "Settings updates", true);
   const inventory = await authoringContext(projectPath, indexedAccess, {
     includeSettings: true,
@@ -28640,7 +28669,7 @@ async function updateSettings(projectPath, updates, indexedAccess) {
   }
   return withProjectResourceWriteLock(inventory.projectRoot, target, async () => {
     const loaded = await readProjectJsonWithRevision(inventory.projectRoot, target);
-    const original = inventory.format === "distributed" ? { _resourceType: "settings", ...loaded.json } : isObject5(loaded.json.settings) ? loaded.json.settings : {};
+    const original = inventory.format === "distributed" ? { _resourceType: "settings", ...loaded.json } : isObject2(loaded.json.settings) ? loaded.json.settings : {};
     const settings = mergeObjects(original, updates);
     if (await resourceRevision(inventory.projectRoot, target) !== loaded.revision) {
       throw new GameStudioProjectError(
@@ -28665,7 +28694,7 @@ async function updateSettings(projectPath, updates, indexedAccess) {
 }
 
 // src/project-revision.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import path11 from "node:path";
 var SHA256_HEX2 = /^[a-f\d]{64}$/u;
 var ROOT_DOMAIN = Buffer.from(`codex-gb-studio\0${PROJECT_REVISION_ALGORITHM}\0root\0`, "utf8");
@@ -28674,13 +28703,13 @@ var FILE_DOMAIN = Buffer.from(`codex-gb-studio\0${PROJECT_REVISION_ALGORITHM}\0f
 function compareNames(left, right) {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
-function updateLength(digest7, length) {
+function updateLength(digest3, length) {
   if (!Number.isSafeInteger(length) || length < 0 || length > 4294967295) {
     throw new RangeError("A project revision entry exceeds its maximum encodable length");
   }
   const encoded2 = Buffer.allocUnsafe(4);
   encoded2.writeUInt32BE(length);
-  digest7.update(encoded2);
+  digest3.update(encoded2);
 }
 function normalizeRelativePath(relativePath2) {
   if (typeof relativePath2 !== "string" || relativePath2.length === 0 || relativePath2.includes("\0") || relativePath2.includes("\\") || path11.posix.isAbsolute(relativePath2) || path11.posix.normalize(relativePath2) !== relativePath2 || relativePath2 === "." || relativePath2 === ".." || relativePath2.startsWith("../")) {
@@ -28688,31 +28717,31 @@ function normalizeRelativePath(relativePath2) {
   }
   return relativePath2;
 }
-function fileHash(relativePath2, sha2563) {
-  if (typeof sha2563 !== "string" || !SHA256_HEX2.test(sha2563)) {
+function fileHash(relativePath2, sha2562) {
+  if (typeof sha2562 !== "string" || !SHA256_HEX2.test(sha2562)) {
     throw new TypeError("Project revision entries require a lowercase 64-character SHA-256 digest");
   }
   const encodedPath = Buffer.from(relativePath2, "utf8");
-  const digest7 = createHash6("sha256").update(FILE_DOMAIN);
-  updateLength(digest7, encodedPath.length);
-  digest7.update(encodedPath).update(Buffer.from(sha2563, "hex"));
-  return digest7.digest();
+  const digest3 = createHash7("sha256").update(FILE_DOMAIN);
+  updateLength(digest3, encodedPath.length);
+  digest3.update(encodedPath).update(Buffer.from(sha2562, "hex"));
+  return digest3.digest();
 }
 function createNode() {
   return { children: /* @__PURE__ */ new Map(), hash: Buffer.alloc(0) };
 }
 function rehashNode(node) {
-  const digest7 = createHash6("sha256").update(NODE_DOMAIN);
-  digest7.update(Buffer.from([node.fileHash ? 1 : 0]));
-  if (node.fileHash) digest7.update(node.fileHash);
+  const digest3 = createHash7("sha256").update(NODE_DOMAIN);
+  digest3.update(Buffer.from([node.fileHash ? 1 : 0]));
+  if (node.fileHash) digest3.update(node.fileHash);
   const children = [...node.children.entries()].sort(([left], [right]) => compareNames(left, right));
-  updateLength(digest7, children.length);
+  updateLength(digest3, children.length);
   for (const [name3, child] of children) {
     const encodedName = Buffer.from(name3, "utf8");
-    updateLength(digest7, encodedName.length);
-    digest7.update(encodedName).update(child.hash);
+    updateLength(digest3, encodedName.length);
+    digest3.update(encodedName).update(child.hash);
   }
-  node.hash = digest7.digest();
+  node.hash = digest3.digest();
 }
 function initializeNode(node) {
   for (const child of node.children.values()) initializeNode(child);
@@ -28724,7 +28753,7 @@ var ProjectRevisionTree = class {
   constructor(entries = []) {
     for (const entry of entries) {
       const relativePath2 = normalizeRelativePath(entry.relativePath);
-      const digest7 = fileHash(relativePath2, entry.sha256);
+      const digest3 = fileHash(relativePath2, entry.sha256);
       let node = this.#root;
       for (const segment of relativePath2.split("/")) {
         let child = node.children.get(segment);
@@ -28734,15 +28763,15 @@ var ProjectRevisionTree = class {
         }
         node = child;
       }
-      node.fileHash = digest7;
+      node.fileHash = digest3;
       this.#entries.set(relativePath2, entry.sha256);
     }
     initializeNode(this.#root);
   }
-  upsert(relativePath2, sha2563) {
+  upsert(relativePath2, sha2562) {
     const normalized = normalizeRelativePath(relativePath2);
-    const digest7 = fileHash(normalized, sha2563);
-    if (this.#entries.get(normalized) === sha2563) return;
+    const digest3 = fileHash(normalized, sha2562);
+    if (this.#entries.get(normalized) === sha2562) return;
     const ancestry = [this.#root];
     let node = this.#root;
     for (const segment of normalized.split("/")) {
@@ -28754,8 +28783,8 @@ var ProjectRevisionTree = class {
       node = child;
       ancestry.push(node);
     }
-    node.fileHash = digest7;
-    this.#entries.set(normalized, sha2563);
+    node.fileHash = digest3;
+    this.#entries.set(normalized, sha2562);
     for (let index = ancestry.length - 1; index >= 0; index -= 1) {
       const ancestor = ancestry[index];
       if (ancestor) rehashNode(ancestor);
@@ -28788,10 +28817,10 @@ var ProjectRevisionTree = class {
     return true;
   }
   revision() {
-    return createHash6("sha256").update(ROOT_DOMAIN).update(this.#root.hash).digest("hex");
+    return createHash7("sha256").update(ROOT_DOMAIN).update(this.#root.hash).digest("hex");
   }
   entries() {
-    return [...this.#entries.entries()].sort(([left], [right]) => compareNames(left, right)).map(([relativePath2, sha2563]) => ({ relativePath: relativePath2, sha256: sha2563 }));
+    return [...this.#entries.entries()].sort(([left], [right]) => compareNames(left, right)).map(([relativePath2, sha2562]) => ({ relativePath: relativePath2, sha256: sha2562 }));
   }
 };
 function isPublicProjectRevisionPath(relativePath2, descriptorRelativePath) {
@@ -28850,40 +28879,6 @@ var INSPECTION_SETTINGS = [
   "defaultPlayerSprites",
   "compilerPreset"
 ];
-var FrozenMap = class {
-  #entries;
-  constructor(entries) {
-    this.#entries = new Map(entries);
-    Object.freeze(this);
-  }
-  get size() {
-    return this.#entries.size;
-  }
-  get(key) {
-    return this.#entries.get(key);
-  }
-  has(key) {
-    return this.#entries.has(key);
-  }
-  entries() {
-    return this.#entries.entries();
-  }
-  keys() {
-    return this.#entries.keys();
-  }
-  values() {
-    return this.#entries.values();
-  }
-  [Symbol.iterator]() {
-    return this.#entries[Symbol.iterator]();
-  }
-  forEach(callbackfn, thisArg) {
-    this.#entries.forEach((value, key) => callbackfn.call(thisArg, value, key, this));
-  }
-};
-function isObject6(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function withinProject(root, candidate) {
   const relative6 = path12.relative(root, candidate);
   if (relative6 === ".." || relative6.startsWith(`..${path12.sep}`) || path12.isAbsolute(relative6)) {
@@ -28894,14 +28889,6 @@ function withinProject(root, candidate) {
     );
   }
 }
-function systemError(error2, code) {
-  return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
-}
-function deepFreeze(value) {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) deepFreeze(child);
-  return Object.freeze(value);
-}
 function mapResources(resources) {
   return new FrozenMap(resources.filter((resource) => resource.id).map((resource) => [resource.id, resource]));
 }
@@ -28910,7 +28897,7 @@ async function authoredFiles(root, directory) {
   try {
     canonical2 = await realpath7(directory);
   } catch (error2) {
-    if (systemError(error2, "ENOENT")) return [];
+    if (isSystemError(error2, "ENOENT")) return [];
     throw error2;
   }
   withinProject(root, canonical2);
@@ -28973,7 +28960,7 @@ async function discoveryRevision(discovery, exclude = /* @__PURE__ */ new Set())
     const content = await readFile4(file2);
     entries.push({
       relativePath: relative6,
-      sha256: createHash7("sha256").update(content).digest("hex")
+      sha256: createHash8("sha256").update(content).digest("hex")
     });
   }
   return new ProjectRevisionTree(entries).revision();
@@ -29017,7 +29004,7 @@ async function projectVariables(inventory) {
     try {
       canonical2 = await realpath7(filename);
     } catch (error2) {
-      if (systemError(error2, "ENOENT")) return [];
+      if (isSystemError(error2, "ENOENT")) return [];
       throw error2;
     }
     withinProject(inventory.projectRoot, canonical2);
@@ -29031,7 +29018,7 @@ async function projectVariables(inventory) {
         canonical2
       );
     }
-    if (!isObject6(parsed)) {
+    if (!isObject2(parsed)) {
       throw new GameStudioProjectError(
         "INVALID_RESOURCE",
         "project variables resource must contain a JSON object",
@@ -29041,7 +29028,7 @@ async function projectVariables(inventory) {
     entries = parsed.variables;
     resourcePath = "project/variables.gbsres";
   }
-  return (Array.isArray(entries) ? entries : []).filter(isObject6).map((resource) => ({
+  return (Array.isArray(entries) ? entries : []).filter(isObject2).map((resource) => ({
     ...resource,
     id: typeof resource.id === "string" ? resource.id : "",
     name: typeof resource.name === "string" ? resource.name : "",
@@ -29093,7 +29080,7 @@ async function loadProjectSnapshot(projectPath, options = {}, access4) {
       variables = await projectVariables(inventory);
       after = await discoveryRevision(discovery);
     } catch (error2) {
-      if ((systemError(error2, "ENOENT") || error2 instanceof GameStudioProjectError && error2.code === "STALE_PROJECT") && attempt + 1 < attempts) {
+      if ((isSystemError(error2, "ENOENT") || error2 instanceof GameStudioProjectError && error2.code === "STALE_PROJECT") && attempt + 1 < attempts) {
         continue;
       }
       throw error2;
@@ -29189,7 +29176,7 @@ function cursorFilter(options) {
     layout: options.layout ?? "normalized",
     ...query === void 0 ? {} : { query }
   };
-  return createHash7("sha256").update(JSON.stringify(filters)).digest("base64url").slice(0, 16);
+  return createHash8("sha256").update(JSON.stringify(filters)).digest("base64url").slice(0, 16);
 }
 function parseCursor(snapshot, options) {
   if (!options.cursor) return 0;
@@ -29199,7 +29186,7 @@ function parseCursor(snapshot, options) {
   } catch {
     throw new GameStudioProjectError("INVALID_CURSOR", "Project inventory cursor is not a valid opaque cursor");
   }
-  if (!isObject6(payload) || typeof payload.revision !== "string" || typeof payload.filter !== "string" || payload.revisionAlgorithm !== void 0 && typeof payload.revisionAlgorithm !== "string" || !Number.isSafeInteger(payload.generation) || !Number.isSafeInteger(payload.offset) || typeof payload.offset !== "number" || payload.offset < 0) {
+  if (!isObject2(payload) || typeof payload.revision !== "string" || typeof payload.filter !== "string" || payload.revisionAlgorithm !== void 0 && typeof payload.revisionAlgorithm !== "string" || !Number.isSafeInteger(payload.generation) || !Number.isSafeInteger(payload.offset) || typeof payload.offset !== "number" || payload.offset < 0) {
     throw new GameStudioProjectError("INVALID_CURSOR", "Project inventory cursor is malformed");
   }
   if (payload.revisionAlgorithm !== snapshot.revisionAlgorithm || payload.revision !== snapshot.revision || payload.generation !== snapshot.selectionGeneration || payload.filter !== cursorFilter(options)) {
@@ -29448,9 +29435,9 @@ function inventoryProjectSnapshot(snapshot, options = {}) {
     returned: 0,
     nextCursor: null
   };
-  for (const record7 of records.slice(offset, offset + limit)) {
-    const destination = recordArray(result, record7.kind);
-    destination.push(record7.resource);
+  for (const record4 of records.slice(offset, offset + limit)) {
+    const destination = recordArray(result, record4.kind);
+    destination.push(record4.resource);
     result.returned += 1;
     const followingOffset = offset + result.returned;
     result.nextCursor = followingOffset < records.length ? nextCursor(snapshot, options, followingOffset) : null;
@@ -29508,17 +29495,15 @@ async function inventoryProjectNormalized(projectPath, options = {}, selectionGe
 }
 
 // src/scene-batch.js
-import { createHash as createHash9 } from "node:crypto";
 import { lstat as lstat8, readFile as readFile5, rmdir as rmdir2, unlink as unlink4 } from "node:fs/promises";
 import path18 from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 // src/native-import-files.js
-import { createHash as createHash8, randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 import { constants as constants3 } from "node:fs";
 import { link as link2, lstat as lstat7, mkdir as mkdir3, mkdtemp, open as open4, opendir, rename as rename3, rmdir, unlink as unlink3 } from "node:fs/promises";
 import path13 from "node:path";
-var hash = (bytes2) => createHash8("sha256").update(bytes2).digest("hex");
 var missing = (error2) => !!error2 && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
 var fail = (code, message2) => {
   throw new GameStudioProjectError(code, message2);
@@ -29597,7 +29582,7 @@ async function readNativeImportSnapshot(root, relative6, maximum) {
         dev: String(before.dev),
         ino: String(before.ino),
         size: count3,
-        sha256: hash(content),
+        sha256: sha256Hex(content),
         mode: Number(before.mode & 4095n)
       }
     };
@@ -29639,7 +29624,7 @@ async function publishNativeImportFile(root, relative6, bytes2, published) {
       dev: String(info.dev),
       ino: String(info.ino),
       size: bytes2.length,
-      sha256: hash(bytes2),
+      sha256: sha256Hex(bytes2),
       temporaryDirectory: directory
     };
     await nativeImportPath(root, relative6);
@@ -29713,7 +29698,7 @@ async function rollbackNativeImportFile(root, relative6, expected) {
         }
         const after = await handle.stat({ bigint: true });
         const current = await lstat7(captured, { bigint: true });
-        owned5 = String(info.dev) === expected.dev && String(info.ino) === expected.ino && info.size === BigInt(expected.size) && after.size === info.size && after.mtimeNs === info.mtimeNs && after.ctimeNs === info.ctimeNs && current.dev === info.dev && current.ino === info.ino && current.size === info.size && current.mtimeNs === info.mtimeNs && current.ctimeNs === info.ctimeNs && (expected.mode === void 0 || Number(info.mode & 4095n) === expected.mode && info.mode === after.mode && info.mode === current.mode) && count3 === expected.size && hash(bytes2.subarray(0, count3)) === expected.sha256;
+        owned5 = String(info.dev) === expected.dev && String(info.ino) === expected.ino && info.size === BigInt(expected.size) && after.size === info.size && after.mtimeNs === info.mtimeNs && after.ctimeNs === info.ctimeNs && current.dev === info.dev && current.ino === info.ino && current.size === info.size && current.mtimeNs === info.mtimeNs && current.ctimeNs === info.ctimeNs && (expected.mode === void 0 || Number(info.mode & 4095n) === expected.mode && info.mode === after.mode && info.mode === current.mode) && count3 === expected.size && sha256Hex(bytes2.subarray(0, count3)) === expected.sha256;
       } finally {
         await handle.close();
       }
@@ -29769,7 +29754,7 @@ async function replaceNativeImportFile(root, relative6, before, original, bytes2
       dev: String(created.dev),
       ino: String(created.ino),
       size: 0,
-      sha256: hash(Buffer.alloc(0)),
+      sha256: sha256Hex(Buffer.alloc(0)),
       mode: 384
     };
     await handle.writeFile(bytes2);
@@ -29780,7 +29765,7 @@ async function replaceNativeImportFile(root, relative6, before, original, bytes2
       dev: String(info.dev),
       ino: String(info.ino),
       size: bytes2.length,
-      sha256: hash(bytes2),
+      sha256: sha256Hex(bytes2),
       mode: original.mode
     };
     await handle.close();
@@ -29967,9 +29952,6 @@ var MAXIMUM_SCENE_DIMENSION = 255;
 var MAXIMUM_EDITS = 1024;
 var MAXIMUM_SAMPLES = 32;
 var MAXIMUM_INSPECTION_CELLS = 4096;
-function isObject7(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function dimensions(scene) {
   const { width, height } = scene;
   if (typeof width !== "number" || typeof height !== "number" || !Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > MAXIMUM_SCENE_DIMENSION || height > MAXIMUM_SCENE_DIMENSION) {
@@ -30017,7 +29999,7 @@ function validateBounds(x, y, width, height, sceneWidth, sceneHeight) {
   }
 }
 function validateEdit(edit, sceneWidth, sceneHeight) {
-  if (!isObject7(edit) || !["tile", "rectangle"].includes(edit.shape)) {
+  if (!isObject2(edit) || !["tile", "rectangle"].includes(edit.shape)) {
     throw new GameStudioProjectError("INVALID_INPUT", "Every collision edit must use tile or rectangle shape");
   }
   if (!Number.isInteger(edit.value) || edit.value < 0 || edit.value > 255) {
@@ -30101,9 +30083,9 @@ async function loadSelectedScene(location) {
     return { inventory, selected, filename, scene: loaded, revision: indexedLoad?.revision };
   }
   const scene = (Array.isArray(loaded.scenes) ? loaded.scenes : []).find(
-    (candidate) => isObject7(candidate) && candidate.id === selected.id
+    (candidate) => isObject2(candidate) && candidate.id === selected.id
   );
-  if (!isObject7(scene))
+  if (!isObject2(scene))
     throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${selected.id} disappeared during collision selection`);
   return { inventory, selected, filename, scene, descriptor: loaded, revision: indexedLoad?.revision };
 }
@@ -30171,7 +30153,7 @@ async function editCollisions(projectPath, input, access4) {
       const scenes = Array.isArray(descriptor.scenes) ? descriptor.scenes : [];
       owner3 = {
         ...descriptor,
-        scenes: scenes.map((scene) => isObject7(scene) && scene.id === input.sceneId ? applied.scene : scene)
+        scenes: scenes.map((scene) => isObject2(scene) && scene.id === input.sceneId ? applied.scene : scene)
       };
     }
     if (await resourceRevision(selected.inventory.projectRoot, selected.filename) !== selected.revision) {
@@ -30203,9 +30185,6 @@ var FORBIDDEN_KEYS2 = /* @__PURE__ */ new Set(["__proto__", "prototype", "constr
 var VALID_DIRECTIONS = /* @__PURE__ */ new Set(["up", "down", "left", "right"]);
 var MAXIMUM_EVENT_DEPTH2 = 64;
 var MAXIMUM_EVENT_COUNT2 = 1e4;
-function isObject8(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function assertSafeJson(value, label, depth = 0) {
   if (depth > MAXIMUM_EVENT_DEPTH2) {
     throw new GameStudioProjectError("INVALID_INPUT", `${label} exceeds the maximum nesting depth`);
@@ -30214,7 +30193,7 @@ function assertSafeJson(value, label, depth = 0) {
     for (const child of value) assertSafeJson(child, label, depth + 1);
     return;
   }
-  if (!isObject8(value)) return;
+  if (!isObject2(value)) return;
   for (const [key, child] of Object.entries(value)) {
     if (FORBIDDEN_KEYS2.has(key)) {
       throw new GameStudioProjectError("INVALID_PROPERTY", `${label} cannot contain reserved property ${key}`);
@@ -30226,7 +30205,7 @@ function mergeJson(existing, updates) {
   const result = { ...existing };
   for (const [key, value] of Object.entries(updates)) {
     const original = result[key];
-    result[key] = isObject8(original) && isObject8(value) ? mergeJson(original, value) : structuredClone(value);
+    result[key] = isObject2(original) && isObject2(value) ? mergeJson(original, value) : structuredClone(value);
   }
   return result;
 }
@@ -30248,20 +30227,20 @@ function scriptEvents(resource, target) {
   }
   let current = root;
   for (const segment of target.branchPath ?? []) {
-    if (!isObject8(segment) || typeof segment.eventId !== "string" || typeof segment.branch !== "string" || !segment.branch) {
+    if (!isObject2(segment) || typeof segment.eventId !== "string" || typeof segment.branch !== "string" || !segment.branch) {
       throw new GameStudioProjectError("INVALID_INPUT", "Every script branch requires a nonempty eventId and branch");
     }
     if (FORBIDDEN_KEYS2.has(segment.branch)) {
       throw new GameStudioProjectError("INVALID_PROPERTY", `Script branch ${segment.branch} is reserved`);
     }
-    const parent = current.find((event) => isObject8(event) && event.id === segment.eventId);
-    if (!isObject8(parent)) {
+    const parent = current.find((event) => isObject2(event) && event.id === segment.eventId);
+    if (!isObject2(parent)) {
       throw new GameStudioProjectError(
         "EVENT_NOT_FOUND",
         `No parent event with id ${segment.eventId} exists in the selected branch`
       );
     }
-    const branch = isObject8(parent.children) ? parent.children[segment.branch] : void 0;
+    const branch = isObject2(parent.children) ? parent.children[segment.branch] : void 0;
     if (!Array.isArray(branch)) {
       throw new GameStudioProjectError(
         "SCRIPT_BRANCH_NOT_FOUND",
@@ -30270,7 +30249,7 @@ function scriptEvents(resource, target) {
     }
     current = branch;
   }
-  if (!current.every(isObject8)) {
+  if (!current.every(isObject2)) {
     throw new GameStudioProjectError(
       "INVALID_RESOURCE",
       `Resource ${String(resource.id ?? "unknown")} contains a malformed script event`
@@ -30289,18 +30268,18 @@ function validateEventTree(resource, options) {
       if (++count3 > MAXIMUM_EVENT_COUNT2) {
         throw new GameStudioProjectError("INVALID_EVENT", "Event tree exceeds the maximum event count");
       }
-      if (!isObject8(candidate) || typeof candidate.id !== "string" || !candidate.id || typeof candidate.command !== "string" || !candidate.command) {
+      if (!isObject2(candidate) || typeof candidate.id !== "string" || !candidate.id || typeof candidate.command !== "string" || !candidate.command) {
         throw new GameStudioProjectError("INVALID_EVENT", "Every script event requires a nonempty id and command");
       }
       if (eventIds.has(candidate.id)) {
         throw new GameStudioProjectError("DUPLICATE_EVENT_ID", `Script already contains event ${candidate.id}`);
       }
       eventIds.add(candidate.id);
-      if (candidate.args !== void 0 && !isObject8(candidate.args)) {
+      if (candidate.args !== void 0 && !isObject2(candidate.args)) {
         throw new GameStudioProjectError("INVALID_EVENT", `Event ${candidate.id} must contain an arguments object`);
       }
       if (candidate.command === "EVENT_SWITCH_SCENE") {
-        const destination = isObject8(candidate.args) ? candidate.args.sceneId : void 0;
+        const destination = isObject2(candidate.args) ? candidate.args.sceneId : void 0;
         if (typeof destination !== "string" || !destination || options.knownSceneIds && !options.knownSceneIds.has(destination) || options.sceneExists && !options.sceneExists(destination)) {
           throw new GameStudioProjectError(
             "SCENE_NOT_FOUND",
@@ -30308,10 +30287,10 @@ function validateEventTree(resource, options) {
           );
         }
       }
-      if (candidate.children !== void 0 && !isObject8(candidate.children)) {
+      if (candidate.children !== void 0 && !isObject2(candidate.children)) {
         throw new GameStudioProjectError("INVALID_EVENT", `Event ${candidate.id} must contain a named-branch object`);
       }
-      if (isObject8(candidate.children)) {
+      if (isObject2(candidate.children)) {
         for (const [branch, children] of Object.entries(candidate.children)) {
           if (FORBIDDEN_KEYS2.has(branch) || !Array.isArray(children)) {
             throw new GameStudioProjectError("INVALID_EVENT", `Event ${candidate.id} has an invalid ${branch} branch`);
@@ -30346,7 +30325,7 @@ function insertionIndex(events, input) {
   return events.length;
 }
 function liftTargetEventId(input) {
-  const { eventId, ...target } = isObject8(input.target) ? input.target : {};
+  const { eventId, ...target } = isObject2(input.target) ? input.target : {};
   if (eventId === void 0) return input;
   if (input.eventId !== void 0 && input.eventId !== eventId) {
     throw new GameStudioProjectError(
@@ -30368,7 +30347,7 @@ function applyScriptEdit(resource, input, options = {}) {
   let event;
   let index;
   if (input.action === "insert") {
-    if (!input.event || !isObject8(input.event)) {
+    if (!input.event || !isObject2(input.event)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Inserting a script event requires an event object");
     }
     index = insertionIndex(events, input);
@@ -30385,7 +30364,7 @@ function applyScriptEdit(resource, input, options = {}) {
       );
     }
     if (input.action === "update") {
-      if (!input.patch || !isObject8(input.patch)) {
+      if (!input.patch || !isObject2(input.patch)) {
         throw new GameStudioProjectError("INVALID_INPUT", "Updating a script event requires a patch object");
       }
       if (input.patch.id !== void 0 && input.patch.id !== input.eventId) {
@@ -30407,13 +30386,13 @@ function applyScriptEdit(resource, input, options = {}) {
   validateEventTree(cloned, options);
   const explicitlyPatchedValues = /* @__PURE__ */ new Map();
   if (input.action === "update") {
-    for (const branch of isObject8(input.patch.children) ? Object.values(input.patch.children) : []) {
+    for (const branch of isObject2(input.patch.children) ? Object.values(input.patch.children) : []) {
       for (const [eventId, keys] of explicitlyPatchedNativeScriptValues({ script: branch }))
         explicitlyPatchedValues.set(eventId, keys);
     }
     explicitlyPatchedValues.set(
       input.eventId,
-      new Set(isObject8(input.patch.args) ? Object.keys(input.patch.args) : [])
+      new Set(isObject2(input.patch.args) ? Object.keys(input.patch.args) : [])
     );
   } else if (input.action === "move") {
     explicitlyPatchedValues.set(input.eventId, /* @__PURE__ */ new Set());
@@ -30477,17 +30456,17 @@ async function readSelectedResource(context, target, owner3) {
   }
   const descriptor = owner3;
   const existingScene = (Array.isArray(descriptor.scenes) ? descriptor.scenes : []).find(
-    (candidate) => isObject8(candidate) && candidate.id === scene.id
+    (candidate) => isObject2(candidate) && candidate.id === scene.id
   );
-  if (!isObject8(existingScene))
+  if (!isObject2(existingScene))
     throw new GameStudioProjectError("SCENE_NOT_FOUND", `Scene ${scene.id} disappeared during script selection`);
   let resource = existingScene;
   if (target.actorId || target.triggerId) {
     const collection2 = existingScene[target.actorId ? "actors" : "triggers"];
     const matching = (Array.isArray(collection2) ? collection2 : []).find(
-      (candidate) => isObject8(candidate) && candidate.id === selected.id
+      (candidate) => isObject2(candidate) && candidate.id === selected.id
     );
-    if (!isObject8(matching))
+    if (!isObject2(matching))
       throw new GameStudioProjectError(
         "RESOURCE_NOT_FOUND",
         `Script owner ${selected.id} disappeared during selection`
@@ -30554,14 +30533,14 @@ async function editSelectedScript(projectPath, input, access4, inventory) {
       if (!descriptor) throw new GameStudioProjectError("INVALID_RESOURCE", "Legacy project descriptor is unavailable");
       const scenes = Array.isArray(descriptor.scenes) ? descriptor.scenes : [];
       const replaced = scenes.map((candidate) => {
-        if (!isObject8(candidate) || candidate.id !== selection.scene.id) return candidate;
+        if (!isObject2(candidate) || candidate.id !== selection.scene.id) return candidate;
         if (!input.target.actorId && !input.target.triggerId) return applied.resource;
         const key = input.target.actorId ? "actors" : "triggers";
         const collection2 = Array.isArray(candidate[key]) ? candidate[key] : [];
         return {
           ...candidate,
           [key]: collection2.map(
-            (owner3) => isObject8(owner3) && owner3.id === selection.selected.id ? applied.resource : owner3
+            (owner3) => isObject2(owner3) && owner3.id === selection.selected.id ? applied.resource : owner3
           )
         };
       });
@@ -30648,9 +30627,6 @@ async function createSceneTransition(projectPath, input, access4) {
 import path16 from "node:path";
 var MAXIMUM_AUTOMATIC_VARIABLE_ID = 511;
 var FORBIDDEN_KEYS3 = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
-function isObject9(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function assertVariableId(value) {
   const numericId = Number(value);
   if (!/^(?:0|[1-9]\d*)$/.test(value) || !Number.isSafeInteger(numericId) || String(numericId) !== value) {
@@ -30666,7 +30642,7 @@ function assertSymbol(value) {
   }
 }
 function variableList(resource) {
-  if (!Array.isArray(resource.variables) || !resource.variables.every(isObject9)) {
+  if (!Array.isArray(resource.variables) || !resource.variables.every(isObject2)) {
     throw new GameStudioProjectError("INVALID_RESOURCE", "Project variable metadata must contain a variables array");
   }
   return resource.variables;
@@ -30783,7 +30759,7 @@ function collectReferences(value, references, parentKey) {
     for (const child of value) collectReferences(child, references);
     return;
   }
-  if (!isObject9(value)) {
+  if (!isObject2(value)) {
     if (typeof value === "string" && parentKey && /^(?:variable|variableId|vectorX|vectorY)$/.test(parentKey))
       references.add(value);
     return;
@@ -30899,7 +30875,7 @@ function createTriggerResource(input, id3, index, symbol) {
 }
 function mergeTriggerChanges(existing, input) {
   if (input.properties !== void 0) {
-    if (!isJsonObject(input.properties)) {
+    if (!isObject2(input.properties)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Trigger properties must be a JSON object");
     }
     assertSafeResourceProperties(input.properties, "Trigger properties");
@@ -30980,7 +30956,7 @@ async function inspectTrigger(projectPath, input, access4) {
 async function createTrigger(projectPath, input, access4) {
   validateResourceName(input.name, "Trigger name");
   if (input.properties !== void 0) {
-    if (!isJsonObject(input.properties)) {
+    if (!isObject2(input.properties)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Trigger properties must be a JSON object");
     }
     assertSafeResourceProperties(input.properties, "Trigger properties");
@@ -31178,12 +31154,6 @@ var ProjectTransactionError = class extends GameStudioProjectError {
     Object.defineProperty(this, "cause", { value: cause });
   }
 };
-function isObject10(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function digest3(value) {
-  return createHash9("sha256").update(value).digest("hex");
-}
 function stagedBytes(value) {
   return Buffer.isBuffer(value) ? Buffer.from(value) : Buffer.from(`${JSON.stringify(value, null, 2)}
 `, "utf8");
@@ -31228,7 +31198,7 @@ function assertSafeValue(value, label, forbidImmutable = false) {
     for (const child of value) assertSafeValue(child, label);
     return;
   }
-  if (!isObject10(value)) return;
+  if (!isObject2(value)) return;
   for (const [key, child] of Object.entries(value)) {
     if (FORBIDDEN_KEYS4.has(key) || forbidImmutable && IMMUTABLE_KEYS2.has(key)) {
       projectError("INVALID_PROPERTY", `${label} cannot modify reserved property ${key}`);
@@ -31297,17 +31267,17 @@ function collectScriptEvents(value, visit) {
     for (const child of value) collectScriptEvents(child, visit);
     return;
   }
-  if (!isObject10(value)) return;
+  if (!isObject2(value)) return;
   if (typeof value.command === "string") visit(value);
   for (const [key, child] of Object.entries(value)) {
     if (key === "args") continue;
-    if (Array.isArray(child) || isObject10(child)) collectScriptEvents(child, visit);
+    if (Array.isArray(child) || isObject2(child)) collectScriptEvents(child, visit);
   }
 }
 function collectEventReferences(value) {
   const references = { scenes: /* @__PURE__ */ new Set(), actors: /* @__PURE__ */ new Set(), variables: /* @__PURE__ */ new Set() };
   collectScriptEvents(value, (event) => {
-    if (!isObject10(event.args)) return;
+    if (!isObject2(event.args)) return;
     const args = event.args;
     if (event.command === "EVENT_SWITCH_SCENE" && typeof args.sceneId === "string") references.scenes.add(args.sceneId);
     if (typeof args.actorId === "string" && args.actorId !== "$self$" && args.actorId !== "player") {
@@ -31323,7 +31293,7 @@ function collectVariableValues(value, output) {
     for (const child of value) collectVariableValues(child, output);
     return;
   }
-  if (!isObject10(value)) return;
+  if (!isObject2(value)) return;
   if (value.type === "variable" && typeof value.value === "string") output.add(value.value);
   for (const child of Object.values(value)) collectVariableValues(child, output);
 }
@@ -31331,12 +31301,12 @@ function containsStructuralTriggerReference(value, triggerId) {
   if (Array.isArray(value)) {
     return value.some((child) => containsStructuralTriggerReference(child, triggerId));
   }
-  if (!isObject10(value)) return false;
+  if (!isObject2(value)) return false;
   for (const [key, child] of Object.entries(value)) {
     if (TRIGGER_REFERENCE_KEYS.has(key)) {
       if (child === triggerId) return true;
       if (Array.isArray(child) && child.includes(triggerId)) return true;
-      if (isObject10(child) && (child.id === triggerId || child.value === triggerId)) return true;
+      if (isObject2(child) && (child.id === triggerId || child.value === triggerId)) return true;
     }
     if (containsStructuralTriggerReference(child, triggerId)) return true;
   }
@@ -31408,8 +31378,8 @@ async function inspectScene(projectPath, input, indexedAccess) {
   }
   const format = path18.resolve(projectRoot, selected.resourcePath) === path18.resolve(selectedProjectPath) ? "legacy" : "distributed";
   const loaded = await readProjectJsonWithRevision(projectRoot, selected.resourcePath);
-  const nativeScene = format === "legacy" ? Array.isArray(loaded.json.scenes) ? loaded.json.scenes.find((value) => isObject10(value) && value.id === sceneId) : void 0 : loaded.json;
-  if (!isObject10(nativeScene) || nativeScene.id !== sceneId) {
+  const nativeScene = format === "legacy" ? Array.isArray(loaded.json.scenes) ? loaded.json.scenes.find((value) => isObject2(value) && value.id === sceneId) : void 0 : loaded.json;
+  if (!isObject2(nativeScene) || nativeScene.id !== sceneId) {
     projectError("SCENE_NOT_FOUND", `Scene ${sceneId} changed or disappeared from its native resource`);
   }
   const normalizeNative = (resource) => {
@@ -31421,8 +31391,8 @@ async function inspectScene(projectPath, input, indexedAccess) {
     };
   };
   const { actors: _sceneActors, triggers: _sceneTriggers, ...sceneData } = normalizeNative(nativeScene);
-  const actors = format === "legacy" ? Array.isArray(nativeScene.actors) ? nativeScene.actors.filter(isObject10).map(normalizeNative) : [] : selected.actors.map(strippedResource);
-  const triggers = format === "legacy" ? Array.isArray(nativeScene.triggers) ? nativeScene.triggers.filter(isObject10).map(normalizeNative) : [] : selected.triggers.map(strippedResource);
+  const actors = format === "legacy" ? Array.isArray(nativeScene.actors) ? nativeScene.actors.filter(isObject2).map(normalizeNative) : [] : selected.actors.map(strippedResource);
+  const triggers = format === "legacy" ? Array.isArray(nativeScene.triggers) ? nativeScene.triggers.filter(isObject2).map(normalizeNative) : [] : selected.triggers.map(strippedResource);
   let eventCount = 0;
   for (const resource of [sceneData, ...actors, ...triggers]) {
     collectScriptEvents(resource, () => {
@@ -31485,8 +31455,8 @@ async function createOverlay(snapshot, sceneId) {
   if (!distributed) {
     descriptor = structuredClone(snapshot.descriptor);
     const scenes = Array.isArray(descriptor.scenes) ? descriptor.scenes : [];
-    const original = scenes.find((candidate) => isObject10(candidate) && candidate.id === sceneId);
-    if (!isObject10(original)) projectError("SCENE_NOT_FOUND", `Scene ${sceneId} disappeared from the legacy descriptor`);
+    const original = scenes.find((candidate) => isObject2(candidate) && candidate.id === sceneId);
+    if (!isObject2(original)) projectError("SCENE_NOT_FOUND", `Scene ${sceneId} disappeared from the legacy descriptor`);
     sceneValue = original;
   }
   for (const [resources, destination, collectionKey] of [
@@ -31498,9 +31468,9 @@ async function createOverlay(snapshot, sceneId) {
       if (!distributed) {
         const collection2 = sceneValue[collectionKey];
         const original = (Array.isArray(collection2) ? collection2 : []).find(
-          (candidate) => isObject10(candidate) && candidate.id === resource.id
+          (candidate) => isObject2(candidate) && candidate.id === resource.id
         );
-        if (!isObject10(original))
+        if (!isObject2(original))
           projectError("RESOURCE_NOT_FOUND", `Resource ${resource.id} disappeared from the legacy descriptor`);
         value = original;
       }
@@ -31535,9 +31505,9 @@ function assertOneSelection(forms) {
 }
 function operationFields(operation) {
   const { type: _type, clientId: _clientId, input = {}, ...rest } = operation;
-  if (!isObject10(input)) projectError("INVALID_INPUT", "Operation input must be a JSON object");
+  if (!isObject2(input)) projectError("INVALID_INPUT", "Operation input must be a JSON object");
   for (const target2 of [rest.target, input.target]) {
-    if (target2 !== void 0 && !isObject10(target2))
+    if (target2 !== void 0 && !isObject2(target2))
       projectError("INVALID_INPUT", "Operation target must be a JSON object");
   }
   assertOneSelection([rest, input, rest.target ?? {}, input.target ?? {}]);
@@ -31598,7 +31568,7 @@ function replaceLegacyResource(overlay, kind, resourceId2, replacement) {
   if (overlay.format !== "legacy") return;
   const collection2 = overlay.scene.value[kind];
   if (!Array.isArray(collection2)) projectError("INVALID_RESOURCE", `Legacy scene has an invalid ${kind} collection`);
-  const index = collection2.findIndex((candidate) => isObject10(candidate) && candidate.id === resourceId2);
+  const index = collection2.findIndex((candidate) => isObject2(candidate) && candidate.id === resourceId2);
   if (index < 0) projectError("RESOURCE_NOT_FOUND", `Legacy ${kind} resource ${resourceId2} disappeared`);
   if (replacement) collection2[index] = replacement;
   else collection2.splice(index, 1);
@@ -31672,9 +31642,9 @@ async function applyActorOperation(overlay, type, fields2) {
   validateActorResource(overlay.inventory, sceneResource(overlay), merged, resource.value, {
     ...overlayScriptProject(overlay),
     explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(
-      isObject10(fields2.properties) ? fields2.properties : void 0
+      isObject2(fields2.properties) ? fields2.properties : void 0
     ),
-    properties: isObject10(fields2.properties) ? fields2.properties : void 0
+    properties: isObject2(fields2.properties) ? fields2.properties : void 0
   });
   resource.value = merged;
   replaceLegacyResource(overlay, "actors", actorId, merged);
@@ -31723,7 +31693,7 @@ async function applyTriggerOperation(overlay, type, fields2) {
   validateTriggerResource(sceneResource(overlay), merged, resource.value, {
     ...overlayScriptProject(overlay),
     explicitlyPatchedValues: explicitlyPatchedNativeScriptValues(
-      isObject10(fields2.properties) ? fields2.properties : void 0
+      isObject2(fields2.properties) ? fields2.properties : void 0
     )
   });
   resource.value = merged;
@@ -31732,7 +31702,7 @@ async function applyTriggerOperation(overlay, type, fields2) {
   return { resourceId: triggerId, resourcePath: resource.relativePath };
 }
 function resolveScriptOwner(overlay, fields2) {
-  const target = isObject10(fields2.target) ? fields2.target : fields2;
+  const target = isObject2(fields2.target) ? fields2.target : fields2;
   assertKnownScene(target, overlay.scene.id);
   if (target.actorId && target.triggerId)
     projectError("INVALID_INPUT", "Specify either actorId or triggerId, not both");
@@ -31766,7 +31736,7 @@ async function applyEventOperation(overlay, operation) {
   if (owner3.id === overlay.scene.id) {
     if (overlay.format === "legacy" && overlay.descriptor) {
       const scenes = Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : [];
-      const index = scenes.findIndex((scene) => isObject10(scene) && scene.id === overlay.scene.id);
+      const index = scenes.findIndex((scene) => isObject2(scene) && scene.id === overlay.scene.id);
       if (index < 0) projectError("SCENE_NOT_FOUND", `Legacy scene ${overlay.scene.id} disappeared`);
       scenes[index] = edited.resource;
       overlay.scene.value = edited.resource;
@@ -31837,7 +31807,7 @@ async function applyCollisionOperation(overlay, fields2) {
   const edited = applyCollisionEdits(overlay.scene.value, { ...fields2, sceneId: overlay.scene.id });
   if (overlay.format === "legacy" && overlay.descriptor) {
     const scenes = Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : [];
-    const index = scenes.findIndex((scene) => isObject10(scene) && scene.id === overlay.scene.id);
+    const index = scenes.findIndex((scene) => isObject2(scene) && scene.id === overlay.scene.id);
     if (index < 0) projectError("SCENE_NOT_FOUND", `Legacy scene ${overlay.scene.id} disappeared`);
     scenes[index] = edited.scene;
   }
@@ -31848,11 +31818,11 @@ async function applyCollisionOperation(overlay, fields2) {
 async function applySceneUpdateOperation(overlay, fields2) {
   assertKnownScene(fields2, overlay.scene.id);
   const { sceneId: _sceneId, properties, ...typed } = fields2;
-  if (properties !== void 0 && !isObject10(properties))
+  if (properties !== void 0 && !isObject2(properties))
     projectError("INVALID_INPUT", "Scene properties must be a JSON object");
   assertSafeValue(properties, "Scene properties", true);
   assertSafeValue(typed, "Scene updates", true);
-  const updates = { ...isObject10(properties) ? properties : {}, ...typed };
+  const updates = { ...isObject2(properties) ? properties : {}, ...typed };
   const updated = withNativeScriptEventIds({ ...overlay.scene.value, ...updates });
   validateNativeSceneUpdate(
     overlay.scene.value,
@@ -31863,7 +31833,7 @@ async function applySceneUpdateOperation(overlay, fields2) {
   );
   if (overlay.format === "legacy" && overlay.descriptor) {
     const scenes = Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : [];
-    const index = scenes.findIndex((scene) => isObject10(scene) && scene.id === overlay.scene.id);
+    const index = scenes.findIndex((scene) => isObject2(scene) && scene.id === overlay.scene.id);
     if (index < 0) projectError("SCENE_NOT_FOUND", `Legacy scene ${overlay.scene.id} disappeared`);
     scenes[index] = updated;
   }
@@ -31872,7 +31842,7 @@ async function applySceneUpdateOperation(overlay, fields2) {
   return { resourceId: overlay.scene.id, resourcePath: overlay.scene.relativePath };
 }
 async function applyOperation(overlay, operation, index) {
-  if (!isObject10(operation)) projectError("INVALID_INPUT", `Operation ${index} must be an object`);
+  if (!isObject2(operation)) projectError("INVALID_INPUT", `Operation ${index} must be an object`);
   const type = normalizeOperationType(operation.type);
   const fields2 = operationFields(operation);
   assertSafeValue(fields2, `Operation ${index}`);
@@ -32030,7 +32000,7 @@ async function restoreOriginalFile(projectRoot, staged) {
         `An external editor removed ${staged.relativePath} during transaction rollback`
       );
     const current = await readFile5(staged.absolutePath);
-    if (digest3(current) !== staged.appliedDigest) {
+    if (sha256Hex(current) !== staged.appliedDigest) {
       projectError(
         "TRANSACTION_RECOVERY_CONFLICT",
         `An external editor changed ${staged.relativePath} during transaction rollback`
@@ -32163,7 +32133,7 @@ async function commitLockedStagedFiles(snapshot, ordered, indexedAccess, verifyS
           );
         } else {
           await writeProjectBytesAtomic(snapshot.projectRoot, entry.absolutePath, bytes2);
-          entry.appliedDigest = digest3(bytes2);
+          entry.appliedDigest = sha256Hex(bytes2);
         }
       }
       if (!entry.createOnly && !entry.preserveMode) applied.push(entry);
@@ -32318,13 +32288,13 @@ async function preparedPath(projectRoot, relativePath2) {
   return { absolutePath };
 }
 async function addPreparedFile(snapshot, staged, identities, file2) {
-  if (!isObject10(file2) || file2.before !== null && !Buffer.isBuffer(file2.before) || file2.after !== null && !Buffer.isBuffer(file2.after) && !isObject10(file2.after)) {
+  if (!isObject2(file2) || file2.before !== null && !Buffer.isBuffer(file2.before) || file2.after !== null && !Buffer.isBuffer(file2.after) && !isObject2(file2.after)) {
     projectError("INVALID_INPUT", "Prepared files require exact before bytes and JSON, byte, or deleted after images");
   }
   if (file2.createOnly !== void 0 && (file2.createOnly !== true || file2.before !== null || file2.after === null)) {
     projectError("INVALID_INPUT", "createOnly requires a new nonempty after image and no before image");
   }
-  if (file2.beforeIdentity && (file2.before === null || !Buffer.isBuffer(file2.after) || !file2.before.equals(file2.after) && !file2.preserveMode || file2.beforeIdentity.size !== file2.before.length || file2.beforeIdentity.sha256 !== digest3(file2.before))) {
+  if (file2.beforeIdentity && (file2.before === null || !Buffer.isBuffer(file2.after) || !file2.before.equals(file2.after) && !file2.preserveMode || file2.beforeIdentity.size !== file2.before.length || file2.beforeIdentity.sha256 !== sha256Hex(file2.before))) {
     projectError("INVALID_INPUT", "A guarded native source must match its snapshot identity");
   }
   if (file2.preserveMode && (!file2.beforeIdentity || ![384, 420].includes(file2.beforeIdentity.mode ?? -1) || file2.before === null || !Buffer.isBuffer(file2.after))) {
@@ -32380,7 +32350,7 @@ function withPreparedAssets(snapshot, newAssets, staged) {
     } catch {
       projectError("INVALID_RESOURCE", `Prepared asset ${id3} has invalid native sidecar JSON`);
     }
-    if (!isObject10(metadata2) || metadata2.id !== id3 || metadata2._resourceType !== asset.type || metadata2.filename !== asset.filename) {
+    if (!isObject2(metadata2) || metadata2.id !== id3 || metadata2._resourceType !== asset.type || metadata2.filename !== asset.filename) {
       projectError("INVALID_RESOURCE", `Prepared asset ${id3} does not match its native sidecar identity`);
     }
     const copied = structuredClone(asset);
@@ -32534,7 +32504,7 @@ async function pruneEmptySceneDirectories(projectRoot, relativePaths) {
     try {
       await rmdir2(candidate);
     } catch (error2) {
-      if (!isObject10(error2) || !["ENOENT", "ENOTEMPTY"].includes(String(error2.code))) throw error2;
+      if (!isObject2(error2) || !["ENOENT", "ENOTEMPTY"].includes(String(error2.code))) throw error2;
     }
   }
 }
@@ -32563,7 +32533,7 @@ async function deleteScene(projectPath, input, indexedAccess) {
     if (overlay.format === "legacy") {
       if (!overlay.descriptor) projectError("INVALID_RESOURCE", "Legacy scene deletion is missing its descriptor");
       overlay.descriptor.scenes = (Array.isArray(overlay.descriptor.scenes) ? overlay.descriptor.scenes : []).filter(
-        (scene) => !isObject10(scene) || scene.id !== sceneId
+        (scene) => !isObject2(scene) || scene.id !== sceneId
       );
       await markResource(overlay, overlay.scene, true);
     } else {
@@ -32585,7 +32555,7 @@ async function deleteScene(projectPath, input, indexedAccess) {
 
 // src/build.js
 import { execFile as execFile2, spawn } from "node:child_process";
-import { createHash as createHash12, randomUUID as randomUUID3 } from "node:crypto";
+import { createHash as createHash11, randomUUID as randomUUID3 } from "node:crypto";
 import { constants as constants5, writeFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import {
@@ -32609,7 +32579,7 @@ import { detectDependencies, probeDependencies } from "../scripts/dependency-doc
 import { detectDependencies as detectDependencies2, probeDependencies as probeDependencies2 } from "../scripts/dependency-doctor.mjs";
 
 // src/debug-symbols.js
-import { createHash as createHash10, timingSafeEqual } from "node:crypto";
+import { createHash as createHash9, timingSafeEqual } from "node:crypto";
 var WRAM_START = 49152;
 var WRAM_END = 57343;
 var SCENE_POINTER_BYTES = 3;
@@ -32733,7 +32703,7 @@ function hashDebugRom(rom) {
   if (!(rom instanceof Uint8Array) || rom.byteLength === 0) {
     invalid("A nonempty ROM byte array is required to bind debug symbols");
   }
-  return createHash10("sha256").update(rom).digest("hex");
+  return createHash9("sha256").update(rom).digest("hex");
 }
 function mapScene(definitions, scene) {
   requireNonemptyString(scene.id, "Authored scene ID");
@@ -32834,11 +32804,8 @@ function createDebugManifest(input) {
     ...input.variables?.length ? mapVariables(definitions, input.globals, input.variables, input.globalHeapWords) : {}
   };
 }
-function object3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function validateDebugManifest(manifest, rom, expected = {}) {
-  if (!object3(manifest) || manifest.formatVersion !== 1) invalid("Debug manifest formatVersion must equal 1");
+  if (!isObject2(manifest) || manifest.formatVersion !== 1) invalid("Debug manifest formatVersion must equal 1");
   if (typeof manifest.romSha256 !== "string" || !SHA2562.test(manifest.romSha256)) {
     invalid("Debug manifest requires a lowercase SHA-256 ROM digest");
   }
@@ -32862,7 +32829,7 @@ function validateDebugManifest(manifest, rom, expected = {}) {
   const symbols = /* @__PURE__ */ new Set();
   const locations = /* @__PURE__ */ new Set();
   for (const scene of manifest.scenes) {
-    if (!object3(scene)) invalid("Debug manifest scene mappings must be objects");
+    if (!isObject2(scene)) invalid("Debug manifest scene mappings must be objects");
     requireNonemptyString(scene.sceneId, "Debug manifest scene ID");
     requireIdentifier(scene.sceneSymbol, "scene_", "Debug manifest scene");
     if (typeof scene.bank !== "number" || typeof scene.address !== "number")
@@ -32893,7 +32860,7 @@ function validateDebugManifest(manifest, rom, expected = {}) {
     const variableSymbols = /* @__PURE__ */ new Set();
     const indexes = /* @__PURE__ */ new Set();
     for (const variable of manifest.variables) {
-      if (!object3(variable)) invalid("Debug manifest variable mappings must be objects");
+      if (!isObject2(variable)) invalid("Debug manifest variable mappings must be objects");
       requireNonemptyString(variable.variableId, "Debug manifest variable ID");
       requireIdentifier(variable.variableSymbol, "var_", "Debug manifest variable");
       if (typeof variable.index !== "number" || !Number.isInteger(variable.index) || variable.index < 0 || variable.index >= manifest.maxGlobalVars) {
@@ -32938,7 +32905,7 @@ function decodeCurrentScene(manifest, bytes2) {
 }
 
 // src/build-provenance.js
-import { createHash as createHash11 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 import { constants as constants4 } from "node:fs";
 import { lstat as lstat9, open as open5, readdir as readdir4, realpath as realpath8 } from "node:fs/promises";
 import path19 from "node:path";
@@ -32947,9 +32914,6 @@ var ENGINE_LAYOUT = "gbvm-farptr3-uword16-v1";
 var AUTHENTICATED_BUILDS = /* @__PURE__ */ new WeakMap();
 var SOURCE_OBSERVATIONS = /* @__PURE__ */ new WeakMap();
 var ABI_GLOBAL_HEAPS = /* @__PURE__ */ new WeakMap();
-function systemError2(error2, code) {
-  return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
-}
 function samePath(left, right) {
   return isPathWithinRoot(left, right) && isPathWithinRoot(right, left);
 }
@@ -32981,17 +32945,17 @@ async function hashRegularFile(filename, observation, signal) {
     if (before.dev !== opened.dev || before.ino !== opened.ino || before.size !== opened.size || before.mtimeNs !== opened.mtimeNs || before.ctimeNs !== opened.ctimeNs) {
       throw new Error("Project source changed while its build identity was being collected; retry the build.");
     }
-    const digest7 = createHash11("sha256");
+    const digest3 = createHash10("sha256");
     for await (const chunk of descriptor.createReadStream({ autoClose: false })) {
       signal?.throwIfAborted();
-      digest7.update(chunk);
+      digest3.update(chunk);
     }
     const after = await descriptor.stat({ bigint: true });
     if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
       throw new Error("Project source changed while its build identity was being collected; retry the build.");
     }
     if (observation) observeFile(observation, filename, after);
-    return digest7.digest("hex");
+    return digest3.digest("hex");
   } finally {
     await descriptor.close();
   }
@@ -33002,7 +32966,7 @@ async function collectSourceFiles(root, directory, entries, observation, signal)
   try {
     metadata2 = await lstat9(directory, { bigint: true });
   } catch (error2) {
-    if (systemError2(error2, "ENOENT")) {
+    if (isSystemError(error2, "ENOENT")) {
       observation.update(JSON.stringify([directory, "missing"])).update("\0");
       return;
     }
@@ -33029,7 +32993,7 @@ async function captureBuildSourceProvenance(projectPath, compilerPath, signal) {
   signal?.throwIfAborted();
   const project = await realpath8(path19.resolve(projectPath));
   const root = path19.dirname(project);
-  const observation = createHash11("sha256").update("codex-gb-studio\0build-source-observation-v1\0");
+  const observation = createHash10("sha256").update("codex-gb-studio\0build-source-observation-v1\0");
   const publicEntries = [
     { relativePath: path19.basename(project), sha256: await hashRegularFile(project, observation, signal) }
   ];
@@ -33040,7 +33004,7 @@ async function captureBuildSourceProvenance(projectPath, compilerPath, signal) {
   await collectSourceFiles(root, path19.join(root, "plugins"), plugins, observation, signal);
   const projectRevision2 = new ProjectRevisionTree(publicEntries).revision();
   const pluginRevision = new ProjectRevisionTree(plugins).revision();
-  const sourceFingerprint2 = createHash11("sha256").update("codex-gb-studio\0build-source-v1\0").update(projectRevision2).update(pluginRevision).digest("hex");
+  const sourceFingerprint2 = createHash10("sha256").update("codex-gb-studio\0build-source-v1\0").update(projectRevision2).update(pluginRevision).digest("hex");
   const result = {
     formatVersion: 1,
     projectPath: project,
@@ -33120,11 +33084,11 @@ function verifyBuildDebugAbi(headers) {
   const globalHeapWords = supportedGlobalHeap(vm);
   if (!/typedef\s+struct\s+far_ptr_t\s*\{\s*UBYTE\s+bank\s*;\s*void\s*\*\s*ptr\s*;\s*\}\s*far_ptr_t\s*;/.test(bankdata) || !/extern\s+far_ptr_t\s+current_scene\s*;/.test(dataManager) || globalHeapWords === void 0)
     return void 0;
-  const digest7 = createHash11("sha256").update(`${ENGINE_LAYOUT}\0`);
+  const digest3 = createHash10("sha256").update(`${ENGINE_LAYOUT}\0`);
   for (const bytes2 of [headers.bankdata, headers.dataManager, headers.vm]) {
-    digest7.update(createHash11("sha256").update(bytes2).digest());
+    digest3.update(createHash10("sha256").update(bytes2).digest());
   }
-  const abi = Object.freeze({ layout: ENGINE_LAYOUT, sha256: digest7.digest("hex") });
+  const abi = Object.freeze({ layout: ENGINE_LAYOUT, sha256: digest3.digest("hex") });
   ABI_GLOBAL_HEAPS.set(abi, globalHeapWords);
   return abi;
 }
@@ -33317,7 +33281,7 @@ async function inspectRom(romPath, projectRoot) {
   if (!before.isFile() || before.size > MAX_ROM_BYTES) {
     throw new Error("ROM must be a regular file no larger than 8 MiB");
   }
-  const sameFile4 = (a, b) => ["dev", "ino", "size", "mode", "nlink", "uid", "gid", "mtimeMs", "ctimeMs"].every((key) => a[key] === b[key]);
+  const sameFile2 = (a, b) => ["dev", "ino", "size", "mode", "nlink", "uid", "gid", "mtimeMs", "ctimeMs"].every((key) => a[key] === b[key]);
   const handle = await fs.open(
     absolute,
     constants5.O_RDONLY | (constants5.O_NOFOLLOW ?? 0) | (constants5.O_NONBLOCK ?? 0)
@@ -33325,7 +33289,7 @@ async function inspectRom(romPath, projectRoot) {
   let bytes2;
   try {
     const opened = await handle.stat();
-    if (!opened.isFile() || !sameFile4(before, opened)) throw new Error("ROM changed while opening");
+    if (!opened.isFile() || !sameFile2(before, opened)) throw new Error("ROM changed while opening");
     bytes2 = Buffer.alloc(before.size);
     let offset = 0;
     while (offset < bytes2.length) {
@@ -33334,7 +33298,7 @@ async function inspectRom(romPath, projectRoot) {
       offset += read.bytesRead;
     }
     const extra = await handle.read(Buffer.alloc(1), 0, 1, offset);
-    if (extra.bytesRead !== 0 || !sameFile4(opened, await handle.stat()) || !sameFile4(opened, await fs.lstat(absolute)) || await realpath9(absolute) !== absolute) {
+    if (extra.bytesRead !== 0 || !sameFile2(opened, await handle.stat()) || !sameFile2(opened, await fs.lstat(absolute)) || await realpath9(absolute) !== absolute) {
       throw new Error("ROM changed while reading");
     }
   } finally {
@@ -33364,7 +33328,7 @@ async function inspectRom(romPath, projectRoot) {
   return {
     path: absolute,
     sizeBytes: bytes2.length,
-    sha256: createHash12("sha256").update(bytes2).digest("hex"),
+    sha256: createHash11("sha256").update(bytes2).digest("hex"),
     title,
     colorMode,
     colorFlag,
@@ -33405,11 +33369,11 @@ var GB_STUDIO_EVENT_COMPILE_FAILURE = /^(?:Error: )?Compiling "([^"]+)" failed w
 var GB_STUDIO_EVENT_COMPILE_LINE = /\bCompiling "[^"]+" failed with error "/;
 function failedGbStudioEventCompile(stderr) {
   const text = stderr.replace(/\r\n/g, "\n");
-  const record7 = [...text.matchAll(GB_STUDIO_BUILD_FAILURE)].at(-1);
-  if (!record7) return void 0;
+  const record4 = [...text.matchAll(GB_STUDIO_BUILD_FAILURE)].at(-1);
+  if (!record4) return void 0;
   let failure;
   let match = GB_STUDIO_EVENT_COMPILE_FAILURE.exec(
-    text.slice(record7.index + record7[0].length).split(/\n\s+at /)[0].trimEnd()
+    text.slice(record4.index + record4[0].length).split(/\n\s+at /)[0].trimEnd()
   );
   for (; match; match = GB_STUDIO_EVENT_COMPILE_FAILURE.exec(match[2]))
     failure = { event: match[1], cause: match[2], location: match[3] };
@@ -34003,10 +33967,10 @@ async function sharedBuildToolchain(gbStudioCli) {
     path20.join(studio, "appData", "engine"),
     path20.join(studio, "buildTools", `${process.platform}-${process.arch}`)
   ];
-  const hash4 = createHash12("sha256");
+  const hash2 = createHash11("sha256");
   const add = async (candidate) => {
     const metadata2 = await lstat10(candidate);
-    hash4.update(`${candidate}\0`);
+    hash2.update(`${candidate}\0`);
     if (metadata2.isSymbolicLink()) return false;
     if (metadata2.isDirectory()) {
       const entries = (await readdir5(candidate)).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
@@ -34014,7 +33978,7 @@ async function sharedBuildToolchain(gbStudioCli) {
         if (!await add(path20.join(candidate, entry))) return false;
       }
     } else if (metadata2.isFile()) {
-      hash4.update(await readFile6(candidate)).update("\0");
+      hash2.update(await readFile6(candidate)).update("\0");
     }
     return true;
   };
@@ -34026,7 +33990,7 @@ async function sharedBuildToolchain(gbStudioCli) {
     if (isSystemError(error2, "ENOENT")) return void 0;
     throw error2;
   }
-  return hash4.digest("hex");
+  return hash2.digest("hex");
 }
 async function sharedCacheState(directory, state3 = /* @__PURE__ */ new Map()) {
   let entries;
@@ -34054,7 +34018,7 @@ async function claimSharedBuildDirectory(projectRoot, projectFile, gbStudioCli) 
   if (toolchain === void 0) return void 0;
   const uid = process.getuid();
   const temporaryParent = await selectTrustedTemporaryParent(projectRoot);
-  const name3 = createHash12("sha256").update(`${uid}\0${projectFile}`).digest("hex").slice(0, 6);
+  const name3 = createHash11("sha256").update(`${uid}\0${projectFile}`).digest("hex").slice(0, 6);
   const directory = path20.join(temporaryParent, `gbs_${name3}`);
   try {
     await mkdir4(directory, { mode: 448 });
@@ -34124,8 +34088,8 @@ async function keepOnlyEngineObjects(shared) {
       if (entry.isDirectory()) {
         if (name3 !== "data") await collect(name3);
       } else if (/\.[cs]$/.test(entry.name) && await exists3(path20.join(shared.engineSources, name3))) {
-        const object7 = await readFile6(path20.join(build2, "obj", `${entry.name.slice(0, -2)}.o`)).catch(() => void 0);
-        if (object7) engineObjects.add(object7.toString("base64"));
+        const object6 = await readFile6(path20.join(build2, "obj", `${entry.name.slice(0, -2)}.o`)).catch(() => void 0);
+        if (object6) engineObjects.add(object6.toString("base64"));
       }
     }
   };
@@ -34200,7 +34164,7 @@ async function assertSafeDebugArtifactDestination(destination) {
 }
 async function sameBuildLiveStateLayout(buildRoot) {
   try {
-    for (const [file2, sha2563] of Object.entries(LIVE_STATE_ENGINE_SHA256)) {
+    for (const [file2, sha2562] of Object.entries(LIVE_STATE_ENGINE_SHA256)) {
       if (file2.startsWith("src/states/")) {
         try {
           await lstat10(path20.join(buildRoot, file2));
@@ -34209,7 +34173,7 @@ async function sameBuildLiveStateLayout(buildRoot) {
           throw error2;
         }
       }
-      if (createHash12("sha256").update(await secureInternalBuildFile(buildRoot, file2)).digest("hex") !== sha2563)
+      if (createHash11("sha256").update(await secureInternalBuildFile(buildRoot, file2)).digest("hex") !== sha2562)
         return void 0;
     }
     return LIVE_STATE_LAYOUT;
@@ -34544,7 +34508,7 @@ async function buildRom(options) {
 }
 
 // src/chromatic.js
-import { createHash as createHash14, randomUUID as randomUUID5 } from "node:crypto";
+import { createHash as createHash13, randomUUID as randomUUID5 } from "node:crypto";
 import { constants as constants7 } from "node:fs";
 import { lstat as lstat11, mkdir as mkdir5, open as open6, opendir as opendir2, realpath as realpath10 } from "node:fs/promises";
 import path22 from "node:path";
@@ -34577,13 +34541,13 @@ import {
   writeSync
 } from "node:fs";
 import fs2 from "node:fs";
-import { createHash as createHash13, randomUUID as randomUUID4 } from "node:crypto";
+import { createHash as createHash12, randomUUID as randomUUID4 } from "node:crypto";
 import os2 from "node:os";
 import path21 from "node:path";
 var OWNER = "codex-gb-studio-chromatic-operations-v1";
 var RECORD_LIMIT = 8 * 1024 * 1024;
 var STREAM_LIMIT = 8 * 1024 * 1024;
-var OBSERVATION_DIRECTORY = createHash13("sha256").update("chromatic-observation-slot-v1").digest("hex");
+var OBSERVATION_DIRECTORY = createHash12("sha256").update("chromatic-observation-slot-v1").digest("hex");
 var OPERATION_ID = /^(?:[a-f0-9]{64}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/u;
 var identity2 = (a, b) => a.dev === b.dev && a.ino === b.ino && a.uid === b.uid && a.gid === b.gid && a.mode === b.mode && a.nlink === b.nlink;
 var unchanged = (a, b) => identity2(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
@@ -34643,7 +34607,7 @@ function readOutput(filename) {
     return {
       text: preview.toString("utf8"),
       bytes: bytes2.length,
-      sha256: createHash13("sha256").update(bytes2).digest("hex"),
+      sha256: createHash12("sha256").update(bytes2).digest("hex"),
       previewTruncated: preview.length !== bytes2.length,
       ...Buffer.from(text).equals(bytes2) ? {} : { encoding: "invalid-utf8" },
       complete: false
@@ -34897,7 +34861,7 @@ var ChromaticJournalLease = class {
         constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL,
         384
       );
-      this.#streams.set(`${index}:${stream}`, { fd, bytes: 0, observedBytes: 0, hash: createHash13("sha256") });
+      this.#streams.set(`${index}:${stream}`, { fd, bytes: 0, observedBytes: 0, hash: createHash12("sha256") });
     }
     return names;
   }
@@ -35002,20 +34966,17 @@ var commandFields = {
     "saveMode"
   ]
 };
-function record2(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 function copy(value) {
   return JSON.parse(JSON.stringify(value));
 }
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (record2(value))
+  if (isObject2(value))
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   return JSON.stringify(value) ?? "undefined";
 }
 function fingerprint(value) {
-  return createHash14("sha256").update(canonical(value)).digest("hex");
+  return createHash13("sha256").update(canonical(value)).digest("hex");
 }
 function required2(value, name3) {
   if (!value || value.length > 4096 || value.includes("\0"))
@@ -35023,7 +34984,7 @@ function required2(value, name3) {
   return value;
 }
 function vendorEnvelope(value, operation) {
-  return record2(value) && value.schema_version === 1 && value.operation === operation && typeof value.ok === "boolean" && Object.hasOwn(value, "result") && Object.hasOwn(value, "error") && (value.ok ? record2(value.result) && value.error === null : value.result === null && record2(value.error));
+  return isObject2(value) && value.schema_version === 1 && value.operation === operation && typeof value.ok === "boolean" && Object.hasOwn(value, "result") && Object.hasOwn(value, "error") && (value.ok ? isObject2(value.result) && value.error === null : value.result === null && isObject2(value.error));
 }
 var CARTRIDGE_RECOVERY = "Only ModRetro cartridges are supported. Ask the user to clean the contacts on their cartridge and re-seat it into Chromatic before another authorized attempt.";
 function playerConflictRecovery(player2) {
@@ -35094,7 +35055,7 @@ function vendorRecovery(error2, command, platform) {
   const causes = [error2.message, ...Array.isArray(error2.causes) ? error2.causes : []].filter((value) => typeof value === "string").join("\n");
   const deviceCommand = ["list-devices", "detect-cart", "write-homebrew", "live-demo"].includes(command);
   if (deviceCommand && error2.code === "device.player_ambiguous") {
-    const player2 = record2(error2.details) ? error2.details.requested_player : void 0;
+    const player2 = isObject2(error2.details) ? error2.details.requested_player : void 0;
     return playerConflictRecovery(
       Number.isSafeInteger(player2) && Number(player2) >= 1 && Number(player2) <= 8 ? Number(player2) : void 0
     );
@@ -35108,7 +35069,7 @@ function vendorRecovery(error2, command, platform) {
     causes
   )))
     return deviceAccessRecovery(platform);
-  const phase = record2(error2.details) ? error2.details.phase : void 0;
+  const phase = isObject2(error2.details) ? error2.details.phase : void 0;
   if (["detect-cart", "write-homebrew"].includes(command) && (error2.code === "cartridge.not_readable" || error2.code === "cartridge.inspect_failed" && ["detect", "read_header", "probe_flash"].includes(String(phase)) || error2.code === "flash.unsupported" || error2.code === "flash.write_failed" && phase === "identify"))
     return {
       code: "CHROMATIC_CARTRIDGE_NOT_DETECTED",
@@ -35118,7 +35079,7 @@ function vendorRecovery(error2, command, platform) {
   return void 0;
 }
 function chromaticErrorMessage(error2) {
-  const value = record2(error2) ? error2 : {};
+  const value = isObject2(error2) ? error2 : {};
   const message2 = typeof value.message === "string" ? value.message : "The device operation failed.";
   if (value.code === "feature.developer_mode_required" || /developer[ -]mode|activation|not activated/iu.test(message2)) {
     return "Use ModRetro Updater to activate Developer Mode on this computer, then return here to install your game.";
@@ -35245,11 +35206,11 @@ async function saveMarker(directory, expected, create) {
     await handle.close();
   }
 }
-async function isolatedLiveSaves(root, sha2563, create) {
+async function isolatedLiveSaves(root, sha2562, create) {
   try {
     let current = path22.resolve(root);
     await saveDirectory(current);
-    for (const segment of ["artifacts", "chromatic-live-saves", sha2563]) {
+    for (const segment of ["artifacts", "chromatic-live-saves", sha2562]) {
       const parent = current;
       const parentInfo = await saveDirectory(parent);
       current = path22.join(parent, segment);
@@ -35270,7 +35231,7 @@ async function isolatedLiveSaves(root, sha2563, create) {
           {
             owner: SAVE_OWNER,
             schemaVersion: 1,
-            ...segment === sha2563 ? { romSha256: sha2563 } : {}
+            ...segment === sha2562 ? { romSha256: sha2562 } : {}
           },
           created
         );
@@ -35306,14 +35267,14 @@ async function isolatedLiveSaves(root, sha2563, create) {
 }
 function deviceRows(vendor) {
   const result = vendor.result;
-  if (!record2(result) || !Array.isArray(result.devices) || result.devices.length > 64 || !Array.isArray(result.unmatched)) {
+  if (!isObject2(result) || !Array.isArray(result.devices) || result.devices.length > 64 || !Array.isArray(result.unmatched)) {
     throw new ChromaticDeviceError(
       "CHROMATIC_DISCOVERY_SCHEMA",
       "Device discovery did not return the supported device-list shape. No device was selected."
     );
   }
   for (const device of result.devices) {
-    if (!record2(device) || !Number.isSafeInteger(device.player) || Number(device.player) < 1 || Number(device.player) > 8 || !record2(device.location) || typeof device.location.bus_id !== "string" || device.location.bus_id.length === 0 || device.location.bus_id.length > 64 || !Array.isArray(device.location.port_chain) || device.location.port_chain.length === 0 || device.location.port_chain.length > 16 || device.location.port_chain.some((port) => !Number.isSafeInteger(port) || port < 1 || port > 255) || !record2(device.gwu2x) || device.gwu2x.vendor_id !== 13226 || device.gwu2x.product_id !== 288 || !record2(device.player_function) || device.player_function.vendor_id !== 14158 || device.player_function.product_id !== 256 + Number(device.player)) {
+    if (!isObject2(device) || !Number.isSafeInteger(device.player) || Number(device.player) < 1 || Number(device.player) > 8 || !isObject2(device.location) || typeof device.location.bus_id !== "string" || device.location.bus_id.length === 0 || device.location.bus_id.length > 64 || !Array.isArray(device.location.port_chain) || device.location.port_chain.length === 0 || device.location.port_chain.length > 16 || device.location.port_chain.some((port) => !Number.isSafeInteger(port) || port < 1 || port > 255) || !isObject2(device.gwu2x) || device.gwu2x.vendor_id !== 13226 || device.gwu2x.product_id !== 288 || !isObject2(device.player_function) || device.player_function.vendor_id !== 14158 || device.player_function.product_id !== 256 + Number(device.player)) {
       throw new ChromaticDeviceError(
         "CHROMATIC_DISCOVERY_SCHEMA",
         "Discovery returned an incomplete, ambiguous, or unrecognized device identity. No device was selected."
@@ -35385,7 +35346,7 @@ var ChromaticService = class {
       cartridgeWrite: !writeDispatched ? "not-dispatched" : operation.success ? "vendor-reported-success" : "outcome-unverified",
       processClosure: operation.commands.map((command) => {
         const launch = command.process ?? command.events.find((event) => event.type === "started");
-        const elevation = record2(launch?.elevation) ? launch.elevation : void 0;
+        const elevation = isObject2(launch?.elevation) ? launch.elevation : void 0;
         return {
           command: command.args[0],
           scope: elevation?.method === "windows-run-as" ? "os-broker" : elevation?.method === "polkit" ? "polkit-or-vendor" : launch ? "vendor" : "unobserved",
@@ -35570,7 +35531,7 @@ var ChromaticService = class {
       throw new ChromaticDeviceError(
         error2 instanceof Error && "code" in error2 && typeof error2.code === "string" ? error2.code : "CHROMATIC_JOURNAL_UNAVAILABLE",
         error2 instanceof Error ? error2.message : String(error2),
-        error2 instanceof Error && "details" in error2 && record2(error2.details) ? error2.details : void 0
+        error2 instanceof Error && "details" in error2 && isObject2(error2.details) ? error2.details : void 0
       );
     }
     if (input.deviceToken) this.#selections.delete(input.deviceToken);
@@ -35599,7 +35560,7 @@ var ChromaticService = class {
         operation.error = error2 instanceof ChromaticDeviceError ? { code: error2.code, message: error2.message, ...error2.details ? { details: error2.details } : {} } : {
           code: error2 instanceof Error && "code" in error2 && typeof error2.code === "string" ? error2.code : "CHROMATIC_EXECUTION_ERROR",
           message: error2 instanceof Error ? error2.message : String(error2),
-          ...error2 instanceof Error && "details" in error2 && record2(error2.details) ? { details: error2.details } : {}
+          ...error2 instanceof Error && "details" in error2 && isObject2(error2.details) ? { details: error2.details } : {}
         };
       }
     ).finally(() => {
@@ -35677,7 +35638,7 @@ var ChromaticService = class {
     const index = operation.commands.length - 1;
     command.streamFiles = lease.prepareCommand(index);
     command.observedOutput = { stdout: 0, stderr: 0 };
-    const empty = { observedBytes: 0, retainedBytes: 0, complete: true, sha256: createHash14("sha256").digest("hex") };
+    const empty = { observedBytes: 0, retainedBytes: 0, complete: true, sha256: createHash13("sha256").digest("hex") };
     command.rawOutput = { stdout: { ...empty }, stderr: { ...empty } };
     command.dispatchAttemptedAt = new Date(this.#now()).toISOString();
     lease.write(this.#snapshot(operation));
@@ -35710,7 +35671,7 @@ var ChromaticService = class {
     try {
       parsed = lifecycle ? lifecycle.finish() : JSON.parse(result.stdout.text);
       if (lifecycle?.summary.error) command.jsonError = lifecycle.summary.error;
-      if (record2(parsed)) {
+      if (isObject2(parsed)) {
         if (result.elevation?.method === "windows-run-as") command.elevationResponse = parsed;
         else command.vendor = parsed;
       }
@@ -35738,15 +35699,15 @@ var ChromaticService = class {
     }
     if (result.elevation?.method === "windows-run-as") {
       const binding = result.elevation;
-      if (!record2(parsed) || parsed.schemaVersion !== 1 || parsed.source !== "codex-chromatic-uac" || binding.operationId !== operation.operationId || parsed.operationId !== operation.operationId || args[0] !== "install-drivers" || !/^[a-f0-9]{64}$/u.test(binding.sha256 ?? "") || parsed.executable !== binding.requestedExecutable || parsed.sha256 !== binding.sha256 || canonical(parsed.args) !== canonical(binding.requestedArgs) || parsed.vendorStdout !== "unobserved" || parsed.vendorStderr !== "unobserved" || parsed.handlesDisposed !== true || parsed.disposalError !== void 0 || result.stdout.truncated || !result.stdout.utf8Valid) {
+      if (!isObject2(parsed) || parsed.schemaVersion !== 1 || parsed.source !== "codex-chromatic-uac" || binding.operationId !== operation.operationId || parsed.operationId !== operation.operationId || args[0] !== "install-drivers" || !/^[a-f0-9]{64}$/u.test(binding.sha256 ?? "") || parsed.executable !== binding.requestedExecutable || parsed.sha256 !== binding.sha256 || canonical(parsed.args) !== canonical(binding.requestedArgs) || parsed.vendorStdout !== "unobserved" || parsed.vendorStderr !== "unobserved" || parsed.handlesDisposed !== true || parsed.disposalError !== void 0 || result.stdout.truncated || !result.stdout.utf8Valid) {
         throw new ChromaticDeviceError(
           "CHROMATIC_ELEVATION_UNRESOLVED",
           "The OS elevation result is missing or inconsistent. The vendor process remains unresolved; preserve this operation and do not retry."
         );
       }
       const beforeRequest = parsed.phase === "verify" && parsed.launchAttempted === false;
-      const dismissed = parsed.phase === "request" && parsed.launchAttempted === true && record2(parsed.error) && parsed.error.nativeErrorCode === 1223;
-      if ((beforeRequest || dismissed) && record2(parsed.error) && !Object.hasOwn(parsed, "vendorPid") && !Object.hasOwn(parsed, "vendorExitCode")) {
+      const dismissed = parsed.phase === "request" && parsed.launchAttempted === true && isObject2(parsed.error) && parsed.error.nativeErrorCode === 1223;
+      if ((beforeRequest || dismissed) && isObject2(parsed.error) && !Object.hasOwn(parsed, "vendorPid") && !Object.hasOwn(parsed, "vendorExitCode")) {
         command.elevatedClosure = "not-started";
         throw new ChromaticDeviceError(
           dismissed ? "CHROMATIC_ELEVATION_CANCELLED" : "CHROMATIC_ELEVATION_REFUSED",
@@ -35898,9 +35859,9 @@ var ChromaticService = class {
         "--yes"
       ]);
       const result = vendor2.result;
-      const cartridge = record2(result.cartridge) ? result.cartridge : void 0;
+      const cartridge = isObject2(result.cartridge) ? result.cartridge : void 0;
       const flash = cartridge?.flash;
-      const unidentified = cartridge && (flash === null || record2(flash) && flash.model === null);
+      const unidentified = cartridge && (flash === null || isObject2(flash) && flash.model === null);
       return {
         vendorResult: result,
         selectedDevice: selected.device,
@@ -36000,16 +35961,16 @@ var ChromaticService = class {
 
 // src/contact-sheet.js
 var import_pngjs5 = __toESM(require_png(), 1);
-import { createHash as createHash20 } from "node:crypto";
+import { createHash as createHash19 } from "node:crypto";
 
 // src/palettes.js
-import { createHash as createHash19 } from "node:crypto";
+import { createHash as createHash18 } from "node:crypto";
 import { realpath as realpath12 } from "node:fs/promises";
 import path29 from "node:path";
 
 // src/scene-graphics.js
 var import_pngjs4 = __toESM(require_png(), 1);
-import { createHash as createHash18 } from "node:crypto";
+import { createHash as createHash17 } from "node:crypto";
 import { mkdir as mkdir8, open as open11, readFile as readFile9 } from "node:fs/promises";
 import path28 from "node:path";
 
@@ -36175,7 +36136,6 @@ function packTilePalettes(tilePalettes, capacity) {
 }
 
 // src/graphics.js
-var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAX_IMAGE_BYTES = 24 * 1024 * 1024;
 var MAX_IMAGE_DIMENSION = 4096;
 var MAX_IMAGE_PIXELS = 4096 * 1024;
@@ -36618,13 +36578,13 @@ function analyzeGraphicsImage(image, assetPath, options = {}) {
 
 // src/sprites.js
 var import_pngjs3 = __toESM(require_png(), 1);
-import { createHash as createHash17, randomUUID as randomUUID6 } from "node:crypto";
+import { createHash as createHash16, randomUUID as randomUUID6 } from "node:crypto";
 import { mkdir as mkdir7, open as open10, readFile as readFile8 } from "node:fs/promises";
 import path27 from "node:path";
 
 // src/assets.js
 var import_pngjs2 = __toESM(require_png(), 1);
-import { createHash as createHash16 } from "node:crypto";
+import { createHash as createHash15 } from "node:crypto";
 import { mkdir as mkdir6, open as open9, rename as rename5, rm as rm5 } from "node:fs/promises";
 import path26 from "node:path";
 import { inflateSync } from "node:zlib";
@@ -36692,7 +36652,7 @@ async function onDiskSpelling(root, folder, destination) {
   let current = folder;
   for (const [index, part] of parts.entries()) {
     const entries = await readdir6(current).catch((error2) => {
-      if (isSystemError3(error2, "ENOENT")) return void 0;
+      if (isSystemError(error2, "ENOENT")) return void 0;
       throw error2;
     });
     if (entries === void 0 || !entries.includes(part) && !await projectPathExists(root, path24.join(current, part))) {
@@ -37003,7 +36963,7 @@ async function discoveredAudio(root) {
     const folder = path24.join(root, "assets", format.folder);
     const walk = async (directory) => {
       const entries = await readdir6(directory, { withFileTypes: true }).catch((error2) => {
-        if (isSystemError3(error2, "ENOENT") || isSystemError3(error2, "ENOTDIR")) return [];
+        if (isSystemError(error2, "ENOENT") || isSystemError(error2, "ENOTDIR")) return [];
         throw error2;
       });
       for (const entry of entries) {
@@ -37467,9 +37427,6 @@ var MAX_ENGINE_FIELD_INSPECTION = 250;
 var MAX_ENGINE_FIELD_UPDATES = 100;
 var MAX_ENGINE_FIELD_STRING_LENGTH = 1024;
 var ENGINE_FIELD_RESOURCE_PATH = "project/engine_field_values.gbsres";
-function isObject11(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function assertFieldIdentifier(id3) {
   if (typeof id3 !== "string" || id3.trim() !== id3 || id3.length === 0 || id3.length > 256) {
     throw new GameStudioProjectError(
@@ -37487,7 +37444,7 @@ function fieldEntries(resource, legacy, filename) {
     );
   }
   if (legacy && resource.engineFieldValues === void 0) resource.engineFieldValues = [];
-  if (!Array.isArray(resource.engineFieldValues) || !resource.engineFieldValues.every(isObject11)) {
+  if (!Array.isArray(resource.engineFieldValues) || !resource.engineFieldValues.every(isObject2)) {
     throw new GameStudioProjectError(
       "INVALID_RESOURCE",
       "Engine field metadata must contain an engineFieldValues array",
@@ -37650,7 +37607,7 @@ async function updateEngineFields(projectPath, input, access4) {
   const seen = /* @__PURE__ */ new Set();
   const applied = [];
   for (const requestedUpdate of input.updates) {
-    if (!isObject11(requestedUpdate))
+    if (!isObject2(requestedUpdate))
       throw new GameStudioProjectError("INVALID_INPUT", "Every engine field update must be an object");
     const update = requestedUpdate;
     assertFieldIdentifier(update.id);
@@ -37682,7 +37639,7 @@ async function updateEngineFields(projectPath, input, access4) {
 }
 
 // src/native-sprite-metadata.js
-import { createHash as createHash15 } from "node:crypto";
+import { createHash as createHash14 } from "node:crypto";
 var MAX_NATIVE_METADATA_BYTES = 2 * 1024 * 1024;
 var NATIVE_SPRITE_LIMITS = {
   states: 32,
@@ -37794,7 +37751,7 @@ function parse3(bytes2) {
       return;
     }
     if (char === "{" || char === "[") {
-      const object7 = char === "{", close = object7 ? "}" : "]", keys = /* @__PURE__ */ new Set();
+      const object6 = char === "{", close = object6 ? "}" : "]", keys = /* @__PURE__ */ new Set();
       at++;
       space();
       if (text[at] === close) {
@@ -37802,7 +37759,7 @@ function parse3(bytes2) {
         return;
       }
       while (at < text.length) {
-        if (object7) {
+        if (object6) {
           space();
           if (text[at] !== '"') fail2("Expected a JSON object key.");
           const key = string3();
@@ -37875,7 +37832,7 @@ function createNativeSpriteMetadata(bytes2, pngBytes, image, output, existingIds
   const source = checked.data;
   if (source.width !== image.width || source.height !== image.height)
     fail2("Native sprite metadata dimensions do not match the paired PNG.");
-  if (source.checksum.toLowerCase() !== createHash15("sha1").update(pngBytes).digest("hex"))
+  if (source.checksum.toLowerCase() !== createHash14("sha1").update(pngBytes).digest("hex"))
     fail2("Native sprite metadata checksum does not match the paired PNG bytes.");
   const sourceIds = /* @__PURE__ */ new Set(), outputIds = /* @__PURE__ */ new Set(), idMap = [];
   const add = (kind, value, pointer) => {
@@ -37925,7 +37882,7 @@ function createNativeSpriteMetadata(bytes2, pngBytes, image, output, existingIds
   source.name = output.name;
   source.symbol = `sprite_${resourceSlug(output.name, "sprite")}`.slice(0, 200);
   source.filename = output.filename;
-  source.checksum = createHash15("sha1").update(pngBytes).digest("hex");
+  source.checksum = createHash14("sha1").update(pngBytes).digest("hex");
   const validOutput = schema.safeParse(source);
   if (!validOutput.success) fail2("Output name, filename or identity is invalid for native sprite metadata.");
   return {
@@ -37953,7 +37910,6 @@ function createNativeSpriteMetadata(bytes2, pngBytes, image, output, existingIds
 }
 
 // src/assets.js
-var PNG_SIGNATURE2 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAX_PNG_BYTES = 16 * 1024 * 1024;
 var MAX_PNG_CHUNKS = 4096;
 var MAX_BACKGROUND_DIMENSION = 2040;
@@ -37977,9 +37933,6 @@ var SPRITE_COLORS = /* @__PURE__ */ new Set(["#071821", "#86c06c", "#e0f8cf", "#
 var RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 var MAX_BATCH_IMPORTS = 32;
 var IMPORT_ANALYSIS_VIOLATIONS = 8;
-function isSystemError3(error2, code) {
-  return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
-}
 function assetError(code, message2, resourcePath) {
   throw new GameStudioProjectError(code, message2, resourcePath);
 }
@@ -37992,7 +37945,7 @@ function validatePngDimensions(width, height, resourcePath) {
   }
 }
 function validatePngHeader(bytes2, resourcePath) {
-  if (bytes2.length < 24 || !bytes2.subarray(0, PNG_SIGNATURE2.length).equals(PNG_SIGNATURE2) || bytes2.readUInt32BE(8) !== 13 || bytes2.readUInt32BE(12) !== PNG_IHDR) {
+  if (bytes2.length < 24 || !bytes2.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(8) !== 13 || bytes2.readUInt32BE(12) !== PNG_IHDR) {
     assetError("INVALID_PNG", "The asset is not a valid PNG image.", resourcePath);
   }
   validatePngDimensions(bytes2.readUInt32BE(16), bytes2.readUInt32BE(20), resourcePath);
@@ -38210,7 +38163,7 @@ async function exclusiveWrite(filename, content, created) {
   try {
     handle = await open9(filename, "wx", 384);
   } catch (error2) {
-    if (isSystemError3(error2, "EEXIST")) {
+    if (isSystemError(error2, "EEXIST")) {
       assetError("ASSET_ALREADY_EXISTS", `Refusing to overwrite the existing asset resource ${filename}.`, filename);
     }
     throw error2;
@@ -38400,7 +38353,7 @@ async function prepareImport(root, input, context, access4) {
         width: image.width,
         height: image.height,
         image,
-        checksum: createHash16("sha1").update(bytes2).digest("hex"),
+        checksum: createHash15("sha1").update(bytes2).digest("hex"),
         profile: input.sprite.profile,
         templateAssetId: input.sprite.templateAssetId,
         paletteIndex: input.sprite.paletteIndex,
@@ -38544,7 +38497,7 @@ async function importNativeMetadata(projectRoot, input, access4) {
           sourceSha256: png.identity.sha256,
           metadataSha256: metadata2.identity.sha256,
           outputSha256: png.identity.sha256,
-          outputMetadataSha256: createHash16("sha256").update(outputMetadata).digest("hex")
+          outputMetadataSha256: createHash15("sha256").update(outputMetadata).digest("hex")
         }
       };
     },
@@ -39228,7 +39181,7 @@ async function writePreview(root, relativeOutput, image) {
     outputPath: projectRelativePath(root, output),
     width: image.width,
     height: image.height,
-    sha256: createHash17("sha256").update(bytes2).digest("hex"),
+    sha256: createHash16("sha256").update(bytes2).digest("hex"),
     provenance: "authored-source-composite",
     emulatorFrame: false,
     label: SOURCE_PREVIEW_LABEL
@@ -39543,9 +39496,9 @@ function sceneSpriteReferences(scene, shared) {
   function walk(events, overrides, callStack) {
     if (!Array.isArray(events)) return;
     for (const event of events) {
-      if (!isObject3(event) || typeof event.command !== "string") continue;
+      if (!isObject2(event) || typeof event.command !== "string") continue;
       const override = overrides?.[event.id];
-      const args = { ...isObject3(event.args) ? event.args : {}, ...isObject3(override?.args) ? override.args : {} };
+      const args = { ...isObject2(event.args) ? event.args : {}, ...isObject2(override?.args) ? override.args : {} };
       if (args.__comment) continue;
       const entry = catalog[event.command];
       if (!entry && !COMPILER_EVENT_COMMANDS.has(event.command)) certain = false;
@@ -39561,7 +39514,7 @@ function sceneSpriteReferences(scene, shared) {
           walk(script.resource.script, void 0, [...callStack, script.id]);
         continue;
       }
-      for (const branch of isObject3(event.children) ? Object.values(event.children) : [])
+      for (const branch of isObject2(event.children) ? Object.values(event.children) : [])
         walk(branch, overrides, callStack);
     }
   }
@@ -39574,7 +39527,7 @@ function sceneSpriteReferences(scene, shared) {
     }
     return {
       resource: { ...resource, ...prefab.resource, _resourceType: resource._resourceType, id: resource.id },
-      overrides: isObject3(resource.prefabScriptOverrides) ? resource.prefabScriptOverrides : void 0
+      overrides: isObject2(resource.prefabScriptOverrides) ? resource.prefabScriptOverrides : void 0
     };
   }
   const actors = [];
@@ -40237,15 +40190,15 @@ async function previewSceneContactSheet(projectPath, input, access4) {
       input.colorCorrection
     );
     const png2 = import_pngjs4.PNG.sync.write(image);
-    const sha2563 = createHash18("sha256").update(png2).digest("hex");
+    const sha2562 = createHash17("sha256").update(png2).digest("hex");
     images.push({
       png: png2,
-      sha256: sha2563,
+      sha256: sha2562,
       label: `SCENE ${index + 1} / ${metadata2.displayMode.toUpperCase()}`,
       caption: "STATIC / NOT GAMEPLAY"
     });
     const { projectRoot: _root, projectPath: _project, ...details } = metadata2;
-    scenes.push({ ...details, sha256: sha2563 });
+    scenes.push({ ...details, sha256: sha2562 });
   }
   const { png, ...sheet } = renderContactSheetPng({
     images,
@@ -40285,7 +40238,7 @@ var PALETTE_INSPECTION_BYTE_LIMIT = 30 * 1024;
 var PALETTE_INSPECTION_CURSOR_QUERY = "palette-inspect-v1";
 async function paletteCursorQuery(projectPath) {
   const canonicalDescriptor = await realpath12(projectPath);
-  return `${PALETTE_INSPECTION_CURSOR_QUERY}:${createHash19("sha256").update(canonicalDescriptor).digest("hex")}`;
+  return `${PALETTE_INSPECTION_CURSOR_QUERY}:${createHash18("sha256").update(canonicalDescriptor).digest("hex")}`;
 }
 async function paletteProject(projectPath, access4) {
   if (access4 === void 0) return inventoryProject(projectPath);
@@ -40797,7 +40750,6 @@ var GUTTER = 12;
 var PADDING = 8;
 var FONT_WIDTH = 5;
 var FONT_HEIGHT = 7;
-var PNG_SIGNATURE3 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var CANVAS_COLOR = [13, 17, 23, 255];
 var CARD_COLOR = [22, 27, 34, 255];
 var BORDER_COLOR = [48, 54, 61, 255];
@@ -41018,10 +40970,10 @@ function renderContactSheetPng(options) {
     validateLabel(entry.label, "label");
     validateLabel(entry.caption, "caption");
     const bytes2 = entry.png;
-    if (!Buffer.isBuffer(bytes2) || bytes2.length < 33 || bytes2.length > MAX_CONTACT_SHEET_FRAME_BYTES || !bytes2.subarray(0, PNG_SIGNATURE3.length).equals(PNG_SIGNATURE3) || bytes2.readUInt32BE(8) !== 13 || bytes2.toString("ascii", 12, 16) !== "IHDR") {
+    if (!Buffer.isBuffer(bytes2) || bytes2.length < 33 || bytes2.length > MAX_CONTACT_SHEET_FRAME_BYTES || !bytes2.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(8) !== 13 || bytes2.toString("ascii", 12, 16) !== "IHDR") {
       throw new ContactSheetError("Contact-sheet images must be bounded PNG bytes");
     }
-    if (typeof entry.sha256 !== "string" || !/^[a-f\d]{64}$/u.test(entry.sha256) || createHash20("sha256").update(bytes2).digest("hex") !== entry.sha256) {
+    if (typeof entry.sha256 !== "string" || !/^[a-f\d]{64}$/u.test(entry.sha256) || createHash19("sha256").update(bytes2).digest("hex") !== entry.sha256) {
       throw new ContactSheetError("The contact-sheet image SHA-256 does not match its PNG bytes");
     }
     const width2 = bytes2.readUInt32BE(16);
@@ -41099,7 +41051,7 @@ function renderContactSheetPng(options) {
     throw new ContactSheetError("The contact-sheet PNG exceeds its byte limit");
   return {
     png,
-    sha256: createHash20("sha256").update(png).digest("hex"),
+    sha256: createHash19("sha256").update(png).digest("hex"),
     width,
     height,
     columns,
@@ -41132,9 +41084,6 @@ var DEFAULT_PROJECTED_EVENTS = 50;
 var DEFAULT_PROJECTED_PAGES = 50;
 var CONTROL_TOKEN = /\$[^$\r\n]+\$|@[^@\r\n]+@|\{\{[^{}\r\n]+\}\}|\\[A-Za-z][A-Za-z0-9]*(?:\[[^\]\r\n]*\])?/gu;
 var indexedFontCache = /* @__PURE__ */ new WeakMap();
-function isObject12(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isInsideRoot(root, candidate) {
   const relative6 = path30.relative(root, candidate);
   return relative6 !== ".." && !relative6.startsWith(`..${path30.sep}`) && !path30.isAbsolute(relative6);
@@ -41176,7 +41125,7 @@ async function readBoundedProjectFile(projectRoot, resourcePath) {
   return readFile10(canonical2);
 }
 function decodeFontImage(bytes2, resourcePath) {
-  if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+  if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new GameStudioProjectError("INVALID_FONT", `Font is not a valid PNG: ${resourcePath}`, resourcePath);
   }
   const width = bytes2.readUInt32BE(16);
@@ -41221,7 +41170,7 @@ function measureGlyph(image, index) {
   return Math.max(width, 1);
 }
 function addMappings(mapping, source, glyphCount) {
-  if (!isObject12(source)) return;
+  if (!isObject2(source)) return;
   for (const [key, value] of Object.entries(source)) {
     if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value < glyphCount) {
       mapping.set(key, value);
@@ -41264,7 +41213,7 @@ async function loadDialogueFont(inventory, requestedFontId, access4) {
   addMappings(mapping, asset.mapping, glyphCount);
   try {
     const parsed = JSON.parse((await readBoundedProjectFile(inventory.projectRoot, mappingPath)).toString("utf8"));
-    if (isObject12(parsed)) addMappings(mapping, parsed.mapping, glyphCount);
+    if (isObject2(parsed)) addMappings(mapping, parsed.mapping, glyphCount);
   } catch (error2) {
     if (!(error2 instanceof GameStudioProjectError) || error2.code !== "RESOURCE_NOT_FOUND") throw error2;
   }
@@ -41294,8 +41243,8 @@ function isDialogueCommand(command) {
 function collectResourceEvents(resource, sceneId, owner3, requestedScriptKey, destination) {
   const visit = (values, scriptKey) => {
     for (const candidate of values) {
-      if (!isObject12(candidate)) continue;
-      const args = isObject12(candidate.args) ? candidate.args : {};
+      if (!isObject2(candidate)) continue;
+      const args = isObject2(candidate.args) ? candidate.args : {};
       if (isDialogueCommand(candidate.command) && (typeof args.text === "string" || Array.isArray(args.text) && args.text.every((page) => typeof page === "string"))) {
         if (destination.length >= MAX_EVENTS)
           throw new GameStudioProjectError(
@@ -41314,7 +41263,7 @@ function collectResourceEvents(resource, sceneId, owner3, requestedScriptKey, de
           position: args.position === "top" ? "top" : "bottom"
         });
       }
-      if (isObject12(candidate.children)) {
+      if (isObject2(candidate.children)) {
         for (const branch of Object.values(candidate.children)) {
           if (Array.isArray(branch)) visit(branch, scriptKey);
         }
@@ -41441,7 +41390,7 @@ function focusedDialogueInventory(access4, input) {
   const authoredSettings = indexedAccess.authoredFile?.("project/settings.gbsres")?.json;
   const descriptorPath = path30.relative(access4.projectRoot, access4.projectPath).split(path30.sep).join("/");
   const descriptor = indexedAccess.authoredFile?.(descriptorPath)?.json;
-  const legacySettings = isObject12(descriptor?.settings) ? descriptor.settings : void 0;
+  const legacySettings = isObject2(descriptor?.settings) ? descriptor.settings : void 0;
   const settings = indexedAccess.settings?.() ?? authoredSettings ?? legacySettings ?? inspection.settings;
   let scenes;
   if (input.sceneId) {
@@ -41736,7 +41685,7 @@ async function analyzeDialogue(projectPath, input = {}, access4) {
 }
 
 // src/recording-maintenance.js
-import { createHash as createHash24, randomUUID as randomUUID7 } from "node:crypto";
+import { createHash as createHash22, randomUUID as randomUUID7 } from "node:crypto";
 import {
   closeSync as closeSync5,
   constants as constants11,
@@ -41754,12 +41703,11 @@ import {
 import { dirname as dirname2, join as join4, relative as relative4, resolve as resolve2, sep as sep4 } from "node:path";
 
 // src/recording-location.js
-import { createHash as createHash21 } from "node:crypto";
+import { createHash as createHash20 } from "node:crypto";
 import { closeSync as closeSync2, constants as constants8, fstatSync as fstatSync2, lstatSync as lstatSync3, openSync as openSync2, readSync as readSync2, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 var MAX_BYTES = 512 * 1024 * 1024;
 var MAX_ENTRIES = 2e4;
-var digest4 = (bytes2) => createHash21("sha256").update(bytes2).digest("hex");
 var inside = (root, path48) => path48 === root || path48.startsWith(root + sep);
 function unchanged2(a, b) {
   return ["dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtimeMs", "ctimeMs"].every((key) => a[key] === b[key]);
@@ -41812,17 +41760,17 @@ function recordingInventory(root, resolvePath) {
       const fd = openSync2(path48, constants8.O_RDONLY | (constants8.O_NOFOLLOW ?? 0) | (constants8.O_NONBLOCK ?? 0));
       try {
         if (!unchanged2(before, fstatSync2(fd))) throw new Error("Recording member identity changed");
-        const hash4 = createHash21("sha256");
+        const hash2 = createHash20("sha256");
         const buffer = Buffer.alloc(65536);
         let n;
         let size = 0;
         while ((n = readSync2(fd, buffer)) > 0) {
           size += n;
           if (size > before.size) throw new Error("Recording member grew");
-          hash4.update(buffer.subarray(0, n));
+          hash2.update(buffer.subarray(0, n));
         }
         if (size !== before.size || !unchanged2(before, fstatSync2(fd))) throw new Error("Recording member changed");
-        rows.push([name3, "file", before.mode & 4095, size, hash4.digest("hex")]);
+        rows.push([name3, "file", before.mode & 4095, size, hash2.digest("hex")]);
       } finally {
         closeSync2(fd);
       }
@@ -41833,7 +41781,7 @@ function recordingInventory(root, resolvePath) {
   for (const marker of [".gitignore", ".npmignore"])
     if (!bytes(join(root, marker), 2).equals(Buffer.from("*\n")))
       throw new Error("Recording package-protection marker differs");
-  return { digest: digest4(JSON.stringify(rows)), bytes: total, entries: count3 };
+  return { digest: sha256Hex(JSON.stringify(rows)), bytes: total, entries: count3 };
 }
 function recordingArchiveOrigin(root, resolvePath) {
   const container = dirname(root);
@@ -41866,7 +41814,7 @@ function recordingArchiveOrigin(root, resolvePath) {
   if (JSON.stringify(inventory) !== JSON.stringify(value.inventory))
     throw new Error("Archived recording bytes or modes changed");
   const manifest = bytes(join(root, "recording.json"), 1024 * 1024);
-  if (digest4(manifest) !== value.manifestSha256 || JSON.parse(manifest.toString("utf8")).sessionId !== value.sessionId)
+  if (sha256Hex(manifest) !== value.manifestSha256 || JSON.parse(manifest.toString("utf8")).sessionId !== value.sessionId)
     throw new Error("Archived recording provenance changed");
   if (!unchanged2(before, lstatSync3(original)) || !bytes(mappingPath, 4096).equals(raw) || !bytes(pointer, 4096).equals(raw))
     throw new Error("Archive mapping changed during reading");
@@ -41874,12 +41822,11 @@ function recordingArchiveOrigin(root, resolvePath) {
 }
 
 // src/recording-archive.js
-import { createHash as createHash23 } from "node:crypto";
+import { createHash as createHash21 } from "node:crypto";
 import { closeSync as closeSync4, constants as constants10, fstatSync as fstatSync4, lstatSync as lstatSync5, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync5 } from "node:fs";
 import { isAbsolute as isAbsolute3, join as join3, relative as relative3, resolve, sep as sep3 } from "node:path";
 
 // src/recording-common.js
-import { createHash as createHash22 } from "node:crypto";
 import { closeSync as closeSync3, constants as constants9, fstatSync as fstatSync3, lstatSync as lstatSync4, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4 } from "node:fs";
 import { isAbsolute as isAbsolute2, join as join2, relative as relative2, sep as sep2 } from "node:path";
 var MAX_FRAMES = 3600;
@@ -41910,9 +41857,6 @@ var DEFAULT_RECORDING_LIMITS = {
 var BUTTONS = /* @__PURE__ */ new Set(["a", "b", "up", "down", "left", "right", "start", "select"]);
 var RecordingLimitError = class extends Error {
 };
-function isObject13(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 function boundedInteger(value, name3, minimum, maximum) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
     throw new Error(`${name3} must be an integer between ${minimum} and ${maximum}`);
@@ -41931,7 +41875,7 @@ function recordingBranchId(value) {
   return value;
 }
 function recordingPrefixPin(value) {
-  if (!isObject13(value) || Object.keys(value).sort().join(",") !== "byteLength,eventCount,eventDigest,sha256") {
+  if (!isObject2(value) || Object.keys(value).sort().join(",") !== "byteLength,eventCount,eventDigest,sha256") {
     throw new Error("A recording prefix pin requires eventCount, eventDigest, byteLength, and sha256");
   }
   return {
@@ -41948,7 +41892,7 @@ function recordedButtons(value) {
   return [...value];
 }
 function normalizedRecordedAction(value) {
-  if (!isObject13(value)) throw new Error("Recording contains an invalid normalized action");
+  if (!isObject2(value)) throw new Error("Recording contains an invalid normalized action");
   if (value.type === "step" && Object.keys(value).sort().join(",") === "frames,type") {
     return { type: "step", frames: boundedInteger(value.frames, "recorded step", 1, MAX_FRAMES) };
   }
@@ -41958,7 +41902,7 @@ function normalizedRecordedAction(value) {
   throw new Error("Recording contains an unsupported normalized action");
 }
 function recordingLimits(value) {
-  if (!isObject13(value)) throw new Error("The recording option must be an object or false");
+  if (!isObject2(value)) throw new Error("The recording option must be an object or false");
   const unknown2 = Object.keys(value).filter(
     (key) => key !== "outputPath" && !Object.hasOwn(DEFAULT_RECORDING_LIMITS, key)
   );
@@ -41998,7 +41942,7 @@ function encoded(value) {
     if (typeof item === "boolean") return String(item);
     if (typeof item === "number" && Number.isFinite(item)) return JSON.stringify(item);
     if (Array.isArray(item)) return `[${item.map(encode).join(",")}]`;
-    if (isObject13(item))
+    if (isObject2(item))
       return `{${Object.keys(item).sort(compareUnicode).map((key) => `${asciiString(key)}:${encode(item[key])}`).join(",")}}`;
     throw new Error("Recording JSON must contain only finite JSON values");
   }
@@ -42067,9 +42011,6 @@ function canonicalEventPayload(line) {
   whitespace();
   if (offset !== source.length) throw new Error("Unexpected trailing recording JSON bytes");
   return Buffer.from(result, "utf8");
-}
-function digest5(value) {
-  return createHash22("sha256").update(value).digest("hex");
 }
 function inside2(root, value) {
   const path48 = relative2(root, value);
@@ -42159,12 +42100,12 @@ var JOURNAL_CHUNK_BYTES = 64 * 1024;
 var RECORDING_STATUSES = /* @__PURE__ */ new Set(["recording", "stopped", "cancelled", "failed", "interrupted"]);
 var PRESENTATION_TYPES = /* @__PURE__ */ new Set(["unrendered", "normal", "lcd-off", "artificial", "repeat"]);
 var utf8 = new TextDecoder("utf-8", { fatal: true });
-function object4(value, message2) {
+function object3(value, message2) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(message2);
   return value;
 }
 function jsonObject(bytes2, message2) {
-  return object4(JSON.parse(utf8.decode(bytes2)), message2);
+  return object3(JSON.parse(utf8.decode(bytes2)), message2);
 }
 function sameJson(left, right) {
   return encoded(left ?? null).equals(encoded(right ?? null));
@@ -42182,9 +42123,6 @@ function requireBranch(branches, branchId) {
   const branch = branches[branchId];
   if (branch === void 0) throw new Error("Recording event names an unavailable branch");
   return branch;
-}
-function sameFile(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
 }
 function guardDirectory(root, identity6, canonical2) {
   const current = lstatSync5(root);
@@ -42234,17 +42172,17 @@ function* journalLines(descriptor, checkCancel) {
   }
 }
 function verifyReadPrefix(descriptor, byteLength, expected, checkCancel) {
-  const hash4 = createHash23("sha256");
+  const hash2 = createHash21("sha256");
   const chunk = Buffer.allocUnsafe(JOURNAL_CHUNK_BYTES);
   let position2 = 0;
   while (position2 < byteLength) {
     checkCancel?.();
     const count3 = readSync4(descriptor, chunk, 0, Math.min(chunk.length, byteLength - position2), position2);
     if (count3 === 0) throw new Error("The recording event source changed while it was being read");
-    hash4.update(chunk.subarray(0, count3));
+    hash2.update(chunk.subarray(0, count3));
     position2 += count3;
   }
-  if (hash4.digest("hex") !== expected) throw new Error("The recording event source changed while it was being read");
+  if (hash2.digest("hex") !== expected) throw new Error("The recording event source changed while it was being read");
 }
 function readRecording(root, resolvePath, options = {}) {
   const { review, checkCancel } = options;
@@ -42286,7 +42224,7 @@ function readRecording(root, resolvePath, options = {}) {
   let bootFinished = false;
   let final;
   let totalFrames = 0;
-  const eventHasher = createHash23("sha256");
+  const eventHasher = createHash21("sha256");
   let eventBytes = 0;
   let selectedPrefix;
   const flags = constants10.O_RDONLY | (process.platform === "win32" ? 0 : constants10.O_NOFOLLOW ?? 0) | (constants10.O_NONBLOCK ?? 0);
@@ -42311,7 +42249,7 @@ function readRecording(root, resolvePath, options = {}) {
       boundedInteger(row.sequence, "recording event sequence", 1, MAX_RECORDING_EVENTS);
       boundedInteger(row.frame, "recording event frame", 0, MAX_RECORDING_FRAMES);
       recordingBranchId(row.branchId);
-      if (row.sequence !== sequence2 + 1 || row.previousDigest !== previous || digest5(canonicalEventPayload(line)) !== claimed) {
+      if (row.sequence !== sequence2 + 1 || row.previousDigest !== previous || sha256Hex(canonicalEventPayload(line)) !== claimed) {
         throw new Error("Recording event integrity check failed");
       }
       sequence2 += 1;
@@ -42332,13 +42270,13 @@ function readRecording(root, resolvePath, options = {}) {
           actions: [],
           evidence: [],
           frame: 0,
-          startingCondition: object4(row.startingCondition, "Recording starting condition must be an object")
+          startingCondition: object3(row.startingCondition, "Recording starting condition must be an object")
         };
       } else if (sequence2 === 1) {
         throw new Error("Recording header is missing");
       } else if (kind === "boot_complete") {
         const branch = requireBranch(branches, current);
-        branch.startingCondition = object4(row.startingCondition, "Recording starting condition must be an object");
+        branch.startingCondition = object3(row.startingCondition, "Recording starting condition must be an object");
         branch.frame = row.frame;
         totalFrames = Math.max(totalFrames, row.frame);
         bootFinished = true;
@@ -42349,7 +42287,7 @@ function readRecording(root, resolvePath, options = {}) {
           throw new Error("The imported recording prefix must contain bounded action and evidence arrays");
         }
         const evidence = row.prefixEvidence.map((value) => {
-          const item = { ...object4(value, "Imported recorded frame metadata must be an object") };
+          const item = { ...object3(value, "Imported recorded frame metadata must be an object") };
           const filename = evidencePath(root, item.file, resolvePath, true);
           delete item.file;
           return { ...item, path: filename, ...presentationFields(item) };
@@ -42361,7 +42299,7 @@ function readRecording(root, resolvePath, options = {}) {
           parentBranchId: recordingBranchId(row.parentBranchId),
           sourceSessionId: row.sourceSessionId,
           checkpointId: row.checkpointId,
-          startingCondition: object4(row.startingCondition, "Recording starting condition must be an object")
+          startingCondition: object3(row.startingCondition, "Recording starting condition must be an object")
         };
       } else if (kind === "action") {
         const branch = requireBranch(branches, row.branchId);
@@ -42473,7 +42411,7 @@ function readRecording(root, resolvePath, options = {}) {
     truncatedTail,
     prefixPin: selectedPrefix ?? completePrefix,
     sourcePins: {
-      manifest: { byteLength: manifestBytes.length, sha256: digest5(manifestBytes) },
+      manifest: { byteLength: manifestBytes.length, sha256: sha256Hex(manifestBytes) },
       events: completePrefix,
       observedEventLogBytes: observedEventBytes,
       finalized: manifest.status !== "recording",
@@ -42503,7 +42441,7 @@ function readRecording(root, resolvePath, options = {}) {
       if (rows.at(-1) === "") rows.pop();
       const last = rows.at(-1);
       if (last !== void 0) {
-        const failure = object4(JSON.parse(last), "Worker failure record must be an object");
+        const failure = object3(JSON.parse(last), "Worker failure record must be an object");
         result.failure = Object.hasOwn(failure, "message") ? failure.message : "The emulator worker was interrupted";
       }
     }
@@ -42687,21 +42625,21 @@ var RecordingMaintenance = class {
       } catch {
         throw new AccessSnapshotError("invalid-record");
       }
-      const record7 = parsed;
-      if (record7 === null || typeof record7 !== "object" || Array.isArray(record7) || Object.keys(record7).sort().join(",") !== "pid,schemaVersion,token" || record7.schemaVersion !== 1 || !Number.isSafeInteger(record7.pid) || record7.pid <= 0 || typeof record7.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(record7.token)) {
+      const record4 = parsed;
+      if (record4 === null || typeof record4 !== "object" || Array.isArray(record4) || Object.keys(record4).sort().join(",") !== "pid,schemaVersion,token" || record4.schemaVersion !== 1 || !Number.isSafeInteger(record4.pid) || record4.pid <= 0 || typeof record4.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(record4.token)) {
         throw new AccessSnapshotError("invalid-record");
       }
-      const sha2563 = createHash24("sha256").update(raw).digest("hex");
+      const sha2562 = createHash22("sha256").update(raw).digest("hex");
       verifyDirectories();
       if (!same(st, lstatSync6(path48))) throw new AccessSnapshotError("changed");
-      const matchesSavedLease = this.#leased && this.#savedLease !== void 0 && same(st, this.#savedLease.identity) && sha2563 === this.#savedLease.sha256;
+      const matchesSavedLease = this.#leased && this.#savedLease !== void 0 && same(st, this.#savedLease.identity) && sha2562 === this.#savedLease.sha256;
       return {
         ...common,
         lease: {
           status: "present-unverified",
-          sha256: sha2563,
+          sha256: sha2562,
           identity: identity3(st),
-          ownerPidClaim: record7.pid,
+          ownerPidClaim: record4.pid,
           ownerProcessStart: "unrecorded",
           ownerReachability: "unknown",
           relation: matchesSavedLease ? "matches-this-services-saved-lease" : "not-established"
@@ -42772,7 +42710,7 @@ var RecordingMaintenance = class {
     this.#leased = true;
     this.#savedLease = {
       identity: identity6,
-      sha256: createHash24("sha256").update(bytes2).digest("hex"),
+      sha256: createHash22("sha256").update(bytes2).digest("hex"),
       acquiredAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     return () => {
@@ -42789,13 +42727,13 @@ var RecordingMaintenance = class {
     return recordingInventory(root, this.resolvePath);
   }
   #closed(root) {
-    const record7 = readRecording(root, this.resolvePath);
-    if (!["stopped", "cancelled", "failed"].includes(record7.status) || !record7.sourcePins.finalized || record7.truncatedTail) {
+    const record4 = readRecording(root, this.resolvePath);
+    if (!["stopped", "cancelled", "failed"].includes(record4.status) || !record4.sourcePins.finalized || record4.truncatedTail) {
       throw new Error(
         "Only a finalized recording with complete integrity is eligible; live or unresolved recordings cannot be archived"
       );
     }
-    return record7;
+    return record4;
   }
   #archiveRoot() {
     return join4(this.project, "artifacts", "recording-archives");
@@ -42816,8 +42754,8 @@ var RecordingMaintenance = class {
     const current = this.#snapshot(value.archivePath);
     if (JSON.stringify(current) !== JSON.stringify(value.inventory))
       throw new Error("Archived recording bytes or modes changed");
-    const record7 = this.#closed(value.archivePath);
-    if (record7.sessionId !== value.sessionId || record7.sourcePins.manifest.sha256 !== value.manifestSha256)
+    const record4 = this.#closed(value.archivePath);
+    if (record4.sessionId !== value.sessionId || record4.sourcePins.manifest.sha256 !== value.manifestSha256)
       throw new Error("Archived recording provenance changed");
     return { raw, value };
   }
@@ -42844,7 +42782,7 @@ var RecordingMaintenance = class {
     const original = this.resolvePath(recordingPath, { existing: true });
     if (this.isArchived(original) || !absent2(join4(original, POINTER)) || original === this.project || inside3(original, this.#archiveRoot()))
       throw new Error("Recording archive source is not eligible");
-    const record7 = this.#closed(original);
+    const record4 = this.#closed(original);
     const inventory = this.#snapshot(original);
     const archiveRoot = this.#archiveRoot();
     this.#protectedDirectory(archiveRoot);
@@ -42858,8 +42796,8 @@ var RecordingMaintenance = class {
       schemaVersion: 1,
       originalPath: original,
       archivePath,
-      sessionId: record7.sessionId,
-      manifestSha256: record7.sourcePins.manifest.sha256,
+      sessionId: record4.sessionId,
+      manifestSha256: record4.sourcePins.manifest.sha256,
       inventory
     };
     const raw = Buffer.from(JSON.stringify(value) + "\n");
@@ -42895,12 +42833,12 @@ var RecordingMaintenance = class {
       const sibling = join4(dirname2(original), name3);
       const st = lstatSync6(sibling);
       if (!st.isDirectory() || st.isSymbolicLink() || absent2(join4(sibling, "recording.json"))) continue;
-      const record7 = JSON.parse(file(join4(sibling, "recording.json"), 1024 * 1024).toString("utf8"));
-      if (!record7 || typeof record7 !== "object" || Array.isArray(record7))
+      const record4 = JSON.parse(file(join4(sibling, "recording.json"), 1024 * 1024).toString("utf8"));
+      if (!record4 || typeof record4 !== "object" || Array.isArray(record4))
         throw new Error("Invalid neighboring recording quota metadata");
-      if (record7.kind !== "gb-studio-playtest") continue;
+      if (record4.kind !== "gb-studio-playtest") continue;
       siblings++;
-      reserved += boundedInteger(record7.limits?.maxBytes, "recording reservation", 64 * 1024, MAX_RECORDING_BYTES);
+      reserved += boundedInteger(record4.limits?.maxBytes, "recording reservation", 64 * 1024, MAX_RECORDING_BYTES);
     }
     if (siblings >= MAX_SIBLING_RECORDINGS || reserved + restored.limits.maxBytes > MAX_SIBLING_RESERVED_BYTES) {
       throw new Error("Restoring this recording would exceed retained recording quota");
@@ -42923,7 +42861,7 @@ var RecordingMaintenance = class {
 // src/emulator.js
 var import_pngjs7 = __toESM(require_png(), 1);
 import { spawn as spawn2 } from "node:child_process";
-import { createHash as createHash25, randomUUID as randomUUID8 } from "node:crypto";
+import { createHash as createHash23, randomUUID as randomUUID8 } from "node:crypto";
 import {
   accessSync,
   appendFileSync,
@@ -43183,7 +43121,7 @@ var EmulatorService = class {
   }
   #romDigest(validatedRom) {
     try {
-      return createHash25("sha256").update(readFileSync2(validatedRom)).digest("hex");
+      return createHash23("sha256").update(readFileSync2(validatedRom)).digest("hex");
     } catch (error2) {
       throw new EmulatorError(`The emulator ROM could not be read: ${validatedRom}`, {
         cause: error2
@@ -43200,7 +43138,7 @@ var EmulatorService = class {
     }
     for (const sample of result.samples) {
       const bytes2 = typeof sample?.pngBase64 === "string" ? Buffer.from(sample.pngBase64, "base64") : Buffer.alloc(0);
-      if (!["expected", "actual", "end"].includes(sample.role) || !Number.isSafeInteger(sample.frame) || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash25("sha256").update(bytes2).digest("hex") !== sample.sha256) {
+      if (!["expected", "actual", "end"].includes(sample.role) || !Number.isSafeInteger(sample.frame) || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash23("sha256").update(bytes2).digest("hex") !== sample.sha256) {
         throw new EmulatorError("The replay returned an image that failed PNG dimension or SHA-256 verification");
       }
     }
@@ -43706,11 +43644,11 @@ var EmulatorService = class {
         throw new EmulatorError("The sampled framebuffer does not describe the requested controller input");
       }
       const bytes2 = Buffer.from(sample.pngBase64, "base64");
-      if (bytes2.toString("base64") !== sample.pngBase64 || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash25("sha256").update(bytes2).digest("hex") !== sample.sha256) {
+      if (bytes2.toString("base64") !== sample.pngBase64 || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash23("sha256").update(bytes2).digest("hex") !== sample.sha256) {
         throw new EmulatorError("The stepped observation failed PNG dimension or SHA-256 verification");
       }
       const decoded = import_pngjs7.PNG.sync.read(bytes2, { checkCRC: true });
-      if (createHash25("sha256").update(decoded.data).digest("hex") !== sample.rgbaSha256) {
+      if (createHash23("sha256").update(decoded.data).digest("hex") !== sample.rgbaSha256) {
         throw new EmulatorError("The stepped observation failed RGBA framebuffer verification");
       }
       if (sample.path !== void 0) {
@@ -44505,10 +44443,10 @@ function redactValue(value, sanitizeString) {
   if (typeof value === "string") return sanitizeString(value);
   if (Array.isArray(value)) return value.map((entry) => redactValue(entry, sanitizeString));
   if (value === null || typeof value !== "object") return value;
-  const record7 = value;
-  const preserveBinary = record7.type === "image" || record7.type === "audio";
+  const record4 = value;
+  const preserveBinary = record4.type === "image" || record4.type === "audio";
   const output = {};
-  for (const [key, entry] of Object.entries(record7)) {
+  for (const [key, entry] of Object.entries(record4)) {
     let sanitizedKey = sanitizeString(key);
     if (Object.hasOwn(output, sanitizedKey)) {
       let suffix = 2;
@@ -44548,7 +44486,7 @@ import { lstat as lstat13, mkdir as mkdir9, open as open12, readdir as readdir8,
 import path34 from "node:path";
 
 // src/project-world-index.js
-import { createHash as createHash26 } from "node:crypto";
+import { createHash as createHash24 } from "node:crypto";
 import { lstat as lstat12, readdir as readdir7, readFile as readFile11, realpath as realpath14, stat as stat5 } from "node:fs/promises";
 import path33 from "node:path";
 
@@ -44700,59 +44638,10 @@ function watchProjectTree(root, options, listener) {
 
 // src/project-world-index.js
 var ASSET_EXTENSIONS2 = /* @__PURE__ */ new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
-var PNG_SIGNATURE4 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 var MAXIMUM_DIRTY_PATHS = 2048;
 var WATCH_RETRY_MS = 1e3;
 var MAXIMUM_WATCH_RETRY_MS = 6e4;
 var EMPTY_COVERAGE = { complete: true, limitations: [] };
-var FrozenResourceMap = class {
-  #entries;
-  constructor(entries) {
-    this.#entries = new Map(entries);
-    Object.freeze(this);
-  }
-  get size() {
-    return this.#entries.size;
-  }
-  get(key) {
-    return this.#entries.get(key);
-  }
-  has(key) {
-    return this.#entries.has(key);
-  }
-  entries() {
-    return this.#entries.entries();
-  }
-  keys() {
-    return this.#entries.keys();
-  }
-  values() {
-    return this.#entries.values();
-  }
-  [Symbol.iterator]() {
-    return this.#entries[Symbol.iterator]();
-  }
-  forEach(callback, receiver) {
-    this.#entries.forEach((value, key) => callback.call(receiver, value, key, this));
-  }
-};
-function deepFreeze2(value) {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) deepFreeze2(child);
-  return Object.freeze(value);
-}
-function isObject14(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function asString2(value, fallback = "") {
-  return typeof value === "string" ? value : fallback;
-}
-function asNumber3(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-function systemError3(error2, code) {
-  return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
-}
 function category(relativePath2, descriptorPath) {
   if (relativePath2 === descriptorPath) return "descriptor";
   if (relativePath2 === "project/settings.gbsres") return "settings";
@@ -44786,7 +44675,7 @@ function isPhysicalPng(file2) {
   return file2.pngHeader !== void 0 && file2.pngHeader.width > 0 && file2.pngHeader.height > 0;
 }
 function materialize(resource, resourcePath) {
-  return { ...resource, id: asString2(resource.id), name: asString2(resource.name), resourcePath };
+  return { ...resource, id: asString(resource.id), name: asString(resource.name), resourcePath };
 }
 function health(diagnostics) {
   const byCode = {};
@@ -44972,10 +44861,10 @@ var ProjectWorldIndex = class {
     if (this.#detachedSnapshot?.revision === this.revision) return this.#detachedSnapshot;
     const current = this.#requiredSnapshot();
     const inventory = structuredClone(current.inventory);
-    deepFreeze2(inventory);
+    deepFreeze(inventory);
     const variables = structuredClone([...current.variablesById.values()]);
-    deepFreeze2(variables);
-    const frozenMap = (entries) => new FrozenResourceMap(entries.filter((resource) => resource.id).map((resource) => [resource.id, resource]));
+    deepFreeze(variables);
+    const frozenMap = (entries) => new FrozenMap(entries.filter((resource) => resource.id).map((resource) => [resource.id, resource]));
     const snapshot = {
       projectPath: current.projectPath,
       projectRoot: current.projectRoot,
@@ -44991,8 +44880,8 @@ var ProjectWorldIndex = class {
       palettesById: frozenMap(inventory.palettes),
       variablesById: frozenMap(variables),
       diagnostics: inventory.diagnostics,
-      counts: deepFreeze2({ ...current.counts }),
-      health: deepFreeze2({ ...current.health, byCode: { ...current.health.byCode } }),
+      counts: deepFreeze({ ...current.counts }),
+      health: deepFreeze({ ...current.health, byCode: { ...current.health.byCode } }),
       inventory
     };
     this.#detachedSnapshot = Object.freeze(snapshot);
@@ -45238,7 +45127,7 @@ var ProjectWorldIndex = class {
     try {
       canonical2 = await realpath14(directory);
     } catch (error2) {
-      if (systemError3(error2, "ENOENT") || systemError3(error2, "ENOTDIR")) return;
+      if (isSystemError(error2, "ENOENT") || isSystemError(error2, "ENOTDIR")) return;
       throw error2;
     }
     assertWithinProject(this.projectRoot, canonical2, this.#platform);
@@ -45295,7 +45184,7 @@ var ProjectWorldIndex = class {
     if (parseJson2) {
       try {
         const parsed = JSON.parse(bytes2.toString("utf8"));
-        if (!isObject14(parsed)) throw new Error("Native project resource must contain a JSON object");
+        if (!isObject2(parsed)) throw new Error("Native project resource must contain a JSON object");
         json2 = parsed;
         this.#counters.resourceParses += 1;
       } catch (error2) {
@@ -45306,7 +45195,7 @@ var ProjectWorldIndex = class {
           try {
             await lstat12(physical2);
           } catch (missing2) {
-            if (!systemError3(missing2, "ENOENT") && !systemError3(missing2, "ENOTDIR")) throw missing2;
+            if (!isSystemError(missing2, "ENOENT") && !isSystemError(missing2, "ENOTDIR")) throw missing2;
             hasPhysical = false;
           }
           if (hasPhysical) {
@@ -45326,12 +45215,12 @@ var ProjectWorldIndex = class {
         }
       }
     }
-    const pngHeader = relativePath2.toLowerCase().endsWith(".png") && bytes2.length >= 24 && bytes2.subarray(0, 8).equals(PNG_SIGNATURE4) ? { width: bytes2.readUInt32BE(16), height: bytes2.readUInt32BE(20) } : void 0;
+    const pngHeader = relativePath2.toLowerCase().endsWith(".png") && bytes2.length >= 24 && bytes2.subarray(0, 8).equals(PNG_SIGNATURE) ? { width: bytes2.readUInt32BE(16), height: bytes2.readUInt32BE(20) } : void 0;
     return {
       relativePath: relativePath2,
       category: fileCategory,
       identity: { dev: info.dev, ino: info.ino, size: info.size, mtimeNs: info.mtimeNs, ctimeNs: info.ctimeNs },
-      sha256: createHash26("sha256").update(bytes2).digest("hex"),
+      sha256: createHash24("sha256").update(bytes2).digest("hex"),
       ...json2 ? { json: json2 } : {},
       ...pngHeader ? { pngHeader } : {}
     };
@@ -45376,7 +45265,7 @@ var ProjectWorldIndex = class {
     const nextPluginHashes = new Map(
       [...discovered].filter(([name3]) => name3.startsWith("plugins/")).map(([name3, item]) => [name3, item.sha256])
     );
-    if (this.semanticGeneration === 0 || previousPluginHashes.size !== nextPluginHashes.size || [...nextPluginHashes].some(([name3, digest7]) => previousPluginHashes.get(name3) !== digest7)) {
+    if (this.semanticGeneration === 0 || previousPluginHashes.size !== nextPluginHashes.size || [...nextPluginHashes].some(([name3, digest3]) => previousPluginHashes.get(name3) !== digest3)) {
       this.semanticGeneration += 1;
     }
     this.#inAuthoritativeRebuild = true;
@@ -45421,7 +45310,7 @@ var ProjectWorldIndex = class {
       try {
         entry = await lstat12(absolute, { bigint: true });
       } catch (error2) {
-        if (!systemError3(error2, "ENOENT") && !systemError3(error2, "ENOTDIR")) throw error2;
+        if (!isSystemError(error2, "ENOENT") && !isSystemError(error2, "ENOTDIR")) throw error2;
         if (this.#dropIndexed(relative6, () => false, changedPaths)) semanticChange = true;
         if (relative6 === descriptorRelative)
           throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor was removed", absolute);
@@ -45542,7 +45431,7 @@ var ProjectWorldIndex = class {
     const inventory = this.#buildInventory(currentDiscovery);
     const variablesFile = format === "legacy" ? descriptorFile : this.#files.get("project/variables.gbsres");
     const entries = variablesFile?.json?.variables;
-    const variables = (Array.isArray(entries) ? entries : []).filter(isObject14).map((item) => materialize(item, variablesFile?.relativePath ?? "project/variables.gbsres"));
+    const variables = (Array.isArray(entries) ? entries : []).filter(isObject2).map((item) => materialize(item, variablesFile?.relativePath ?? "project/variables.gbsres"));
     const map = (values) => new Map(values.filter((item) => item.id).map((item) => [item.id, item]));
     this.revision = this.#tree.revision();
     this.#inventory = inventory;
@@ -45621,7 +45510,7 @@ var ProjectWorldIndex = class {
       if (kind === "actor") {
         this.#actors.set(scoped, next);
         actorsById.set(next.id, next);
-        const spriteId = asString2(next.spriteSheetId);
+        const spriteId = asString(next.spriteSheetId);
         if (spriteId && !spriteIds.has(spriteId))
           diagnostics.push({
             severity: "warning",
@@ -45629,8 +45518,8 @@ var ProjectWorldIndex = class {
             message: `Actor ${next.name || next.id} references missing sprite ${spriteId}`,
             resourcePath: next.resourcePath
           });
-        const x = asNumber3(next.x), y = asNumber3(next.y);
-        const width = asNumber3(scene.width), height = asNumber3(scene.height);
+        const x = asNumber(next.x), y = asNumber(next.y);
+        const width = asNumber(scene.width), height = asNumber(scene.height);
         if (x !== null && y !== null && width !== null && height !== null && (x < 0 || y < 0 || x >= width || y >= height)) {
           diagnostics.push({
             severity: "error",
@@ -45642,9 +45531,9 @@ var ProjectWorldIndex = class {
       } else {
         this.#triggers.set(scoped, next);
         triggersById.set(next.id, next);
-        const x = asNumber3(next.x), y = asNumber3(next.y);
-        const width = asNumber3(next.width), height = asNumber3(next.height);
-        const sceneWidth = asNumber3(scene.width), sceneHeight = asNumber3(scene.height);
+        const x = asNumber(next.x), y = asNumber(next.y);
+        const width = asNumber(next.width), height = asNumber(next.height);
+        const sceneWidth = asNumber(scene.width), sceneHeight = asNumber(scene.height);
         if (x !== null && y !== null && width !== null && height !== null && sceneWidth !== null && sceneHeight !== null && (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > sceneWidth || y + height > sceneHeight)) {
           diagnostics.push({
             severity: "error",
@@ -45816,21 +45705,21 @@ var ProjectWorldIndex = class {
     let settings = {};
     const projectFiles = [...this.#files.values()].filter((item) => item.relativePath.startsWith("project/")).sort((left, right) => left.relativePath.localeCompare(right.relativePath));
     if (format === "legacy") {
-      settings = isObject14(descriptor.settings) ? descriptor.settings : {};
+      settings = isObject2(descriptor.settings) ? descriptor.settings : {};
       for (const candidate of Array.isArray(descriptor.customEvents) ? descriptor.customEvents : []) {
-        if (isObject14(candidate)) scripts.push(scriptSymbolRecord(candidate, path33.basename(this.projectPath)));
+        if (isObject2(candidate)) scripts.push(scriptSymbolRecord(candidate, path33.basename(this.projectPath)));
       }
       for (const candidate of Array.isArray(descriptor.scenes) ? descriptor.scenes : []) {
-        if (!isObject14(candidate)) continue;
+        if (!isObject2(candidate)) continue;
         const resourcePath = path33.basename(this.projectPath);
         scenes.push({
           ...materialize(candidate, resourcePath),
-          actors: (Array.isArray(candidate.actors) ? candidate.actors : []).filter(isObject14).map((actor) => materialize(actor, resourcePath)),
-          triggers: (Array.isArray(candidate.triggers) ? candidate.triggers : []).filter(isObject14).map((trigger) => materialize(trigger, resourcePath))
+          actors: (Array.isArray(candidate.actors) ? candidate.actors : []).filter(isObject2).map((actor) => materialize(actor, resourcePath)),
+          triggers: (Array.isArray(candidate.triggers) ? candidate.triggers : []).filter(isObject2).map((trigger) => materialize(trigger, resourcePath))
         });
       }
       for (const item of Array.isArray(descriptor.palettes) ? descriptor.palettes : []) {
-        if (isObject14(item)) palettes.push(materialize(item, path33.basename(this.projectPath)));
+        if (isObject2(item)) palettes.push(materialize(item, path33.basename(this.projectPath)));
       }
     } else {
       if (projectFiles.length === 0)
@@ -45874,7 +45763,7 @@ var ProjectWorldIndex = class {
         );
         scenes.push({ ...materialize(sceneFile.json, sceneFile.relativePath), actors: actors2, triggers: triggers2 });
       }
-      for (const file2 of projectFiles.filter((item) => item.category === "script" && isObject14(item.json)))
+      for (const file2 of projectFiles.filter((item) => item.category === "script" && isObject2(item.json)))
         scripts.push(scriptSymbolRecord(file2.json, file2.relativePath));
       for (const file2 of projectFiles.filter((item) => item.category === "palette")) {
         if (!file2.json) continue;
@@ -45884,7 +45773,7 @@ var ProjectWorldIndex = class {
           diagnostics.push({
             severity: "warning",
             code: "INVALID_PALETTE_SIZE",
-            message: `Palette ${asString2(palette.name, asString2(palette.id))} has ${palette.colors.length} colors; Game Boy Color palettes require exactly four`,
+            message: `Palette ${asString(palette.name, asString(palette.id))} has ${palette.colors.length} colors; Game Boy Color palettes require exactly four`,
             resourcePath: file2.relativePath
           });
       }
@@ -45920,15 +45809,15 @@ var ProjectWorldIndex = class {
       const extension = path33.extname(file2.relativePath);
       assets.push({
         ...nativeMetadata,
-        id: asString2(nativeMetadata?.id),
-        name: asString2(nativeMetadata?.name, path33.basename(file2.relativePath, extension)),
+        id: asString(nativeMetadata?.id),
+        name: asString(nativeMetadata?.name, path33.basename(file2.relativePath, extension)),
         type: assetType2(parts[1] ?? "asset", metadata2),
-        filename: asString2(nativeMetadata?.filename, path33.basename(file2.relativePath)),
+        filename: asString(nativeMetadata?.filename, path33.basename(file2.relativePath)),
         resourcePath: file2.relativePath,
         metadataPath: metadata2 ? `${file2.relativePath}.gbsres` : null,
         hasMetadata: Boolean(metadata2),
-        width: asNumber3(nativeMetadata?.imageWidth) ?? file2.pngHeader?.width ?? asNumber3(nativeMetadata?.width),
-        height: asNumber3(nativeMetadata?.imageHeight) ?? file2.pngHeader?.height ?? asNumber3(nativeMetadata?.height)
+        width: asNumber(nativeMetadata?.imageWidth) ?? file2.pngHeader?.width ?? asNumber(nativeMetadata?.width),
+        height: asNumber(nativeMetadata?.imageHeight) ?? file2.pngHeader?.height ?? asNumber(nativeMetadata?.height)
       });
     }
     for (const candidate of legacyPluginAssetCandidates(discovery)) {
@@ -45938,15 +45827,15 @@ var ProjectWorldIndex = class {
       const extension = path33.posix.extname(file2.relativePath);
       assets.push({
         ...metadata2,
-        id: asString2(metadata2.id),
-        name: asString2(metadata2.name, path33.posix.basename(file2.relativePath, extension)),
+        id: asString(metadata2.id),
+        name: asString(metadata2.name, path33.posix.basename(file2.relativePath, extension)),
         type: assetType2(folder, void 0),
-        filename: asString2(metadata2.filename, path33.posix.basename(file2.relativePath)),
+        filename: asString(metadata2.filename, path33.posix.basename(file2.relativePath)),
         resourcePath: file2.relativePath,
         metadataPath: null,
         hasMetadata: false,
-        width: asNumber3(metadata2.imageWidth) ?? file2.pngHeader.width,
-        height: asNumber3(metadata2.imageHeight) ?? file2.pngHeader.height
+        width: asNumber(metadata2.imageWidth) ?? file2.pngHeader.width,
+        height: asNumber(metadata2.imageHeight) ?? file2.pngHeader.height
       });
     }
     for (const file2 of files.filter((item) => item.relativePath.endsWith(".gbsres"))) {
@@ -45962,7 +45851,7 @@ var ProjectWorldIndex = class {
     const backgroundIds = new Set(assets.filter((asset) => asset.type === "background").map((asset) => asset.id));
     const spriteIds = new Set(assets.filter((asset) => asset.type === "sprite").map((asset) => asset.id));
     for (const scene of scenes) {
-      const backgroundId = asString2(scene.backgroundId);
+      const backgroundId = asString(scene.backgroundId);
       if (backgroundId && !backgroundIds.has(backgroundId))
         diagnostics.push({
           severity: "warning",
@@ -45970,8 +45859,8 @@ var ProjectWorldIndex = class {
           message: `Scene ${scene.name || scene.id} references missing background ${backgroundId}`,
           resourcePath: scene.resourcePath
         });
-      const width = asNumber3(scene.width);
-      const height = asNumber3(scene.height);
+      const width = asNumber(scene.width);
+      const height = asNumber(scene.height);
       if (typeof scene.collisions === "string" && width !== null && height !== null) {
         const tiles = width * height;
         if (Number.isSafeInteger(tiles) && tiles >= 0 && tiles <= 1e6) {
@@ -45989,7 +45878,7 @@ var ProjectWorldIndex = class {
         }
       }
       for (const actor of scene.actors) {
-        const spriteId = asString2(actor.spriteSheetId);
+        const spriteId = asString(actor.spriteSheetId);
         if (spriteId && !spriteIds.has(spriteId))
           diagnostics.push({
             severity: "warning",
@@ -45997,7 +45886,7 @@ var ProjectWorldIndex = class {
             message: `Actor ${actor.name || actor.id} references missing sprite ${spriteId}`,
             resourcePath: actor.resourcePath
           });
-        const x = asNumber3(actor.x), y = asNumber3(actor.y);
+        const x = asNumber(actor.x), y = asNumber(actor.y);
         if (x !== null && y !== null && width !== null && height !== null && (x < 0 || y < 0 || x >= width || y >= height)) {
           diagnostics.push({
             severity: "error",
@@ -46008,8 +45897,8 @@ var ProjectWorldIndex = class {
         }
       }
       for (const trigger of scene.triggers) {
-        const x = asNumber3(trigger.x), y = asNumber3(trigger.y);
-        const triggerWidth = asNumber3(trigger.width), triggerHeight = asNumber3(trigger.height);
+        const x = asNumber(trigger.x), y = asNumber(trigger.y);
+        const triggerWidth = asNumber(trigger.width), triggerHeight = asNumber(trigger.height);
         if (x !== null && y !== null && triggerWidth !== null && triggerHeight !== null && width !== null && height !== null && (x < 0 || y < 0 || triggerWidth <= 0 || triggerHeight <= 0 || x + triggerWidth > width || y + triggerHeight > height)) {
           diagnostics.push({
             severity: "error",
@@ -46021,7 +45910,7 @@ var ProjectWorldIndex = class {
       }
     }
     const settingsPath = format === "distributed" ? "project/settings.gbsres" : path33.basename(this.projectPath);
-    const startSceneId = asString2(settings.startSceneId);
+    const startSceneId = asString(settings.startSceneId);
     const startScene = scenes.find((scene) => scene.id === startSceneId);
     if (startSceneId && !startScene)
       diagnostics.push({
@@ -46031,8 +45920,8 @@ var ProjectWorldIndex = class {
         resourcePath: settingsPath
       });
     if (startScene) {
-      const x = asNumber3(settings.startX), y = asNumber3(settings.startY);
-      const width = asNumber3(startScene.width), height = asNumber3(startScene.height);
+      const x = asNumber(settings.startX), y = asNumber(settings.startY);
+      const width = asNumber(startScene.width), height = asNumber(startScene.height);
       if (x !== null && y !== null && width !== null && height !== null && (x < 0 || y < 0 || x >= width || y >= height)) {
         diagnostics.push({
           severity: "error",
@@ -46041,9 +45930,9 @@ var ProjectWorldIndex = class {
           resourcePath: startScene.resourcePath
         });
       }
-      const mappings = isObject14(settings.defaultPlayerSprites) ? settings.defaultPlayerSprites : {};
-      const sceneType = asString2(startScene.type, asString2(settings.defaultSceneTypeId, "TOPDOWN"));
-      const spriteId = asString2(mappings[sceneType]);
+      const mappings = isObject2(settings.defaultPlayerSprites) ? settings.defaultPlayerSprites : {};
+      const sceneType = asString(startScene.type, asString(settings.defaultSceneTypeId, "TOPDOWN"));
+      const spriteId = asString(mappings[sceneType]);
       if (!spriteId || !spriteIds.has(spriteId))
         diagnostics.push({
           severity: "error",
@@ -46069,8 +45958,8 @@ var ProjectWorldIndex = class {
     const triggers = scenes.flatMap((scene) => scene.triggers);
     return {
       ...discovery,
-      name: asString2(descriptor.name, path33.basename(discovery.projectPath, ".gbsproj")),
-      author: asString2(descriptor.author),
+      name: asString(descriptor.name, path33.basename(discovery.projectPath, ".gbsproj")),
+      author: asString(descriptor.author),
       settings,
       scenes,
       actors,
@@ -46136,9 +46025,6 @@ function isExcludedTemplateEntry(name3, directory) {
   if (directory) return EXCLUDED_TEMPLATE_DIRECTORIES.has(name3);
   return /\.(?:gb|gbc|tmp|temp|swp)$/iu.test(name3) || name3 === ".DS_Store" || name3.startsWith(".~") || name3.endsWith("~");
 }
-function sameIdentity2(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
-}
 async function rememberCreatedDirectory(destination, entries) {
   const identity6 = await lstat13(destination);
   if (!identity6.isDirectory() || await realpath15(destination) !== destination || (await readdir8(destination)).length !== 0) {
@@ -46154,7 +46040,7 @@ async function assertCreatedParents(entries, destination) {
   for (const entry of entries) {
     if (!entry.identity.isDirectory() || !isWithin(entry.path, destination)) continue;
     const current = await lstat13(entry.path);
-    if (!current.isDirectory() || !sameIdentity2(current, entry.identity) || await realpath15(entry.path) !== entry.path) {
+    if (!current.isDirectory() || !sameFile(current, entry.identity) || await realpath15(entry.path) !== entry.path) {
       throw new GameStudioProjectError(
         "UNSAFE_SYMLINK",
         "A project creation directory changed during the operation.",
@@ -46184,7 +46070,7 @@ async function cleanupCreatedEntries(entries) {
     try {
       await assertCreatedParents(entries, entry.path);
       const current = await lstat13(entry.path);
-      if (!sameIdentity2(current, entry.identity) || current.isSymbolicLink() || entry.identity.isFile() && (current.size !== entry.identity.size || current.mtimeMs !== entry.identity.mtimeMs)) {
+      if (!sameFile(current, entry.identity) || current.isSymbolicLink() || entry.identity.isFile() && (current.size !== entry.identity.size || current.mtimeMs !== entry.identity.mtimeMs)) {
         throw new Error("A created entry changed; it was preserved instead of removed.");
       }
       if (entry.identity.isDirectory()) await rmdir3(entry.path);
@@ -46199,7 +46085,7 @@ async function assertCompleteCreation(entries) {
   for (const entry of entries) {
     await assertCreatedParents(entries, entry.path);
     const current = await lstat13(entry.path);
-    if (!sameIdentity2(current, entry.identity) || current.isSymbolicLink() || entry.identity.isFile() && (current.size !== entry.identity.size || current.mtimeMs !== entry.identity.mtimeMs)) {
+    if (!sameFile(current, entry.identity) || current.isSymbolicLink() || entry.identity.isFile() && (current.size !== entry.identity.size || current.mtimeMs !== entry.identity.mtimeMs)) {
       throw new GameStudioProjectError(
         "PROJECT_BUSY",
         "A newly created project entry changed during copying.",
@@ -46810,7 +46696,7 @@ import { lstat as lstat14, open as open13, realpath as realpath16 } from "node:f
 import path35 from "node:path";
 
 // src/world-queries.js
-import { createHash as createHash27 } from "node:crypto";
+import { createHash as createHash25 } from "node:crypto";
 var MAXIMUM_RELATIONS = 32;
 var MAXIMUM_TRAVERSED_REFERENCES = 1e5;
 var VALID_NODE_TYPES = /* @__PURE__ */ new Set([
@@ -46825,9 +46711,6 @@ var VALID_NODE_TYPES = /* @__PURE__ */ new Set([
   "triggerPrefab",
   "settings"
 ]);
-function isObject15(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function invalidInput(message2) {
   throw new GameStudioProjectError("INVALID_INPUT", message2);
 }
@@ -46877,7 +46760,7 @@ function mergeCoverage(original, limitations) {
   return { ...original, complete: false, limitations: unique };
 }
 function queryIdentity(query, direction3, depth) {
-  return createHash27("sha256").update(
+  return createHash25("sha256").update(
     JSON.stringify({
       node: query.node,
       direction: direction3,
@@ -46915,7 +46798,7 @@ function graphNode(node, sceneId) {
   return node.type === "actor" || node.type === "trigger" ? { ...node, ...sceneId ? { sceneId } : {} } : { ...node };
 }
 async function worldDependencies(access4, query) {
-  if (!isObject15(query.node) || !VALID_NODE_TYPES.has(query.node.type) || typeof query.node.id !== "string" || query.node.id.length === 0 || query.node.id.length > 256) {
+  if (!isObject2(query.node) || !VALID_NODE_TYPES.has(query.node.type) || typeof query.node.id !== "string" || query.node.id.length === 0 || query.node.id.length > 256) {
     invalidInput("A dependency query requires a supported resource node and a bounded nonempty id");
   }
   const direction3 = query.direction ?? "both";
@@ -48544,7 +48427,7 @@ import path38 from "node:path";
 
 // src/dialogue-preview.js
 var import_pngjs8 = __toESM(require_png(), 1);
-import { createHash as createHash28 } from "node:crypto";
+import { createHash as createHash26 } from "node:crypto";
 import { lstat as lstat15, mkdir as mkdir10, open as open14, readFile as readFile13, realpath as realpath17 } from "node:fs/promises";
 import path36 from "node:path";
 var SCREEN_WIDTH2 = 160;
@@ -48582,7 +48465,7 @@ async function loadImage(root, resourcePath, expectedType) {
   }
   assertInsideRoot(root, canonical2);
   const bytes2 = await readFile13(canonical2);
-  if (bytes2.length > MAX_IMAGE_BYTES2 || bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+  if (bytes2.length > MAX_IMAGE_BYTES2 || bytes2.length < 24 || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new GameStudioProjectError(
       "INVALID_RESOURCE",
       `${expectedType} is not a bounded PNG: ${resourcePath}`,
@@ -48873,7 +48756,7 @@ async function previewDialogue(projectPath, input, access4) {
     genuineEmulatorFrame: false,
     runtimeVerified: false,
     path: path36.relative(prepared.inventory.projectRoot, destination).split(path36.sep).join("/"),
-    sha256: createHash28("sha256").update(bytes2).digest("hex"),
+    sha256: createHash26("sha256").update(bytes2).digest("hex"),
     width: output.width,
     height: output.height,
     pageCount: pages.length,
@@ -48890,7 +48773,6 @@ import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
 // src/tilemap-compose.js
 var import_pngjs9 = __toESM(require_png(), 1);
-import { createHash as createHash29 } from "node:crypto";
 
 // src/tilemap-schema.js
 var TILEMAP_TILE_SIZE = 8;
@@ -48901,19 +48783,19 @@ var name2 = external_exports.string().min(1).max(200).refine((value) => value.tr
 var id = external_exports.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/u);
 var resourceId = external_exports.string().min(1).max(256);
 var filePath = external_exports.string().min(1).max(4096).refine((value) => !value.includes("\0"));
-var hash2 = external_exports.string().regex(/^[a-f0-9]{64}$/u);
+var hash = external_exports.string().regex(/^[a-f0-9]{64}$/u);
 var coordinate2 = external_exports.number().int().min(0).max(254);
 var dimension2 = external_exports.number().int().min(1).max(255);
 var byte = external_exports.number().int().min(0).max(255);
 var slot = external_exports.number().int().min(0).max(7);
 var rectangle = external_exports.object({ x: coordinate2, y: coordinate2, width: dimension2, height: dimension2 }).strict();
 var adoptionPreimages = external_exports.object({
-  recipeSha256: hash2,
-  atlasSha256: hash2,
-  sourceSha256: hash2,
-  pngSha256: hash2,
-  metadataSha256: hash2,
-  sceneSha256: hash2
+  recipeSha256: hash,
+  atlasSha256: hash,
+  sourceSha256: hash,
+  pngSha256: hash,
+  metadataSha256: hash,
+  sceneSha256: hash
 }).strict();
 var adoptedBinding = external_exports.object({
   version: external_exports.literal(1),
@@ -48922,7 +48804,7 @@ var adoptedBinding = external_exports.object({
   sceneId: resourceId,
   backgroundId: resourceId,
   backgroundPath: filePath,
-  atlas: external_exports.object({ path: filePath, id: resourceId, sha256: hash2, sourcePath: filePath, sourceSha256: hash2 }).strict(),
+  atlas: external_exports.object({ path: filePath, id: resourceId, sha256: hash, sourcePath: filePath, sourceSha256: hash }).strict(),
   preimages: adoptionPreimages
 }).strict();
 var atlasTileSchema = external_exports.object({ id, x: coordinate2, y: coordinate2 }).strict();
@@ -48971,7 +48853,7 @@ var atlasSchema = external_exports.object({
   version: external_exports.literal(1),
   id: resourceId,
   sourcePath: filePath,
-  sourceSha256: hash2,
+  sourceSha256: hash,
   ...atlasDefinition
 }).strict();
 var roomCellSchema = external_exports.object({
@@ -48987,7 +48869,7 @@ var roomSchema = external_exports.object({
   name: name2,
   units: external_exports.literal("8px-tiles"),
   atlasPath: filePath,
-  atlasSha256: hash2,
+  atlasSha256: hash,
   sceneId: resourceId,
   backgroundId: resourceId,
   backgroundPath: filePath,
@@ -48998,7 +48880,7 @@ var roomSchema = external_exports.object({
   protectedRegions: external_exports.array(rectangle).max(256),
   reservedPaletteSlots: external_exports.array(slot).max(8),
   maxUniqueTiles: external_exports.number().int().min(1).max(384).optional(),
-  native: external_exports.object({ pngSha256: hash2, metadataSha256: hash2, collisions: external_exports.string().max(2e5) }).strict(),
+  native: external_exports.object({ pngSha256: hash, metadataSha256: hash, collisions: external_exports.string().max(2e5) }).strict(),
   adoptedBinding: adoptedBinding.optional()
 }).strict().superRefine((room, context) => {
   if (room.cells.length !== room.width * room.height) {
@@ -49017,13 +48899,13 @@ var tilemapOperationSchema = external_exports.discriminatedUnion("type", [
   external_exports.object({
     type: external_exports.literal("replace_cells"),
     atlasPath: filePath,
-    atlasSha256: hash2,
+    atlasSha256: hash,
     cells: external_exports.array(
       external_exports.object({
         x: coordinate2,
         y: coordinate2,
-        before: external_exports.object({ pixelsSha256: hash2, paletteByte: byte, collisionByte: byte }).strict(),
-        after: external_exports.object({ tileId: id, pixelsSha256: hash2, paletteByte: byte }).strict()
+        before: external_exports.object({ pixelsSha256: hash, paletteByte: byte, collisionByte: byte }).strict(),
+        after: external_exports.object({ tileId: id, pixelsSha256: hash, paletteByte: byte }).strict()
       }).strict()
     ).min(1).max(MAX_EDIT_CELLS)
   }).strict(),
@@ -49033,13 +48915,13 @@ var tilemapOperationSchema = external_exports.discriminatedUnion("type", [
       external_exports.object({
         x: coordinate2,
         y: coordinate2,
-        before: external_exports.object({ pixelsSha256: hash2, paletteByte: byte, collisionByte: byte }).strict(),
+        before: external_exports.object({ pixelsSha256: hash, paletteByte: byte, collisionByte: byte }).strict(),
         after: external_exports.object({ collisionByte: byte }).strict()
       }).strict()
     ).min(1).max(MAX_EDIT_CELLS)
   }).strict()
 ]);
-var mutation = { expectedRevision: hash2, dryRun: external_exports.boolean().optional() };
+var mutation = { expectedRevision: hash, dryRun: external_exports.boolean().optional() };
 var tilemapSchemas = {
   atlasCreate: external_exports.object({ atlasPath: filePath, sourcePath: filePath, ...atlasDefinition, ...mutation }).strict(),
   create: external_exports.object({
@@ -49080,9 +48962,6 @@ var SOURCE_COLORS = /* @__PURE__ */ new Set(["071821", "306850", "86c06c", "e0f8
 function tilemapError(code, message2) {
   throw new GameStudioProjectError(code, message2);
 }
-function sha256(bytes2) {
-  return createHash29("sha256").update(bytes2).digest("hex");
-}
 function tilePixels(image, tileX, tileY) {
   const tile2 = Buffer.alloc(8 * 8 * 4);
   for (let row = 0; row < 8; row++) {
@@ -49112,7 +48991,7 @@ function prepareAtlasPixels(atlas, image) {
     }
     const pixels = tilePixels(image, tile2.x, tile2.y);
     tiles.set(tile2.id, pixels);
-    patterns.set(tile2.id, sha256(pixels));
+    patterns.set(tile2.id, sha256Hex(pixels));
   }
   const primitiveIds = /* @__PURE__ */ new Set();
   let primitiveCells = 0;
@@ -49469,14 +49348,14 @@ async function readAtlas(root, atlasPath, binding) {
   const rawAtlas = parseJson(bytes2);
   parse4(atlasSchema, rawAtlas);
   const atlas = rawAtlas;
-  if (binding && (binding.path !== atlasPath || binding.sha256 !== sha256(bytes2) || binding.sourceSha256 !== atlas.sourceSha256 || binding.id !== void 0 && binding.id !== atlas.id || binding.sourcePath !== void 0 && binding.sourcePath !== atlas.sourcePath)) {
+  if (binding && (binding.path !== atlasPath || binding.sha256 !== sha256Hex(bytes2) || binding.sourceSha256 !== atlas.sourceSha256 || binding.id !== void 0 && binding.id !== atlas.id || binding.sourcePath !== void 0 && binding.sourcePath !== atlas.sourcePath)) {
     tilemapError("STALE_TILEMAP_ATLAS", "The atlas differs from its explicit recipe-owned registration.");
   }
   if (!binding && atlas.id !== stableResourceId("tilemap-atlas", atlasPath))
     tilemapError("STALE_TILEMAP_ATLAS", "Atlas identity no longer matches its registered path.");
   await ownedPath(root, atlas.sourcePath, "source");
   const source = await readBytes(root, atlas.sourcePath, MAX_PNG_BYTES2);
-  if (sha256(source) !== atlas.sourceSha256)
+  if (sha256Hex(source) !== atlas.sourceSha256)
     tilemapError(
       "STALE_TILEMAP_ATLAS",
       "Atlas source PNG changed; explicitly register a new atlas version instead of repainting existing rooms."
@@ -49553,7 +49432,7 @@ function captureCells(image, pixels, palettes, collisions) {
     if (!firstTileByPattern.has(pattern2)) firstTileByPattern.set(pattern2, id3);
   const width = image.width / 8;
   return Array.from({ length: width * (image.height / 8) }, (_, index) => {
-    const tileId = firstTileByPattern.get(sha256(tilePixels(image, index % width, Math.floor(index / width))));
+    const tileId = firstTileByPattern.get(sha256Hex(tilePixels(image, index % width, Math.floor(index / width))));
     if (!tileId)
       tilemapError(
         "TILEMAP_CAPTURE_TILE_MISSING",
@@ -49607,7 +49486,7 @@ function outputReceipt(room, recipePath, recipeBytes = jsonBytes(room)) {
     outputs: {
       png: { path: room.backgroundPath, sha256: room.native.pngSha256 },
       metadata: { path: `${room.backgroundPath}.gbsres`, sha256: room.native.metadataSha256 },
-      recipe: { path: recipePath, sha256: sha256(recipeBytes) }
+      recipe: { path: recipePath, sha256: sha256Hex(recipeBytes) }
     }
   };
 }
@@ -49627,7 +49506,7 @@ async function createTilemapAtlasIndexed(projectPath, rawInput, access4) {
         id: stableResourceId("tilemap-atlas", input.atlasPath),
         name: input.name,
         sourcePath: input.sourcePath,
-        sourceSha256: sha256(source),
+        sourceSha256: sha256Hex(source),
         tiles: input.tiles,
         primitives: input.primitives
       });
@@ -49640,7 +49519,7 @@ async function createTilemapAtlasIndexed(projectPath, rawInput, access4) {
         value: {
           atlasPath: input.atlasPath,
           id: atlas.id,
-          atlasSha256: sha256(bytes2),
+          atlasSha256: sha256Hex(bytes2),
           sourceSha256: atlas.sourceSha256,
           tiles: atlas.tiles.length,
           primitives: atlas.primitives.length,
@@ -49724,7 +49603,7 @@ async function createTilemapIndexed(projectPath, rawInput, access4) {
         name: input.name,
         units: "8px-tiles",
         atlasPath: input.atlasPath,
-        atlasSha256: sha256(atlasBytes),
+        atlasSha256: sha256Hex(atlasBytes),
         sceneId: scene.id,
         backgroundId,
         backgroundPath: input.backgroundPath,
@@ -49752,7 +49631,10 @@ async function createTilemapIndexed(projectPath, rawInput, access4) {
         }).metadata.tileColors;
       }
       const metadataBytes = jsonBytes(metadata2);
-      room = { ...room, native: { ...room.native, pngSha256: sha256(png), metadataSha256: sha256(metadataBytes) } };
+      room = {
+        ...room,
+        native: { ...room.native, pngSha256: sha256Hex(png), metadataSha256: sha256Hex(metadataBytes) }
+      };
       const asset = {
         id: backgroundId,
         name: input.name,
@@ -49795,7 +49677,7 @@ async function loadBoundRoom(snapshot, recipePath, access4, adoption) {
   const rawRoom = parseJson(recipeBytes);
   parse4(roomSchema, rawRoom);
   const room = rawRoom;
-  if (adoption && (room.adoptedBinding || sha256(recipeBytes) !== adoption.before.recipeSha256 || room.id !== adoption.identity.roomId || room.backgroundId !== adoption.identity.backgroundId || room.sceneId !== adoption.identity.sceneId)) {
+  if (adoption && (room.adoptedBinding || sha256Hex(recipeBytes) !== adoption.before.recipeSha256 || room.id !== adoption.identity.roomId || room.backgroundId !== adoption.identity.backgroundId || room.sceneId !== adoption.identity.sceneId)) {
     tilemapError("TILEMAP_ADOPTION_PREIMAGE", "Adoption requires the exact unadopted recipe preimage.");
   }
   const binding = room.adoptedBinding;
@@ -49814,7 +49696,7 @@ async function loadBoundRoom(snapshot, recipePath, access4, adoption) {
       "Native collisions changed outside this recipe; no collision overwrite is permitted."
     );
   const background = await readBackground(snapshot, scene);
-  if (background.asset.resourcePath !== room.backgroundPath || sha256(background.pngBytes) !== room.native.pngSha256 || sha256(background.metadataBytes) !== room.native.metadataSha256)
+  if (background.asset.resourcePath !== room.backgroundPath || sha256Hex(background.pngBytes) !== room.native.pngSha256 || sha256Hex(background.metadataBytes) !== room.native.metadataSha256)
     tilemapError(
       "STALE_TILEMAP_OUTPUT",
       "The native PNG or sidecar changed outside this recipe; preserve the edit and explicitly capture a new version."
@@ -49853,7 +49735,7 @@ async function loadBoundRoom(snapshot, recipePath, access4, adoption) {
     sourceBytes,
     pixels
   } = await readAtlas(snapshot.projectRoot, room.atlasPath, atlasBinding);
-  if (sha256(atlasBytes) !== room.atlasSha256)
+  if (sha256Hex(atlasBytes) !== room.atlasSha256)
     tilemapError("STALE_TILEMAP_ATLAS", "Atlas manifest changed; register/capture a new version explicitly.");
   validateRoomCells(room, pixels);
   const currentPalettes = decodeBackgroundPaletteTiles(background.metadata, room.cells.length);
@@ -49876,12 +49758,12 @@ async function adoptTilemapBinding(projectPath, input, operation, access4) {
       const bound = await loadBoundRoom(snapshot, input.recipePath, access4, operation);
       const sceneBytes = await readBytes(snapshot.projectRoot, bound.scene.resourcePath, MAX_TILEMAP_JSON_BYTES);
       const preimages = {
-        recipeSha256: sha256(bound.recipeBytes),
-        atlasSha256: sha256(bound.atlasBytes),
-        sourceSha256: sha256(bound.sourceBytes),
-        pngSha256: sha256(bound.background.pngBytes),
-        metadataSha256: sha256(bound.background.metadataBytes),
-        sceneSha256: sha256(sceneBytes)
+        recipeSha256: sha256Hex(bound.recipeBytes),
+        atlasSha256: sha256Hex(bound.atlasBytes),
+        sourceSha256: sha256Hex(bound.sourceBytes),
+        pngSha256: sha256Hex(bound.background.pngBytes),
+        metadataSha256: sha256Hex(bound.background.metadataBytes),
+        sceneSha256: sha256Hex(sceneBytes)
       };
       for (const key of Object.keys(preimages)) {
         if (operation.before[key] !== preimages[key])
@@ -49963,7 +49845,7 @@ async function compileRoom(projectPath, input, operations, access4) {
             "Selected-cell replacement must be the sole operation in its revision-bound batch."
           );
         const target = operation.atlasPath === bound.room.atlasPath ? { atlas: bound.atlas, pixels: bound.pixels, bytes: bound.atlasBytes } : await readAtlas(snapshot.projectRoot, operation.atlasPath);
-        if (sha256(target.bytes) !== operation.atlasSha256)
+        if (sha256Hex(target.bytes) !== operation.atlasSha256)
           tilemapError("STALE_TILEMAP_ATLAS", "The selected replacement atlas does not match its explicit hash.");
         for (const [id3, pattern2] of bound.pixels.patterns) {
           if (target.pixels.patterns.get(id3) !== pattern2)
@@ -50029,8 +49911,8 @@ async function compileRoom(projectPath, input, operations, access4) {
       room = {
         ...room,
         native: {
-          pngSha256: sha256(png),
-          metadataSha256: sha256(metadataBytes),
+          pngSha256: sha256Hex(png),
+          metadataSha256: sha256Hex(metadataBytes),
           collisions: String(sceneResource2.collisions)
         }
       };
@@ -50090,7 +49972,7 @@ async function inspectTilemapIndexed(projectPath, rawInput, access4) {
     return {
       atlasPath: input.atlasPath,
       revision: snapshot.revision,
-      atlasSha256: sha256(bytes2),
+      atlasSha256: sha256Hex(bytes2),
       sourceSha256: atlas.sourceSha256,
       name: atlas.name,
       counts: {
@@ -50904,7 +50786,7 @@ function registerChromaticTools(server, context) {
 }
 
 // src/tool-domains/playtest.js
-import { createHash as createHash30 } from "node:crypto";
+import { createHash as createHash27 } from "node:crypto";
 import { constants as constants15 } from "node:fs";
 import { lstat as lstat17, open as open16, realpath as realpath18 } from "node:fs/promises";
 var readOnly2 = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -51002,7 +50884,7 @@ async function reviewedImage(frame3, authorizedRoot) {
     if (count3 !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs || await realpath18(frame3.path) !== path48)
       throw new Error("The recorded review image changed while being read.");
     const bytes2 = buffer.subarray(0, count3);
-    if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash30("sha256").update(bytes2).digest("hex") !== frame3.sha256) {
+    if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash27("sha256").update(bytes2).digest("hex") !== frame3.sha256) {
       throw new Error("Recorded review image failed PNG/dimension/digest verification.");
     }
     return bytes2;
@@ -51230,7 +51112,7 @@ function registerPlaytestTools(context) {
 }
 
 // src/web-build.js
-import { createHash as createHash31, createHmac, randomBytes, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+import { createHash as createHash28, createHmac, randomBytes, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
 import { constants as constants16, createReadStream } from "node:fs";
 import {
   link as link3,
@@ -51286,15 +51168,12 @@ function environmentValue(environment, name3, platform) {
   const value = readPlatformEnvironmentVariable(environment, name3, platform);
   return typeof value === "string" && value.trim() ? value : void 0;
 }
-function isSystemError4(error2, code) {
-  return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === code;
-}
 async function exists4(candidate) {
   try {
     await lstat18(candidate);
     return true;
   } catch (error2) {
-    if (isSystemError4(error2, "ENOENT")) return false;
+    if (isSystemError(error2, "ENOENT")) return false;
     throw error2;
   }
 }
@@ -51322,7 +51201,7 @@ async function resolveExistingAncestor(root, candidate, runtime) {
       }
       return;
     } catch (error2) {
-      if (!isSystemError4(error2, "ENOENT")) throw error2;
+      if (!isSystemError(error2, "ENOENT")) throw error2;
       const parent = path39.dirname(ancestor);
       if (samePath3(parent, ancestor, runtime.platform) || !isInside2(root, parent, runtime.platform)) {
         throw new Error(`Web output escapes the project root: ${candidate}`);
@@ -51437,7 +51316,7 @@ async function windowsSigningDirectory(toolchainRoot, projectRoot, runtime) {
   } catch {
     return null;
   }
-  const toolchainIdentity = createHash31("sha256").update(path39.win32.normalize(toolchainRoot).toLowerCase()).digest("hex");
+  const toolchainIdentity = createHash28("sha256").update(path39.win32.normalize(toolchainRoot).toLowerCase()).digest("hex");
   let current = localDirectory;
   for (const segment of ["Codex", "GBStudio", "WebPreview", toolchainIdentity]) {
     current = path39.join(current, segment);
@@ -51446,7 +51325,7 @@ async function windowsSigningDirectory(toolchainRoot, projectRoot, runtime) {
       try {
         await mkdir11(current, { mode: 448 });
       } catch (error2) {
-        if (!isSystemError4(error2, "EEXIST")) return null;
+        if (!isSystemError(error2, "EEXIST")) return null;
       }
       const metadata2 = await lstat18(current);
       if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePath3(await realpath19(current), current, runtime.platform) || !await windowsPrivatePath(current, runtime, "secret"))
@@ -51471,7 +51350,7 @@ async function loadTrustedSigningKey(toolchainRoot, projectRoot, runtime) {
       try {
         await mkdir11(keyDirectory, { mode: 448 });
       } catch (error2) {
-        if (!isSystemError4(error2, "EEXIST")) return null;
+        if (!isSystemError(error2, "EEXIST")) return null;
       }
       if (!await trustedOwnedDirectory(keyDirectory, uid, true)) return null;
     }
@@ -51492,7 +51371,7 @@ async function loadTrustedSigningKey(toolchainRoot, projectRoot, runtime) {
       try {
         await link3(temporaryPath, keyPath);
       } catch (error2) {
-        if (!isSystemError4(error2, "EEXIST")) throw error2;
+        if (!isSystemError(error2, "EEXIST")) throw error2;
       } finally {
         await unlink6(temporaryPath).catch(() => {
         });
@@ -51533,23 +51412,23 @@ async function signingKey(projectRoot, toolchainRoot, runtime) {
   return await trusted ?? PROCESS_WEB_BUILD_ATTESTATION_KEY;
 }
 async function hashFile(filePath2) {
-  const digest7 = createHash31("sha256");
-  for await (const chunk of createReadStream(filePath2)) digest7.update(chunk);
-  return digest7.digest("hex");
+  const digest3 = createHash28("sha256");
+  for await (const chunk of createReadStream(filePath2)) digest3.update(chunk);
+  return digest3.digest("hex");
 }
 async function compilerBoundKey(attestationKey, cliPath) {
-  const digest7 = createHash31("sha256").update("codex-gb-studio\0compiler\0v1\0");
+  const digest3 = createHash28("sha256").update("codex-gb-studio\0compiler\0v1\0");
   for (const file2 of [cliPath, path39.join(path39.dirname(cliPath), "buildWorker.js")])
-    updateHash(digest7, await hashFile(file2).catch(() => "missing"));
-  return createHmac("sha256", attestationKey).update("codex-gb-studio\0compiler-bound\0v1\0").update(digest7.digest()).digest();
+    updateHash(digest3, await hashFile(file2).catch(() => "missing"));
+  return createHmac("sha256", attestationKey).update("codex-gb-studio\0compiler-bound\0v1\0").update(digest3.digest()).digest();
 }
-function updateHash(digest7, value) {
+function updateHash(digest3, value) {
   const encoded2 = Buffer.from(value, "utf8");
   const length = Buffer.allocUnsafe(4);
   length.writeUInt32BE(encoded2.byteLength);
-  digest7.update(length).update(encoded2);
+  digest3.update(length).update(encoded2);
 }
-async function hashSourceDirectory(root, directory, digest7) {
+async function hashSourceDirectory(root, directory, digest3) {
   if (!await exists4(directory)) return;
   const metadata2 = await lstat18(directory);
   if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || await realpath19(directory) !== directory) {
@@ -51565,33 +51444,33 @@ async function hashSourceDirectory(root, directory, digest7) {
       throw new Error(`game source fingerprint refuses symbolic links: ${path39.relative(root, candidate)}`);
     }
     if (entryMetadata.isDirectory()) {
-      await hashSourceDirectory(root, candidate, digest7);
+      await hashSourceDirectory(root, candidate, digest3);
       continue;
     }
     if (!entryMetadata.isFile()) {
       throw new Error(`game source fingerprint refuses non-regular files: ${path39.relative(root, candidate)}`);
     }
-    updateHash(digest7, path39.relative(root, candidate).split(path39.sep).join("/"));
-    updateHash(digest7, await hashFile(candidate));
+    updateHash(digest3, path39.relative(root, candidate).split(path39.sep).join("/"));
+    updateHash(digest3, await hashFile(candidate));
   }
 }
 async function sourceFingerprint(root, projectPath, revision2) {
-  const digest7 = createHash31("sha256").update("codex-gb-studio\0web-export\0v1\0");
+  const digest3 = createHash28("sha256").update("codex-gb-studio\0web-export\0v1\0");
   if (revision2 !== void 0) {
     if (typeof revision2 !== "string" || revision2.length === 0 || revision2.length > 1024 || revision2.includes("\0")) {
       throw new Error("Project revision must be a non-empty string of at most 1024 characters.");
     }
-    updateHash(digest7, "indexed-revision");
-    updateHash(digest7, revision2);
+    updateHash(digest3, "indexed-revision");
+    updateHash(digest3, revision2);
   } else {
-    updateHash(digest7, path39.relative(root, projectPath).split(path39.sep).join("/"));
-    updateHash(digest7, await hashFile(projectPath));
-    await hashSourceDirectory(root, path39.join(root, "project"), digest7);
-    await hashSourceDirectory(root, path39.join(root, "assets"), digest7);
+    updateHash(digest3, path39.relative(root, projectPath).split(path39.sep).join("/"));
+    updateHash(digest3, await hashFile(projectPath));
+    await hashSourceDirectory(root, path39.join(root, "project"), digest3);
+    await hashSourceDirectory(root, path39.join(root, "assets"), digest3);
   }
-  updateHash(digest7, "project-plugins");
-  await hashSourceDirectory(root, path39.join(root, "plugins"), digest7);
-  return digest7.digest("hex");
+  updateHash(digest3, "project-plugins");
+  await hashSourceDirectory(root, path39.join(root, "plugins"), digest3);
+  return digest3.digest("hex");
 }
 async function collectArtifacts(root) {
   const files = [];
@@ -51777,7 +51656,7 @@ function exportIdentity(manifest) {
   return {
     rom: { ...manifest.files.find((entry) => entry.path === manifest.romPath) },
     index: { ...manifest.files.find((entry) => entry.path === manifest.indexPath) },
-    inventorySha256: createHash31("sha256").update(JSON.stringify(manifest.files)).digest("hex"),
+    inventorySha256: createHash28("sha256").update(JSON.stringify(manifest.files)).digest("hex"),
     files: manifest.files.length,
     logicalBytes: manifest.files.reduce((sum, entry) => sum + entry.sizeBytes, 0)
   };
@@ -51848,7 +51727,7 @@ async function retryPlatformRename(projectRoot, source, destination, runtime, ex
       await runtime.rename(source, destination);
       return;
     } catch (error2) {
-      const retryable = isSystemError4(error2, "EPERM") || isSystemError4(error2, "EBUSY") || isSystemError4(error2, "EACCES") || isSystemError4(error2, "ENOTEMPTY");
+      const retryable = isSystemError(error2, "EPERM") || isSystemError(error2, "EBUSY") || isSystemError(error2, "EACCES") || isSystemError(error2, "ENOTEMPTY");
       if (runtime.platform !== "win32" || !retryable || attempt + 1 >= attempts) throw error2;
       const delay3 = runtime.retryDelayMs * (attempt + 1);
       if (delay3 > 0) await new Promise((resolve4) => setTimeout(resolve4, delay3));
@@ -51957,7 +51836,7 @@ async function nativeRomFor(root, sourceRevision, attestationKey) {
     const romPath = path39.resolve(root, receipt.romPath);
     if (!isInside2(root, romPath)) return null;
     const bytes2 = await readFile14(romPath);
-    return createHash31("sha256").update(bytes2).digest("hex") === receipt.sha256 ? { sha256: receipt.sha256, bytes: bytes2 } : null;
+    return createHash28("sha256").update(bytes2).digest("hex") === receipt.sha256 ? { sha256: receipt.sha256, bytes: bytes2 } : null;
   } catch {
     return null;
   }
@@ -52528,7 +52407,7 @@ function parseRecordingState(value) {
 }
 
 // src/web-preview-recording-record.js
-function object5(value, required3, optional2 = []) {
+function object4(value, required3, optional2 = []) {
   if (!value || typeof value !== "object" || Array.isArray(value) || required3.some((k) => !Object.hasOwn(value, k)) || Object.keys(value).some((k) => ![...required3, ...optional2].includes(k)))
     throw new Error("Invalid recording journal fields.");
   return value;
@@ -52537,7 +52416,7 @@ var int2 = (n, max = Number.MAX_SAFE_INTEGER) => {
   if (!Number.isSafeInteger(n) || n < 0 || n > max) throw new Error("Invalid recording journal number.");
 };
 function parseRecordingJob(value) {
-  const r = object5(
+  const r = object4(
     value,
     [
       "version",
@@ -52570,7 +52449,7 @@ function parseRecordingJob(value) {
   recordingId(r.id);
   int2(r.cartridgeType, 255);
   recordingDuration(r.durationMs);
-  const b = object5(r.binding, [
+  const b = object4(r.binding, [
     "listenerId",
     "viewId",
     "romSha256",
@@ -52609,7 +52488,7 @@ function parseRecordingJob(value) {
   if (r.phase === "failed" && (r.uploadAttempted || r.saved || !r.stopped || !r.released))
     throw new Error("Unproven failed recording journal.");
   if (r.partial !== void 0) {
-    const p = object5(r.partial, [
+    const p = object4(r.partial, [
       "id",
       "path",
       "metadataPath",
@@ -53237,7 +53116,7 @@ var PreviewRecordingBroker = class {
 };
 
 // src/web-preview.js
-import { createHash as createHash35, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual3 } from "node:crypto";
+import { createHash as createHash31, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 import { constants as constants20 } from "node:fs";
 import { lstat as lstat22, open as open21, realpath as realpath23 } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -53245,7 +53124,7 @@ import path41 from "node:path";
 import { pipeline } from "node:stream/promises";
 
 // src/web-preview-states.js
-import { createHash as createHash32, randomUUID as randomUUID12 } from "node:crypto";
+import { randomUUID as randomUUID12 } from "node:crypto";
 import { constants as constants18 } from "node:fs";
 import { link as link5, lstat as lstat20, mkdir as mkdir13, open as open19, opendir as opendir4, realpath as realpath21, unlink as unlink8 } from "node:fs/promises";
 
@@ -53267,14 +53146,14 @@ var SaveStateError = class extends Error {
 function invalid2(message2) {
   throw new SaveStateError("INVALID_FILE", message2);
 }
-function object6(value, keys, label) {
+function object5(value, keys, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid2(`Invalid ${label}.`);
   const fields2 = Object.keys(value);
   if (fields2.length !== keys.length || fields2.some((key) => !keys.includes(key))) invalid2(`Invalid ${label} fields.`);
   return value;
 }
 function identity4(value) {
-  const item = object6(value, ["romSha256", "runtimeSha256", "sourceRevision", "cartridgeType"], "build identity");
+  const item = object5(value, ["romSha256", "runtimeSha256", "sourceRevision", "cartridgeType"], "build identity");
   if (typeof item.romSha256 !== "string" || !SHA2564.test(item.romSha256) || typeof item.runtimeSha256 !== "string" || !SHA2564.test(item.runtimeSha256) || typeof item.sourceRevision !== "string" || !item.sourceRevision.trim() || item.sourceRevision.length > 1024 || !Number.isInteger(item.cartridgeType) || item.cartridgeType < 0 || item.cartridgeType > 255)
     invalid2("Invalid build identity.");
   return {
@@ -53285,7 +53164,7 @@ function identity4(value) {
   };
 }
 function payloadShape(value, label, exactSize) {
-  const state3 = object6(value, ["encoding", "byteLength", "sha256", "data"], label);
+  const state3 = object5(value, ["encoding", "byteLength", "sha256", "data"], label);
   if (!Number.isSafeInteger(state3.byteLength) || state3.byteLength < 1) invalid2(`Invalid ${label} byte length.`);
   if (state3.byteLength > MAX_SAVE_STATE_BYTES)
     throw new SaveStateError("TOO_LARGE", "The saved state exceeds the supported size.");
@@ -53295,7 +53174,7 @@ function payloadShape(value, label, exactSize) {
   return { encoding: "base64", byteLength: state3.byteLength, sha256: state3.sha256.toLowerCase(), data: state3.data };
 }
 function fileShape(value) {
-  const item = object6(
+  const item = object5(
     value,
     ["format", "version", "identity", "frame", "createdAt", "title", "state", "framebuffer", "sgbFramebuffer"],
     "save state"
@@ -53323,9 +53202,9 @@ function fileShape(value) {
     sgbFramebuffer
   };
 }
-async function sha2562(bytes2) {
-  const digest7 = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes2).buffer);
-  return Array.from(new Uint8Array(digest7), (value) => value.toString(16).padStart(2, "0")).join("");
+async function sha256(bytes2) {
+  const digest3 = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes2).buffer);
+  return Array.from(new Uint8Array(digest3), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 function base642(bytes2) {
   const chunks = [];
@@ -53367,7 +53246,7 @@ async function parseSaveState(text, expectedIdentity) {
     const bytes3 = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
     if (bytes3.length !== payload.byteLength || base642(bytes3) !== payload.data)
       invalid2("State payload length or base64 encoding differs.");
-    if (await sha2562(bytes3) !== payload.sha256)
+    if (await sha256(bytes3) !== payload.sha256)
       throw new SaveStateError("INTEGRITY", "The saved state failed its SHA-256 integrity check.");
     return bytes3;
   }
@@ -53407,14 +53286,8 @@ function unsafe() {
 function isError(error2, code) {
   return error2?.code === code;
 }
-function sameFile2(a, b) {
-  return a.dev === b.dev && a.ino === b.ino;
-}
 function sameVersion(a, b) {
-  return sameFile2(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
-}
-function digest6(text) {
-  return createHash32("sha256").update(text).digest("hex");
+  return sameFile(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
 }
 function metadata(id3, file2) {
   return { id: id3, title: file2.title, frame: file2.frame, createdAt: file2.createdAt };
@@ -53447,13 +53320,13 @@ var PreviewStateStore = class {
       sourceRevision: build2.sourceRevision,
       cartridgeType: build2.cartridgeType
     };
-    this.directory = this.paths.join(this.root, "save-states", digest6(JSON.stringify(this.identity)));
+    this.directory = this.paths.join(this.root, "save-states", sha256Hex(JSON.stringify(this.identity)));
   }
   async list() {
     return this.serialized(async () => {
       const directories = await this.directories(false);
       if (!directories) return [];
-      return (await this.history(directories)).records.slice(0, MAX_PREVIEW_STATES).map((record7) => record7.metadata);
+      return (await this.history(directories)).records.slice(0, MAX_PREVIEW_STATES).map((record4) => record4.metadata);
     });
   }
   async latest() {
@@ -53474,7 +53347,7 @@ var PreviewStateStore = class {
   async save(text) {
     const { file: file2 } = await parseSaveState(text, this.identity);
     const canonical2 = serializeSaveState(file2);
-    const id3 = digest6(canonical2);
+    const id3 = sha256Hex(canonical2);
     return this.serialized(async () => {
       const directories = await this.directories(true);
       const existing = await this.readState(id3, directories);
@@ -53520,7 +53393,7 @@ var PreviewStateStore = class {
     if (before.isSymbolicLink() || !before.isDirectory()) unsafe();
     const canonical2 = await realpath21(filename);
     const after = await lstat20(filename);
-    if (!this.matches(canonical2, filename) || !sameFile2(before, after) || expected && !sameFile2(after, expected))
+    if (!this.matches(canonical2, filename) || !sameFile(before, after) || expected && !sameFile(after, expected))
       unsafe();
     return after;
   }
@@ -53598,7 +53471,7 @@ var PreviewStateStore = class {
   }
   async namedFile(filename, expected) {
     const stat8 = await lstat20(filename);
-    if (stat8.isSymbolicLink() || !stat8.isFile() || expected && !sameFile2(stat8, expected) || !this.matches(await realpath21(filename), filename) || !isPathWithinRoot(this.directory, filename, this.platform))
+    if (stat8.isSymbolicLink() || !stat8.isFile() || expected && !sameFile(stat8, expected) || !this.matches(await realpath21(filename), filename) || !isPathWithinRoot(this.directory, filename, this.platform))
       unsafe();
     return stat8;
   }
@@ -53622,7 +53495,7 @@ var PreviewStateStore = class {
     let text;
     try {
       const before = await handle.stat();
-      if (!before.isFile() || !sameFile2(named, before)) unsafe();
+      if (!before.isFile() || !sameFile(named, before)) unsafe();
       if (before.size !== named.size) return null;
       const bytes2 = Buffer.alloc(before.size + 1);
       let size = 0;
@@ -53644,7 +53517,7 @@ var PreviewStateStore = class {
     } finally {
       await handle.close();
     }
-    if (digest6(text) !== id3) return null;
+    if (sha256Hex(text) !== id3) return null;
     try {
       const { file: file2 } = await parseSaveState(text, this.identity);
       return serializeSaveState(file2) === text ? { text, metadata: metadata(id3, file2), stat: named } : null;
@@ -53683,13 +53556,13 @@ var PreviewStateStore = class {
           if (isError(error2, "ENOENT")) return null;
           throw error2;
         });
-        if (leftover && sameFile2(leftover, owned5) && !leftover.isSymbolicLink()) await unlink8(temporary);
+        if (leftover && sameFile(leftover, owned5) && !leftover.isSymbolicLink()) await unlink8(temporary);
       }
     }
     if (this.platform !== "win32") {
       const parent = await open19(this.directory, constants18.O_RDONLY | constants18.O_DIRECTORY | constants18.O_NOFOLLOW);
       try {
-        if (!sameFile2(await parent.stat(), directories.at(-1).stat)) unsafe();
+        if (!sameFile(await parent.stat(), directories.at(-1).stat)) unsafe();
         await parent.sync();
       } finally {
         await parent.close();
@@ -53716,7 +53589,7 @@ var PreviewStateStore = class {
 
 // src/web-preview-captures.js
 var import_pngjs11 = __toESM(require_png(), 1);
-import { createHash as createHash33, randomUUID as randomUUID13 } from "node:crypto";
+import { createHash as createHash29, randomUUID as randomUUID13 } from "node:crypto";
 import { constants as constants19, openAsBlob } from "node:fs";
 import { link as link6, lstat as lstat21, mkdir as mkdir14, open as open20, realpath as realpath22, unlink as unlink9 } from "node:fs/promises";
 var MAX_PREVIEW_SCREENSHOT_BYTES = 8 * 1024 * 1024;
@@ -53749,17 +53622,11 @@ function unsafe2() {
 function isError2(error2, code) {
   return error2?.code === code;
 }
-function sameFile3(a, b) {
-  return a.dev === b.dev && a.ino === b.ino;
-}
 function sameVersion2(a, b) {
-  return sameFile3(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
+  return sameFile(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
 }
 function owned4(stat8) {
   return !process.getuid || stat8.uid === process.getuid();
-}
-function hash3(value) {
-  return createHash33("sha256").update(value).digest("hex");
 }
 function buildIdentity(value) {
   if (!value || typeof value.romSha256 !== "string" || !SHA2566.test(value.romSha256.toLowerCase()) || typeof value.runtimeSha256 !== "string" || !SHA2566.test(value.runtimeSha256.toLowerCase()) || typeof value.sourceRevision !== "string" || !value.sourceRevision.trim() || value.sourceRevision.length > 1024 || !Number.isInteger(value.cartridgeType) || value.cartridgeType < 0 || value.cartridgeType > 255) {
@@ -53795,7 +53662,7 @@ function dimensions2(width, height) {
 }
 function validateHeader(kind, extension, header, size, metadata2) {
   if (kind === "screenshot") {
-    if (size < 45 || header.length < 33 || !header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || header.readUInt32BE(8) !== 13 || header.toString("ascii", 12, 16) !== "IHDR")
+    if (size < 45 || header.length < 33 || !header.subarray(0, 8).equals(PNG_SIGNATURE) || header.readUInt32BE(8) !== 13 || header.toString("ascii", 12, 16) !== "IHDR")
       fail4("INVALID_MEDIA", "The screenshot is not a PNG image.");
     const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
     if (!dimensions2(width, height) || metadata2.width !== void 0 && (metadata2.width !== width || metadata2.height !== height)) {
@@ -53941,9 +53808,9 @@ var PreviewCaptureStore = class {
     }
     if (upload.busy || upload.sealed || upload.mimeType !== type.mimeType)
       fail4("INVALID_MEDIA", "Video upload is busy, sealed, or has a different MIME type.");
-    const digest7 = hash3(bytes2);
+    const digest3 = sha256Hex(bytes2);
     if (sequence2 < upload.hashes.length) {
-      if (upload.hashes[sequence2] !== digest7) fail4("INVALID_MEDIA", "A repeated video chunk has different bytes.");
+      if (upload.hashes[sequence2] !== digest3) fail4("INVALID_MEDIA", "A repeated video chunk has different bytes.");
       return { bytes: upload.bytes, chunks: upload.hashes.length, path: upload.file.path, duplicate: true };
     }
     if (sequence2 !== upload.hashes.length || upload.bytes + bytes2.byteLength > MAX_PREVIEW_VIDEO_BYTES)
@@ -53955,7 +53822,7 @@ var PreviewCaptureStore = class {
       await upload.file.handle.writeFile(bytes2);
       upload.bytes += bytes2.byteLength;
       await this.finishTemporary(upload.file, upload.bytes, upload.directories);
-      upload.hashes.push(digest7);
+      upload.hashes.push(digest3);
       return { bytes: upload.bytes, chunks: upload.hashes.length, path: upload.file.path, duplicate: false };
     } catch (error2) {
       upload.sealed = true;
@@ -54028,7 +53895,7 @@ var PreviewCaptureStore = class {
     if (!this.paths.isAbsolute(options.projectRoot)) unsafe2();
     this.root = this.paths.resolve(options.projectRoot);
     this.identity = captureIdentity(options.identity);
-    this.directory = this.paths.join(this.root, "captures", hash3(JSON.stringify(this.identity)));
+    this.directory = this.paths.join(this.root, "captures", sha256Hex(JSON.stringify(this.identity)));
   }
   async save(input) {
     const type = mediaType(input.kind, input.mimeType);
@@ -54046,7 +53913,7 @@ var PreviewCaptureStore = class {
     validateHeader(input.kind, type.extension, header, size, metadata2);
     if (input.kind === "screenshot") validatePng(Buffer.from(await blob.arrayBuffer()), metadata2);
     const id3 = randomUUID13(), createdAt = (/* @__PURE__ */ new Date()).toISOString();
-    const record7 = {
+    const record4 = {
       id: id3,
       kind: input.kind,
       mimeType: type.mimeType,
@@ -54060,10 +53927,10 @@ var PreviewCaptureStore = class {
       format: physical(this.identity) ? PHYSICAL_FORMAT : FORMAT2,
       version: 1,
       id: id3,
-      kind: record7.kind,
-      mimeType: record7.mimeType,
+      kind: record4.kind,
+      mimeType: record4.mimeType,
       bytes: size,
-      sha256: record7.sha256,
+      sha256: record4.sha256,
       createdAt,
       identity: this.identity,
       metadata: metadata2
@@ -54071,17 +53938,17 @@ var PreviewCaptureStore = class {
     if (Buffer.byteLength(document()) > MAX_PREVIEW_CAPTURE_METADATA_BYTES)
       fail4("TOO_LARGE", "Capture metadata including its identity exceeds 2 MiB.");
     const directories = await this.directories(true);
-    const media = { path: this.paths.join(this.directory, `.${id3}.media.tmp`), final: record7.path, published: false };
+    const media = { path: this.paths.join(this.directory, `.${id3}.media.tmp`), final: record4.path, published: false };
     const sidecar = {
       path: this.paths.join(this.directory, `.${id3}.metadata.tmp`),
-      final: record7.metadataPath,
+      final: record4.metadataPath,
       published: false
     };
     const files = [media, sidecar];
     let failure, publicationAttempted = false;
     try {
       await this.createTemporary(media, directories);
-      const digest7 = createHash33("sha256");
+      const digest3 = createHash29("sha256");
       let written = 0, prefix2 = Buffer.alloc(0);
       const reader = blob.stream().getReader();
       try {
@@ -54092,7 +53959,7 @@ var PreviewCaptureStore = class {
             fail4("TOO_LARGE", "Capture bytes exceeded their declared size.");
           if (prefix2.length < MAX_HEADER_BYTES)
             prefix2 = Buffer.concat([prefix2, chunk.subarray(0, MAX_HEADER_BYTES - prefix2.length)]);
-          digest7.update(chunk);
+          digest3.update(chunk);
           await media.handle.writeFile(chunk);
           written += chunk.byteLength;
         }
@@ -54104,7 +53971,7 @@ var PreviewCaptureStore = class {
         reader.releaseLock();
       }
       if (written !== size || !prefix2.equals(header)) fail4("INVALID_MEDIA", "Capture bytes changed while being saved.");
-      record7.sha256 = digest7.digest("hex");
+      record4.sha256 = digest3.digest("hex");
       await this.finishTemporary(media, size, directories);
       await this.createTemporary(sidecar, directories);
       const text = document();
@@ -54152,7 +54019,7 @@ var PreviewCaptureStore = class {
         if (this.platform !== "win32") {
           const parent = await open20(this.directory, constants19.O_RDONLY | constants19.O_DIRECTORY | constants19.O_NOFOLLOW);
           try {
-            if (!sameFile3(await parent.stat(), directories.at(-1).stat)) unsafe2();
+            if (!sameFile(await parent.stat(), directories.at(-1).stat)) unsafe2();
             await parent.sync();
           } finally {
             await parent.close();
@@ -54164,8 +54031,8 @@ var PreviewCaptureStore = class {
     if (failure) {
       const partial2 = {
         id: id3,
-        path: record7.path,
-        metadataPath: record7.metadataPath,
+        path: record4.path,
+        metadataPath: record4.metadataPath,
         mediaPublished: media.published,
         metadataPublished: sidecar.published,
         publicationAttempted,
@@ -54178,7 +54045,7 @@ var PreviewCaptureStore = class {
         { cause: failure }
       );
     }
-    return record7;
+    return record4;
   }
   async open(id3, part = "media") {
     if (typeof id3 !== "string" || !CAPTURE_ID.test(id3))
@@ -54194,7 +54061,7 @@ var PreviewCaptureStore = class {
       if (isError2(error2, "ENOENT")) return null;
       throw error2;
     }
-    let record7, metadata2;
+    let record4, metadata2;
     try {
       let value;
       try {
@@ -54209,7 +54076,7 @@ var PreviewCaptureStore = class {
         fail4("CORRUPT_FILE", "The capture size is invalid.");
       metadata2 = metadataSnapshot(value.metadata);
       this.checkMetadata(metadata2, value.kind, type2.mimeType, value.bytes);
-      record7 = {
+      record4 = {
         id: id3,
         kind: value.kind,
         mimeType: type2.mimeType,
@@ -54225,21 +54092,21 @@ var PreviewCaptureStore = class {
     }
     if (part === "metadata")
       return {
-        record: record7,
+        record: record4,
         handle: sidecar.handle,
         bytes: sidecar.bytes,
         sha256: sidecar.sha256,
         mimeType: "application/json"
       };
     await sidecar.handle.close();
-    const type = mediaType(record7.kind, record7.mimeType);
-    const media = await this.openVerified(record7.path, type.limit, directories, record7.kind === "screenshot");
+    const type = mediaType(record4.kind, record4.mimeType);
+    const media = await this.openVerified(record4.path, type.limit, directories, record4.kind === "screenshot");
     try {
-      if (media.bytes !== record7.bytes || media.sha256 !== record7.sha256)
+      if (media.bytes !== record4.bytes || media.sha256 !== record4.sha256)
         fail4("CORRUPT_FILE", "The saved capture differs from its metadata.");
-      validateHeader(record7.kind, type.extension, media.header, media.bytes, metadata2);
-      if (record7.kind === "screenshot") validatePng(media.content, metadata2);
-      return { record: record7, handle: media.handle, bytes: media.bytes, sha256: media.sha256, mimeType: record7.mimeType };
+      validateHeader(record4.kind, type.extension, media.header, media.bytes, metadata2);
+      if (record4.kind === "screenshot") validatePng(media.content, metadata2);
+      return { record: record4, handle: media.handle, bytes: media.bytes, sha256: media.sha256, mimeType: record4.mimeType };
     } catch (error2) {
       await media.handle.close();
       throw error2;
@@ -54256,7 +54123,7 @@ var PreviewCaptureStore = class {
         if (!read.bytesRead) fail4("CORRUPT_FILE", "The saved capture became incomplete.");
         offset += read.bytesRead;
       }
-      if (hash3(bytes2) !== file2.sha256) fail4("CORRUPT_FILE", "The saved capture changed while being read.");
+      if (sha256Hex(bytes2) !== file2.sha256) fail4("CORRUPT_FILE", "The saved capture changed while being read.");
       const filename = part === "media" ? file2.record.path : file2.record.metadataPath;
       if (!sameVersion2(await file2.handle.stat(), await this.namedFile(filename, this.filePins.get(filename)))) unsafe2();
       await this.directories(false);
@@ -54292,7 +54159,7 @@ var PreviewCaptureStore = class {
     const before = await lstat21(filename);
     if (before.isSymbolicLink() || !before.isDirectory() || !owned4(before)) unsafe2();
     const canonical2 = await realpath22(filename), after = await lstat21(filename);
-    if (!this.matches(canonical2, filename) || !sameFile3(before, after) || expected && !sameFile3(expected, after))
+    if (!this.matches(canonical2, filename) || !sameFile(before, after) || expected && !sameFile(expected, after))
       unsafe2();
     return after;
   }
@@ -54329,7 +54196,7 @@ var PreviewCaptureStore = class {
     if (!before.isFile() || before.isSymbolicLink() || !owned4(before) || before.nlink !== links || !isPathWithinRoot(this.directory, filename, this.platform) || !this.matches(await realpath22(filename), filename))
       unsafe2();
     const after = await lstat21(filename);
-    if (!sameVersion2(before, after) || expected && !sameFile3(expected, after) || after.nlink !== links) unsafe2();
+    if (!sameVersion2(before, after) || expected && !sameFile(expected, after) || after.nlink !== links) unsafe2();
     return after;
   }
   async createTemporary(file2, directories) {
@@ -54363,7 +54230,7 @@ var PreviewCaptureStore = class {
     try {
       const before = await handle.stat();
       if (!sameVersion2(named, before) || before.nlink !== 1 || !before.isFile() || !owned4(before)) unsafe2();
-      const digest7 = createHash33("sha256"), buffer = Buffer.alloc(Math.min(64 * 1024, named.size + 1));
+      const digest3 = createHash29("sha256"), buffer = Buffer.alloc(Math.min(64 * 1024, named.size + 1));
       const content = retain ? Buffer.alloc(named.size) : void 0;
       let total = 0, header = Buffer.alloc(0);
       while (total <= named.size) {
@@ -54371,7 +54238,7 @@ var PreviewCaptureStore = class {
         if (!bytesRead) break;
         if (total + bytesRead > named.size) fail4("CORRUPT_FILE", "The capture changed size while being read.");
         const chunk = buffer.subarray(0, bytesRead);
-        digest7.update(chunk);
+        digest3.update(chunk);
         if (header.length < MAX_HEADER_BYTES)
           header = Buffer.concat([header, chunk.subarray(0, MAX_HEADER_BYTES - header.length)]);
         content?.set(chunk, total);
@@ -54381,7 +54248,7 @@ var PreviewCaptureStore = class {
         unsafe2();
       await this.checkDirectories(directories);
       this.filePins.set(filename, before);
-      return { handle, bytes: total, sha256: digest7.digest("hex"), header, content };
+      return { handle, bytes: total, sha256: digest3.digest("hex"), header, content };
     } catch (error2) {
       await handle.close();
       throw error2;
@@ -54390,7 +54257,7 @@ var PreviewCaptureStore = class {
 };
 
 // src/web-preview-player.js
-import { createHash as createHash34, randomUUID as randomUUID14 } from "node:crypto";
+import { createHash as createHash30, randomUUID as randomUUID14 } from "node:crypto";
 var VIEW_TTL_MS = 5e3;
 var MAX_TIMEOUT_MS3 = 15e3;
 var MAX_VIEWS = 8;
@@ -54407,7 +54274,7 @@ var PreviewPlayerControlError = class extends Error {
 function fail5(code, message2) {
   throw new PreviewPlayerControlError(code, message2);
 }
-function record3(value, required3, optional2, code) {
+function record2(value, required3, optional2, code) {
   if (!value || typeof value !== "object" || Array.isArray(value) || required3.some((key) => !Object.hasOwn(value, key)) || Object.keys(value).some((key) => !required3.includes(key) && !optional2.includes(key)))
     fail5(code, "Invalid browser control fields.");
   return value;
@@ -54431,7 +54298,7 @@ function build(value, code) {
   return { romSha256: value.romSha256, runtimeSha256: value.runtimeSha256, sourceRevision: value.sourceRevision };
 }
 function pollPayload(value) {
-  const item = record3(
+  const item = record2(
     value,
     ["viewId", "romSha256", "runtimeSha256", "sourceRevision", "frame", "paused"],
     ["result"],
@@ -54442,7 +54309,7 @@ function pollPayload(value) {
     fail5("INVALID_PAYLOAD", "Invalid browser frame or paused status.");
   const poll = { ...identity6, viewId: uuid3(item.viewId, "INVALID_PAYLOAD"), frame: item.frame, paused: item.paused };
   if (item.result !== void 0) {
-    const result = record3(item.result, ["id", "ok"], ["state", "frame", "error"], "INVALID_PAYLOAD");
+    const result = record2(item.result, ["id", "ok"], ["state", "frame", "error"], "INVALID_PAYLOAD");
     if (typeof result.ok !== "boolean" || result.frame !== void 0 && !frame2(result.frame))
       fail5("INVALID_PAYLOAD", "Invalid browser command result.");
     const parsed = { id: uuid3(result.id, "INVALID_PAYLOAD"), ok: result.ok };
@@ -54469,7 +54336,7 @@ var PreviewPlayerControl = class {
   constructor(identity6, projectRoot, cartridgeType = 0) {
     if (projectRoot) this.recording = new PreviewRecordingBroker(projectRoot, void 0, cartridgeType);
     this.identity = build(
-      record3(identity6, ["romSha256", "runtimeSha256", "sourceRevision"], [], "INVALID_IDENTITY"),
+      record2(identity6, ["romSha256", "runtimeSha256", "sourceRevision"], [], "INVALID_IDENTITY"),
       "INVALID_IDENTITY"
     );
   }
@@ -54513,7 +54380,7 @@ var PreviewPlayerControl = class {
     let repeated = false;
     let resultDigest;
     if (poll.result) {
-      resultDigest = createHash34("sha256").update(JSON.stringify(poll.result)).digest("hex");
+      resultDigest = createHash30("sha256").update(JSON.stringify(poll.result)).digest("hex");
       repeated = view?.completed?.id === poll.result.id && view.completed.digest === resultDigest;
       const pending = view?.pending;
       if (!repeated && (!pending || !pending.delivered || pending.command.id !== poll.result.id)) {
@@ -54561,7 +54428,7 @@ var PreviewPlayerControl = class {
     this.assertOpen();
     if (this.input.blocking || this.recording?.busy)
       fail5("BUSY", "Browser input or recording is pending or unresolved.");
-    const args = record3(options, [], ["viewId", "state"], "INVALID_REQUEST");
+    const args = record2(options, [], ["viewId", "state"], "INVALID_REQUEST");
     if (!["capture", "restore"].includes(action)) fail5("INVALID_REQUEST", "Unsupported browser control action.");
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS3)
       fail5("INVALID_REQUEST", "Browser command timeout must be between 1 and 15000 milliseconds.");
@@ -54660,13 +54527,13 @@ var RECOVERY = [
   ["CHROMATIC_PLAYER_AMBIGUOUS", "change_player_numbers"],
   ["CHROMATIC_CARTRIDGE_NOT_DETECTED", "clean_and_reseat_cartridge"]
 ];
-var record4 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var record3 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 function copyFlashFailureDetails(value) {
-  if (!record4(value) || value.source !== "validated-vendor-error") return void 0;
+  if (!record3(value) || value.source !== "validated-vendor-error") return void 0;
   const phase = PHASES.find((item) => item === value.phase);
   const observed = Array.isArray(value.observedTokens) ? value.observedTokens.slice(0, 8) : [];
   const observedTokens = TOKENS.filter((item) => observed.includes(item));
-  const recovery = record4(value.recovery) ? value.recovery : void 0;
+  const recovery = record3(value.recovery) ? value.recovery : void 0;
   const pair = RECOVERY.find(([code, action]) => code === recovery?.code && action === recovery?.action);
   if (!phase && !observedTokens.length && !pair) return void 0;
   return {
@@ -54678,7 +54545,6 @@ function copyFlashFailureDetails(value) {
 }
 
 // src/chromatic-failure-diagnostics.js
-var record5 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 var positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
 var nonnegativeInteger = (value) => Number.isSafeInteger(value) && value >= 0;
 var MAX_TEXT = 2048;
@@ -54686,24 +54552,24 @@ var MAX_CAUSES = 8;
 var TOKENS2 = ["LIBUSB_ERROR_ACCESS", "IOKit 0xe00002be"];
 function completeProcess(command) {
   const process3 = command.process;
-  if (!record5(process3) || process3.error || !positiveInteger(process3.pid) || !record5(process3.spawn) || process3.spawn.pid !== process3.pid || !record5(process3.exit) || !record5(process3.close) || !Number.isInteger(process3.exit.code) || process3.exit.code !== process3.close.code || process3.exit.signal !== null || process3.close.signal !== null || !Array.isArray(process3.observationErrors) || process3.observationErrors.length || !record5(process3.stdout) || process3.stdout.truncated !== false || process3.stdout.utf8Valid !== true || !record5(command.rawOutput) || typeof command.dispatchAttemptedAt !== "string")
+  if (!isObject2(process3) || process3.error || !positiveInteger(process3.pid) || !isObject2(process3.spawn) || process3.spawn.pid !== process3.pid || !isObject2(process3.exit) || !isObject2(process3.close) || !Number.isInteger(process3.exit.code) || process3.exit.code !== process3.close.code || process3.exit.signal !== null || process3.close.signal !== null || !Array.isArray(process3.observationErrors) || process3.observationErrors.length || !isObject2(process3.stdout) || process3.stdout.truncated !== false || process3.stdout.utf8Valid !== true || !isObject2(command.rawOutput) || typeof command.dispatchAttemptedAt !== "string")
     return false;
   return ["stdout", "stderr"].every((name3) => {
     const stream = process3[name3], raw = command.rawOutput[name3];
-    return record5(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && nonnegativeInteger(stream.bytes) && record5(raw) && raw.complete === true && raw.observedBytes === stream.bytes;
+    return isObject2(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && nonnegativeInteger(stream.bytes) && isObject2(raw) && raw.complete === true && raw.observedBytes === stream.bytes;
   });
 }
 function flashFailureDetails(operation, command) {
-  if (!record5(operation) || operation.state !== "failed" || operation.success !== false || operation.journalError || !Array.isArray(operation.commands) || !record5(operation.error) || !record5(operation.error.details) || operation.error.code !== "CHROMATIC_VENDOR_FAILED" && operation.error.code !== "CHROMATIC_VENDOR_ERROR")
+  if (!isObject2(operation) || operation.state !== "failed" || operation.success !== false || operation.journalError || !Array.isArray(operation.commands) || !isObject2(operation.error) || !isObject2(operation.error.details) || operation.error.code !== "CHROMATIC_VENDOR_FAILED" && operation.error.code !== "CHROMATIC_VENDOR_ERROR")
     return void 0;
   const details = operation.error.details;
-  if (!nonnegativeInteger(details.commandIndex) || details.commandIndex >= operation.commands.length || operation.commands[details.commandIndex] !== command || !record5(command) || !Array.isArray(command.args) || typeof command.args[0] !== "string" || !["list-devices", "detect-cart", "write-homebrew"].includes(command.args[0]) || !completeProcess(command))
+  if (!nonnegativeInteger(details.commandIndex) || details.commandIndex >= operation.commands.length || operation.commands[details.commandIndex] !== command || !isObject2(command) || !Array.isArray(command.args) || typeof command.args[0] !== "string" || !["list-devices", "detect-cart", "write-homebrew"].includes(command.args[0]) || !completeProcess(command))
     return void 0;
   const process3 = command.process;
   const exit = process3.exit;
   if (operation.error.code === "CHROMATIC_VENDOR_ERROR" !== (exit.code === 0)) return void 0;
   const vendor = command.vendor;
-  if (!record5(vendor) || vendor.schema_version !== 1 || vendor.operation !== command.args[0] || vendor.ok !== false || vendor.result !== null || !record5(vendor.error) || typeof details.vendorCode !== "string" || !/^[a-zA-Z0-9_.-]{1,128}$/u.test(details.vendorCode) || details.vendorCode !== vendor.error.code)
+  if (!isObject2(vendor) || vendor.schema_version !== 1 || vendor.operation !== command.args[0] || vendor.ok !== false || vendor.result !== null || !isObject2(vendor.error) || typeof details.vendorCode !== "string" || !/^[a-zA-Z0-9_.-]{1,128}$/u.test(details.vendorCode) || details.vendorCode !== vendor.error.code)
     return void 0;
   const error2 = vendor.error;
   const texts = [];
@@ -54712,11 +54578,11 @@ function flashFailureDetails(operation, command) {
   };
   add(error2.message);
   for (const cause of Array.isArray(error2.causes) ? error2.causes.slice(0, MAX_CAUSES) : []) {
-    add(record5(cause) ? cause.message : cause);
+    add(isObject2(cause) ? cause.message : cause);
   }
   return copyFlashFailureDetails({
     source: "validated-vendor-error",
-    phase: record5(error2.details) ? error2.details.phase : void 0,
+    phase: isObject2(error2.details) ? error2.details.phase : void 0,
     observedTokens: TOKENS2.filter((token) => texts.some((text) => text.trim() === token)),
     // Project only recovery the service already produced; never run recovery
     // classification again or infer an action from an observed token.
@@ -54733,19 +54599,18 @@ var PreviewFlashError = class extends Error {
   }
 };
 var UUID4 = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-var record6 = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 var uncertain = (operation) => operation?.state === "unresolved" || operation?.cartridgeWrite === "outcome-unverified";
 var diagnosticCode = (value) => typeof value === "string" && /^[a-zA-Z0-9_.-]{1,128}$/u.test(value) ? value : void 0;
 function operationDiagnostics(operation) {
-  const commands = Array.isArray(operation.commands) ? operation.commands.filter(record6) : [];
-  const errorDetails = record6(operation.error) && record6(operation.error.details) ? operation.error.details : {};
+  const commands = Array.isArray(operation.commands) ? operation.commands.filter(isObject2) : [];
+  const errorDetails = isObject2(operation.error) && isObject2(operation.error.details) ? operation.error.details : {};
   const attempted = commands.filter((command) => typeof command.dispatchAttemptedAt === "string");
   const closed = attempted.length > 0 && attempted.every((command) => {
-    const process3 = record6(command.process) ? command.process : {};
-    const elevation = record6(process3.elevation) ? process3.elevation : {};
-    return command.processStart === "not-started" || record6(process3.close) && typeof process3.close.at === "string" && (elevation.method !== "windows-run-as" || command.elevatedClosure === "vendor-exit-observed" || command.elevatedClosure === "not-started");
+    const process3 = isObject2(command.process) ? command.process : {};
+    const elevation = isObject2(process3.elevation) ? process3.elevation : {};
+    return command.processStart === "not-started" || isObject2(process3.close) && typeof process3.close.at === "string" && (elevation.method !== "windows-run-as" || command.elevatedClosure === "vendor-exit-observed" || command.elevatedClosure === "not-started");
   });
-  const boundary = (value) => record6(value) ? {
+  const boundary = (value) => isObject2(value) ? {
     ...value.code === null || Number.isInteger(value.code) ? { code: value.code } : {},
     ...value.signal === null || diagnosticCode(value.signal) ? { signal: value.signal } : {}
   } : void 0;
@@ -54753,7 +54618,7 @@ function operationDiagnostics(operation) {
     processCompletion: closed ? "closed" : commands.length === 0 && Array.isArray(operation.commands) ? "not-dispatched" : "unconfirmed",
     ...operation.journalError ? { journal: "Final status could not be recorded." } : {},
     commands: commands.slice(0, 16).map((command, index) => {
-      const process3 = record6(command.process) ? command.process : {};
+      const process3 = isObject2(command.process) ? command.process : {};
       const failureDetails2 = flashFailureDetails(operation, command);
       return {
         command: Array.isArray(command.args) ? diagnosticCode(command.args[0]) : void 0,
@@ -54768,10 +54633,10 @@ function operationDiagnostics(operation) {
         vendorCode: errorDetails.commandIndex === index ? diagnosticCode(errorDetails.vendorCode) : void 0,
         ...failureDetails2 ? { failureDetails: failureDetails2 } : {},
         // Raw strings, argv, environment, auth values and vendor details stay out of the UI.
-        outputComplete: Array.isArray(process3.observationErrors) && process3.observationErrors.length === 0 && record6(command.rawOutput) && ["stdout", "stderr"].every((name3) => {
+        outputComplete: Array.isArray(process3.observationErrors) && process3.observationErrors.length === 0 && isObject2(command.rawOutput) && ["stdout", "stderr"].every((name3) => {
           const output = command.rawOutput;
           const stream = process3[name3];
-          return record6(output[name3]) && output[name3].complete === true && record6(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && output[name3].observedBytes === stream.bytes;
+          return isObject2(output[name3]) && output[name3].complete === true && isObject2(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && output[name3].observedBytes === stream.bytes;
         })
       };
     }),
@@ -54803,7 +54668,7 @@ var PreviewFlashControl = class {
   }
   /** A changed project may read an exact existing request, never admit work. */
   recover(value, binding) {
-    if (!record6(value) || typeof value.requestId !== "string" || !["status", "discover", "flash"].includes(String(value.action)))
+    if (!isObject2(value) || typeof value.requestId !== "string" || !["status", "discover", "flash"].includes(String(value.action)))
       return void 0;
     const original = this.#requests.get(value.requestId);
     if (!original || value.generation !== binding.generation || original.binding.generation !== binding.generation)
@@ -54821,10 +54686,10 @@ var PreviewFlashControl = class {
   }
   #devices(binding) {
     const operation = this.#discoveryOperation(binding);
-    if (operation?.state !== "succeeded" || !record6(operation.result) || !Array.isArray(operation.result.devices))
+    if (operation?.state !== "succeeded" || !isObject2(operation.result) || !Array.isArray(operation.result.devices))
       return [];
     return operation.result.devices.flatMap((device) => {
-      if (!record6(device) || typeof device.deviceToken !== "string" || !UUID4.test(device.deviceToken) || typeof device.expiresAt !== "string" || !record6(device.location) || !Array.isArray(device.location.port_chain))
+      if (!isObject2(device) || typeof device.deviceToken !== "string" || !UUID4.test(device.deviceToken) || typeof device.expiresAt !== "string" || !isObject2(device.location) || !Array.isArray(device.location.port_chain))
         return [];
       return [
         {
@@ -54840,7 +54705,7 @@ var PreviewFlashControl = class {
     try {
       observation = this.#operation(this.#observation);
     } catch (error2) {
-      if (!record6(error2) || error2.code !== "CHROMATIC_OPERATION_UNKNOWN") throw error2;
+      if (!isObject2(error2) || error2.code !== "CHROMATIC_OPERATION_UNKNOWN") throw error2;
       observation = {
         state: "failed",
         error: {
@@ -54861,12 +54726,12 @@ var PreviewFlashControl = class {
     const operation = request === this.#latest ? latest : this.#operation(request);
     const discovery = this.#discoveryOperation(binding);
     const discoveryFailed = discovery?.state === "failed" || discovery?.state === "unresolved";
-    const discoveryError = discoveryFailed && record6(discovery.error) ? discovery.error : void 0;
-    const discoveryNotices = discovery?.state === "succeeded" && record6(discovery.result) && Array.isArray(discovery.result.diagnostics) ? discovery.result.diagnostics.filter(record6).slice(0, 9).flatMap((item) => {
+    const discoveryError = discoveryFailed && isObject2(discovery.error) ? discovery.error : void 0;
+    const discoveryNotices = discovery?.state === "succeeded" && isObject2(discovery.result) && Array.isArray(discovery.result.diagnostics) ? discovery.result.diagnostics.filter(isObject2).slice(0, 9).flatMap((item) => {
       const code = diagnosticCode(item.code);
       return code && typeof item.message === "string" ? [{ code, message: chromaticErrorMessage(item) }] : [];
     }) : [];
-    const backend = record6(status.backend) ? status.backend : {};
+    const backend = isObject2(status.backend) ? status.backend : {};
     const reviewed = this.#reviewed?.operationId === this.#latest?.operationId && this.#reviewed?.generation === binding.generation && this.#reviewed?.romSha256 === binding.romSha256 && this.#canDismiss(binding, latest, status);
     const blocked = !!status.activeOperation || !!status.retainedReservation || status.acceptingOperations !== true || uncertain(latest) && !reviewed;
     return {
@@ -54911,7 +54776,7 @@ var PreviewFlashControl = class {
           stage: operation.stage,
           cartridgeWrite: operation.cartridgeWrite,
           ...typeof operation.success === "boolean" ? { success: operation.success } : {},
-          ...record6(operation.error) ? {
+          ...isObject2(operation.error) ? {
             error: {
               code: diagnosticCode(operation.error.code),
               message: chromaticErrorMessage(operation.error)
@@ -54934,7 +54799,7 @@ var PreviewFlashControl = class {
     return this.#status(binding);
   }
   execute(value, binding) {
-    if (!record6(value) || value.generation !== binding.generation) {
+    if (!isObject2(value) || value.generation !== binding.generation) {
       throw new PreviewFlashError("PREVIEW_CHANGED", "This preview changed. Reload it before using device controls.");
     }
     const allowed = value.action === "dismiss_failure" ? ["action", "generation", "requestId", "operationId", "acknowledgePreviousOutcome"] : value.action === "status" ? ["action", "generation", "requestId"] : value.action === "observe" || value.action === "refresh" ? ["action", "generation"] : value.action === "discover" ? ["action", "generation", "requestId"] : value.action === "flash" ? [
@@ -55328,9 +55193,9 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
   const assetHashes = [];
   for (const filename of ANNOTATION_FILES) {
     const bytes3 = await readAnnotationFile(assetsRoot, filename, platform);
-    const sha2563 = createHash35("sha256").update(bytes3).digest("hex");
-    assets.set(filename, { bytes: bytes3, etag: `"sha256-${sha2563}"`, contentType: "text/javascript; charset=utf-8" });
-    assetHashes.push({ path: filename, sha256: sha2563 });
+    const sha2562 = createHash31("sha256").update(bytes3).digest("hex");
+    assets.set(filename, { bytes: bytes3, etag: `"sha256-${sha2562}"`, contentType: "text/javascript; charset=utf-8" });
+    assetHashes.push({ path: filename, sha256: sha2562 });
   }
   if (options.deviceAssetsRoot !== void 0) {
     const deviceRoot = path41.resolve(options.deviceAssetsRoot);
@@ -55341,13 +55206,13 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
       if (filename.endsWith(".png") ? bytes3.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" : bytes3.toString("ascii", 0, 4) !== "RIFF" || bytes3.toString("ascii", 8, 12) !== "WEBP") {
         throw new Error(`Device artwork must match its WebP or PNG format: ${filename}`);
       }
-      const sha2563 = createHash35("sha256").update(bytes3).digest("hex");
+      const sha2562 = createHash31("sha256").update(bytes3).digest("hex");
       assets.set(filename, {
         bytes: bytes3,
-        etag: `"sha256-${sha2563}"`,
+        etag: `"sha256-${sha2562}"`,
         contentType: filename.endsWith(".png") ? "image/png" : "image/webp"
       });
-      assetHashes.push({ path: filename, sha256: sha2563 });
+      assetHashes.push({ path: filename, sha256: sha2562 });
     }
   }
   const index = await readAnnotationFile(outputRoot, "index.html", platform);
@@ -55365,7 +55230,7 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
       readAnnotationFile(outputRoot, context.romPath.split("/").join(path41.sep), platform, 8 * 1024 * 1024),
       readAnnotationFile(outputRoot, path41.join("js", "binjgb.wasm"), platform, 16 * 1024 * 1024)
     ]);
-    if (rom.length < 336 || createHash35("sha256").update(rom).digest("hex") !== context.romSha256) {
+    if (rom.length < 336 || createHash31("sha256").update(rom).digest("hex") !== context.romSha256) {
       throw new Error("Saved states require the verified exported cartridge.");
     }
     if (flashEnabled) {
@@ -55380,7 +55245,7 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
         romSizeBytes: rom.length
       };
     }
-    context.runtimeSha256 = createHash35("sha256").update(runtime).digest("hex");
+    context.runtimeSha256 = createHash31("sha256").update(runtime).digest("hex");
     const runtimeName = `binjgb-${context.runtimeSha256}.wasm`;
     assets.set(runtimeName, {
       bytes: runtime,
@@ -55415,19 +55280,19 @@ async function prepareAnnotations(outputRoot, options, platform, flashEnabled, d
       })
     };
   }
-  const reuseKey = createHash35("sha256").update(
+  const reuseKey = createHash31("sha256").update(
     JSON.stringify({
       projectRoot: options.projectRoot,
       context: { ...context, captures: context.captures ? true : void 0, flash: context.flash ? true : void 0 },
-      indexSha256: createHash35("sha256").update(index).digest("hex"),
+      indexSha256: createHash31("sha256").update(index).digest("hex"),
       assets: assetHashes
     })
   ).digest("hex");
-  const fingerprint2 = createHash35("sha256").update(
+  const fingerprint2 = createHash31("sha256").update(
     JSON.stringify({
       version: 1,
       context,
-      indexSha256: createHash35("sha256").update(index).digest("hex"),
+      indexSha256: createHash31("sha256").update(index).digest("hex"),
       assets: assetHashes
     })
   ).digest("hex");
@@ -55705,11 +55570,11 @@ async function serveHistory(request, response, active, relative6) {
   response.setHeader("Content-Length", Buffer.byteLength(text));
   response.end(request.method === "HEAD" ? void 0 : text);
 }
-function captureLinks(record7) {
+function captureLinks(record4) {
   return {
-    ...record7,
-    url: `./${CAPTURE_MOUNT}/${record7.id}/media`,
-    metadataUrl: `./${CAPTURE_MOUNT}/${record7.id}/metadata`
+    ...record4,
+    url: `./${CAPTURE_MOUNT}/${record4.id}/media`,
+    metadataUrl: `./${CAPTURE_MOUNT}/${record4.id}/metadata`
   };
 }
 async function serveCaptures(request, response, active, relative6) {
@@ -55795,8 +55660,8 @@ async function serveCaptures(request, response, active, relative6) {
           return;
         }
         if (managed && kind !== "video") throw new Error("Managed recording must be video.");
-        const record7 = await captures.store.save({ kind, media, mimeType: media.type, metadata: metadata2 });
-        const linked = captureLinks(record7);
+        const record4 = await captures.store.save({ kind, media, mimeType: media.type, metadata: metadata2 });
+        const linked = captureLinks(record4);
         if (managed)
           await annotations.players.recording.published(
             managed.id,
@@ -56912,7 +56777,7 @@ main{display:block;min-height:0;width:100%;padding:var(--cgv-device-top,0px) 0 0
 
 // src/device-capture/native-helper.js
 import { spawn as spawn3 } from "node:child_process";
-import { createHash as createHash36, randomUUID as randomUUID16 } from "node:crypto";
+import { createHash as createHash32, randomUUID as randomUUID16 } from "node:crypto";
 import { constants as constants21 } from "node:fs";
 import { lstat as lstat23, open as open22, realpath as realpath24 } from "node:fs/promises";
 import os4 from "node:os";
@@ -56937,18 +56802,18 @@ async function verifyExecutable(filename, expectedSha256) {
     throw new Error("Native capture helper has unsafe permissions or size.");
   const handle = await open22(filename, constants21.O_RDONLY | constants21.O_NOFOLLOW);
   try {
-    const before = await handle.stat(), digest7 = createHash36("sha256"), buffer = Buffer.alloc(65536);
+    const before = await handle.stat(), digest3 = createHash32("sha256"), buffer = Buffer.alloc(65536);
     let offset = 0;
     if (before.ino !== named.ino || before.dev !== named.dev || before.size !== named.size)
       throw new Error("Native capture helper changed before verification.");
     while (offset < before.size) {
       const read = await handle.read(buffer, 0, Math.min(buffer.length, before.size - offset), offset);
       if (!read.bytesRead) throw new Error("Native capture helper changed while reading.");
-      digest7.update(buffer.subarray(0, read.bytesRead));
+      digest3.update(buffer.subarray(0, read.bytesRead));
       offset += read.bytesRead;
     }
     const after = await handle.stat();
-    if (after.size !== before.size || after.ctimeMs !== before.ctimeMs || after.mtimeMs !== before.mtimeMs || digest7.digest("hex") !== expectedSha256)
+    if (after.size !== before.size || after.ctimeMs !== before.ctimeMs || after.mtimeMs !== before.mtimeMs || digest3.digest("hex") !== expectedSha256)
       throw new Error("Native capture helper did not match its release checksum.");
   } finally {
     await handle.close();
@@ -57344,14 +57209,14 @@ var NativeHelperProcess = class _NativeHelperProcess {
 };
 
 // src/device-capture/linux-helper.js
-import { createHash as createHash40, randomUUID as randomUUID17 } from "node:crypto";
+import { createHash as createHash36, randomUUID as randomUUID17 } from "node:crypto";
 import { constants as constants24 } from "node:fs";
 import { lstat as lstat26, mkdtemp as mkdtemp4, open as open25, realpath as realpath27, unlink as unlink10 } from "node:fs/promises";
 import os6 from "node:os";
 import path45 from "node:path";
 
 // src/device-capture/native-files.js
-import { createHash as createHash37 } from "node:crypto";
+import { createHash as createHash33 } from "node:crypto";
 import { constants as constants22 } from "node:fs";
 import { lstat as lstat24, open as open23, realpath as realpath25 } from "node:fs/promises";
 import path43 from "node:path";
@@ -57553,7 +57418,7 @@ var NativeCaptureFiles = class _NativeCaptureFiles {
       const before = await handle.stat();
       if (!same2(before, named) || before.size !== artifact.bytes)
         throw new Error("Native artifact changed before opening.");
-      const digest7 = createHash37("sha256"), buffer = Buffer.alloc(retainBytes ? artifact.bytes : Math.min(64 * 1024, artifact.bytes));
+      const digest3 = createHash33("sha256"), buffer = Buffer.alloc(retainBytes ? artifact.bytes : Math.min(64 * 1024, artifact.bytes));
       let offset = 0;
       while (offset < artifact.bytes) {
         const bufferOffset = retainBytes ? offset : 0;
@@ -57564,13 +57429,13 @@ var NativeCaptureFiles = class _NativeCaptureFiles {
           offset
         );
         if (!bytesRead) throw new Error("Native artifact ended unexpectedly.");
-        digest7.update(buffer.subarray(bufferOffset, bufferOffset + bytesRead));
+        digest3.update(buffer.subarray(bufferOffset, bufferOffset + bytesRead));
         offset += bytesRead;
       }
       const after = await handle.stat();
       const current = await lstat24(filename);
       await this.checkDirectory();
-      if (!same2(before, after) || !same2(before, current) || after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs || !current.isFile() || current.nlink !== 1 || after.nlink !== 1 || (current.mode & 511) !== 384 || (after.mode & 511) !== 384 || current.size !== before.size || current.mtimeMs !== before.mtimeMs || current.ctimeMs !== before.ctimeMs || digest7.digest("hex") !== artifact.sha256)
+      if (!same2(before, after) || !same2(before, current) || after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs || !current.isFile() || current.nlink !== 1 || after.nlink !== 1 || (current.mode & 511) !== 384 || (after.mode & 511) !== 384 || current.size !== before.size || current.mtimeMs !== before.mtimeMs || current.ctimeMs !== before.ctimeMs || digest3.digest("hex") !== artifact.sha256)
         throw new Error("Native artifact changed or its checksum did not match.");
       return { handle, path: filename, bytes: artifact.bytes, ...retainBytes ? { contents: buffer } : {} };
     } catch (error2) {
@@ -57616,7 +57481,7 @@ async function readBoundedCaptureAsset(filename, maximum) {
 }
 
 // src/device-capture/linux-device.js
-import { createHash as createHash38 } from "node:crypto";
+import { createHash as createHash34 } from "node:crypto";
 import { constants as constants23 } from "node:fs";
 import { lstat as lstat25, open as open24, readdir as readdir10, realpath as realpath26 } from "node:fs/promises";
 import path44 from "node:path";
@@ -57696,7 +57561,7 @@ async function scanChromaticVideoNodes() {
     if (node)
       candidates.push({
         ...node,
-        id: `linux-video-${createHash38("sha256").update(JSON.stringify(node)).digest("hex")}`
+        id: `linux-video-${createHash34("sha256").update(JSON.stringify(node)).digest("hex")}`
       });
   }
   return { total: names.length, candidates };
@@ -57722,7 +57587,7 @@ async function openBoundLinuxVideo(node) {
 }
 
 // src/device-capture/linux-frame-stream.js
-import { createHash as createHash39 } from "node:crypto";
+import { createHash as createHash35 } from "node:crypto";
 var LinuxFrameStream = class _LinuxFrameStream {
   receive;
   bytes = Buffer.alloc(0);
@@ -57805,15 +57670,15 @@ var LinuxFrameStream = class _LinuxFrameStream {
       const packet = this.packets.shift();
       const bytes2 = Buffer.from(this.bytes.subarray(0, packet.size));
       this.bytes = this.bytes.subarray(packet.size);
-      const sha2563 = createHash39("sha256").update(bytes2).digest("hex");
-      if (sha2563 !== packet.sha256 || packet.pts <= this.previousPTS)
+      const sha2562 = createHash35("sha256").update(bytes2).digest("hex");
+      if (sha2562 !== packet.sha256 || packet.pts <= this.previousPTS)
         throw new Error("Linux preview packet hash or timestamp did not match.");
       validateNativeJpeg(bytes2, this.dimensions);
       const sourcePTS = packet.pts * this.timeBase[0] / this.timeBase[1];
       if (!Number.isFinite(sourcePTS)) throw new Error("Linux preview source timestamp is invalid.");
       this.previousPTS = packet.pts;
       this.count++;
-      this.receive({ bytes: bytes2, sha256: sha2563, ...this.dimensions, pts: packet.pts, timeBase: this.timeBase, sourcePTS });
+      this.receive({ bytes: bytes2, sha256: sha2562, ...this.dimensions, pts: packet.pts, timeBase: this.timeBase, sourcePTS });
     }
   }
   finish() {
@@ -57894,7 +57759,7 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
   escalation;
   constructor(child, purpose, pipes, diagnostics) {
     this.child = child;
-    const record7 = {
+    const record4 = {
       purpose,
       ...child.pid === void 0 ? {} : { pid: child.pid },
       startedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -57902,7 +57767,7 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
       streamsSettled: false,
       stderr: ""
     };
-    this.record = record7;
+    this.record = record4;
     child.once("spawn", () => {
       this.record.spawnObserved = true;
     });
@@ -57949,9 +57814,9 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
     this.finished = (async () => {
       await close;
       await Promise.all(streams);
-      record7.streamsSettled = true;
-      if (this.failure) record7.error = this.failure.message.slice(0, 2e3);
-      return { record: record7, ...this.failure ? { error: this.failure } : {} };
+      record4.streamsSettled = true;
+      if (this.failure) record4.error = this.failure.message.slice(0, 2e3);
+      return { record: record4, ...this.failure ? { error: this.failure } : {} };
     })();
   }
   static launch(executable, args, purpose, pipes, deviceFd, diagnostics = { bytes: 0 }) {
@@ -58142,7 +58007,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
         format: "jpeg"
       } : null,
       lastError: this.lastError,
-      processes: this.processes.map((record7) => ({ ...record7 })),
+      processes: this.processes.map((record4) => ({ ...record4 })),
       sampleEvidence: "encoded-output",
       sourceGeneration: this.sourceGeneration,
       sourceClock: "ffmpeg-relative-input"
@@ -58416,7 +58281,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
           reason: r.reason === "limit" ? "limit" : reason,
           error: r.error ? { code: "LINUX_RECORDING_FAILED", message: r.error.message.slice(0, 2e3) } : null,
           devicesReleased: true,
-          processes: this.processes.map((record7) => ({ ...record7 })),
+          processes: this.processes.map((record4) => ({ ...record4 })),
           sampleEvidence: "encoded-output",
           encodedDurationMs: Math.max(
             0,
@@ -58507,7 +58372,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
       frameId,
       basename: basename3,
       bytes: bytes2.length,
-      sha256: createHash40("sha256").update(bytes2).digest("hex"),
+      sha256: createHash36("sha256").update(bytes2).digest("hex"),
       width: frame3.width,
       height: frame3.height,
       sourcePTS: frame3.sourcePTS,
@@ -58578,7 +58443,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
         basename: basename3,
         file: file2,
         bytes: 0,
-        digest: createHash40("sha256"),
+        digest: createHash36("sha256"),
         stats: new LinuxPacketStats(),
         requested: Number(duration4),
         started,
@@ -58618,7 +58483,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
             },
             devicesReleased: true,
             sampleEvidence: "encoded-output",
-            processes: this.processes.map((record7) => ({ ...record7 }))
+            processes: this.processes.map((record4) => ({ ...record4 }))
           };
           this.events({ event: "recording_finished", ...this.next(), recording: r.final });
         }
@@ -59643,9 +59508,9 @@ var NativeDeviceCaptureService = class {
   }
   async readImage(a, action) {
     const helper = a.helper, raw = await helper.request(action);
-    const record7 = raw && typeof raw === "object" ? raw : void 0;
-    const hasLease = !!record7 && Object.hasOwn(record7, "leaseId");
-    const parsedLease = hasLease ? external_exports.string().uuid().safeParse(record7.leaseId) : void 0;
+    const record4 = raw && typeof raw === "object" ? raw : void 0;
+    const hasLease = !!record4 && Object.hasOwn(record4, "leaseId");
+    const parsedLease = hasLease ? external_exports.string().uuid().safeParse(record4.leaseId) : void 0;
     let frame3, failed = false, firstError;
     try {
       const image = nativeImageSchema.parse(raw);
@@ -59665,10 +59530,10 @@ var NativeDeviceCaptureService = class {
       try {
         if (!parsedLease?.success) throw new Error("Native frame lease ID is invalid.");
         const leaseId = parsedLease.data;
-        if (record7.sessionId !== helper.ready.sessionId)
+        if (record4.sessionId !== helper.ready.sessionId)
           throw new Error("Native frame lease belongs to another session.");
         const released = nativeFrameReleaseSchema.parse(await helper.request("release_frame", { leaseId }));
-        if (released.sessionId !== helper.ready.sessionId || released.leaseId !== leaseId || typeof record7.stateSequence !== "number" || released.stateSequence < record7.stateSequence)
+        if (released.sessionId !== helper.ready.sessionId || released.leaseId !== leaseId || typeof record4.stateSequence !== "number" || released.stateSequence < record4.stateSequence)
           throw new Error("Native frame release identity did not match.");
       } catch (error2) {
         const releaseError = error2 instanceof Error ? error2.message : String(error2);
@@ -60204,12 +60069,12 @@ var NativeDeviceCaptureService = class {
         },
         status: this.status()
       };
-    const record7 = id3 ? a.recordings.get(id3)?.result ?? a.captures.get(id3) : [...a.recordings.values()].reverse().find((r) => r.result)?.result;
-    if (!record7)
+    const record4 = id3 ? a.recordings.get(id3)?.result ?? a.captures.get(id3) : [...a.recordings.values()].reverse().find((r) => r.result)?.result;
+    if (!record4)
       return { success: false, error: "No completed capture is available for that ID.", status: this.status(id3) };
-    const capture = { ...record7, url: this.url(a) + "captures/" + record7.id };
-    if (record7.kind === "video") return { success: true, capture, status: this.status(id3) };
-    const file2 = await a.store.read(record7.id);
+    const capture = { ...record4, url: this.url(a) + "captures/" + record4.id };
+    if (record4.kind === "video") return { success: true, capture, status: this.status(id3) };
+    const file2 = await a.store.read(record4.id);
     this.current(a);
     if (!file2) throw new Error("Saved screenshot was not found.");
     return {
@@ -61020,15 +60885,15 @@ function createGbStudioServer(options = {}) {
   }
   async function sourceContextForRom(romPath) {
     authorizedEmulatorRoot();
-    const digest7 = emulator.romSha256(romPath);
-    const context = sourceBuilds.get(digest7);
+    const digest3 = emulator.romSha256(romPath);
+    const context = sourceBuilds.get(digest3);
     if (context === void 0 || context.projectPath !== (await selectedProject()).projectPath) {
       throw new PlaytestError(
         "SOURCE_DEBUG_UNAVAILABLE",
         "No build in this session captured debug artifacts for this ROM in the selected project. Rebuild it with rom_build (it captures them unless captureDebugArtifacts is false) and run the ROM it returns."
       );
     }
-    await context.assertCompatibleRom(digest7);
+    await context.assertCompatibleRom(digest3);
     return context;
   }
   function rememberBuildSymbols({ romSha256, noiPath, noiSha256 }) {
@@ -62053,7 +61918,7 @@ function createGbStudioServer(options = {}) {
             replay: replayed.replay,
             ...verdict === void 0 ? {} : { verdict },
             ...recording === void 0 ? {} : { recording },
-            images: replayed.samples.map(({ role, frame: frame3, sha256: sha2563 }) => ({ role, frame: frame3, sha256: sha2563 })),
+            images: replayed.samples.map(({ role, frame: frame3, sha256: sha2562 }) => ({ role, frame: frame3, sha256: sha2562 })),
             imageDelivery: {
               status: includeImages ? "available" : "omitted",
               ...includeImages && scale !== void 0 ? { scale } : {},
@@ -62137,9 +62002,9 @@ function createGbStudioServer(options = {}) {
       advancedFrames: observation.advancedFrames,
       activeButtons: observation.activeButtons,
       sampledButtons: observation.sampledButtons,
-      samples: observation.samples.map(({ frame: frame3, sha256: sha2563, inputIndex }) => ({
+      samples: observation.samples.map(({ frame: frame3, sha256: sha2562, inputIndex }) => ({
         frame: frame3,
-        sha256: sha2563,
+        sha256: sha2562,
         ...inputIndex === void 0 ? {} : { inputIndex }
       })),
       ...observation.recordingSpan === void 0 ? {} : { recordingSpan }

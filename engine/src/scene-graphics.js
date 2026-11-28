@@ -5,7 +5,7 @@ import { PNG } from "pngjs";
 import { contactSheetLayout, renderContactSheetPng } from "./contact-sheet.js";
 import { authoringScripts, COMPILER_EVENT_COMMANDS, eventCatalog } from "./event-catalog.js";
 import { analyzeGraphics } from "./graphics.js";
-import { isObject, SCRIPT_KEYS } from "./native-script-events.js";
+import { SCRIPT_KEYS } from "./native-script-events.js";
 import {
   chromaticDisplayColor,
   decodeBackgroundPaletteTiles,
@@ -17,6 +17,7 @@ import {
 import { GameStudioProjectError, inventoryProject } from "./project.js";
 import { readProjectJson, resolveProjectPath } from "./project-files.js";
 import { scaledImage } from "./sprites.js";
+import { isObject } from "./shared/values.js";
 const MAX_TILE_DETAILS = 512;
 const DEFAULT_TILE_DETAILS = 64;
 const MAX_PREVIEW_PIXELS = 4_194_304;

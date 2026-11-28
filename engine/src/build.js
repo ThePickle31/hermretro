@@ -40,7 +40,7 @@ import {
   sanitizeSubprocessEnvironment,
   verifyWindowsPrivatePath,
 } from "./platform.js";
-import { isSystemError } from "./project-files.js";
+import { isSystemError } from "./shared/files.js";
 const execFileAsync = promisify(execFile);
 const MAX_TIMEOUT_MS = 600_000;
 const DEFAULT_TIMEOUT_MS = 120_000;

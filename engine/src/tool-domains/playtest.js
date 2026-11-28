@@ -15,6 +15,7 @@ import {
 } from "../emulator.js";
 import { isPathWithinRoot } from "../platform.js";
 import { boundedPath, identifier, imageLayoutSchema, liveStateSelectors } from "./schemas.js";
+import { PNG_SIGNATURE } from "../shared/bytes.js";
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const changeSession = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 export const recordingOptionsSchema = z
@@ -196,7 +197,7 @@ async function reviewedImage(frame, authorizedRoot) {
     const bytes = buffer.subarray(0, count);
     if (
       bytes.length < 24 ||
-      !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      !bytes.subarray(0, 8).equals(PNG_SIGNATURE) ||
       bytes.readUInt32BE(16) !== 160 ||
       bytes.readUInt32BE(20) !== 144 ||
       createHash("sha256").update(bytes).digest("hex") !== frame.sha256
