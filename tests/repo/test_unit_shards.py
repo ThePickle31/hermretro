@@ -130,6 +130,14 @@ class Reports(unittest.TestCase):
         self.assertIn("OSError: the reason the server gave no answer", failure)
         self.assertIn("RemoteDisconnected", failure)
 
+    def test_a_failure_keeps_the_line_a_server_logged_on_dropping_a_connection(self):
+        stderr = "hermretro player server: Request timed out: TimeoutError()\n" + "ok\n" * 80 + "ERROR: test_fetch\n"
+        failing = lambda cmd, **_kwargs: subprocess.CompletedProcess(cmd, 1, "", stderr)  # noqa: E731 - one-line fake
+        _row, failure = unit_shards.run_suite(ROOT, failing, tempfile.gettempdir())
+        self.assertIn(
+            "printed by a server or thread during the run:\nhermretro player server: Request timed out", failure
+        )
+
     def test_only_the_last_background_tracebacks_are_kept_each_ending_at_its_exception(self):
         died = "Exception in thread worker:\nTraceback (most recent call last):\n  File \"x.py\", line 1\nValueError: {}\nafter\n"
         blocks = unit_shards.background_errors("".join(died.format(n) for n in range(5)))

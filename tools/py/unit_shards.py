@@ -69,13 +69,19 @@ def without_durations(stderr: str) -> str:
 # How socketserver's handle_error and threading's excepthook start what they print: a request a server dropped, or
 # a thread that died, while a test waited on it.
 BACKGROUND = ("Exception occurred during processing of request", "Exception in thread ")
+# What a server logs, one line each, when it closes a connection without an answer (backend/player/server.py).
+DROPPED = "hermretro player server: "
 
 
 def background_errors(stderr: str, limit: int = 3) -> list[str]:
-    """The last tracebacks a server or another thread printed during the run. A test that gets no answer fails with
-    only its own side's traceback, and these (often why) come far above the tail a failure shows."""
+    """The last tracebacks a server or another thread printed during the run, and the lines a server logged on
+    dropping a connection. A test that gets no answer fails with only its own side's traceback, and these (often why)
+    come far above the tail a failure shows."""
     lines, blocks = stderr.splitlines(), []
     for index, line in enumerate(lines):
+        if line.startswith(DROPPED):
+            blocks.append(line)
+            continue
         if not line.startswith(BACKGROUND):
             continue
         block = [line]
