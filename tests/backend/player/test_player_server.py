@@ -3,11 +3,14 @@
 import base64
 import hashlib
 import json
+import logging
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -80,6 +83,46 @@ def multipart(fields):
         body += f"--{boundary}\r\nContent-Disposition: {disposition}\r\n".encode()
         body += (f"Content-Type: {kind}\r\n" if kind else "").encode() + b"\r\n" + value + b"\r\n"
     return body + f"--{boundary}--\r\n".encode(), f"multipart/form-data; boundary={boundary}"
+
+
+def setUpModule():
+    # What the server logs on dropping a connection reaches this run's stderr, where a failing shard's report keeps it
+    # (tools/py/unit_shards.py): a request that got no answer then says why.
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    player_server.logger.addHandler(handler)
+    previous = player_server.logger.level
+    player_server.logger.setLevel(logging.DEBUG)
+    unittest.addModuleCleanup(player_server.logger.removeHandler, handler)
+    unittest.addModuleCleanup(player_server.logger.setLevel, previous)
+
+
+class DroppedConnections(unittest.TestCase):
+    """A connection closed without an answer is logged: http.server's own reasons as warnings, one that never sent
+    a request (browsers open spare ones) at debug level."""
+
+    def setUp(self):
+        self.server = player_server.PlayerServer(lambda _identifier: None)
+        self.addCleanup(self.server.close)
+
+    def logged(self, level, send: bytes):
+        with self.assertLogs(player_server.logger, level) as seen:
+            with socket.create_connection(("127.0.0.1", self.server.port), timeout=5) as connection:
+                if send:
+                    connection.sendall(send)
+                    connection.recv(4096)
+            deadline = time.monotonic() + 5
+            while not any(r.levelno == level for r in seen.records) and time.monotonic() < deadline:
+                time.sleep(0.01)
+            return [r.getMessage() for r in seen.records if r.levelno == level]
+
+    def test_a_request_line_it_cannot_use_is_a_warning(self):
+        [message] = self.logged(logging.WARNING, b"NOT A REQUEST\r\n\r\n")
+        self.assertTrue(message.startswith("hermretro player server: "), message)
+
+    def test_a_connection_that_sends_nothing_is_noted_at_debug_level(self):
+        [message] = self.logged(logging.DEBUG, b"")
+        self.assertIn("closed before its request", message)
 
 
 class LoopbackStart(unittest.TestCase):

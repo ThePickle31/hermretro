@@ -175,9 +175,22 @@ class _Handler(BaseHTTPRequestHandler):
     sys_version = ""
     protocol_version = "HTTP/1.1"
     pin: str | None = None  # the ROM a pinned frame was opened on (_route)
+    raw_requestline: bytes | None = None  # http.server sets it on reading each request line
 
     def log_message(self, format, *args):  # noqa: A002 - base class name  # keep the gateway log quiet; failures are logged explicitly
         pass
+
+    def log_error(self, format, *args):  # noqa: A002 - base class name
+        # What http.server reports when it closes a connection without an answer (a read that timed out, a request
+        # line it cannot use): a failure, so it is logged.
+        logger.warning("hermretro player server: " + format, *args)
+
+    def handle_one_request(self):
+        first = self.raw_requestline is None
+        super().handle_one_request()
+        if first and not self.raw_requestline:
+            # Closed before sending anything: browsers open connections they never use, so only at debug level.
+            logger.debug("hermretro player server: a connection from %s closed before its request", self.client_address)
 
     # -- responses ---------------------------------------------------------------
     def _headers(self, status: int, content_type: str, length: int, extra: dict | None = None) -> None:
