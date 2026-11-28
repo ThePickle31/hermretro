@@ -66,6 +66,29 @@ def without_durations(stderr: str) -> str:
     )
 
 
+# How socketserver's handle_error and threading's excepthook start what they print: a request a server dropped, or
+# a thread that died, while a test waited on it.
+BACKGROUND = ("Exception occurred during processing of request", "Exception in thread ")
+
+
+def background_errors(stderr: str, limit: int = 3) -> list[str]:
+    """The last tracebacks a server or another thread printed during the run. A test that gets no answer fails with
+    only its own side's traceback, and these (often why) come far above the tail a failure shows."""
+    lines, blocks = stderr.splitlines(), []
+    for index, line in enumerate(lines):
+        if not line.startswith(BACKGROUND):
+            continue
+        block = [line]
+        for following in lines[index + 1 : index + 40]:
+            if following.startswith(("-" * 20, *BACKGROUND)):
+                break
+            block.append(following)
+            if following[:1].strip() and not following.startswith("Traceback"):
+                break  # the exception's own line ends its traceback
+        blocks.append("\n".join(block))
+    return blocks[-limit:]
+
+
 def module_times(stderr: str) -> dict[str, float]:
     """Seconds per test module from `--durations 0` output (tests under a millisecond are not listed)."""
     found: dict[str, float] = {}
@@ -130,7 +153,12 @@ def run_suite(root: Path, run: Callable, temp_base: str) -> tuple[str, str]:
         wall = time.monotonic() - started
         if failed := [result for result in results if result.returncode]:
             said = "\n".join(
-                "\n".join(without_durations(result.stderr).strip().splitlines()[-40:]) for result in failed
+                "".join(
+                    f"printed by a server or thread during the run:\n{block}\n"
+                    for block in background_errors(result.stderr)
+                )
+                + "\n".join(without_durations(result.stderr).strip().splitlines()[-40:])
+                for result in failed
             )
             named = [line for r in failed for line in r.stderr.splitlines() if line.startswith(("ERROR: ", "FAIL: "))]
             return "", "\n".join([*named, said]) + (

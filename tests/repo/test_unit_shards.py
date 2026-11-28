@@ -116,6 +116,27 @@ class Reports(unittest.TestCase):
         self.assertIn("AssertionError: the reason it failed", failure)
         self.assertNotIn("test_59 (", failure)
 
+    def test_a_failure_keeps_what_a_server_printed_far_above_its_tail(self):
+        # A request the server dropped: its handler's traceback is printed long before the test's own failure.
+        dropped = (
+            "-" * 40 + "\nException occurred during processing of request from ('127.0.0.1', 5000)\n"
+            "Traceback (most recent call last):\n  File \"server.py\", line 9, in do_GET\n"
+            "OSError: the reason the server gave no answer\n" + "-" * 40 + "\n"
+        )
+        stderr = dropped + "ok\n" * 80 + "ERROR: test_fetch (tests.repo.test_x.Case.test_fetch)\nRemoteDisconnected\n"
+        failing = lambda cmd, **_kwargs: subprocess.CompletedProcess(cmd, 1, "", stderr)  # noqa: E731 - one-line fake
+        _row, failure = unit_shards.run_suite(ROOT, failing, tempfile.gettempdir())
+        self.assertIn("printed by a server or thread during the run:", failure)
+        self.assertIn("OSError: the reason the server gave no answer", failure)
+        self.assertIn("RemoteDisconnected", failure)
+
+    def test_only_the_last_background_tracebacks_are_kept_each_ending_at_its_exception(self):
+        died = "Exception in thread worker:\nTraceback (most recent call last):\n  File \"x.py\", line 1\nValueError: {}\nafter\n"
+        blocks = unit_shards.background_errors("".join(died.format(n) for n in range(5)))
+        self.assertEqual(
+            [block.splitlines()[-1] for block in blocks], ["ValueError: 2", "ValueError: 3", "ValueError: 4"]
+        )
+
     def test_each_leaking_process_names_its_own_leftovers_and_modules(self):
         home_writer, tmp_writer = "tests.repo.test_layout", "tests.repo.test_docs"
 
