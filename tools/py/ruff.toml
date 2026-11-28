@@ -5,8 +5,9 @@
 
 line-length = 120
 target-version = "py311"
-# Vendored or generated code, and installed tools: never ours to lint or reformat.
-extend-exclude = ["engine/", "player/web/", "tools/npm/", ".dev/", "skills/"]
+# Vendored or generated code, and installed tools: never ours to lint or reformat. The engine is linted (its one
+# Python file, engine/scripts/emulator_worker.py) but never reformatted ([format] below).
+extend-exclude = ["player/web/", "tools/npm/", ".dev/", "skills/"]
 # ruff's cache stays with the installed tools (git-ignored), not in the root.
 cache-dir = ".dev/ruff-cache"
 
@@ -20,3 +21,5 @@ ignore = ["B904", "SIM105", "SIM108", "UP015", "SIM117"]
 
 [format]
 quote-style = "preserve"
+# The engine keeps its own layout: reformatting would rewrite most of its lines and hide every real change in them.
+exclude = ["engine/**"]

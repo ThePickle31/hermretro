@@ -500,7 +500,9 @@ async function terminateBuildCommand(child, environment) {
             try {
                 process.kill(-pid, "SIGKILL");
             }
-            catch { }
+            catch {
+                // The group may have exited already; the wait below is what says whether it did.
+            }
             if (!await waitForProcessGroupExit(pid, 1_000)) {
                 return `Compiler process cleanup could not be confirmed for process group ${pid}.`;
             }
@@ -1419,6 +1421,7 @@ export async function buildRom(options) {
             }
             catch (error) {
                 if (!buildFailed) {
+                    // hermretro: allow no-unsafe-finally — a cleanup failure is the build's error only when the build itself succeeded
                     throw error;
                 }
             }

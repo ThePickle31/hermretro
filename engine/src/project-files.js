@@ -336,6 +336,7 @@ async function publishRecoverableProjectLock(lockPath, resourcePath, scope) {
             }
             catch (error) {
                 if (!isSystemError(error, "ENOENT"))
+                    // hermretro: allow no-unsafe-finally — caught by the try around it, which reports it as the staging file's lock error
                     throw error;
             }
             stagingRemoved = true;
@@ -350,10 +351,12 @@ async function publishRecoverableProjectLock(lockPath, resourcePath, scope) {
                     }
                     catch (releaseError) {
                         if (!isSystemError(releaseError, "ENOENT"))
+                            // hermretro: allow no-unsafe-finally — caught by the try around it, which reports it as the staging file's lock error
                             throw releaseError;
                     }
                 }
             }
+            // hermretro: allow no-unsafe-finally — a staging file that cannot be removed stops the operation; the error before it is in its message
             throw resourceLockError(resourcePath, `Cannot remove a ${scope} lock staging file: ${error instanceof Error ? error.message : String(error)}.`);
         }
         finally {
@@ -576,7 +579,9 @@ async function withCanonicalProjectWriteLock(root, candidate, scope, operation, 
             }
             catch (error) {
                 if (callbackFailed)
+                    // hermretro: allow no-unsafe-finally — a lock that cannot be released is reported together with the operation's own error
                     throw new AggregateError([callbackError, error], "The project-resource operation failed and its lock could not be safely released.");
+                // hermretro: allow no-unsafe-finally — a lock that cannot be released must stop the operation
                 throw error;
             }
         }

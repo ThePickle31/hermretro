@@ -555,21 +555,16 @@ async function createIsolatedCompilerDirectory(projectRoot, runtime, resources) 
     const directory = await mkdtemp(path.join(parent, "gbs-web-"));
     resources.allocations.push({ kind: "temporary", path: directory, returnedAt: new Date().toISOString() });
     resources.temporary = await resourceIdentity(directory);
-    try {
-        const metadata = await lstat(directory);
-        if (metadata.isSymbolicLink() || !metadata.isDirectory() ||
-            !samePath(await realpath(directory), directory, runtime.platform) ||
-            !samePath(path.dirname(directory), parent, runtime.platform) ||
-            isInside(projectRoot, directory, runtime.platform) ||
-            (runtime.platform === "win32" && !(await windowsPrivatePath(directory, runtime, "temporary")))) {
-            throw new Error("The official game web compiler temporary directory is unsafe.");
-        }
-        return { directory, parent };
+    // On a throw the caller independently closes both allocations and preserves the error.
+    const metadata = await lstat(directory);
+    if (metadata.isSymbolicLink() || !metadata.isDirectory() ||
+        !samePath(await realpath(directory), directory, runtime.platform) ||
+        !samePath(path.dirname(directory), parent, runtime.platform) ||
+        isInside(projectRoot, directory, runtime.platform) ||
+        (runtime.platform === "win32" && !(await windowsPrivatePath(directory, runtime, "temporary")))) {
+        throw new Error("The official game web compiler temporary directory is unsafe.");
     }
-    catch (error) {
-        // The caller independently closes both allocations and preserves errors.
-        throw error;
-    }
+    return { directory, parent };
 }
 async function removeIsolatedCompilerDirectory(directory, parent, runtime, expected) {
     if (!samePath(await realpath(parent), parent, runtime.platform)) {

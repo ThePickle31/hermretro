@@ -457,7 +457,7 @@ export async function extractArchive(filename, destination, context, { format, l
         bounded = new Transform({ transform(chunk, _encoding, callback) { bytes += chunk.length; crc = setupCrc32(chunk, crc); callback(bytes > entry.size ? new SetupIoError("SIZE_LIMIT", "ZIP inflated beyond its declared size.") : null, chunk); } });
         const stream = entry.method === 8 ? [input, inflate = createInflateRaw(), bounded] : [input, bounded];
         const completion = pipeline(...stream).catch((error) => error);
-        try { for await (const chunk of bounded) await writeAll(file, chunk); } finally { input.destroy(); inflate?.destroy(); bounded.destroy(); const error = await completion; if (error instanceof Error) throw error; }
+        try { for await (const chunk of bounded) await writeAll(file, chunk); } finally { input.destroy(); inflate?.destroy(); bounded.destroy(); const error = await completion; if (error instanceof Error) throw error; } // hermretro: allow no-unsafe-finally — the stream's own failure is the error the copy ended with
         if (bytes !== entry.size || crc !== entry.crc) throw new SetupIoError("CHECKSUM_MISMATCH", "ZIP member size or CRC does not match its header.", { path: entry.path });
       } finally { input?.destroy(); inflate?.destroy(); bounded?.destroy(); await file.close(); }
     }

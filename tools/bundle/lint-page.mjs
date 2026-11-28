@@ -9,20 +9,12 @@
  *
  * A deliberate exception is written on the line it excuses (or alone on the line above it), with its reason:
  *   import { x } from '#pages/games/model.js' // hermretro: allow hermretro/boundaries — why this one is fine
- * `eslint-disable` comments are ignored. An allow without a reason, or one that excuses nothing, is an error;
- * every allow in use is listed at the end of the report, so exceptions stay visible.
- * ESLint, its React hooks plugin and `globals` come from tools/npm (npm ci --prefix tools/npm --ignore-scripts).
+ * How exceptions and the report work, and where ESLint comes from: tools/bundle/eslint-run.mjs (shared with the
+ * engine's lint). ESLint, its React hooks plugin and `globals` come from tools/npm.
  */
-import { readFileSync, realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
+import { eslintTools, isMain, missing, printReport, runEslint } from './eslint-run.mjs'
 import { RULES } from './lint-rules.mjs'
-import { findModules, MISSING_HINT } from './node-modules.mjs'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const ALLOW = /\/\/\s*hermretro:\s*allow\s+(\S+)(?:\s+(?:\u2014|--|-)\s*(.*))?$/
 const FIX = 'node tools/bundle/lint-page.mjs --fix'
 // These files are generated through tools/bundle/page_declarations.py.
 const GENERATED = ['page/app/rpc-names.js', 'page/pages/build/workflow.js']
@@ -46,19 +38,7 @@ const HELP = {
   'react-hooks/rules-of-hooks': ['React matches hooks by call order; a hook in a condition or loop breaks state', 'call hooks unconditionally at the top of the component or hook']
 }
 
-function tools() {
-  const modules = findModules(['eslint', 'eslint-plugin-react-hooks', 'globals'])
-
-  if (!modules) {
-    return null
-  }
-
-  const require = createRequire(path.join(modules, 'package.json'))
-
-  return { eslint: require('eslint'), hooks: require('eslint-plugin-react-hooks'), globals: require('globals') }
-}
-
-function config({ hooks, globals }) {
+function pageConfig({ hooks, globals }) {
   return [
     { ignores: GENERATED },
     {
@@ -87,121 +67,23 @@ function config({ hooks, globals }) {
   ]
 }
 
-/** Apply `// hermretro: allow <rule> — <reason>` lines to one file's messages. */
-function applyAllows(file, messages) {
-  const lines = readFileSync(path.join(ROOT, file), 'utf8').split('\n')
-  const allows = new Map()
-  const kept = []
-  const used = []
-
-  lines.forEach((text, index) => {
-    const match = ALLOW.exec(text)
-
-    if (!match) {
-      return
-    }
-
-    const commentOnly = text.trim().startsWith('//')
-    const covers = commentOnly ? index + 2 : index + 1
-
-    allows.set(index + 1, { rule: match[1], reason: (match[2] ?? '').trim(), covers, hit: false })
-  })
-
-  for (const message of messages) {
-    const allow = [...allows.values()].find(item => item.covers === message.line && item.rule === message.ruleId && item.reason)
-
-    if (allow) {
-      allow.hit = true
-      used.push(`${file}:${message.line}  ${message.ruleId}: ${allow.reason}`)
-    } else {
-      kept.push(message)
-    }
-  }
-
-  for (const [line, allow] of allows) {
-    if (!allow.reason) {
-      kept.push({ line, column: 1, severity: 2, ruleId: 'hermretro/allow', message: `the exception for ${allow.rule} has no reason. Fix: write "// hermretro: allow ${allow.rule} \u2014 <why this one is fine>"` })
-    } else if (!allow.hit) {
-      kept.push({ line, column: 1, severity: 2, ruleId: 'hermretro/allow', message: `this allows ${allow.rule}, but nothing it covers breaks that rule. Fix: remove the comment` })
-    }
-  }
-
-  return { kept, used }
-}
+const PACKAGES = ['eslint-plugin-react-hooks', 'globals']
 
 export async function lintPage({ fix = false, files = [] } = {}) {
-  const found = tools()
+  const found = eslintTools(PACKAGES)
 
   if (!found) {
-    return { missing: `eslint, eslint-plugin-react-hooks and globals were not found; ${MISSING_HINT}` }
+    return { missing: missing(PACKAGES) }
   }
 
-  const eslint = new found.eslint.ESLint({ cwd: ROOT, overrideConfigFile: true, overrideConfig: config(found), fix, errorOnUnmatchedPattern: false })
-  const results = await eslint.lintFiles(files.length ? files : ['page/**/*.js'])
+  const config = pageConfig({ hooks: found['eslint-plugin-react-hooks'], globals: found.globals })
 
-  if (fix) {
-    await found.eslint.ESLint.outputFixes(results)
-  }
-
-  const report = { errors: [], warnings: [], allowed: [], files: results.length }
-
-  for (const result of results) {
-    const file = path.relative(ROOT, result.filePath).split(path.sep).join('/')
-    const { kept, used } = applyAllows(file, result.messages)
-
-    report.allowed.push(...used)
-
-    for (const message of kept) {
-      const [purpose, howTo] = HELP[message.ruleId] ?? ['', '']
-      const help = purpose ? `\n    why: ${purpose}. Fix: ${howTo}.` : ''
-      const line = `${file}:${message.line}:${message.column}  ${message.message} [${message.ruleId ?? 'parse'}]${help}`
-
-      ;(message.severity === 2 || message.fatal ? report.errors : report.warnings).push(line)
-    }
-  }
-
-  return report
+  return runEslint({ eslint: found.eslint, config, patterns: ['page/**/*.js'], help: HELP, fix, files })
 }
 
-async function main(argv) {
-  const fix = argv.includes('--fix')
-  const report = await lintPage({ fix, files: argv.filter(arg => !arg.startsWith('--')) })
+if (isMain(import.meta.url)) {
+  const argv = process.argv.slice(2)
+  const report = await lintPage({ fix: argv.includes('--fix'), files: argv.filter(arg => !arg.startsWith('--')) })
 
-  if (report.missing) {
-    console.error(`error: ${report.missing}`)
-
-    return 1
-  }
-
-  for (const line of report.warnings) {
-    console.log(`warning: ${line}`)
-  }
-
-  for (const line of report.errors) {
-    console.log(`error: ${line}`)
-  }
-
-  if (report.allowed.length) {
-    console.log(`allowed exceptions (${report.allowed.length}):\n  ${report.allowed.join('\n  ')}`)
-  }
-
-  console.log(`${report.files} files: ${report.errors.length} errors, ${report.warnings.length} warnings, ${report.allowed.length} allowed exceptions`)
-
-  if (report.errors.length) {
-    console.log(`FIX: fix each error above as its message says (automatic ones: ${FIX}); a deliberate exception gets "// hermretro: allow <rule> \u2014 <reason>" on its line`)
-  }
-
-  return report.errors.length ? 1 : 0
-}
-
-const realPath = file => {
-  try {
-    return realpathSync(file)
-  } catch {
-    return path.resolve(file)
-  }
-}
-
-if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
-  process.exit(await main(process.argv.slice(2)))
+  process.exit(printReport(report, ` (automatic ones: ${FIX})`))
 }

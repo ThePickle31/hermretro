@@ -95,6 +95,7 @@ export class LinuxNativeHelper {
                 await fd.close();
             }
             catch {
+                // hermretro: allow no-unsafe-finally — a descriptor that may still be open outranks the error before it
                 throw new NativeHelperError("Linux video descriptor closure is unconfirmed.", true, "LINUX_CLOSE_UNKNOWN");
             }
         }
@@ -110,7 +111,7 @@ export class LinuxNativeHelper {
             // FFmpeg can suppress the terminal ENUM_FMT errno. Empty output is not
             // evidence of a metadata node; only the explicit capability errors above
             // establish that classification.
-            if (!/(?:Raw       |Compressed):\s+(?!Unsupported\b)\S+\s+:.*:\s+\d+x\d+/.test(text))
+            if (!/(?:Raw {7}|Compressed):\s+(?!Unsupported\b)\S+\s+:.*:\s+\d+x\d+/.test(text))
                 throw new Error("The Linux video query returned no supported formats. Device availability is unconfirmed; reconnect or check the device before another attempt.");
             return true;
         }
@@ -189,6 +190,7 @@ export class LinuxNativeHelper {
                 await fd.close();
             }
             catch {
+                // hermretro: allow no-unsafe-finally — a descriptor that may still be open outranks the error before it
                 throw new NativeHelperError("Linux video descriptor closure is unconfirmed.", true, "LINUX_CLOSE_UNKNOWN");
             }
         }

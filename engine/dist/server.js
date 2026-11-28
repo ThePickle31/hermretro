@@ -43453,7 +43453,6 @@ var ProjectWorldIndex = class {
   #bootstrap;
   #refresh;
   #degraded = false;
-  #watchUnavailable = false;
   #inAuthoritativeRebuild = false;
   #discovery;
   #inventory;
@@ -43817,7 +43816,6 @@ var ProjectWorldIndex = class {
     }
   }
   #watchFailed() {
-    this.#watchUnavailable = true;
     this.#degraded = true;
     this.#watchFailures += 1;
     this.#watchRetryAt = Date.now() + Math.min(WATCH_RETRY_MS * 2 ** (this.#watchFailures - 1), MAXIMUM_WATCH_RETRY_MS);
@@ -47693,7 +47691,7 @@ async function createTilemapIndexed(projectPath, rawInput, access4) {
       await requireMissing(snapshot.projectRoot, filename);
     const scene = selectedScene(snapshot, input.sceneId);
     const existing = await readBackground(snapshot, scene);
-    const { atlas, bytes: atlasBytes, pixels } = await readAtlas(snapshot.projectRoot, input.atlasPath);
+    const { bytes: atlasBytes, pixels } = await readAtlas(snapshot.projectRoot, input.atlasPath);
     const width = Number(scene.width), height = Number(scene.height);
     const collisions = decodeCollisions2(scene, width * height);
     const palettes = decodeBackgroundPaletteTiles(existing.metadata, width * height);
@@ -49227,15 +49225,11 @@ async function createIsolatedCompilerDirectory(projectRoot, runtime, resources) 
   const directory = await mkdtemp3(path38.join(parent, "gbs-web-"));
   resources.allocations.push({ kind: "temporary", path: directory, returnedAt: (/* @__PURE__ */ new Date()).toISOString() });
   resources.temporary = await resourceIdentity(directory);
-  try {
-    const metadata2 = await lstat18(directory);
-    if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePath3(await realpath19(directory), directory, runtime.platform) || !samePath3(path38.dirname(directory), parent, runtime.platform) || isInside2(projectRoot, directory, runtime.platform) || runtime.platform === "win32" && !await windowsPrivatePath(directory, runtime, "temporary")) {
-      throw new Error("The official game web compiler temporary directory is unsafe.");
-    }
-    return { directory, parent };
-  } catch (error2) {
-    throw error2;
+  const metadata2 = await lstat18(directory);
+  if (metadata2.isSymbolicLink() || !metadata2.isDirectory() || !samePath3(await realpath19(directory), directory, runtime.platform) || !samePath3(path38.dirname(directory), parent, runtime.platform) || isInside2(projectRoot, directory, runtime.platform) || runtime.platform === "win32" && !await windowsPrivatePath(directory, runtime, "temporary")) {
+    throw new Error("The official game web compiler temporary directory is unsafe.");
   }
+  return { directory, parent };
 }
 async function removeIsolatedCompilerDirectory(directory, parent, runtime, expected) {
   if (!samePath3(await realpath19(parent), parent, runtime.platform)) {
@@ -53098,7 +53092,7 @@ async function serveCaptures(request, response, active, relative6) {
     }
     const length = request.headers["content-length"];
     const contentType = request.headers["content-type"];
-    if (request.headers.origin !== `http://${LOOPBACK_ADDRESS}:${active.status.port}` || !hasSingleHeader(request, "x-codex-preview-capture") || request.headers["x-codex-preview-capture"] !== captures.generation || !hasSingleHeader(request, "content-type") || typeof contentType !== "string" || !/^multipart\/form-data;\s*boundary=(?:[A-Za-z0-9'()+_,.\/:=?-]{1,70}|"[A-Za-z0-9'()+_,.\/:=?-]{1,70}")$/i.test(contentType) || request.headers["content-encoding"] !== void 0 || request.headers["transfer-encoding"] !== void 0 || !hasSingleHeader(request, "content-length") || typeof length !== "string" || !/^[1-9][0-9]*$/.test(length)) {
+    if (request.headers.origin !== `http://${LOOPBACK_ADDRESS}:${active.status.port}` || !hasSingleHeader(request, "x-codex-preview-capture") || request.headers["x-codex-preview-capture"] !== captures.generation || !hasSingleHeader(request, "content-type") || typeof contentType !== "string" || !/^multipart\/form-data;\s*boundary=(?:[A-Za-z0-9'()+_,./:=?-]{1,70}|"[A-Za-z0-9'()+_,./:=?-]{1,70}")$/i.test(contentType) || request.headers["content-encoding"] !== void 0 || request.headers["transfer-encoding"] !== void 0 || !hasSingleHeader(request, "content-length") || typeof length !== "string" || !/^[1-9][0-9]*$/.test(length)) {
       reject(response, 400, "Invalid capture upload");
       return;
     }
@@ -55335,7 +55329,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
         return false;
       if (result.record.exitCode !== 0)
         throw new Error(`Cannot query the selected Chromatic video node. Check Linux USB/video access. ${text.slice(-1900)}`);
-      if (!/(?:Raw       |Compressed):\s+(?!Unsupported\b)\S+\s+:.*:\s+\d+x\d+/.test(text))
+      if (!/(?:Raw {7}|Compressed):\s+(?!Unsupported\b)\S+\s+:.*:\s+\d+x\d+/.test(text))
         throw new Error("The Linux video query returned no supported formats. Device availability is unconfirmed; reconnect or check the device before another attempt.");
       return true;
     }

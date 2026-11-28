@@ -46,6 +46,7 @@ from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
     RUFF_FORMAT,
     RUFF_SETUP,
     lint_tools_missing,
+    engine_lint,
     page_lint,
     ruff_check,
     ruff_format_check,
@@ -150,9 +151,11 @@ def start(cmd: list[str]) -> subprocess.Popen:
 
 
 def check_lint(args) -> str:
-    # ESLint over page/ and ruff over the Python run at the same time (ruff takes a few hundredths of a second).
+    # ESLint over page/ and over the engine, and ruff over the Python, run at the same time (ruff takes a few
+    # hundredths of a second).
     node = shutil.which("node")
     eslint = start(page_lint(node, [])) if node else None
+    engine = start(engine_lint(node)) if node else None
     missing = ruff_missing()  # the commands come from tools/py/lint_tools.py
     ruff = None if missing else (start(ruff_check(["."])), start(ruff_format_check(["."])))
     problems, done = [], []
@@ -194,6 +197,18 @@ def check_lint(args) -> str:
         else:
             warned = ", ".join(r.split()[1].rsplit(":", 1)[0] for r in output.splitlines() if r[:9] == "warning: ")
             done.insert(0, "page: " + (output.splitlines() or ["ok"])[-1] + (warned and f" (warnings: {warned})"))
+    if engine is not None:
+        output = engine.communicate()[0].strip()
+        if engine.returncode and "were not found" not in output:
+            problems.append(
+                tail(output, 40) + "\nFIX: fix each engine error as its message says, then record the engine change "
+                'with python tools/engine/bump.py "<files>: what changed and why" (a deliberate exception: '
+                "// hermretro: allow <rule> \u2014 <reason> on its line)"
+            )
+        elif not engine.returncode:
+            done.insert(
+                1 if done and done[0].startswith("page: ") else 0, "engine: " + (output.splitlines() or ["ok"])[-1]
+            )
     if problems:
         raise AssertionError(("page lint skipped: " + page_skip + "\n" if page_skip else "") + "\n".join(problems))
     if page_skip and (args.strict or not done):

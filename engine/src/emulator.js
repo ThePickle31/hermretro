@@ -369,6 +369,7 @@ export class EmulatorService {
             catch (error) {
                 const failure = operationFailure ?? new EmulatorError("Emulator open cancellation cleanup failed", { cause: error });
                 failure.cleanup = { status: "failed", error: error instanceof Error ? error.message : String(error) };
+                // hermretro: allow no-unsafe-finally — the cleanup failure carries the operation's own failure when there is one
                 throw failure;
             }
         }
@@ -674,6 +675,7 @@ export class EmulatorService {
                 const failure = operationFailure ?? new EmulatorError("Stepped action cancellation cleanup failed", { cause: error });
                 failure.execution = execution;
                 failure.cleanup = { status: "failed", error: error instanceof Error ? error.message : String(error) };
+                // hermretro: allow no-unsafe-finally — the cleanup failure carries the operation's own failure when there is one
                 throw failure;
             }
         }

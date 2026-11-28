@@ -19,7 +19,7 @@ import { access, lstat, mkdir, open, readFile, readdir, realpath, stat } from "n
 import path from "node:path";
 import { ensureOwnedDirectory, runSetupCommand, setupEnvironment } from "./setup-io.mjs";
 import {
-  CHROMATIC_PACKED, CHROMATIC_STORAGE_SOURCES, CHROMATIC_VERSION, chromaticRequiredPaths, chromaticTargetFromManifest, chromaticFormatFromManifest,
+  CHROMATIC_STORAGE_SOURCES, CHROMATIC_VERSION, chromaticRequiredPaths, chromaticTargetFromManifest, chromaticFormatFromManifest,
   requireChromaticHostTarget, verifyChromaticBundle, verifyChromaticRecords,
 } from "./chromatic-runtime.mjs";
 

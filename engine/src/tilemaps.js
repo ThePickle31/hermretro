@@ -254,7 +254,7 @@ async function createTilemapIndexed(projectPath, rawInput, access) {
             await requireMissing(snapshot.projectRoot, filename);
         const scene = selectedScene(snapshot, input.sceneId);
         const existing = await readBackground(snapshot, scene);
-        const { atlas, bytes: atlasBytes, pixels } = await readAtlas(snapshot.projectRoot, input.atlasPath);
+        const { bytes: atlasBytes, pixels } = await readAtlas(snapshot.projectRoot, input.atlasPath);
         const width = Number(scene.width), height = Number(scene.height);
         const collisions = decodeCollisions(scene, width * height);
         const palettes = decodeBackgroundPaletteTiles(existing.metadata, width * height);

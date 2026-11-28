@@ -72,3 +72,8 @@ def ruff_format_check(paths: list[str]) -> list[str]:
 def page_lint(node: str, files: list[str]) -> list[str]:
     """The page lint (ESLint over page/**/*.js; check.py's lint: every file, ``files`` empty), with its settings."""
     return [node, "tools/bundle/lint-page.mjs", *files]
+
+
+def engine_lint(node: str) -> list[str]:
+    """The engine lint (ESLint over engine/src and engine/scripts), with its settings."""
+    return [node, "tools/engine/lint.mjs"]

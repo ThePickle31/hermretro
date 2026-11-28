@@ -18,6 +18,17 @@ Every change to the engine raises its version, `version` in `package.json` (2.0.
 version first. A note in this file is not a change to the engine. 2.0.0, the first version named `hermretro-engine`,
 holds every change since ModRetro's 1.0.34.
 
+## 2.0.3
+
+- `src/build.js`, `src/entry.js`, `src/emulator.js`, `src/project-files.js`, `src/project-world-index.js`,
+  `src/tilemaps.js`, `src/web-build.js`, `src/web-preview.js`, `src/device-capture/linux-helper.js`,
+  `scripts/chromatic-runtime.mjs`, `scripts/setup-io.mjs`, `scripts/setup-runtime.mjs`, `scripts/emulator_worker.py`:
+  what the engine's new lint (`tools/engine/lint.mjs`, and ruff) found, fixed with behaviour unchanged. An unused
+  import, name and private field go; a catch that only rethrew goes; the two empty catches say why nothing is done; a
+  pattern's run of spaces is written `{7}` and two needless escapes go; three `zip()` calls say they stop at the
+  shorter list (`strict=False`); `datetime.UTC` replaces `timezone.utc`. Each deliberate throw in a `finally` block (a
+  cleanup the engine cannot confirm) is marked with its reason.
+
 ## 2.0.2
 
 - `scripts/start-mcp.mjs`: the launcher gives the server it starts hermretro's lease on the prepared engine copy, the
