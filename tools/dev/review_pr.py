@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-FENCE = re.compile(r"^\s*(```|~~~)")
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
 def sections(body: str) -> list[tuple[str | None, int, int]]:
@@ -15,11 +15,16 @@ def sections(body: str) -> list[tuple[str | None, int, int]]:
     found: list[tuple[str | None, int, int]] = []
     name: str | None = None
     start = offset = 0
-    fenced = False
+    fence = ""  # the open fence's marker, or ''
     for line in body.splitlines(keepends=True):
-        if FENCE.match(line):
-            fenced = not fenced
-        elif not fenced and line.startswith("## "):
+        match = FENCE.match(line.rstrip("\n"))
+        if match and not fence:
+            fence = match.group(1)
+        elif (
+            match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) and not match.group(2).strip()
+        ):
+            fence = ""  # closed by the same marker, at least as long, with nothing after it
+        elif not fence and line.startswith("## "):
             found.append((name, start, offset))
             name, start = line[3:].strip(), offset
         offset += len(line)
@@ -45,11 +50,11 @@ def replace_section(body: str, name: str, text: str) -> str:
     return body.rstrip() + "\n\n" + new
 
 
-def review_text(tier_name: str, records: list[dict]) -> str:
-    """The Review section: a line per pass (or that a light change is not reviewed), the answers that left something
-    as it was, and what is left for after the merge."""
+def review_text(records: list[dict]) -> str:
+    """The Review section: a line per pass with its tier, models and outcome (or, with none, that the change is light
+    and not reviewed), the answers that left something as it was, and what is left for after the merge."""
     if not records:
-        return f"Tier {tier_name} · not reviewed." if tier_name == "light" else "Under review."
+        return "Tier light · not reviewed."
     passes = []
     for record in records:
         models = record["model"] + (f" + {record['security_model']}" if record.get("security_model") else "")
@@ -58,8 +63,9 @@ def review_text(tier_name: str, records: list[dict]) -> str:
             key = f"{o['label']} {o['answer']}"
             tally[key] = tally.get(key, 0) + 1
         said = ", ".join(f"{count} {key}" for key, count in tally.items()) or "no findings"
-        passes.append(f"pass {record['pass']} ({models}): {said}")
-    lines = [f"Tier {tier_name} · " + " · ".join(passes) + "."]
+        passes.append(f"pass {record['pass']}, {record.get('tier') or 'standard'} ({models}): {said}")
+    line = " · ".join(passes)
+    lines = [line[:1].upper() + line[1:] + "."]
     kept = [
         (r["pass"], o)
         for r in records

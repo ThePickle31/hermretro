@@ -116,10 +116,17 @@ class Sections(unittest.TestCase):
     def test_a_heading_in_fenced_code_is_no_heading(self):
         body = "## Summary\nS\n```\n## Review\nan example\n```\n\n## Review\nUnder review."
         self.assertIn("an example", review_pr.section(body, "Summary"))
-        new = review_pr.replace_section(body, "Review", "Tier standard · pass 1 (m): no findings.")
+        new = review_pr.replace_section(body, "Review", "Pass 1, standard (m): no findings.")
         self.assertIn("```\n## Review\nan example\n```", new, "the example stays")
-        self.assertTrue(new.endswith("## Review\nTier standard · pass 1 (m): no findings.\n"))
+        self.assertTrue(new.endswith("## Review\nPass 1, standard (m): no findings.\n"))
         self.assertEqual(new.count("\n## Review\n"), 2, "one section and the example, not a third")
+
+    def test_a_longer_fence_holds_a_shorter_one(self):
+        body = "## Summary\nS\n````\n```\n## Review\nexample\n```\n````\n\n## Review\nUnder review.\n"
+        self.assertIn("example", review_pr.section(body, "Summary"))
+        new = review_pr.replace_section(body, "Review", "Pass 1, standard (m): no findings.")
+        self.assertIn("```\n## Review\nexample\n```\n````", new, "the example stays whole")
+        self.assertTrue(new.endswith("## Review\nPass 1, standard (m): no findings.\n"))
 
     def test_the_last_section_without_a_newline_is_replaced_not_added(self):
         new = review_pr.replace_section("## Summary\nS\n\n## Review", "Review", "Tier light · not reviewed.")
@@ -135,7 +142,8 @@ class Pass(unittest.TestCase):
     """prepare, take and record in a throwaway repository: a bare origin with dev, and a branch's worktree."""
 
     def setUp(self):
-        environment = mock.patch.dict(os.environ, GIT_ENVIRONMENT)
+        inherited = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        environment = mock.patch.dict(os.environ, {**inherited, **GIT_ENVIRONMENT}, clear=True)
         environment.start()
         self.addCleanup(environment.stop)
         temp = tempfile.TemporaryDirectory()
@@ -192,6 +200,16 @@ class Pass(unittest.TestCase):
             return ""
         raise AssertionError(args)
 
+    def fill_answers(self, n: int, given: list[str]) -> None:
+        """Fill the answers.md take generated, its blank answers in order, as the author does."""
+        path = self.review.pass_folder(n) / "answers.md"
+        lines, answers = path.read_text().splitlines(), iter(given)
+        blanks = [i for i, line in enumerate(lines) if line == "Answer:"]
+        self.assertEqual(len(blanks), len(given), "one blank answer per finding")
+        for i in blanks:
+            lines[i] = f"Answer: {next(answers)}"
+        path.write_text("\n".join(lines) + "\n")
+
     def run_pass(self, n: int, found: str, answers: str, model: str = "gpt-6.2-sol") -> str:
         """Prepare pass n, write its findings and answers as a reviewer and the author would, and record it."""
         self.review.prepare(n)
@@ -216,17 +234,14 @@ class Pass(unittest.TestCase):
         self.assertFalse(checkout.exists(), "the reviewers' checkout goes")
         with self.assertRaises(findings.FindingsError):
             self.review.record(1, "gpt-6.2-sol")
-        (self.review.pass_folder(1) / "answers.md").write_text(
-            "## Important: backend/thing.py:1 X is wrong\nAnswer: fixed\n"
-            "## Nit: backend/thing.py:1 name\nAnswer: declined — the name matches its caller's\n"
-        )
+        self.fill_answers(1, ["fixed", "declined — the name matches its caller's"])
         self.write("backend/thing.py", "X = 2\n")
         self.push("fix")
         self.assertIn("Pass 2 is due", self.review.record(1, "gpt-6.2-sol"))
-        self.assertIn("Tier standard · pass 1 (gpt-6.2-sol): 1 Important fixed, 1 Nit declined.", self.body)
+        self.assertIn("Pass 1, standard (gpt-6.2-sol): 1 Important fixed, 1 Nit declined.", self.body)
         self.assertIn("the name matches its caller's", self.body)
         self.assertTrue(self.body.startswith("## Summary\nA thing."), "the rest of the body stays")
-        self.assertTrue(self.review.status().endswith("Next: pass 2."))
+        self.assertTrue(self.review.status().endswith("Pass 2 is due: prepare --pass 2."))
         self.review.prepare(2)
         brief = (self.review.pass_folder(2) / "brief.md").read_text()
         self.assertIn(f"git diff {head}..", brief)
@@ -251,6 +266,32 @@ class Pass(unittest.TestCase):
         self.assertIn("No other pass is due", self.review.record(1, "gpt-6.2-sol"))
         with self.assertRaisesRegex(review.ReviewError, "no pass is due"):
             self.review.prepare(2)
+
+    def test_a_fixed_nit_does_not_answer_an_unrelated_commit_pushed_meanwhile(self):
+        self.review.prepare(1)
+        self.write("backend/other.py", "Y = 1\n")  # pushed while the reviewer read the pinned head
+        self.push("unrelated")
+        (self.review.pass_folder(1) / "findings.md").write_text("## Nit: backend/thing.py:1 name\n")
+        self.review.take(1)
+        self.fill_answers(1, ["fixed"])
+        self.write("backend/thing.py", "X_NAMED = 1\n")
+        self.push("nit")
+        self.assertIn("Pass 2 is due", self.review.record(1, "gpt-6.2-sol"))
+
+    def test_each_pass_keeps_its_own_tier_and_the_cap_is_told_apart(self):
+        self.run_pass(1, "## Important: backend/thing.py:1 X\n", "## Important: backend/thing.py:1 X\nAnswer: fixed\n")
+        self.write("backend/broker/client.py", "Z = 1\n")
+        self.push("broker")
+        self.review.prepare(2)
+        for name in ("findings.md", "security-findings.md"):
+            (self.review.pass_folder(2) / name).write_text("No findings.\n")
+        self.review.take(2)
+        self.review.record(2, "gpt-6.2-sol", "gpt-daybreak-blue-latest")
+        self.assertIn("Pass 1, standard (gpt-6.2-sol): 1 Important fixed · pass 2, sensitive", self.body)
+        self.assertEqual(
+            review.Review.next_step((4, tier.PASS)).split(":")[1].strip(), "a pass 4 only when the owner asks."
+        )
+        self.assertIn("the review is over", review.Review.next_step((5, tier.PASS)))
 
     def test_a_fixed_important_in_documentation_alone_needs_no_pass(self):
         self.review.prepare(1)

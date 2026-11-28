@@ -114,7 +114,7 @@ class Review:
     def recorded(self) -> list[dict]:
         found, n = [], 1
         while (record := self.load(n, "record.json")) is not None:
-            found.append(record)
+            found.append({"tier": (self.load(n, "pass.json") or {}).get("tier"), **record})
             n += 1
         return found
 
@@ -132,9 +132,16 @@ class Review:
             return None
         if any(o["label"] == "Important" and fixed(o) for o in last["outcomes"]):
             return last["pass"] + 1, needs
-        # Commits before the record answer its findings only when an answer changed the code; any after it, none.
-        since = last["recorded_head"] if any(fixed(o) for o in last["outcomes"]) else last["head"]
-        unaccounted = self.changed(f"{since}..{head}") if since != head else []
+        # Commits before the record answer its findings in the files the findings that changed the code name, and
+        # nowhere else; commits after it answer none.
+        answered = {o["what"].split(":", 1)[0] for o in last["outcomes"] if fixed(o)}
+        before = last["recorded_head"]
+        unaccounted = (
+            [f for f in self.changed(f"{last['head']}..{before}") if f.path not in answered]
+            if before != last["head"]
+            else []
+        )
+        unaccounted += self.changed(f"{before}..{head}") if before != head else []
         if unaccounted and tier.later(unaccounted) != tier.NOTHING:
             return last["pass"] + 1, needs
         return None
@@ -153,7 +160,7 @@ class Review:
         head = self.pushed_head()
         judged = self.judged(head)
         if n == 1 and judged.tier == tier.LIGHT:
-            self.write_review_section(tier.LIGHT, [])
+            self.write_review_section([])
             return "Tier light: Markdown and tests alone, so no review. The Review section says so."
         due = self.due(head)
         if due is None:
@@ -284,25 +291,30 @@ class Review:
         # A first attempt whose publishing failed keeps the head it recorded: what came after it is still unanswered.
         pending = folder / "record.pending.json"
         recorded_head = json.loads(pending.read_text())["recorded_head"] if pending.is_file() else self.pushed_head()
-        record = {"pass": n, "head": prepared["head"], "recorded_head": recorded_head, "model": model,
-                  "security_model": security_model, "outcomes": outcomes}  # fmt: skip
+        record = {"pass": n, "tier": prepared["tier"], "head": prepared["head"], "recorded_head": recorded_head,
+                  "model": model, "security_model": security_model, "outcomes": outcomes}  # fmt: skip
         pending.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-        self.write_review_section(prepared["tier"], [*self.recorded(), record])
+        self.write_review_section([*self.recorded(), record])
         pending.replace(folder / "record.json")
-        due = self.due(self.head())
-        if due is None:
-            return f"Pass {n} recorded. No other pass is due."
-        if due[0] > CAP:
-            return f"Pass {n} recorded. Another pass is due, but a review stops after pass {CAP}: tell the owner."
-        return f"Pass {n} recorded. Pass {due[0]} is due: prepare --pass {due[0]}."
+        return f"Pass {n} recorded. {self.next_step(self.due(self.head()))}"
 
-    def write_review_section(self, tier_name: str, records: list[dict]) -> None:
+    @staticmethod
+    def next_step(due: tuple[int, str] | None) -> str:
+        if due is None:
+            return "No other pass is due."
+        if due[0] == CAP + 1:
+            return (
+                f"Another pass is due, but a review stops after pass {CAP}: a pass {CAP + 1} only when the owner asks."
+            )
+        if due[0] > CAP + 1:
+            return f"Another pass is due, past pass {CAP + 1}: the review is over, tell the owner."
+        return f"Pass {due[0]} is due: prepare --pass {due[0]}."
+
+    def write_review_section(self, records: list[dict]) -> None:
         body = json.loads(gh(self.root, "pr", "view", self.branch, "--json", "body"))["body"]
         path = self.folder / "pr-body.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            review_pr.replace_section(body, "Review", review_pr.review_text(tier_name, records)), encoding="utf-8"
-        )
+        path.write_text(review_pr.replace_section(body, "Review", review_pr.review_text(records)), encoding="utf-8")
         gh(self.root, "pr", "edit", self.branch, "--body-file", str(path))
 
     # -- status --------------------------------------------------------------------------------------------------
@@ -317,13 +329,7 @@ class Review:
         ]
         if prepared:
             return f"Tier {tier_name}. Pass {prepared[0]['pass']} is prepared: take it once its reviewers answered."
-        due = self.due(head)
-        done = f"Tier {tier_name}. {len(records)} pass(es) recorded."
-        if due is None:
-            return f"{done} Next: nothing; the review is done."
-        if due[0] > CAP:
-            return f"{done} Next: nothing; a pass {due[0]} only when the owner asks (--over-cap)."
-        return f"{done} Next: pass {due[0]}."
+        return f"Tier {tier_name}. {len(records)} pass(es) recorded. {self.next_step(self.due(head))}"
 
 
 def fill(template: str, values: dict) -> str:
