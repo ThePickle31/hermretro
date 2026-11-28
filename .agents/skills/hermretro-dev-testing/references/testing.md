@@ -8,7 +8,7 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 |---|---|---|
 | unit | `python tools/check.py unit` | The Python tests, run with an empty home folder, an empty `TMPDIR` and no Hermes; fails if a test writes into the home or leaves anything in `TMPDIR`. Several processes at once (`tools/py/unit_shards.py`): the modules dealt into up to four by their times from the last run (`.dev/unit-times.json`), each with its own home and `TMPDIR` |
 | bundle | `python tools/check.py bundle` | `desktop/plugin.js` and `player/frame-shim.js` match `page/` (each banner's `sources: sha256` covers whole folders: all of `page/` for the bundle, `page/frame/` and `page/shared/` for the shim, so an edit in `page/shared/` changes the shim's `sources` line even when the shim bundles none of it; commit that line with the edit) |
-| engine | `python tools/check.py engine` | The engine's `dist/server.js` is byte for byte what `node tools/engine/bundle.mjs` builds from its `src/` modules (`src/entry.js` is the server's own), with the esbuild and packages pinned in `tools/engine/npm/` |
+| engine | `python tools/check.py engine` | The engine's `dist/server.js` is byte for byte what `node tools/engine/bundle.mjs` builds from its `src/` modules (`src/entry.js` is the server's own), with the esbuild and packages pinned in `tools/engine/npm/`; then the engine's own tests (below) |
 | lint | `python tools/check.py lint` | ESLint over `page/` (`tools/bundle/lint-page.mjs`): the boundaries between pages, the shell, `shared/` and the frame (`tools/bundle/lint-rules.mjs`), and a few correctness rules (undefined names, hooks order, duplicate keys…; unused names warn). At the same time ruff over the Python (`tools/py/ruff.toml`): `ruff check` (syntax errors, unused or undefined names, likely bugs, older syntax) and `ruff format --check` (one formatting for everyone). `python tools/check.py fix` applies every automatic fix and the formatting |
 | page | `python tools/check.py page` | Every `tests/page/**/*test*.mjs` with `node --test --test-reporter=spec`; it reports `N files, M checks passed, K failed` (each scenario file's checks, from its last line, plus each `node:test` test; TAP output is read too, and output it cannot count says `N files passed (check count unavailable)`). The built page in jsdom (`tests/page/page-*.test.mjs`, the files run in parallel), the inline player, and the page registry, events, slots and tabs from the sources (`tests/page/registry.test.mjs`) |
 | scan | `python tools/check.py scan` | Hermes's install scanner on exactly what a commit ships says `safe` |
@@ -46,6 +46,16 @@ of its own (`~/.cache/hermretro-dev/checkout` there, with `checkout.lock` beside
 used.
 
 One-time setup: `python tools/dev setup` (the Python lint and the npm tools for the page checks; Node 22 or newer). The checks never install anything themselves.
+
+## The engine's tests
+
+`tests/engine/` tests the engine's `src/` modules directly, one `<module>.test.mjs` per module (`entry.test.mjs` drives
+the whole server in-process over an in-memory MCP connection), with Node's own runner:
+`node --import ./tests/engine/register.mjs --test 'tests/engine/**/*.test.mjs'` (what `python tools/check.py engine` runs
+after its bundle check), or one file in place of the pattern. `register.mjs` makes every package an engine module (or
+a test) imports by name come from `tools/engine/npm/`, the very ones the bundle holds, so `python tools/dev setup` is all
+they need. A test that edits a project works on its own copy of an example (`copyStarter` in `support.mjs`, removed
+after it) and compares files with `projectFiles`. These tests are not engine files: adding one changes no engine version.
 
 ## Linting and formatting the Python
 
