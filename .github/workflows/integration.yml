@@ -1,7 +1,7 @@
 # The real engine, compiler and emulator: installs the game toolchain the way the hermretro page does (cached
 # between runs) and runs the broker acceptance suite. Called by ci.yml (pull requests that touch the backend or
 # the engine, every push to dev) and by nightly.yml. No hardware is ever touched. Locally:
-#   HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py && HERMRETRO_DEPS_ROOT=<folder> python tools/check.py acceptance
+#   python tools/ci/prepare_toolchain.py && python tools/check.py acceptance
 
 name: Integration
 

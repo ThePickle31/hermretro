@@ -18,23 +18,30 @@ One test module: `python -m unittest tests.backend.<feature>.test_<name>` (unitt
 
 Run the fast checks before opening a pull request; CI runs the slow ones its changes select
 (`tools/ci/changes.py`) on the exact head. Commit before `python tools/ci/clean_install_check.py`: the install checks
-install the committed tree. `python tools/check.py acceptance` (part of `full`) needs the toolchain, by default the one
-the hermretro page installed (`<hermretro home>/.cache/toolchain`); without one the check is skipped and said as not
+install the committed tree. `python tools/check.py acceptance` (part of `full`) needs the toolchain: with no folder named, the development one
+(`~/.cache/hermretro-dev/deps/toolchain`, or under `$XDG_CACHE_HOME`; `tools/py/dev_toolchain.py`) when there is one,
+otherwise the one the hermretro page installed (`<hermretro home>/.cache/toolchain`); without either the check is skipped and said as not
 proven here (PR CI runs it on Linux and macOS when the change touches what it covers). It installs nothing, but it is not
 read-only there: its brokers and games live in a temporary folder, yet an engine worker that finds no prepared engine for
 the bundled version makes one in that `.cache` from an earlier copy's device CLI
 (`refresh_prepared_engine` in `backend/setup/provision.py`), then removes the other engines' copies of the same CLI build that no worker runs in, and the run writes `notes/evidence/broker-acceptance.json`.
-To make a toolchain, or use one somewhere else, name the same folder for both:
+To make the development toolchain, run `python tools/ci/prepare_toolchain.py` once: every checkout and worktree on the
+machine uses it, and a restart keeps it. To use one somewhere else, name the same folder for both:
 `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py`, then
 `HERMRETRO_DEPS_ROOT=<folder> python tools/check.py full` (a relative `<folder>` is resolved from where each command
-runs, and handed on absolute). Outside GitHub Actions `prepare_toolchain.py` refuses to run without
-`HERMRETRO_DEPS_ROOT`, and with `GB_STUDIO_SETUP_ROOT` set anywhere, so it never writes the installed plugin's cache. It
+runs, and handed on absolute). Outside GitHub Actions `prepare_toolchain.py` never writes the installed plugin's cache
+(in GitHub Actions, with no folder named, it installs into the runner's hermretro home), and it refuses to run with
+`GB_STUDIO_SETUP_ROOT` set. It
 installs through a broker of its own, started in a new folder under `/tmp`; it keeps that broker's process and, at the
 end, on a failure or on Ctrl-C, SIGTERM or SIGHUP, sends it SIGTERM (it closes its workers, an unfinished installer
 included) and SIGKILL if it has not exited 30 s later. Only a run that succeeded and saw the broker exit removes that
 folder; any other names it. So a broker already running is never reused, replaced or stopped. What it still reads from
 the real Hermes home: Node discovery looks in the Hermes tools folder (`<Hermes home>/tools/node-*`, `paths.find_node`),
 and its broker is handed `HERMRETRO_HOME` (`spawn_broker`), which the install only reads (where games live).
+
+A change that has to hold on another system (this machine is Linux and the change touches macOS, or the other way):
+commit, then `python tools/dev remote <ssh host> [CHECK ...]` runs `tools/check.py` (by default `unit`) on that commit
+on the host, in a checkout of its own (`~/.cache/hermretro-dev/checkout` there), from the user's login shell.
 
 One-time setup: `python tools/dev setup` (the Python lint and the npm tools for the page checks; Node 22 or newer). The checks never install anything themselves.
 

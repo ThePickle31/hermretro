@@ -36,6 +36,8 @@ python -m unittest tests.backend.<feature>.test_<name>   # one module (unittest,
 node tests/page/<name>.test.mjs  # one page test (rebuild the bundle first after editing page/)
 node tools/bundle/bundle.mjs     # rebuild the page and the generated files after editing page/ or an RPC
 node tools/engine/bundle.mjs     # rebuild the engine's dist/server.js after editing its modules
+python tools/engine/bump.py "<line>"   # record an engine change: version, CHANGES.md line, bundle, manifest
+python tools/dev remote <host>   # the unit tests of this commit on another machine over ssh (macOS from Linux)
 ```
 
 CI runs the same checks plus a clean install, the update from the newest release and, when a change touches
@@ -54,6 +56,7 @@ Read CI with `gh pr checks <n>` and `gh run view <run> --log-failed`.
    by one patch (2.0.0 to 2.0.1; CI fails a change that does not raise it), and comes with its line under that
    version's heading in `engine/CHANGES.md`, the rebuilt bundle when a module changed, and a fresh manifest
    (`python tools/engine/manifest.py write`): the plugin starts only an engine that matches it.
+   `python tools/engine/bump.py "<files>: what changed and why"` does all four.
 3. **Install scanner.** `python tools/check.py scan` must say `safe`: one line rated high makes every install ask,
    one rated critical blocks installs. What trips it: `.agents/skills/hermretro-dev-testing/references/install-scanner.md` (instruction verbs aimed at
    agent configuration file names: write "this guide" instead).

@@ -177,8 +177,8 @@ python -m unittest discover -s tests -t .                   # fast unit tests (n
 node tools/bundle/bundle.mjs --check                            # the generated files match page/
 node tools/engine/bundle.mjs --check                            # the engine's dist/server.js matches its modules
 node --test 'tests/page/**/*test*.mjs'                # page tests, including the built page in jsdom
-HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py   # the toolchain the acceptance run needs, in <folder>
-HERMRETRO_DEPS_ROOT=<folder> python tests/acceptance/broker_acceptance.py   # real engine, compiler and emulator (~2 min)
+python tools/ci/prepare_toolchain.py                       # once: the toolchain the acceptance run needs
+python tools/check.py acceptance                            # real engine, compiler and emulator (~2 min)
 python tools/ci/clean_install_check.py                      # clean install into a throwaway Hermes home
 python tools/ci/clean_install_check.py --update-from        # the newest release, updated to this commit
 hermes -p hermretro tools list                           # the chromatic toolset, only in that profile

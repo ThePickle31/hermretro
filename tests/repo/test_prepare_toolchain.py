@@ -119,14 +119,16 @@ class PrepareToolchain(unittest.TestCase):
         self.assertTrue(state.is_dir())
         self.assertIn(f"the broker's trace and logs: {state}", err)
 
-    def test_outside_ci_without_a_destination_it_refuses_before_any_broker(self):
-        code, broker, _process, err, _deps = self.run_main()
-        self.assertEqual(code, 2)
-        self.assertEqual(self.started, [])
-        self.assertEqual(broker.asked, [])
-        self.assertIn(f"refusing to install into {paths.DEPS_ROOT}", err)
-        self.assertIn("FIX: HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py", err)
-        self.assertEqual(list(self.parent.iterdir()), [])
+    def test_outside_ci_without_a_destination_it_installs_the_development_toolchain(self):
+        dev = self.home.base / "dev-deps"
+        with mock.patch.object(prepare_toolchain.dev_toolchain, "DEPS_ROOT", dev):
+            code, broker, process, _err, deps = self.run_main()
+        self.assertEqual(code, 0)
+        self.assertEqual(broker.asked, ["install_start", "install_status"])
+        self.assertEqual(process.signals, ["SIGTERM"])
+        # Never the installed hermretro's own .cache: the broker is handed the development folder.
+        self.assertEqual(deps, str(dev))
+        self.assertIn(f"toolchain: {dev / 'toolchain'}", self.out)
 
     def test_a_setup_root_override_is_refused_even_with_a_destination(self):
         setup = str(self.home.base / "elsewhere")
@@ -140,7 +142,9 @@ class PrepareToolchain(unittest.TestCase):
         self.assertEqual(list(self.parent.iterdir()), [])
 
     def test_a_named_destination_installs_through_a_private_broker_it_stops_and_removes(self):
-        code, broker, process, _err, deps = self.run_main(HERMRETRO_DEPS_ROOT="relative/toolchain")
+        # As in a process started with it set: paths resolved the same folder when it was imported.
+        with mock.patch.object(paths, "DEPS_ROOT", Path("relative/toolchain").resolve()):
+            code, broker, process, _err, deps = self.run_main(HERMRETRO_DEPS_ROOT="relative/toolchain")
         self.assertEqual(code, 0)
         [state] = self.started
         self.assertEqual(state.parent, self.parent)

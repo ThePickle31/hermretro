@@ -91,8 +91,8 @@ def problem(old: str, new: str) -> str | None:
     following = f"{before[0]}.{before[1]}.{before[2] + 1}"
     return (
         f"The engine changed ({named}) but its version {moved}.\n"
-        f'FIX: set "version" in {PACKAGE} to {following}, start engine/CHANGES.md\'s list for it with '
-        f'"## {following}", then python tools/engine/manifest.py write'
+        f'FIX: python tools/engine/bump.py "<files>: what changed and why" (it sets "version" in {PACKAGE} to '
+        f'{following}, starts engine/CHANGES.md\'s list with "## {following}" and writes the bundle and the manifest)'
     )
 
 
