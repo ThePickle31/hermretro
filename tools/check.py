@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -379,13 +380,13 @@ def check_acceptance(args) -> str:
                 "every checkout uses, or the one HERMRETRO_DEPS_ROOT names when it is set"
             )
         raise Skip(f"no toolchain at {toolchain}\nFIX: {fix}")
-    # The suite run by hand, as this run starts it.
-    rerun = (
-        " ".join(
-            f"{name}={env[name]}" for name in ("TMPDIR", "HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT") if env.get(name)
-        )
-        + " python tests/acceptance/broker_acceptance.py"
-    )
+    # The suite run by hand, as this run starts it: from the checkout root, with the same folders.
+    folders = [
+        f"{name}={shlex.quote(env[name])}"
+        for name in ("TMPDIR", "HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT")
+        if env.get(name)
+    ]
+    rerun = f"cd {shlex.quote(str(ROOT))} && {' '.join(folders)} python tests/acceptance/broker_acceptance.py"
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     try:
         result = run(

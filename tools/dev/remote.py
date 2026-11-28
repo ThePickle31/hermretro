@@ -18,7 +18,7 @@ from pathlib import Path
 
 FOLDER = ".cache/hermretro-dev/checkout"  # from the host's home folder, where ssh and git's ssh paths start
 LOCK = f"{FOLDER}.lock"
-BRANCH = "remote-check"
+REFS = "refs/remote-check"  # one ref per commit sent, so runs pushing at once never race for one ref
 MARK = "hermretro.remotecheck"  # in the checkout's own git config: the folder is this tool's
 # Makes the checkout, or proves the one there is this tool's, before anything in it is overwritten.
 PREPARE = (
@@ -29,8 +29,10 @@ PREPARE = (
 )
 # Runs the rest of its arguments while it holds the lock (an exclusive flock, let go when it exits).
 HOLD = (
-    "import fcntl, subprocess, sys\n"
-    "lock = open(sys.argv[1], 'w')\n"
+    "import fcntl, os, subprocess, sys\n"
+    "if os.path.islink(sys.argv[1]):\n"
+    "    sys.exit(f'{sys.argv[1]} is a link; tools/dev remote uses only a lock of its own')\n"
+    "lock = open(sys.argv[1], 'a')\n"
     "try:\n"
     "    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
     "except BlockingIOError:\n"
@@ -41,11 +43,13 @@ HOLD = (
 
 
 def host_script(commit: str, checks: list[str]) -> str:
-    """What runs on the host, from its home folder, with the lock held."""
+    """What runs on the host, from its home folder, with the lock held. Once checked out, the commit is held by
+    HEAD, and its ref goes."""
     steps = " && ".join(
         [
             f"cd {FOLDER}",
             f"git checkout -q -f --detach {commit}",
+            f"git update-ref -d {REFS}/{commit}",
             "git clean -q -f -d -x -e .dev -e node_modules",
             "python3 tools/dev setup",
             shlex.join(["python3", "tools/check.py", *checks]),
@@ -62,8 +66,8 @@ def run(top: Path, host: str, checks: list[str]) -> int:
         print("note: uncommitted changes stay here; the host checks HEAD", file=sys.stderr)
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=top, capture_output=True, text=True).stdout.strip()
     for step in (
-        ["ssh", host, PREPARE],
-        ["git", "push", "-q", "-f", "--no-verify", f"{host}:{FOLDER}", f"{commit}:refs/heads/{BRANCH}"],
+        ["ssh", host, shlex.join(["sh", "-c", PREPARE])],  # POSIX sh, whatever the account's shell
+        ["git", "push", "-q", "-f", "--no-verify", f"{host}:{FOLDER}", f"{commit}:{REFS}/{commit}"],
     ):
         if subprocess.run(step, cwd=top).returncode:
             print(
