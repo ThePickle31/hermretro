@@ -1,5 +1,5 @@
-"""The update check's own judgements (tools/ci/update_check.py): which leftovers in the plugin folder are fine,
-and that it refuses to call the old broker replaced once that broker has already exited by itself."""
+"""The update check's own judgements (tools/ci/update_check.py and update_inside.py): which leftovers in the plugin
+folder are fine, and that it refuses to call the old broker replaced once that broker has already exited by itself."""
 
 import socket
 import subprocess
@@ -13,7 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "ci"))
 
-import update_check  # noqa: E402 - the repository root goes on sys.path first
+import update_check  # noqa: E402 - tools/ci goes on sys.path first
+import update_inside  # noqa: E402 - tools/ci goes on sys.path first
 
 
 # A throwaway repository: no identity, signing or hooks of whoever runs the tests.
@@ -72,17 +73,17 @@ def problems_without_fix(problems: list[str]) -> list[str]:
 
 class OldBroker(unittest.TestCase):
     def test_a_running_old_broker_lets_the_check_go_on(self):
-        self.assertIsNone(update_check.old_broker_gone(1234, True, " --update-from v1"))
+        self.assertIsNone(update_inside.old_broker_gone(1234, True, " --update-from v1"))
 
     def test_an_old_broker_that_exited_by_itself_fails_the_check_with_a_fix(self):
-        message = update_check.old_broker_gone(1234, False, " --update-from v1")
+        message = update_inside.old_broker_gone(1234, False, " --update-from v1")
         self.assertIn("pid 1234", message)
         self.assertIn("\nFIX:", message)
         self.assertTrue(message.endswith("clean_install_check.py --update-from v1"))
 
     def test_holding_a_broker_that_does_not_listen_fails_with_a_fix(self):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit) as raised:
-            update_check.hold_open(str(Path(tmp) / "broker.sock"))
+            update_inside.hold_open(str(Path(tmp) / "broker.sock"))
         self.assertIn("FIX:", str(raised.exception))
 
     def test_holding_keeps_one_silent_connection_open_until_closed(self):
@@ -91,7 +92,7 @@ class OldBroker(unittest.TestCase):
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
                 server.bind(path)
                 server.listen(1)
-                held = update_check.hold_open(path)
+                held = update_inside.hold_open(path)
                 accepted, _ = server.accept()
                 with accepted:
                     accepted.settimeout(0.2)
@@ -108,7 +109,7 @@ class OldBroker(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir="/tmp") as tmp:  # short: a Unix socket path is at most 104 bytes
             broker = IdleBroker(str(Path(tmp) / "b.sock"), idle=0.1)
             self.addCleanup(broker.stop)  # registered at once: a failed wait below still stops the broker
-            held = update_check.hold_open(broker.path)
+            held = update_inside.hold_open(broker.path)
             self.addCleanup(held.close)
             broker.wait_for_connections(1)  # accepted, not just connected
             broker.advance(1.0)  # long past the deadline: only the held connection keeps the broker up
@@ -124,7 +125,7 @@ class OldBroker(unittest.TestCase):
                     broker.wait_for_connections(2)  # count the new client before it can close
                 return "driven"
 
-            self.assertEqual(update_check.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
+            self.assertEqual(update_inside.drive_holding(held, 1234, lambda _: not broker.gone, drive, ""), "driven")
             self.assertFalse(broker.gone, "the old broker idled out during the new drive")
             self.assertEqual(held.fileno(), -1, "the held connection is released once the drive is done")
             broker.wait_for_connections(0)
@@ -135,7 +136,7 @@ class OldBroker(unittest.TestCase):
     def test_a_gone_old_broker_stops_before_the_new_drive_and_releases_the_hold(self):
         held = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         with self.assertRaises(SystemExit) as raised:
-            update_check.drive_holding(held, 1234, lambda _: False, lambda: self.fail("drove a gone broker"), "")
+            update_inside.drive_holding(held, 1234, lambda _: False, lambda: self.fail("drove a gone broker"), "")
         self.assertIn("pid 1234", str(raised.exception))
         self.assertEqual(held.fileno(), -1)
 

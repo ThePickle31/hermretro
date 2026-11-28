@@ -129,7 +129,7 @@ needs no API key and submits no prompts.
 
 `tools/ci/clean_install_check.py` installs the committed checkout into a throwaway Hermes home (the `hermretro`
 profile and the default one; the install scanner must not ask) and checks the tools register only in `hermretro`.
-With `--update-from [REF]` it runs the update check (`tools/ci/update_check.py`): it installs REF (default: the newest
+With `--update-from [REF]` it runs the update check (`tools/ci/update_check.py`, and `update_inside.py` for its half that runs in Hermes's own Python): it installs REF (default: the newest
 stable `v*` tag on `origin/main`, else local `main`) from a local bare copy of the repository, uses it as the page
 does (studio profile, a library game, a New Game chat, a running broker), moves the copy's `main` to HEAD and runs
 `hermes plugins update hermretro`: no prompt, the folder at HEAD, no leftover files that are not bytecode, the agent
