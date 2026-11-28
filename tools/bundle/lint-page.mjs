@@ -67,7 +67,7 @@ function pageConfig({ hooks, globals }) {
   ]
 }
 
-const PACKAGES = ['eslint-plugin-react-hooks', 'globals']
+export const PACKAGES = ['eslint-plugin-react-hooks', 'globals'] // besides eslint (lint_tools.py's preflight reads it)
 
 export async function lintPage({ fix = false, files = [] } = {}) {
   const found = eslintTools(PACKAGES)

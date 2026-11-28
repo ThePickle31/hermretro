@@ -73,7 +73,7 @@ function engineConfig({ globals }) {
   ]
 }
 
-const PACKAGES = ['globals']
+export const PACKAGES = ['globals'] // besides eslint (lint_tools.py's preflight reads it)
 
 export async function lintEngine({ files = [] } = {}) {
   const found = eslintTools(PACKAGES, { pinned: true })

@@ -27,12 +27,14 @@ RUFF_FORMAT = [str(RUFF), "format", "--config", "tools/py/ruff.toml", "--force-e
 RUFF_SETUP = "python tools/py/setup.py (once; about 5 s, then a no-op until tools/py/requirements.txt changes)"
 # Both at once: what a fresh checkout needs before `python tools/check.py` can lint.
 LINT_SETUP = "python tools/py/setup.py && npm ci --prefix tools/npm --ignore-scripts"
-# The same lookups the two ESLint runs make (tools/bundle/node-modules.mjs), so the answer cannot drift from them: the
-# page's in any of its folders (exit 1 when none has them), the engine's in tools/npm only (exit 2).
+# The same lookups the two ESLint runs make, for the packages each names (tools/bundle/node-modules.mjs), so the answer
+# cannot drift from them: the page's in any of its folders (exit 1 when none has them), the engine's in tools/npm only
+# (exit 2).
 ESLINT_PROBE = (
     "import { findModules, PINNED_MODULES } from './tools/bundle/node-modules.mjs';"
-    "process.exit(!findModules(['eslint', 'eslint-plugin-react-hooks', 'globals']) ? 1"
-    " : !findModules(['eslint', 'globals'], [PINNED_MODULES]) ? 2 : 0)"
+    "import { PACKAGES as PAGE } from './tools/bundle/lint-page.mjs';"
+    "import { PACKAGES as ENGINE } from './tools/engine/lint.mjs';"
+    "process.exit(!findModules(['eslint', ...PAGE]) ? 1 : !findModules(['eslint', ...ENGINE], [PINNED_MODULES]) ? 2 : 0)"
 )
 
 
