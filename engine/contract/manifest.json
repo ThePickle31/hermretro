@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32314490,
+ "total_bytes": 32314581,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "df2b877c0103a32877a67cae0211afface294d9d661303f2e51c0708e77a2836",
+ "aggregate_sha256": "c9ee95ca5b97010d473ea1d46d9331847dffea8bf7a75a7b0f916a1452550b33",
  "entries": [
   {
    "path": "LICENSE",
@@ -1025,9 +1025,9 @@
   {
    "path": "scripts/chromatic-runtime.mjs",
    "type": "file",
-   "size": 34458,
+   "size": 34455,
    "mode": "0o644",
-   "sha256": "ba997b07a9b20d208d98a0918f643ed8cacba83facbab6fad8919876eda22f53"
+   "sha256": "db4369ba27a64e42f3c835bc6202bdcc99ee7d22d32aaa1e76856f07f8884597"
   },
   {
    "path": "scripts/chromatic.mjs",
@@ -1123,9 +1123,9 @@
   {
    "path": "scripts/setup-io.mjs",
    "type": "file",
-   "size": 47922,
+   "size": 48011,
    "mode": "0o644",
-   "sha256": "b335aeff7c0581ad86e8389235cf40e4beeadb6fd1c2b17a424d08f85aac7556"
+   "sha256": "82752b98c17af5fb490ea5e6faa57f0352cfec42afb8be4a4b31fe04cce0468a"
   },
   {
    "path": "scripts/setup-runtime.mjs",
@@ -1683,9 +1683,9 @@
   {
    "path": "src/project-files.js",
    "type": "file",
-   "size": 32523,
+   "size": 32528,
    "mode": "0o644",
-   "sha256": "704d5a2e6792a8aa345c7024accf322826ed5d06a577d410a46d0f1d3d986597"
+   "sha256": "ebc8f6495c7d3e2235ee02c2d9984a5b4d26982c8d487bd3f97b4ba8e32f8d09"
   },
   {
    "path": "src/project-revision.js",

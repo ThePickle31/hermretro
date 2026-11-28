@@ -82,10 +82,7 @@ def with_line(changes: str, new: str, line: str) -> str:
 
 
 def base_version(base: str) -> tuple[int, int, int] | None:
-    found = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"], cwd=ROOT, capture_output=True
-    )
-    if found.returncode:
+    if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"], cwd=ROOT).returncode:
         raise Refused(f"no revision {base} here\nFIX: git fetch origin, or name the base with --base REF")
     return version.version_at(base)
 

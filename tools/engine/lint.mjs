@@ -8,13 +8,13 @@
  *
  * A deliberate exception is `// hermretro: allow <rule> — <reason>` on its line, as for the page
  * (tools/bundle/eslint-run.mjs). Fixing a report changes the engine: record it with tools/engine/bump.py.
- * ESLint and `globals` come from tools/npm.
+ * ESLint and `globals` come from tools/npm only, the versions this repository pins.
  */
 import { eslintTools, isMain, missing, printReport, runEslint } from '../bundle/eslint-run.mjs'
 
 const PATTERNS = ['engine/src/**/*.js', 'engine/scripts/**/*.mjs']
 // The scripts the player's page and the capture page run in the browser (each says `/// <reference lib="dom" />`,
-// but native-entry.js, which only starts native-client.js).
+// but native-entry.js, which only starts native-client.js): browser globals only, never Node's.
 const BROWSER = [
   'engine/src/web-annotations/**/*.js',
   'engine/src/device-capture/device-picker.js',
@@ -22,8 +22,10 @@ const BROWSER = [
   'engine/src/device-capture/native-entry.js',
   'engine/src/device-capture/native-timing-diagnostics.js'
 ]
-// GB Studio's web player script defines these on the player's page before the engine's scripts run.
-const PLAYER_PAGE = { vm: 'readonly', emulator: 'readonly', Binjgb: 'readonly', Rewind: 'readonly' }
+// GB Studio's web player script defines these on the player's page before the engine's scripts run: only the two
+// scripts that page loads and that use them get them.
+const PLAYER_PAGE = ['engine/src/web-annotations/player.js', 'engine/src/web-annotations/bridge.js']
+const PLAYER_GLOBALS = { vm: 'readonly', emulator: 'readonly', Binjgb: 'readonly', Rewind: 'readonly' }
 
 // What each rule protects and how to fix a report, printed under every message.
 const HELP = {
@@ -60,21 +62,23 @@ function engineConfig({ globals }) {
   return [
     {
       files: PATTERNS,
-      languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.node } },
+      languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
       linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: 'off' },
       rules: { ...RULES, 'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true }] }
     },
-    { files: BROWSER, languageOptions: { globals: { ...globals.browser, ...PLAYER_PAGE } } }
+    { files: PATTERNS, ignores: BROWSER, languageOptions: { globals: globals.node } },
+    { files: BROWSER, languageOptions: { globals: globals.browser } },
+    { files: PLAYER_PAGE, languageOptions: { globals: PLAYER_GLOBALS } }
   ]
 }
 
 const PACKAGES = ['globals']
 
 export async function lintEngine({ files = [] } = {}) {
-  const found = eslintTools(PACKAGES)
+  const found = eslintTools(PACKAGES, { pinned: true })
 
   if (!found) {
-    return { missing: missing(PACKAGES) }
+    return { missing: missing(PACKAGES, { pinned: true }) }
   }
 
   return runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })

@@ -12,14 +12,19 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { findModules, MISSING_HINT } from './node-modules.mjs'
+import { findModules, MISSING_HINT, PINNED_MODULES } from './node-modules.mjs'
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+// A run's exit code when ESLint or a package it needs is not installed (an error is 1), so a caller never has to read
+// the report to tell the two apart.
+export const MISSING_TOOLS = 3
 const ALLOW = /\/\/\s*hermretro:\s*allow\s+(\S+)(?:\s+(?:—|--|-)\s*(.*))?$/
 
-/** ESLint and the named packages from tools/npm, by name, or null when they are not installed. */
-export function eslintTools(names) {
-  const modules = findModules(['eslint', ...names])
+/** ESLint and the named packages by name, or null when they are not installed: from the first folder that holds
+ * them all (node-modules.mjs), or with `pinned`, from tools/npm only, the versions this repository pins. */
+export function eslintTools(names, { pinned = false } = {}) {
+  const wanted = ['eslint', ...names]
+  const modules = pinned ? (findModules(wanted, [PINNED_MODULES]) ?? null) : findModules(wanted)
 
   if (!modules) {
     return null
@@ -27,7 +32,7 @@ export function eslintTools(names) {
 
   const require = createRequire(path.join(modules, 'package.json'))
 
-  return Object.fromEntries(['eslint', ...names].map(name => [name, require(name)]))
+  return Object.fromEntries(wanted.map(name => [name, require(name)]))
 }
 
 /** Apply `// hermretro: allow <rule> — <reason>` lines to one file's messages. */
@@ -101,12 +106,12 @@ export async function runEslint({ eslint, config, patterns, help, fix = false, f
   return report
 }
 
-/** Print a run's report as check.py reads it; the exit code (1 on an error or missing tools). */
+/** Print a run's report as check.py reads it; the exit code (1 on an error, MISSING_TOOLS without its tools). */
 export function printReport(report, fixHint) {
   if (report.missing) {
-    console.error(`error: ${report.missing}`)
+    console.error(`error: ${report.missing.found}\nFIX: ${report.missing.install}`)
 
-    return 1
+    return MISSING_TOOLS
   }
 
   for (const line of report.warnings) {
@@ -130,8 +135,11 @@ export function printReport(report, fixHint) {
   return report.errors.length ? 1 : 0
 }
 
-export function missing(names) {
-  return `${['eslint', ...names].join(', ')} were not found; ${MISSING_HINT}`
+/** What a run reports without its tools: what is missing, and the command that installs it. */
+export function missing(names, { pinned = false } = {}) {
+  const install = pinned ? 'npm ci --prefix tools/npm --ignore-scripts' : MISSING_HINT.replace(/^run: /, '')
+
+  return { found: `${['eslint', ...names].join(', ')} were not found`, install }
 }
 
 const realPath = file => {

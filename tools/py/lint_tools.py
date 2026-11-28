@@ -69,6 +69,11 @@ def ruff_format_check(paths: list[str]) -> list[str]:
     return [*RUFF_FORMAT[:-1], "--check", "--output-format", "concise", *paths]
 
 
+# The exit code of either ESLint run when ESLint or a package it needs is not installed (MISSING_TOOLS in
+# tools/bundle/eslint-run.mjs); an error is 1.
+LINT_MISSING_TOOLS = 3
+
+
 def page_lint(node: str, files: list[str]) -> list[str]:
     """The page lint (ESLint over page/**/*.js; check.py's lint: every file, ``files`` empty), with its settings."""
     return [node, "tools/bundle/lint-page.mjs", *files]

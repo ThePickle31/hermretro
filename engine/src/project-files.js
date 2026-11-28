@@ -351,7 +351,7 @@ async function publishRecoverableProjectLock(lockPath, resourcePath, scope) {
                     }
                     catch (releaseError) {
                         if (!isSystemError(releaseError, "ENOENT"))
-                            // hermretro: allow no-unsafe-finally — caught by the try around it, which reports it as the staging file's lock error
+                            // hermretro: allow no-unsafe-finally — a lock this operation published and cannot remove outranks the staging file's error
                             throw releaseError;
                     }
                 }

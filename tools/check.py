@@ -41,6 +41,7 @@ import page_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import step_summary  # noqa: E402 - tools/py/ goes on sys.path first
 import unit_shards  # noqa: E402 - tools/py/ goes on sys.path first
 from lint_tools import (  # noqa: E402 - tools/py/ goes on sys.path first
+    LINT_MISSING_TOOLS,
     LINT_SETUP,
     RUFF_CHECK,
     RUFF_FORMAT,
@@ -186,7 +187,7 @@ def check_lint(args) -> str:
     else:
         output = eslint.communicate()[0].strip()
         page_skip = None
-        if "were not found" in output and eslint.returncode:
+        if eslint.returncode == LINT_MISSING_TOOLS:
             page_skip = "eslint was not found (npm ci --prefix tools/npm --ignore-scripts)"
         elif eslint.returncode:
             problems.append(
@@ -197,9 +198,12 @@ def check_lint(args) -> str:
         else:
             warned = ", ".join(r.split()[1].rsplit(":", 1)[0] for r in output.splitlines() if r[:9] == "warning: ")
             done.insert(0, "page: " + (output.splitlines() or ["ok"])[-1] + (warned and f" (warnings: {warned})"))
+    engine_skip = "node is not installed" if engine is None else None
     if engine is not None:
         output = engine.communicate()[0].strip()
-        if engine.returncode and "were not found" not in output:
+        if engine.returncode == LINT_MISSING_TOOLS:
+            engine_skip = "eslint was not found in tools/npm (npm ci --prefix tools/npm --ignore-scripts)"
+        elif engine.returncode:
             problems.append(
                 tail(output, 40) + "\nFIX: fix each engine error as its message says, then record the engine change "
                 'with python tools/engine/bump.py "<files>: what changed and why" (a deliberate exception: '
@@ -209,11 +213,12 @@ def check_lint(args) -> str:
             done.insert(
                 1 if done and done[0].startswith("page: ") else 0, "engine: " + (output.splitlines() or ["ok"])[-1]
             )
+    skipped = [f"{name} skipped ({why})" for name, why in (("page", page_skip), ("engine", engine_skip)) if why]
     if problems:
-        raise AssertionError(("page lint skipped: " + page_skip + "\n" if page_skip else "") + "\n".join(problems))
-    if page_skip and (args.strict or not done):
-        raise Skip(page_skip)
-    return "; ".join(done + ([f"page skipped ({page_skip})"] if page_skip else []))
+        raise AssertionError("".join(f"{line}\n" for line in skipped) + "\n".join(problems))
+    if skipped and (args.strict or not done):
+        raise Skip("; ".join(skipped))
+    return "; ".join(done + skipped)
 
 
 def tree_digest() -> dict[str, str]:
