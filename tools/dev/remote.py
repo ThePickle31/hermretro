@@ -14,25 +14,29 @@ from __future__ import annotations
 import shlex
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 FOLDER = ".cache/hermretro-dev/checkout"  # from the host's home folder, where ssh and git's ssh paths start
 LOCK = f"{FOLDER}.lock"
-REFS = "refs/remote-check"  # one ref per commit sent, so runs pushing at once never race for one ref
+REFS = "refs/remote-check"  # one ref per run, so runs pushing at once never race for one ref
 MARK = "hermretro.remotecheck"  # in the checkout's own git config: the folder is this tool's
-# Makes the checkout, or proves the one there is this tool's, before anything in it is overwritten.
+# Proves the checkout there is this tool's, or makes it when there is none, before anything in it is overwritten. A
+# checkout already made is only read, so runs started at once never write its config together.
 PREPARE = (
     f'if [ -L {FOLDER} ]; then echo "{FOLDER} is a link; tools/dev remote uses only a folder of its own"; exit 3; fi; '
-    f'if [ -e {FOLDER} ] && [ "$(git config --file {FOLDER}/.git/config --get {MARK})" != true ]; then '
-    f'echo "{FOLDER} was not made by tools/dev remote; move it away"; exit 3; fi; '
-    f"git init -q {FOLDER} && git config --file {FOLDER}/.git/config {MARK} true"
+    f"if [ -e {FOLDER} ]; then "
+    f'[ "$(git config --file {FOLDER}/.git/config --get {MARK})" = true ] || '
+    f'{{ echo "{FOLDER} was not made by tools/dev remote; move it away"; exit 3; }}; '
+    f"else git init -q {FOLDER} && git config --file {FOLDER}/.git/config {MARK} true; fi"
 )
 # Runs the rest of its arguments while it holds the lock (an exclusive flock, let go when it exits).
 HOLD = (
     "import fcntl, os, subprocess, sys\n"
-    "if os.path.islink(sys.argv[1]):\n"
-    "    sys.exit(f'{sys.argv[1]} is a link; tools/dev remote uses only a lock of its own')\n"
-    "lock = open(sys.argv[1], 'a')\n"
+    "try:\n"
+    "    lock = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)\n"
+    "except OSError as error:\n"
+    "    sys.exit(f'{sys.argv[1]}: {error.strerror}; tools/dev remote uses only a lock of its own, never a link')\n"
     "try:\n"
     "    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
     "except BlockingIOError:\n"
@@ -42,14 +46,14 @@ HOLD = (
 )
 
 
-def host_script(commit: str, checks: list[str]) -> str:
+def host_script(commit: str, ref: str, checks: list[str]) -> str:
     """What runs on the host, from its home folder, with the lock held. Once checked out, the commit is held by
-    HEAD, and its ref goes."""
+    HEAD, and this run's ref goes."""
     steps = " && ".join(
         [
             f"cd {FOLDER}",
             f"git checkout -q -f --detach {commit}",
-            f"git update-ref -d {REFS}/{commit}",
+            f"git update-ref -d {ref}",
             "git clean -q -f -d -x -e .dev -e node_modules",
             "python3 tools/dev setup",
             shlex.join(["python3", "tools/check.py", *checks]),
@@ -65,9 +69,10 @@ def run(top: Path, host: str, checks: list[str]) -> int:
     if subprocess.run(["git", "status", "--porcelain"], cwd=top, capture_output=True, text=True).stdout.strip():
         print("note: uncommitted changes stay here; the host checks HEAD", file=sys.stderr)
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=top, capture_output=True, text=True).stdout.strip()
+    ref = f"{REFS}/{uuid.uuid4().hex}"
     for step in (
         ["ssh", host, shlex.join(["sh", "-c", PREPARE])],  # POSIX sh, whatever the account's shell
-        ["git", "push", "-q", "-f", "--no-verify", f"{host}:{FOLDER}", f"{commit}:{REFS}/{commit}"],
+        ["git", "push", "-q", "-f", "--no-verify", f"{host}:{FOLDER}", f"{commit}:{ref}"],
     ):
         if subprocess.run(step, cwd=top).returncode:
             print(
@@ -77,4 +82,6 @@ def run(top: Path, host: str, checks: list[str]) -> int:
             return 1
     print(f"{host}: {shlex.join(['tools/check.py', *checks])} on {commit[:10]}", flush=True)
     # A login, interactive shell: the one that sets up PATH (Homebrew, nvm) as the user's terminal does.
-    return subprocess.run(["ssh", host, f'exec "$SHELL" -lic {shlex.quote(host_script(commit, checks))}']).returncode
+    return subprocess.run(
+        ["ssh", host, f'exec "$SHELL" -lic {shlex.quote(host_script(commit, ref, checks))}']
+    ).returncode
