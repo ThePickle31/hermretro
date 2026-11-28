@@ -1,8 +1,12 @@
-"""The half of `python tools/ci/clean_install_check.py --update-from` that runs inside Hermes: Hermes's own Python,
-HERMES_HOME the throwaway home, started by update_check.py as `clean_install_check.py --inside PHASE OUT`. It uses the
-installed plugin the way the page does (its RPCs through Hermes's plugin loader, its broker), and for a published
-release's gateway still running after the update, holds that gateway's broker connection open. What it finds goes
-into OUT as JSON for update_check.py to judge.
+"""The half of `python tools/ci/clean_install_check.py --update-from` that runs inside Hermes (Hermes's own Python,
+HERMES_HOME the throwaway home), and the helpers update_check.py uses to start it and to hold an old broker open.
+
+Run as `clean_install_check.py --inside PHASE OUT` (`inside_command`, `inside_environment`), each phase uses the
+installed plugin the way the page does and writes what it finds into OUT as JSON for update_check.py to judge: `old`
+and `new` call the page's RPCs through Hermes's plugin loader and start its broker; `kept`, the gateway of a published
+release still running after the update (`OldGateway`), waits for the go, then calls `doctor` and reads which broker
+answered. Outside Hermes, update_check.py holds a silent connection to the old broker with `hold_open` and lets it go
+with `drive_holding`, which `old_broker_gone` and `alive` judge.
 """
 
 from __future__ import annotations
