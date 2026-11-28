@@ -14,7 +14,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from backend.setup import copy_lease, provision  # noqa: E402 - the repository root goes on sys.path first
+from backend.setup import copy_lease, prepared_copies, provision  # noqa: E402 - the repository root goes on sys.path first
 from backend.system import engine_tree, paths  # noqa: E402 - the repository root goes on sys.path first
 from tests.support import throwaway_deps  # noqa: E402 - the repository root goes on sys.path first
 
@@ -50,8 +50,8 @@ class Refresh(unittest.TestCase):
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
-        provision._NOT_REUSABLE.clear()
-        self.addCleanup(provision._NOT_REUSABLE.clear)
+        prepared_copies._NOT_REUSABLE.clear()
+        self.addCleanup(prepared_copies._NOT_REUSABLE.clear)
 
     def earlier_copy(self, name: str, executable: bytes = EXE, *, leased: bool = True, **receipt) -> Path:
         """A copy an earlier engine published: with its lease file, or (``leased=False``) as one from before leases."""
@@ -92,7 +92,7 @@ class ChoosingTheSource(Refresh):
     def test_the_newest_earlier_copy_gives_its_cli_and_every_copy_stays(self):
         oldest = self.earlier_copy("1.0.33")
         source = self.earlier_copy("1.0.34")
-        self.assertTrue(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertTrue(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
         ((args, dates),) = self.built
         self.assertEqual(args, (TARGET, PINS, EXE, NOTICE))
         self.assertEqual(dates["node_path"], "/usr/bin/node")
@@ -105,7 +105,7 @@ class ChoosingTheSource(Refresh):
     def test_a_copy_made_meanwhile_is_not_made_again(self):
         self.earlier_copy("1.0.34")
         self.verified = iter([True])
-        self.assertTrue(provision.refresh_prepared_engine())
+        self.assertTrue(prepared_copies.refresh_prepared_engine())
         self.assertEqual(self.built, [])
 
     def test_only_a_cli_accepted_for_this_release_and_computer_is_reused(self):
@@ -119,27 +119,27 @@ class ChoosingTheSource(Refresh):
         for name, change in cases.items():
             executable = change.pop("executable", EXE)
             self.earlier_copy(name, executable, **change)
-        self.assertFalse(provision.refresh_prepared_engine())
+        self.assertFalse(prepared_copies.refresh_prepared_engine())
         self.assertEqual(self.built, [])
 
     def test_receipts_with_odd_names_or_shapes_are_ignored(self):
         self.earlier_copy("1.0.34")
         (paths.DEPS_ROOT / "device-cli-1.0.34.json").write_text("[]")
         (paths.DEPS_ROOT / "device-cli-..%2F..json").write_text("{}")
-        self.assertFalse(provision.refresh_prepared_engine())
+        self.assertFalse(prepared_copies.refresh_prepared_engine())
         self.assertEqual(self.built, [])
 
     def test_never_installed_asks_nothing(self):
         with mock.patch.object(provision, "host_target", side_effect=AssertionError("asked the host")):
-            self.assertFalse(provision.refresh_prepared_engine())
+            self.assertFalse(prepared_copies.refresh_prepared_engine())
 
     def test_a_failed_build_is_not_tried_again_and_keeps_its_source(self):
         source = self.earlier_copy("1.0.34")
         self.verified = iter([False, False])
         failing = mock.patch.object(provision, "_prepare", side_effect=provision.ProvisionError("ENGINE_REFUSED", "no"))
         with failing as build:
-            self.assertFalse(provision.refresh_prepared_engine())
-            self.assertFalse(provision.refresh_prepared_engine())
+            self.assertFalse(prepared_copies.refresh_prepared_engine())
+            self.assertFalse(prepared_copies.refresh_prepared_engine())
         self.assertEqual(build.call_count, 1)
         self.assertTrue(source.exists())
 
@@ -147,14 +147,14 @@ class ChoosingTheSource(Refresh):
         self.earlier_copy("1.0.34")
         busy = mock.patch.object(provision, "lock", side_effect=provision.ProvisionError("BUSY", "busy"))
         with busy:
-            self.assertFalse(provision.refresh_prepared_engine())
-        self.assertTrue(provision.refresh_prepared_engine())
+            self.assertFalse(prepared_copies.refresh_prepared_engine())
+        self.assertTrue(prepared_copies.refresh_prepared_engine())
 
     def test_an_unverified_bundled_engine_is_never_copied(self):
         self.earlier_copy("1.0.34")
         unverified = {"root": paths.ENGINE_ROOT, "prepared": False, "check": {"verified": False}}
         with mock.patch.object(paths, "select_engine", return_value=unverified):
-            self.assertFalse(provision.select_engine()["prepared"])
+            self.assertFalse(prepared_copies.select_engine()["prepared"])
         self.assertEqual(self.built, [])
 
 
@@ -169,7 +169,7 @@ class Pruning(Refresh):
     def test_the_other_engines_copies_go_once_this_ones_verifies(self):
         older = [self.earlier_copy("1.0.33"), self.earlier_copy("1.0.34")]
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
-            self.assertEqual(provision.prune_prepared_copies(), 2)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 2)
         self.assertEqual([copy.exists() for copy in older], [False, False])
         self.assertEqual(
             sorted(p.name for p in paths.DEPS_ROOT.glob("device-cli-*.json")), [paths.DEVICE_CLI_RECEIPT.name]
@@ -180,16 +180,16 @@ class Pruning(Refresh):
         older = self.earlier_copy("1.0.34")
         with (
             mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
-            mock.patch.object(provision, "remove_tree"),  # a file it could not delete
+            mock.patch.object(prepared_copies, "remove_tree"),  # a file it could not delete
         ):
-            self.assertEqual(provision.prune_prepared_copies(), 0)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
         self.assertTrue((paths.DEPS_ROOT / "device-cli-1.0.34.json").exists())
 
     def test_a_receipt_whose_copy_went_before_it_goes_too(self):
         (paths.DEPS_ROOT / "device-cli-1.0.34.json").write_text("{}")  # a removal stopped between the two
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
-            provision.prune_prepared_copies()
+            prepared_copies.prune_prepared_copies()
         self.assertFalse((paths.DEPS_ROOT / "device-cli-1.0.34.json").exists())
 
     def test_nothing_goes_once_the_engine_on_disk_is_another(self):
@@ -199,35 +199,35 @@ class Pruning(Refresh):
             mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
             mock.patch.object(paths, "engine_identity", return_value="9.9.9-changed000000"),
         ):
-            self.assertEqual(provision.prune_prepared_copies(), 0)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
 
     def test_a_copy_of_another_cli_build_stays(self):
         # Another checkout pinning that build may still need it: this engine's copy cannot give it.
         older = self.earlier_copy("1.0.34", cli_version="1.1.0")
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
-            self.assertEqual(provision.prune_prepared_copies(), 0)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
 
     def test_a_copy_from_before_leases_stays(self):
         # Its workers, if any still run, hold no lease: only Setup's removal, with the broker stopped, takes it.
         older = self.earlier_copy("1.0.34", leased=False)
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
-            self.assertEqual(provision.prune_prepared_copies(), 0)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
         self.assertFalse(copy_lease.path_for(older).exists(), "no lease file made for it either")
 
     def test_a_lease_file_left_without_its_copy_goes(self):
         (paths.DEPS_ROOT / "engine-1.0.34.lease").write_text("")
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}):
-            provision.prune_prepared_copies()
+            prepared_copies.prune_prepared_copies()
         self.assertFalse((paths.DEPS_ROOT / "engine-1.0.34.lease").exists())
 
     def test_without_this_engines_copy_nothing_is_touched(self):
         # A fresh install: no receipt, so no download folder is made either (the broker starts this beside its own).
         paths.DEVICE_CLI_RECEIPT.unlink()
         shutil.rmtree(paths.DEPS_ROOT)
-        self.assertEqual(provision.prune_prepared_copies(), 0)
+        self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertFalse(paths.DEPS_ROOT.exists())
 
     def test_a_copy_whose_lease_cannot_be_opened_is_left(self):
@@ -243,13 +243,13 @@ class Pruning(Refresh):
             mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
             mock.patch.object(copy_lease, "unused", unreadable),
         ):
-            self.assertEqual(provision.prune_prepared_copies(), 0)  # and no error reaches the worker starting
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)  # and no error reaches the worker starting
         self.assertTrue(older.exists())
 
     def test_nothing_goes_while_this_engines_copy_does_not_verify(self):
         older = self.earlier_copy("1.0.34")  # it still has to give its CLI
         with mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": False}):
-            self.assertEqual(provision.prune_prepared_copies(), 0)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
 
     def test_nothing_goes_while_another_setup_holds_the_lock(self):
@@ -259,7 +259,7 @@ class Pruning(Refresh):
             mock.patch.object(paths, "verify_prepared_engine", return_value={"verified": True}),
             mock.patch.object(provision, "lock", side_effect=busy),
         ):
-            self.assertEqual(provision.prune_prepared_copies(), 0)
+            self.assertEqual(prepared_copies.prune_prepared_copies(), 0)
         self.assertTrue(older.exists())
 
 
@@ -319,14 +319,14 @@ class TheRealBuild(Refresh):
         )
 
     def assert_waits_for_the_restart(self):
-        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists(), "a copy named for the loaded engine, made from another")
         self.assertEqual(list(paths.DEPS_ROOT.glob("engine.*")), [], "no staging left")
         with self.assertRaises(provision.ProvisionError) as raised:
             provision._prepare(TARGET, PINS, EXE, NOTICE)
         self.assertEqual(raised.exception.code, "ENGINE_CHANGED")
         # Nothing was marked unusable: once Hermes restarts, the same earlier copy gives its CLI.
-        self.assertEqual(provision._NOT_REUSABLE, set())
+        self.assertEqual(prepared_copies._NOT_REUSABLE, set())
 
     def test_a_new_engine_version_waits_for_the_restart(self):
         self.earlier_copy("1.0.33")
@@ -348,7 +348,7 @@ class TheRealBuild(Refresh):
         self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
         manifest = json.loads(self.manifest.read_text())
         self.manifest.write_text(json.dumps({**manifest, "aggregate_sha256": old}))
-        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists())
 
     def test_a_version_read_before_an_update_and_its_manifest_after_publish_nothing(self):
@@ -359,35 +359,35 @@ class TheRealBuild(Refresh):
             mock.patch.object(paths, "ENGINE_VERSION", "1.9.9"),
             mock.patch.object(paths, "ENGINE_IDENTITY", paths._identity("1.9.9", manifest)),
         ):
-            self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+            self.assertFalse(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
             with self.assertRaises(provision.ProvisionError) as raised:
                 provision._prepare(TARGET, PINS, EXE, NOTICE)
         self.assertEqual(raised.exception.code, "ENGINE_CHANGED")
-        self.assertEqual(provision._NOT_REUSABLE, set())
+        self.assertEqual(prepared_copies._NOT_REUSABLE, set())
 
     def test_an_engine_rebuilt_before_its_manifest_publishes_nothing(self):
         # tools/engine/bundle.mjs ran, manifest.py not yet: the identity is the same, the files are not.
         self.earlier_copy("1.0.33")
         paths.verify_engine()  # verified before the rebuild, and cached
         (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
-        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists())
         with self.assertRaises(provision.ProvisionError) as raised:  # what is wrong is the manifest, not this process
             provision._prepare(TARGET, PINS, EXE, NOTICE)
         self.assertEqual(raised.exception.code, "ENGINE_NOT_VERIFIED")
         self.assertIn("changed dist/server.js", str(raised.exception))
-        self.assertEqual(provision._NOT_REUSABLE, set())
+        self.assertEqual(prepared_copies._NOT_REUSABLE, set())
 
     def test_a_script_that_lost_its_execute_bit_publishes_nothing(self):
         self.earlier_copy("1.0.33")
         (paths.ENGINE_ROOT / "scripts" / "start-mcp.mjs").chmod(0o644)
-        self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+        self.assertFalse(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists())
 
     def test_a_copy_made_before_an_engine_change_no_longer_verifies(self):
         # Left by a process that loaded the old engine, and checked by one that still names it.
         self.earlier_copy("1.0.33")
-        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
         (paths.ENGINE_ROOT / "dist" / "server.js").write_text("rebuilt")
         self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
         self.assertEqual(paths.verify_prepared_engine()["detail"], "the engine changed since this process loaded it")
@@ -398,12 +398,12 @@ class TheRealBuild(Refresh):
         (paths.ENGINE_ROOT / "package.json").chmod(0o755)
         self.record_manifest(paths.ENGINE_ROOT, ["package.json", "dist/server.js", "scripts/start-mcp.mjs"])
         with mock.patch.object(paths, "ENGINE_IDENTITY", paths.engine_identity()):  # loaded after the chmod
-            self.assertTrue(provision.refresh_prepared_engine("/usr/bin/node"))
+            self.assertTrue(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
             self.assertTrue(paths.verify_prepared_engine()["verified"])
 
     def test_a_copy_whose_script_lost_its_execute_bit_does_not_verify(self):
         self.earlier_copy("1.0.33")
-        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
         (paths.PREPARED_ENGINE / "scripts" / "start-mcp.mjs").chmod(0o644)
         self.assertEqual(paths.verify_prepared_engine()["detail"], "changed mode of scripts/start-mcp.mjs")
 
@@ -419,13 +419,13 @@ class TheRealBuild(Refresh):
             return done
 
         with mock.patch.object(provision.shutil, "copytree", copy_then_edit):
-            self.assertFalse(provision.refresh_prepared_engine("/usr/bin/node"))
+            self.assertFalse(prepared_copies.refresh_prepared_engine("/usr/bin/node"))
         self.assertFalse(paths.PREPARED_ENGINE.exists())
-        self.assertEqual(provision._NOT_REUSABLE, set())
+        self.assertEqual(prepared_copies._NOT_REUSABLE, set())
 
     def test_the_new_copy_verifies_and_is_chosen(self):
         source = self.earlier_copy("1.0.33")
-        selection = provision.select_engine("/usr/bin/node")
+        selection = prepared_copies.select_engine("/usr/bin/node")
         self.assertTrue(selection["prepared"], selection)
         self.assertEqual(selection["root"], paths.PREPARED_ENGINE)
         self.assertEqual((paths.PREPARED_ENGINE / "dist/server.js").read_text(), "edited")
@@ -439,16 +439,16 @@ class TheRealBuild(Refresh):
         source = self.earlier_copy("1.0.33")
         lease = copy_lease.hold(source)  # a worker of another broker, still running in it
         try:
-            self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+            self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
             self.assertTrue(source.exists())
         finally:
             os.close(lease)  # the worker exits
-        self.assertEqual(provision.prune_prepared_copies(), 1, "gone once the worker has")
+        self.assertEqual(prepared_copies.prune_prepared_copies(), 1, "gone once the worker has")
         self.assertFalse(source.exists())
 
     def test_the_copy_a_worker_runs_in_is_not_replaced(self):
         self.earlier_copy("1.0.33")
-        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
         lease = copy_lease.hold(paths.PREPARED_ENGINE)
         self.addCleanup(os.close, lease)
         with self.assertRaises(provision.ProvisionError) as raised:
@@ -489,7 +489,7 @@ class TheRealBuild(Refresh):
 
     def test_an_install_keeps_a_verified_copy_a_worker_runs_in(self):
         self.earlier_copy("1.0.33")
-        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
         lease = copy_lease.hold(paths.PREPARED_ENGINE)
         self.addCleanup(os.close, lease)
         self.assertTrue(self.install([RESOLVED])["installed"])
@@ -498,7 +498,7 @@ class TheRealBuild(Refresh):
 
     def test_a_copy_its_runtime_refuses_is_made_again(self):
         self.earlier_copy("1.0.33")
-        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
         refused = provision.ProvisionError("ENGINE_REFUSED", "group-writable package.json")
         # The kept copy's check, the new copy's admission, then its final check.
         self.assertTrue(self.install([refused, {}, RESOLVED])["installed"])
@@ -510,7 +510,7 @@ class TheRealBuild(Refresh):
         for rel in ("scripts/__pycache__/worker.cpython-314.pyc", "scripts/old.pyc"):
             (paths.ENGINE_ROOT / rel).parent.mkdir(parents=True, exist_ok=True)
             (paths.ENGINE_ROOT / rel).write_bytes(b"bytecode")
-        self.assertTrue(provision.select_engine("/usr/bin/node")["prepared"])
+        self.assertTrue(prepared_copies.select_engine("/usr/bin/node")["prepared"])
         self.assertEqual(
             [p.name for p in paths.PREPARED_ENGINE.rglob("*") if p.name == "__pycache__" or p.suffix == ".pyc"], []
         )
@@ -518,7 +518,7 @@ class TheRealBuild(Refresh):
     def test_a_bytecode_link_in_the_bundled_engine_is_refused_before_any_copy(self):
         self.earlier_copy("1.0.33")
         (paths.ENGINE_ROOT / "scripts" / "gone.pyc").symlink_to(self.base / "nowhere.pyc")
-        selection = provision.select_engine("/usr/bin/node")
+        selection = prepared_copies.select_engine("/usr/bin/node")
         self.assertFalse(selection["prepared"])
         self.assertIn("unexpected symlink scripts/gone.pyc", selection["check"]["detail"])
         self.assertFalse(paths.PREPARED_ENGINE.exists())

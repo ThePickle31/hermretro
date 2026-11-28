@@ -8,7 +8,7 @@ import json
 from ..hermes import host
 from ..hermes.declare import Tool
 from ..hermes.tool_args import tool_error
-from . import provision
+from . import prepared_copies, provision
 
 logger = host.logger  # one logger for the Hermes side of the backend
 
@@ -49,7 +49,7 @@ def device_cli_handler(args: dict, **_kwargs) -> str:
                 "turned on in Settings > Plugins > hermretro."
             )
             return json.dumps(answer)
-        return json.dumps(provision.summary())
+        return json.dumps(prepared_copies.summary())
     except provision.ProvisionError as error:
         return json.dumps(
             {

@@ -22,6 +22,7 @@ from ..system.events import emit
 from . import (
     claude_login,
     downloads,
+    prepared_copies,
     progress as onboarding,
     provision,
     recovery,
@@ -97,7 +98,7 @@ def rpc_status(ctx):
                     "ok": node["ok"],
                 },
                 "engine": paths.verify_engine(),
-                "deps": provision.summary(),
+                "deps": prepared_copies.summary(),
                 "hardware_enabled": bool(ctx.get_config("hardware_enabled", False)),
                 # The feature flags that are on (page/app/flags.js): the page shows what they hide.
                 "flags": flags.enabled(ctx.get_config),

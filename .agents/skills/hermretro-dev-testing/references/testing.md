@@ -24,7 +24,7 @@ otherwise the one the hermretro page installed (`<hermretro home>/.cache/toolcha
 proven here (PR CI runs it on Linux and macOS when the change touches what it covers). It installs nothing, but it is not
 read-only there: its brokers and games live in a temporary folder, yet an engine worker that finds no prepared engine for
 the bundled version makes one in that `.cache` from an earlier copy's device CLI
-(`refresh_prepared_engine` in `backend/setup/provision.py`), then removes the other engines' copies of the same CLI build that no worker runs in, and the run writes `notes/evidence/broker-acceptance.json`.
+(`refresh_prepared_engine` in `backend/setup/prepared_copies.py`), then removes the other engines' copies of the same CLI build that no worker runs in, and the run writes `notes/evidence/broker-acceptance.json`.
 To make the development toolchain, run `python tools/ci/prepare_toolchain.py` once: every checkout and worktree on the
 machine uses it, and a restart keeps it. To use one somewhere else, name the same folder for both:
 `HERMRETRO_DEPS_ROOT=<folder> python tools/ci/prepare_toolchain.py`, then
