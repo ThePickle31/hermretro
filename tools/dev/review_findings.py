@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import review_pr
+
 # Each label and the answers it takes: (answer, needs a reason).
 ANSWERS = {
     "Important": (("fixed", False), ("wrong", True), ("intentional", True)),
@@ -43,8 +45,9 @@ def parse(text: str) -> tuple[list[Finding], int]:
     if text.strip() == NONE:
         return [], 0
     findings = []
-    for line in text.splitlines():
-        if not line.startswith("## "):
+    for line, outside in review_pr.unfenced(text):  # a heading in an example the evidence quotes is no finding
+        line = line.rstrip("\n")
+        if not outside or not line.startswith("## "):
             continue
         label, _, what = line[3:].partition(":")
         if label.strip() not in ANSWERS or not what.strip():

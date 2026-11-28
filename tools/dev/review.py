@@ -132,16 +132,13 @@ class Review:
             return None
         if any(o["label"] == "Important" and fixed(o) for o in last["outcomes"]):
             return last["pass"] + 1, needs
-        # Commits before the record answer its findings in the files the findings that changed the code name, and
-        # nowhere else; commits after it answer none.
-        answered = {o["what"].split(":", 1)[0] for o in last["outcomes"] if fixed(o)}
-        before = last["recorded_head"]
-        unaccounted = (
-            [f for f in self.changed(f"{last['head']}..{before}") if f.path not in answered]
-            if before != last["head"]
-            else []
-        )
-        unaccounted += self.changed(f"{before}..{head}") if before != head else []
+        # Only commits made after the author took the findings and before the record can answer them, and only when
+        # an answer changed the code: those made while the reviewers read, or after the record, answer nothing.
+        reviewed, taken, recorded = last["head"], last.get("taken_head", last["head"]), last["recorded_head"]
+        spans = [(reviewed, taken), (recorded, head)]
+        if not any(fixed(o) for o in last["outcomes"]):
+            spans.append((taken, recorded))
+        unaccounted = [file for old, new in spans if old != new for file in self.changed(f"{old}..{new}")]
         if unaccounted and tier.later(unaccounted) != tier.NOTHING:
             return last["pass"] + 1, needs
         return None
@@ -268,6 +265,8 @@ class Review:
             lines.append(f"  answer them in {folder / answers}")
         if self.checkout(n).exists():
             git(self.root, "worktree", "remove", "--force", str(self.checkout(n)))
+        if not (folder / "taken.json").exists():  # where the author's answers start from
+            (folder / "taken.json").write_text(json.dumps({"head": self.head()}) + "\n", encoding="utf-8")
         return "\n".join(lines)
 
     # -- record --------------------------------------------------------------------------------------------------
@@ -291,8 +290,10 @@ class Review:
         # A first attempt whose publishing failed keeps the head it recorded: what came after it is still unanswered.
         pending = folder / "record.pending.json"
         recorded_head = json.loads(pending.read_text())["recorded_head"] if pending.is_file() else self.pushed_head()
-        record = {"pass": n, "tier": prepared["tier"], "head": prepared["head"], "recorded_head": recorded_head,
-                  "model": model, "security_model": security_model, "outcomes": outcomes}  # fmt: skip
+        taken = (self.load(n, "taken.json") or {}).get("head", prepared["head"])
+        record = {"pass": n, "tier": prepared["tier"], "head": prepared["head"], "taken_head": taken,
+                  "recorded_head": recorded_head, "model": model, "security_model": security_model,
+                  "outcomes": outcomes}  # fmt: skip
         pending.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
         self.write_review_section([*self.recorded(), record])
         pending.replace(folder / "record.json")

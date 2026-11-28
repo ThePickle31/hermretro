@@ -9,22 +9,35 @@ import re
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
+def unfenced(text: str):
+    """Each line of text (newline kept), and whether it is outside fenced code, as CommonMark reads fences: one opens
+    on three or more backticks or tildes (a backtick fence's info string has no backtick, so ```a``` is inline code)
+    and closes on the same marker, at least as long, with nothing after it."""
+    fence = ""  # the open fence's marker, or ''
+    for line in text.splitlines(keepends=True):
+        match = FENCE.match(line.rstrip("\n"))
+        if match and not fence:
+            if match.group(1)[0] == "~" or "`" not in match.group(2):
+                fence = match.group(1)
+                yield line, False
+                continue
+        elif (
+            match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) and not match.group(2).strip()
+        ):
+            fence = ""
+            yield line, False
+            continue
+        yield line, not fence
+
+
 def sections(body: str) -> list[tuple[str | None, int, int]]:
     """(heading name, start, end) of each part of body, in order: the text before the first heading has name None,
     each `## <name>` section runs from its heading to the next one outside fenced code, or to the end."""
     found: list[tuple[str | None, int, int]] = []
     name: str | None = None
     start = offset = 0
-    fence = ""  # the open fence's marker, or ''
-    for line in body.splitlines(keepends=True):
-        match = FENCE.match(line.rstrip("\n"))
-        if match and not fence:
-            fence = match.group(1)
-        elif (
-            match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) and not match.group(2).strip()
-        ):
-            fence = ""  # closed by the same marker, at least as long, with nothing after it
-        elif not fence and line.startswith("## "):
+    for line, outside in unfenced(body):
+        if outside and line.startswith("## "):
             found.append((name, start, offset))
             name, start = line[3:].strip(), offset
         offset += len(line)

@@ -1,6 +1,6 @@
-"""python tools/dev review (tools/dev/review.py): tiers by path, the findings and their answers, the pull request's
-sections, and a pass's bookkeeping from prepare to record, in a throwaway repository with gh stubbed and git kept
-away from the developer's own configuration."""
+"""python tools/dev review (tools/dev/review.py): a pass's bookkeeping from prepare to record, in a throwaway
+repository with gh stubbed and git kept away from the developer's own configuration. Its parts (tiers, findings, the
+pull request's sections) are tested in test_review_parts.py."""
 
 import json
 import os
@@ -17,7 +17,6 @@ sys.path.insert(0, str(ROOT / "tools" / "dev"))
 
 import review  # noqa: E402 - tools/dev goes on sys.path first
 import review_findings as findings  # noqa: E402
-import review_pr  # noqa: E402
 import review_tier as tier  # noqa: E402
 
 # Every git, the command's own included: none of the developer's configuration, hooks or signing.
@@ -34,108 +33,6 @@ GIT_ENVIRONMENT = {
     "GIT_CONFIG_KEY_3": "commit.gpgSign",
     "GIT_CONFIG_VALUE_3": "false",
 }
-
-
-def changed(*paths: str, lines: int = 1) -> list:
-    return [tier.Changed(path, lines) for path in paths]
-
-
-class Tiers(unittest.TestCase):
-    def test_markdown_and_tests_alone_are_light(self):
-        self.assertEqual(
-            tier.judge(changed("README.md", "tests/repo/test_x.py", ".github/CONTRIBUTING.md")).tier, "light"
-        )
-
-    def test_markdown_an_agent_acts_on_is_not(self):
-        for path in (
-            "skills/setup/SKILL.md",
-            ".agents/skills/x/SKILL.md",
-            "AGENTS.md",
-            "profile/SOUL.md",
-            "tools/review/rules.md",
-        ):
-            self.assertEqual(tier.judge(changed(path)).tier, "standard", path)
-
-    def test_a_sensitive_path_makes_the_change_sensitive_whatever_else_it_holds(self):
-        judged = tier.judge(changed("README.md", "backend/broker/client.py", "tools/ci/changes.py"))
-        self.assertEqual(judged.tier, "sensitive")
-        self.assertEqual(judged.reasons, ("the broker and its handshake", "CI and the update and install checks"))
-
-    def test_size_alone_is_sensitive_without_generated_files(self):
-        self.assertEqual(tier.judge(changed("backend/library/a.py", lines=1001)).tier, "sensitive")
-        self.assertEqual(tier.judge(changed("backend/library/a.py", "desktop/plugin.js", lines=900)).tier, "standard")
-
-    def test_later_commits(self):
-        self.assertEqual(tier.later(changed("README.md")), tier.NOTHING)
-        self.assertEqual(tier.later(changed("README.md", "tests/a.py")), tier.TESTS)
-        self.assertEqual(tier.later(changed("skills/setup/SKILL.md")), tier.PASS, "agent-facing Markdown is read again")
-        self.assertEqual(tier.later(changed("tests/backend/setup/x.py", "backend/setup/provision.py")), tier.PASS)
-
-    def test_numstat(self):
-        text = "3\t1\tbackend/a.py\0-\t-\tplayer/skin.webp\0"
-        self.assertEqual(tier.numstat(text), [tier.Changed("backend/a.py", 4), tier.Changed("player/skin.webp", 0)])
-
-    def test_the_readme_names_every_sensitive_path(self):
-        readme = (ROOT / "tools" / "review" / "README.md").read_text(encoding="utf-8")
-        for pattern, _reason in tier.SENSITIVE_PATHS:
-            self.assertIn(f"`{pattern.removesuffix('*')}`", readme, pattern)
-
-
-class Findings(unittest.TestCase):
-    TEXT = (
-        "## Important: a.py:1 breaks\nhow\n## Nit: a.py:2 one\n## Nit: a.py:3 two\n## Nit: a.py:4 three\n"
-        "## Nit: a.py:5 four\n## Pre-existing: b.py:9 old\n"
-    )
-
-    def test_headings_become_findings_and_nits_past_three_drop(self):
-        parsed, dropped = findings.parse(self.TEXT)
-        self.assertEqual([f.label for f in parsed], ["Important", "Nit", "Nit", "Nit", "Pre-existing"])
-        self.assertEqual(dropped, 1)
-        self.assertEqual(findings.parse("No findings.\n"), ([], 0))
-
-    def test_a_heading_that_isnt_a_finding_or_is_one_twice_is_refused(self):
-        for text in ("## Major: a.py:1 x\n", "nothing here\n", "## Nit: a.py:1 x\n## Nit: a.py:1 x\n"):
-            with self.subTest(text=text), self.assertRaises(findings.FindingsError):
-                findings.parse(text)
-
-    def test_every_finding_needs_an_answer_its_label_takes(self):
-        parsed, _ = findings.parse("## Important: a.py:1 breaks\n## Nit: a.py:2 one\n")
-        with self.assertRaises(findings.FindingsError):
-            findings.answers(parsed, findings.skeleton(parsed))
-        answered = (
-            "## Important: a.py:1 breaks\nAnswer: wrong — the caller checks it\n## Nit: a.py:2 one\nAnswer: fixed\n"
-        )
-        done = findings.answers(parsed, answered)
-        self.assertEqual([(a.answer, a.reason) for a in done], [("wrong", "the caller checks it"), ("fixed", "")])
-        for bad in ("wrong", "noted"):  # a reason missing, an answer its label doesn't take
-            with self.subTest(bad=bad), self.assertRaises(findings.FindingsError):
-                findings.answers(parsed, answered.replace("wrong — the caller checks it", bad))
-
-
-class Sections(unittest.TestCase):
-    def test_a_heading_in_fenced_code_is_no_heading(self):
-        body = "## Summary\nS\n```\n## Review\nan example\n```\n\n## Review\nUnder review."
-        self.assertIn("an example", review_pr.section(body, "Summary"))
-        new = review_pr.replace_section(body, "Review", "Pass 1, standard (m): no findings.")
-        self.assertIn("```\n## Review\nan example\n```", new, "the example stays")
-        self.assertTrue(new.endswith("## Review\nPass 1, standard (m): no findings.\n"))
-        self.assertEqual(new.count("\n## Review\n"), 2, "one section and the example, not a third")
-
-    def test_a_longer_fence_holds_a_shorter_one(self):
-        body = "## Summary\nS\n````\n```\n## Review\nexample\n```\n````\n\n## Review\nUnder review.\n"
-        self.assertIn("example", review_pr.section(body, "Summary"))
-        new = review_pr.replace_section(body, "Review", "Pass 1, standard (m): no findings.")
-        self.assertIn("```\n## Review\nexample\n```\n````", new, "the example stays whole")
-        self.assertTrue(new.endswith("## Review\nPass 1, standard (m): no findings.\n"))
-
-    def test_the_last_section_without_a_newline_is_replaced_not_added(self):
-        new = review_pr.replace_section("## Summary\nS\n\n## Review", "Review", "Tier light · not reviewed.")
-        self.assertEqual(new, "## Summary\nS\n\n## Review\nTier light · not reviewed.\n")
-
-    def test_the_other_sections_stay(self):
-        body = "## Summary\nS\n\n## Review\nUnder review.\n\n## Notes\nN\n"
-        new = review_pr.replace_section(body, "Review", "x")
-        self.assertEqual(new, "## Summary\nS\n\n## Review\nx\n\n## Notes\nN\n")
 
 
 class Pass(unittest.TestCase):
@@ -277,6 +174,27 @@ class Pass(unittest.TestCase):
         self.write("backend/thing.py", "X_NAMED = 1\n")
         self.push("nit")
         self.assertIn("Pass 2 is due", self.review.record(1, "gpt-6.2-sol"))
+
+    def test_a_change_to_the_nits_own_file_pushed_meanwhile_is_still_unanswered(self):
+        self.review.prepare(1)
+        self.write("backend/thing.py", "X = 1\nBEHAVIOUR = 2\n")  # the same file, while the reviewer read
+        self.push("unrelated")
+        (self.review.pass_folder(1) / "findings.md").write_text("## Nit: backend/thing.py:1 name\n")
+        self.review.take(1)
+        self.fill_answers(1, ["fixed"])
+        self.write("backend/thing.py", "X_NAMED = 1\nBEHAVIOUR = 2\n")
+        self.push("nit")
+        self.assertIn("Pass 2 is due", self.review.record(1, "gpt-6.2-sol"))
+
+    def test_a_nits_fix_across_files_after_take_is_its_answer(self):
+        self.review.prepare(1)
+        (self.review.pass_folder(1) / "findings.md").write_text("## Nit: backend/thing.py:1 name\n")
+        self.review.take(1)
+        self.fill_answers(1, ["fixed"])
+        self.write("backend/thing.py", "X_NAMED = 1\n")
+        self.write("backend/caller.py", "from thing import X_NAMED\n")  # the rename's caller, in another file
+        self.push("nit")
+        self.assertIn("No other pass is due", self.review.record(1, "gpt-6.2-sol"))
 
     def test_each_pass_keeps_its_own_tier_and_the_cap_is_told_apart(self):
         self.run_pass(1, "## Important: backend/thing.py:1 X\n", "## Important: backend/thing.py:1 X\nAnswer: fixed\n")
