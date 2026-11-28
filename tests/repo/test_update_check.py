@@ -218,6 +218,13 @@ class FailedDrive(unittest.TestCase):
                 found = update_inside._use_the_plugin("new", folder / "new.json")
         self.assertEqual(found, {"fatal": "plugin.hermretro.doctor answered {}", "broker_pid": 9})
 
+    def test_a_failed_doctor_call_keeps_only_the_end_of_its_error(self):
+        with mock.patch.object(update_inside, "answering_broker", return_value=(9, "")):
+            found = update_inside.doctor_failed(SystemExit("x" * 5000 + "the end"))
+        self.assertEqual(len(found["fatal"]), update_inside.FATAL_CHARS)
+        self.assertTrue(found["fatal"].endswith("the end"))
+        self.assertEqual(found["broker_pid"], 9)
+
     def test_the_broker_a_failed_drive_names_goes_to_the_cleanup(self):
         brokers = []
         with tempfile.TemporaryDirectory() as tmp:

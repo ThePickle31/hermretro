@@ -50,6 +50,15 @@ PNG = (
 )
 
 
+FATAL_CHARS = 3000  # the end of a failure is kept: what the caller prints
+
+
+def doctor_failed(failed: SystemExit) -> dict:
+    """A doctor call that failed, as a report: it may have started a broker first, so the one that answers is named,
+    and the check stops it too."""
+    return {"fatal": str(failed)[-FATAL_CHARS:], "broker_pid": answering_broker()[0]}
+
+
 def inside(phase: str, out: str) -> int:
     # Every outcome goes into `out`: the cProfile launcher swallows SystemExit, and with it the exit code.
     try:
@@ -57,7 +66,7 @@ def inside(phase: str, out: str) -> int:
     except BaseException as error:  # noqa: BLE001 - reported to the caller, whatever it was
         import traceback
 
-        result = {"fatal": "".join(traceback.format_exception(error))[-3000:]}
+        result = {"fatal": "".join(traceback.format_exception(error))[-FATAL_CHARS:]}
     Path(out).write_text(json.dumps(result))
     return 0
 
@@ -105,8 +114,7 @@ def _keep_the_old_code() -> dict:
     try:
         rpc("doctor")
     except SystemExit as failed:
-        # It can fail after starting a broker in place of the new one: named here, so the check stops that one too.
-        return {"fatal": str(failed), "broker_pid": answering_broker()[0]}
+        return doctor_failed(failed)  # perhaps after starting a broker in place of the new one
     pid, error = answering_broker()
     if pid is None:
         raise SystemExit(f"no broker answers the old gateway after its doctor RPC: {error}")
@@ -155,8 +163,7 @@ def _use_the_plugin(phase: str, out: Path) -> dict:
     try:
         rpc("doctor")  # the first call that needs the broker: starts one, or replaces one running other code
     except SystemExit as failed:
-        # It can fail after starting a broker: named here, so the check stops that one too.
-        return {"fatal": str(failed), "broker_pid": answering_broker()[0]}
+        return doctor_failed(failed)
     client, error = client_module.try_connect(paths.runtime_dir())
     if client is None:
         raise SystemExit(f"no broker answers after the doctor RPC: {error}")
