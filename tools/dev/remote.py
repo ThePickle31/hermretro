@@ -1,7 +1,7 @@
 """python tools/dev remote HOST: the unit tests of this checkout's HEAD on another machine over ssh, for a change that
-has to hold on a system this one is not (macOS from Linux, or the other way). Only the unit tests: they run with an
-empty home, so nothing on the host but this tool's checkout is touched (the acceptance run would use the host's own
-installed toolchain and its prepared engines).
+has to hold on a system this one is not (macOS from Linux, or the other way). Only the unit tests: each of their
+processes gets an empty temporary home and TMPDIR, so the host's own hermretro is never read or written (the acceptance
+run would use the host's installed toolchain and its prepared engines).
 
 The commit is pushed into one checkout on the host (`~/.cache/hermretro-dev/checkout`, made and marked as this tool's
 the first time: a link or a folder it did not make there is refused, never overwritten). Holding a
