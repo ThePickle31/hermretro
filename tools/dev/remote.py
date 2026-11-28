@@ -1,11 +1,13 @@
-"""python tools/dev remote HOST [CHECK ...]: this checkout's HEAD checked on another machine over ssh (by default the
-unit tests), for a change that has to hold on a system this one is not (macOS from Linux, or the other way).
+"""python tools/dev remote HOST: the unit tests of this checkout's HEAD on another machine over ssh, for a change that
+has to hold on a system this one is not (macOS from Linux, or the other way). Only the unit tests: they run with an
+empty home, so nothing on the host but this tool's checkout is touched (the acceptance run would use the host's own
+installed toolchain and its prepared engines).
 
 The commit is pushed into one checkout on the host (`~/.cache/hermretro-dev/checkout`, made and marked as this tool's
 the first time: a link or a folder it did not make there is refused, never overwritten). Holding a
 lock beside it (`checkout.lock`), so a second run waits for the first, the host sets that checkout to exactly this
 commit, keeping only its git-ignored tools (`.dev/`, `node_modules/`), then runs `python3 tools/dev setup` and
-`python3 tools/check.py CHECK ...` in the user's login shell, which finds the host's own Python and Node.
+`python3 tools/check.py unit` in the user's login shell, which finds the host's own Python and Node.
 Uncommitted changes stay here: commit first.
 """
 
@@ -46,7 +48,7 @@ HOLD = (
 )
 
 
-def host_script(commit: str, ref: str, checks: list[str]) -> str:
+def host_script(commit: str, ref: str) -> str:
     """What runs on the host, from its home folder, with the lock held. Once checked out, the commit is held by
     HEAD, and this run's ref goes."""
     steps = " && ".join(
@@ -56,13 +58,13 @@ def host_script(commit: str, ref: str, checks: list[str]) -> str:
             f"git update-ref -d {ref}",
             "git clean -q -f -d -x -e .dev -e node_modules",
             "python3 tools/dev setup",
-            shlex.join(["python3", "tools/check.py", *checks]),
+            "python3 tools/check.py unit",
         ]
     )
     return shlex.join(["python3", "-c", HOLD, LOCK, "sh", "-c", steps])
 
 
-def run(top: Path, host: str, checks: list[str]) -> int:
+def run(top: Path, host: str) -> int:
     if host.startswith("-"):
         print(f"{host} is not a host name (ssh would read it as an option)\nFIX: name the host", file=sys.stderr)
         return 2
@@ -80,8 +82,6 @@ def run(top: Path, host: str, checks: list[str]) -> int:
                 file=sys.stderr,
             )
             return 1
-    print(f"{host}: {shlex.join(['tools/check.py', *checks])} on {commit[:10]}", flush=True)
+    print(f"{host}: tools/check.py unit on {commit[:10]}", flush=True)
     # A login, interactive shell: the one that sets up PATH (Homebrew, nvm) as the user's terminal does.
-    return subprocess.run(
-        ["ssh", host, f'exec "$SHELL" -lic {shlex.quote(host_script(commit, ref, checks))}']
-    ).returncode
+    return subprocess.run(["ssh", host, f'exec "$SHELL" -lic {shlex.quote(host_script(commit, ref))}']).returncode
