@@ -6,7 +6,7 @@
     python tools/check.py fix            apply the linters' automatic fixes and the Python formatting, then lint
 
 Checks: unit (Python unit tests), bundle (generated files match page/), engine (the engine's dist/server.js is what
-its modules build), lint (ESLint over page/: the boundaries between pages and a few correctness rules; ruff over the
+its modules build, and the engine's tests in tests/engine/ pass), lint (ESLint over page/: the boundaries between pages and a few correctness rules; ruff over the
 Python: likely bugs, then one formatting for everyone, from .dev/py, made by python tools/py/setup.py), page (page
 tests in jsdom), scan (Hermes's install scanner on exactly what a commit would ship: must be "safe"), acceptance
 (real engine, compiler and emulator; needs a toolchain: tools/ci/prepare_toolchain.py).
@@ -104,6 +104,15 @@ def check_bundle(args) -> str:
     return output.splitlines()[-1] if output else "ok"
 
 
+ENGINE_TESTS = [
+    "--import",
+    "./tests/engine/register.mjs",
+    "--test",
+    "--test-reporter=spec",
+    "tests/engine/**/*.test.mjs",
+]
+
+
 def check_engine(args) -> str:
     node = need("node")
     result = run([node, "tools/engine/bundle.mjs", "--check"])
@@ -121,7 +130,14 @@ def check_engine(args) -> str:
             tail(reason) + "\nFIX: node tools/engine/bundle.mjs, then commit engine/dist/server.js "
             "with the engine's modules (never edit it by hand)"
         )
-    return output.splitlines()[-1] if output else "ok"
+    built = output.splitlines()[-1] if output else "ok"
+    # The engine's own tests, on its source modules (tests/engine/register.mjs gives them its pinned packages).
+    tested = run([node, *ENGINE_TESTS])
+    said = (tested.stdout + tested.stderr).strip()
+    counts = dict(re.findall(r"^\u2139 (pass|fail) (\d+)$", said, re.M))
+    if tested.returncode:
+        raise AssertionError(tail(said, 40) + f"\nFIX: {shlex.join(['node', *ENGINE_TESTS])}, and fix what fails")
+    return f"{built}; {counts.get('pass', '?')} engine tests passed"
 
 
 def start(cmd: list[str]) -> subprocess.Popen:
