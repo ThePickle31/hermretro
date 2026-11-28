@@ -59,9 +59,9 @@ into a folder of that name.
 | Graphics | `graphics.js`, `graphics-palette-packing.js`, `palettes.js`, `sprites.js`, `scene-graphics.js`, `contact-sheet.js`, `native-sprite-metadata.js` |
 | Assets and music | `assets.js`, `audio.js` |
 | Tilemaps | `tilemaps.js`, `tilemap-compose.js`, `tilemap-schema.js` |
-| The Chromatic | `chromatic.js`, `chromatic-journal.js`, `chromatic-failure-diagnostics.js`, `native-device-capture.js` |
+| The Chromatic | `chromatic.js`, `chromatic-journal.js`, `chromatic-failure-diagnostics.js`, `native-device-capture.js` and the server's side of `device-capture/` (its capture helpers, protocol and schemas) |
 | Shared | `platform.js` (paths and the environment on each system) |
-| The browser's files | `web-annotations/` (the player page's scripts, served flat by name), `device-capture/` (the capture page) |
+| The browser's files | `web-annotations/` (the player page's scripts, served flat by name); in `device-capture/`, the capture page's scripts (`native-client.js`, `native-entry.js`, `device-picker.js`, `native-timing-diagnostics.js`), served with the helpers they import |
 
 Three rules keep it that way, each checked by a test:
 

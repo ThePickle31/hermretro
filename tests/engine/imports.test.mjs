@@ -1,6 +1,7 @@
 // The engine's modules import each other without cycles: a cycle ties modules together so none can be read, moved or
-// tested alone. The ones there are today are listed in KNOWN; each refactor that breaks one takes it off, and a new
-// cycle fails here.
+// tested alone. The imports inside the cycles there are today are listed in KNOWN, as "importer -> imported"; each
+// refactor that breaks one takes its imports off, and any other import inside a cycle (a module importing itself
+// included) fails here.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -11,8 +12,30 @@ import * as acorn from "acorn";
 
 const SRC = fileURLToPath(new URL("../../engine/src/", import.meta.url));
 const KNOWN = [
-  ["actors.js", "event-catalog.js", "native-script-events.js", "project-snapshot.js", "project.js", "world-script-graph.js"],
-  ["assets.js", "audio.js", "contact-sheet.js", "palettes.js", "scene-graphics.js", "sprites.js"],
+  "actors.js -> native-script-events.js",
+  "actors.js -> project.js",
+  "assets.js -> audio.js",
+  "assets.js -> palettes.js",
+  "assets.js -> scene-graphics.js",
+  "assets.js -> sprites.js",
+  "audio.js -> assets.js",
+  "contact-sheet.js -> palettes.js",
+  "event-catalog.js -> native-script-events.js",
+  "event-catalog.js -> project.js",
+  "event-catalog.js -> world-script-graph.js",
+  "native-script-events.js -> event-catalog.js",
+  "palettes.js -> scene-graphics.js",
+  "project-snapshot.js -> project.js",
+  "project.js -> actors.js",
+  "project.js -> native-script-events.js",
+  "project.js -> project-snapshot.js",
+  "scene-graphics.js -> contact-sheet.js",
+  "scene-graphics.js -> palettes.js",
+  "scene-graphics.js -> sprites.js",
+  "sprites.js -> assets.js",
+  "sprites.js -> palettes.js",
+  "sprites.js -> scene-graphics.js",
+  "world-script-graph.js -> project.js",
 ];
 
 /** Each module (by its path under src/) and the modules under src/ it imports. */
@@ -57,6 +80,25 @@ function cycles(graph) {
   return found.sort((a, b) => a[0].localeCompare(b[0]));
 }
 
-test("the engine's modules import each other in no cycle but the known ones", () => {
-  assert.deepEqual(cycles(importGraph()), KNOWN, "FIX: break the new cycle (or, having broken a known one, take it off KNOWN)");
+/** Every import from one module to another inside the same cycle, and every import of a module by itself. */
+function cycleImports(graph) {
+  const group = new Map();
+  for (const members of cycles(graph)) for (const member of members) group.set(member, members);
+  const found = [];
+  for (const [importer, targets] of graph) {
+    for (const imported of targets) {
+      if (imported === importer || (group.has(importer) && group.get(importer) === group.get(imported))) {
+        found.push(`${importer} -> ${imported}`);
+      }
+    }
+  }
+  return found.sort();
+}
+
+test("the engine's modules import each other in no cycle but the known imports", () => {
+  assert.deepEqual(
+    cycleImports(importGraph()),
+    KNOWN,
+    "FIX: break the new cycle (or, having broken a known one, take its imports off KNOWN)",
+  );
 });
