@@ -5,6 +5,7 @@ import path from "node:path";
 import { isPathWithinRoot } from "./platform.js";
 import { PROJECT_REVISION_ALGORITHM } from "./project-access.js";
 import { ProjectRevisionTree } from "./project-revision.js";
+import { isSystemError } from "./shared/files.js";
 const SOURCE_DIRECTORIES = ["project", "assets", "plugins"];
 const ENGINE_LAYOUT = "gbvm-farptr3-uword16-v1";
 // Deliberately process-local. A JSON document of asserted hashes is not a
@@ -14,9 +15,6 @@ const SOURCE_OBSERVATIONS = new WeakMap();
 // Parsed from the captured header, never accepted from a serialized artifact
 // or public caller. Keep the existing public ABI shape/digest unchanged.
 const ABI_GLOBAL_HEAPS = new WeakMap();
-function systemError(error, code) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
 function samePath(left, right) {
   return isPathWithinRoot(left, right) && isPathWithinRoot(right, left);
 }
@@ -83,7 +81,7 @@ async function collectSourceFiles(root, directory, entries, observation, signal)
   try {
     metadata = await lstat(directory, { bigint: true });
   } catch (error) {
-    if (systemError(error, "ENOENT")) {
+    if (isSystemError(error, "ENOENT")) {
       observation.update(JSON.stringify([directory, "missing"])).update("\0");
       return;
     }

@@ -1,13 +1,10 @@
-import { createHash } from "node:crypto";
 import { PNG } from "pngjs";
 import { GameStudioProjectError } from "./project.js";
 import { MAX_EDIT_CELLS, MAX_ROOM_CELLS, TILEMAP_TILE_SIZE } from "./tilemap-schema.js";
+import { sha256Hex } from "./shared/bytes.js";
 const SOURCE_COLORS = new Set(["071821", "306850", "86c06c", "e0f8cf"]);
 export function tilemapError(code, message) {
   throw new GameStudioProjectError(code, message);
-}
-export function sha256(bytes) {
-  return createHash("sha256").update(bytes).digest("hex");
 }
 export function tilePixels(image, tileX, tileY) {
   const tile = Buffer.alloc(8 * 8 * 4);
@@ -39,7 +36,7 @@ export function prepareAtlasPixels(atlas, image) {
     }
     const pixels = tilePixels(image, tile.x, tile.y);
     tiles.set(tile.id, pixels);
-    patterns.set(tile.id, sha256(pixels));
+    patterns.set(tile.id, sha256Hex(pixels));
   }
   const primitiveIds = new Set();
   let primitiveCells = 0;

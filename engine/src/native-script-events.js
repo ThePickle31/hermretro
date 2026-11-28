@@ -7,6 +7,7 @@
  */
 import { unbuildableEventMessage } from "./event-catalog.js";
 import { stableResourceId } from "./project-files.js";
+import { isObject } from "./shared/values.js";
 export const SCRIPT_KEYS = /^(?:script|[A-Za-z][A-Za-z0-9]*Script)$/;
 const ACTOR_PROPERTIES = new Set([
   "xpos",
@@ -61,9 +62,6 @@ const TYPED_EVENT_ARGUMENTS = new Map([
 ]);
 const REQUIRED_EVENT_ARGUMENTS = new Set(["direction"]);
 const SCRIPT_DIRECTIONS = new Set(["up", "down", "left", "right"]);
-export function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 /** Match upstream's deliberately permissive `isScriptValue` contract. */
 export function isNativeScriptValue(value, depth = 0) {
   if (depth > MAXIMUM_SCRIPT_VALUE_DEPTH || !isObject(value)) return false;

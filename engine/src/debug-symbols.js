@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { isObject } from "./shared/values.js";
 const WRAM_START = 0xc000;
 const WRAM_END = 0xdfff;
 const SCENE_POINTER_BYTES = 3;
@@ -240,12 +241,9 @@ export function createDebugManifest(input) {
       : {}),
   };
 }
-function object(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 /** Reject stale, malformed, ambiguous, or different-cartridge manifests before any memory read. */
 export function validateDebugManifest(manifest, rom, expected = {}) {
-  if (!object(manifest) || manifest.formatVersion !== 1) invalid("Debug manifest formatVersion must equal 1");
+  if (!isObject(manifest) || manifest.formatVersion !== 1) invalid("Debug manifest formatVersion must equal 1");
   if (typeof manifest.romSha256 !== "string" || !SHA256.test(manifest.romSha256)) {
     invalid("Debug manifest requires a lowercase SHA-256 ROM digest");
   }
@@ -269,7 +267,7 @@ export function validateDebugManifest(manifest, rom, expected = {}) {
   const symbols = new Set();
   const locations = new Set();
   for (const scene of manifest.scenes) {
-    if (!object(scene)) invalid("Debug manifest scene mappings must be objects");
+    if (!isObject(scene)) invalid("Debug manifest scene mappings must be objects");
     requireNonemptyString(scene.sceneId, "Debug manifest scene ID");
     requireIdentifier(scene.sceneSymbol, "scene_", "Debug manifest scene");
     if (typeof scene.bank !== "number" || typeof scene.address !== "number")
@@ -312,7 +310,7 @@ export function validateDebugManifest(manifest, rom, expected = {}) {
     const variableSymbols = new Set();
     const indexes = new Set();
     for (const variable of manifest.variables) {
-      if (!object(variable)) invalid("Debug manifest variable mappings must be objects");
+      if (!isObject(variable)) invalid("Debug manifest variable mappings must be objects");
       requireNonemptyString(variable.variableId, "Debug manifest variable ID");
       requireIdentifier(variable.variableSymbol, "var_", "Debug manifest variable");
       if (

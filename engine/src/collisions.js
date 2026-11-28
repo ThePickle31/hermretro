@@ -7,13 +7,11 @@ import {
   writeProjectJsonAtomic,
 } from "./project-files.js";
 import { decodeResourceBytes, encodeResourceBytes, ResourceCodecError } from "./resource-codec.js";
+import { isObject } from "./shared/values.js";
 const MAXIMUM_SCENE_DIMENSION = 255;
 const MAXIMUM_EDITS = 1_024;
 const MAXIMUM_SAMPLES = 32;
 const MAXIMUM_INSPECTION_CELLS = 4_096;
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function dimensions(scene) {
   const { width, height } = scene;
   if (

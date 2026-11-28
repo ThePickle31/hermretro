@@ -1,6 +1,4 @@
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isObject } from "./shared/values.js";
 function isAssetFolder(folder) {
   return folder === "backgrounds" || folder === "sprites";
 }

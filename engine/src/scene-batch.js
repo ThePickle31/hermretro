@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { lstat, readFile, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -52,6 +51,8 @@ import {
   findInvalidNativeScriptEvent,
   withNativeScriptEventIds,
 } from "./native-script-events.js";
+import { sha256Hex } from "./shared/bytes.js";
+import { isObject } from "./shared/values.js";
 const MAX_BATCH_OPERATIONS = 100;
 const MAX_INSPECTION_RESOURCES = 100;
 const MAX_INSPECTION_EVENTS = 250;
@@ -70,12 +71,6 @@ export class ProjectTransactionError extends GameStudioProjectError {
     this.recovery = recovery;
     Object.defineProperty(this, "cause", { value: cause });
   }
-}
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function digest(value) {
-  return createHash("sha256").update(value).digest("hex");
 }
 function stagedBytes(value) {
   return Buffer.isBuffer(value) ? Buffer.from(value) : Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -986,7 +981,7 @@ async function restoreOriginalFile(projectRoot, staged) {
         `An external editor removed ${staged.relativePath} during transaction rollback`,
       );
     const current = await readFile(staged.absolutePath);
-    if (digest(current) !== staged.appliedDigest) {
+    if (sha256Hex(current) !== staged.appliedDigest) {
       projectError(
         "TRANSACTION_RECOVERY_CONFLICT",
         `An external editor changed ${staged.relativePath} during transaction rollback`,
@@ -1145,7 +1140,7 @@ async function commitLockedStagedFiles(
           );
         } else {
           await writeProjectBytesAtomic(snapshot.projectRoot, entry.absolutePath, bytes);
-          entry.appliedDigest = digest(bytes);
+          entry.appliedDigest = sha256Hex(bytes);
         }
       }
       if (!entry.createOnly && !entry.preserveMode) applied.push(entry);
@@ -1354,7 +1349,7 @@ async function addPreparedFile(snapshot, staged, identities, file) {
       !Buffer.isBuffer(file.after) ||
       (!file.before.equals(file.after) && !file.preserveMode) ||
       file.beforeIdentity.size !== file.before.length ||
-      file.beforeIdentity.sha256 !== digest(file.before))
+      file.beforeIdentity.sha256 !== sha256Hex(file.before))
   ) {
     projectError("INVALID_INPUT", "A guarded native source must match its snapshot identity");
   }

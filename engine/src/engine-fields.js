@@ -2,13 +2,11 @@ import path from "node:path";
 import { PROJECT_REVISION_ALGORITHM } from "./project-access.js";
 import { readProjectJsonWithRevision, resourceRevision, writeProjectJsonAtomic } from "./project-files.js";
 import { discoverProject, GameStudioProjectError } from "./project.js";
+import { isObject } from "./shared/values.js";
 export const MAX_ENGINE_FIELD_INSPECTION = 250;
 export const MAX_ENGINE_FIELD_UPDATES = 100;
 export const MAX_ENGINE_FIELD_STRING_LENGTH = 1_024;
 export const ENGINE_FIELD_RESOURCE_PATH = "project/engine_field_values.gbsres";
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function assertFieldIdentifier(id) {
   if (typeof id !== "string" || id.trim() !== id || id.length === 0 || id.length > 256) {
     throw new GameStudioProjectError(

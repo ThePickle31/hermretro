@@ -12,8 +12,9 @@ import {
   resourceSlug,
 } from "./project-files.js";
 import { GameStudioProjectError, inventoryProject } from "./project.js";
-import { RESOURCE_ID, isSystemError, assetError, assertDistributedProject, ensureName } from "./assets.js";
+import { RESOURCE_ID, assetError, assertDistributedProject, ensureName } from "./assets.js";
 import { enginePath } from "./engine-root.js";
+import { isSystemError } from "./shared/files.js";
 
 const AUDIO_FORMATS = {
   // The spellings GB Studio's loaders find (loadMusicData, loadSoundData): their globs match an all-lowercase or

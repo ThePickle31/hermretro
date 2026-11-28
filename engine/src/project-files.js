@@ -6,9 +6,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { assertSafePlatformPath, isPathWithinRoot, platformPath } from "./platform.js";
 import { GameStudioProjectError } from "./project-error.js";
-export function isSystemError(error, code) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
+import { isSystemError, sameFile } from "./shared/files.js";
 function validateProjectPath(candidate, platform) {
   try {
     assertSafePlatformPath(candidate, platform);
@@ -259,9 +257,6 @@ async function resourceLockFile(lockPath, resourcePath, uid, maximumLinks = 1n) 
     throw error;
   }
 }
-function sameResourceLock(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
-}
 function projectLockRecord(scope, token) {
   return { version: 2, scope, token, pid: process.pid, hostname: hostname(), acquiredAt: new Date().toISOString() };
 }
@@ -309,7 +304,7 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
   try {
     const opened = await handle.stat({ bigint: true });
     if (
-      !sameResourceLock(initial, opened) ||
+      !sameFile(initial, opened) ||
       opened.size !== initial.size ||
       opened.mtimeNs !== initial.mtimeNs ||
       opened.ctimeNs !== initial.ctimeNs
@@ -319,7 +314,7 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
     const { bytesRead } = await handle.read(content, 0, content.length, 0);
     const closed = await handle.stat({ bigint: true });
     if (
-      !sameResourceLock(opened, closed) ||
+      !sameFile(opened, closed) ||
       closed.size !== BigInt(bytesRead) ||
       opened.mtimeNs !== closed.mtimeNs ||
       opened.ctimeNs !== closed.ctimeNs
@@ -330,7 +325,7 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
     const current = await resourceLockFile(lockPath, resourcePath, uid, maximumLinks);
     if (
       !current ||
-      !sameResourceLock(closed, current) ||
+      !sameFile(closed, current) ||
       current.size !== closed.size ||
       current.mtimeNs !== closed.mtimeNs ||
       current.ctimeNs !== closed.ctimeNs
@@ -343,7 +338,7 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
         uid,
         maximumLinks,
       );
-      if (!staging || !sameResourceLock(current, staging)) return undefined;
+      if (!staging || !sameFile(current, staging)) return undefined;
     }
     return { entry: current, record };
   } finally {
@@ -352,7 +347,7 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
 }
 function sameRecoverableProjectLock(left, right) {
   return (
-    sameResourceLock(left.entry, right.entry) &&
+    sameFile(left.entry, right.entry) &&
     left.record.scope === right.record.scope &&
     left.record.token === right.record.token &&
     left.record.pid === right.record.pid &&
@@ -411,7 +406,7 @@ async function publishRecoverableProjectLock(lockPath, resourcePath, scope) {
       if (published && pending) {
         const held = await pending.stat({ bigint: true });
         const current = await readRecoverableProjectLock(lockPath, resourcePath, resourceLockOwner().uid, scope);
-        if (current?.record.token === token && sameResourceLock(held, current.entry)) {
+        if (current?.record.token === token && sameFile(held, current.entry)) {
           try {
             await unlink(lockPath);
           } catch (releaseError) {
@@ -469,7 +464,7 @@ async function removeVerifiedDeadProjectLock(lockPath, resourcePath, uid, stale)
   // Any publisher can die between publishing its hard link and removing the unique staging link.
   const pendingPath = projectRecoveryPendingPath(lockPath, stale.record.token);
   const pending = await resourceLockFile(pendingPath, resourcePath, uid);
-  if (pending && sameResourceLock(pending, confirmed.entry)) {
+  if (pending && sameFile(pending, confirmed.entry)) {
     try {
       await unlink(pendingPath);
     } catch (error) {
@@ -515,7 +510,7 @@ async function releaseResourceLock(handle, lockPath, resourcePath, uid, token) {
     await handle.close();
   } // Do not depend on the operating system's open-file deletion semantics.
   const current = await resourceLockFile(lockPath, resourcePath, uid);
-  if (!current || !sameResourceLock(held, current)) {
+  if (!current || !sameFile(held, current)) {
     throw resourceLockError(resourcePath, "The project-resource lock changed before this writer could release it.");
   }
   if (token !== undefined) {
@@ -530,7 +525,7 @@ async function releaseResourceLock(handle, lockPath, resourcePath, uid, token) {
     }
     try {
       const observed = await disk.stat({ bigint: true });
-      if (!sameResourceLock(held, observed) || JSON.parse(await disk.readFile("utf8")).token !== token) {
+      if (!sameFile(held, observed) || JSON.parse(await disk.readFile("utf8")).token !== token) {
         throw resourceLockError(resourcePath, "The project-resource lock ownership changed before release.");
       }
     } catch (error) {
@@ -543,7 +538,7 @@ async function releaseResourceLock(handle, lockPath, resourcePath, uid, token) {
       await disk.close();
     }
     const rechecked = await resourceLockFile(lockPath, resourcePath, uid);
-    if (!rechecked || !sameResourceLock(held, rechecked)) {
+    if (!rechecked || !sameFile(held, rechecked)) {
       throw resourceLockError(resourcePath, "The project-resource lock changed while this writer was releasing it.");
     }
   }

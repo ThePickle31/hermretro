@@ -26,6 +26,7 @@ import {
   writeProjectBytesAtomic,
 } from "./project-files.js";
 import { legacyPhysicalAssetMetadataLookup, legacyPluginAssetCandidates } from "./legacy-project-assets.js";
+import { asNumber, asString, isObject } from "./shared/values.js";
 export { GameStudioProjectError };
 /** Stable native IDs must resolve to exactly one physical project asset across resource kinds. */
 export function resolveNativeAssetIdentity(source, id) {
@@ -39,15 +40,6 @@ export function resolveNativeAssetIdentity(source, id) {
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 const IMMUTABLE_RESOURCE_KEYS = new Set(["id", "_resourceType", "_index"]);
 const ASSET_EXTENSIONS = new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function asString(value, fallback = "") {
-  return typeof value === "string" ? value : fallback;
-}
-function asNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
 function assertWithinRoot(root, candidate) {
   const relative = path.relative(root, candidate);
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {

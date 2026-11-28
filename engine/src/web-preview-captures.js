@@ -3,6 +3,8 @@ import { constants, openAsBlob } from "node:fs";
 import { link, lstat, mkdir, open, realpath, unlink } from "node:fs/promises";
 import { PNG } from "pngjs";
 import { assertSafePlatformPath, isPathWithinRoot, platformPath } from "./platform.js";
+import { sha256Hex } from "./shared/bytes.js";
+import { sameFile } from "./shared/files.js";
 export const MAX_PREVIEW_SCREENSHOT_BYTES = 8 * 1024 * 1024;
 export const MAX_PREVIEW_VIDEO_BYTES = 128 * 1024 * 1024;
 export const MAX_PREVIEW_CAPTURE_METADATA_BYTES = 2 * 1024 * 1024;
@@ -33,17 +35,11 @@ function unsafe() {
 function isError(error, code) {
   return error?.code === code;
 }
-function sameFile(a, b) {
-  return a.dev === b.dev && a.ino === b.ino;
-}
 function sameVersion(a, b) {
   return sameFile(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
 }
 function owned(stat) {
   return !process.getuid || stat.uid === process.getuid();
-}
-function hash(value) {
-  return createHash("sha256").update(value).digest("hex");
 }
 function buildIdentity(value) {
   if (
@@ -296,7 +292,7 @@ export class PreviewCaptureStore {
     }
     if (upload.busy || upload.sealed || upload.mimeType !== type.mimeType)
       fail("INVALID_MEDIA", "Video upload is busy, sealed, or has a different MIME type.");
-    const digest = hash(bytes);
+    const digest = sha256Hex(bytes);
     if (sequence < upload.hashes.length) {
       if (upload.hashes[sequence] !== digest) fail("INVALID_MEDIA", "A repeated video chunk has different bytes.");
       return { bytes: upload.bytes, chunks: upload.hashes.length, path: upload.file.path, duplicate: true };
@@ -384,7 +380,7 @@ export class PreviewCaptureStore {
     if (!this.paths.isAbsolute(options.projectRoot)) unsafe();
     this.root = this.paths.resolve(options.projectRoot);
     this.identity = captureIdentity(options.identity);
-    this.directory = this.paths.join(this.root, "captures", hash(JSON.stringify(this.identity)));
+    this.directory = this.paths.join(this.root, "captures", sha256Hex(JSON.stringify(this.identity)));
   }
   async save(input) {
     const type = mediaType(input.kind, input.mimeType);
@@ -637,7 +633,7 @@ export class PreviewCaptureStore {
         if (!read.bytesRead) fail("CORRUPT_FILE", "The saved capture became incomplete.");
         offset += read.bytesRead;
       }
-      if (hash(bytes) !== file.sha256) fail("CORRUPT_FILE", "The saved capture changed while being read.");
+      if (sha256Hex(bytes) !== file.sha256) fail("CORRUPT_FILE", "The saved capture changed while being read.");
       const filename = part === "media" ? file.record.path : file.record.metadataPath;
       if (!sameVersion(await file.handle.stat(), await this.namedFile(filename, this.filePins.get(filename)))) unsafe();
       await this.directories(false);

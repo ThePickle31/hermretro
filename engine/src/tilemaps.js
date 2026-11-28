@@ -22,7 +22,6 @@ import {
   renderTilemap,
   replaceTilemapCells,
   setTilemapCollisionCells,
-  sha256,
   tilemapDiff,
   tilemapError,
   tilePixels,
@@ -30,6 +29,7 @@ import {
   validateRoomDimensions,
 } from "./tilemap-compose.js";
 import { atlasSchema, MAX_TILEMAP_JSON_BYTES, roomSchema, tilemapSchemas } from "./tilemap-schema.js";
+import { sha256Hex } from "./shared/bytes.js";
 const MAX_PNG_BYTES = 16 * 1024 * 1024;
 const jsonBytes = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
 function parse(schema, value) {
@@ -171,7 +171,7 @@ async function readAtlas(root, atlasPath, binding) {
   if (
     binding &&
     (binding.path !== atlasPath ||
-      binding.sha256 !== sha256(bytes) ||
+      binding.sha256 !== sha256Hex(bytes) ||
       binding.sourceSha256 !== atlas.sourceSha256 ||
       (binding.id !== undefined && binding.id !== atlas.id) ||
       (binding.sourcePath !== undefined && binding.sourcePath !== atlas.sourcePath))
@@ -182,7 +182,7 @@ async function readAtlas(root, atlasPath, binding) {
     tilemapError("STALE_TILEMAP_ATLAS", "Atlas identity no longer matches its registered path.");
   await ownedPath(root, atlas.sourcePath, "source");
   const source = await readBytes(root, atlas.sourcePath, MAX_PNG_BYTES);
-  if (sha256(source) !== atlas.sourceSha256)
+  if (sha256Hex(source) !== atlas.sourceSha256)
     tilemapError(
       "STALE_TILEMAP_ATLAS",
       "Atlas source PNG changed; explicitly register a new atlas version instead of repainting existing rooms.",
@@ -277,7 +277,7 @@ function captureCells(image, pixels, palettes, collisions) {
     if (!firstTileByPattern.has(pattern)) firstTileByPattern.set(pattern, id);
   const width = image.width / 8;
   return Array.from({ length: width * (image.height / 8) }, (_, index) => {
-    const tileId = firstTileByPattern.get(sha256(tilePixels(image, index % width, Math.floor(index / width))));
+    const tileId = firstTileByPattern.get(sha256Hex(tilePixels(image, index % width, Math.floor(index / width))));
     if (!tileId)
       tilemapError(
         "TILEMAP_CAPTURE_TILE_MISSING",
@@ -334,7 +334,7 @@ function outputReceipt(room, recipePath, recipeBytes = jsonBytes(room)) {
     outputs: {
       png: { path: room.backgroundPath, sha256: room.native.pngSha256 },
       metadata: { path: `${room.backgroundPath}.gbsres`, sha256: room.native.metadataSha256 },
-      recipe: { path: recipePath, sha256: sha256(recipeBytes) },
+      recipe: { path: recipePath, sha256: sha256Hex(recipeBytes) },
     },
   };
 }
@@ -354,7 +354,7 @@ async function createTilemapAtlasIndexed(projectPath, rawInput, access) {
         id: stableResourceId("tilemap-atlas", input.atlasPath),
         name: input.name,
         sourcePath: input.sourcePath,
-        sourceSha256: sha256(source),
+        sourceSha256: sha256Hex(source),
         tiles: input.tiles,
         primitives: input.primitives,
       });
@@ -367,7 +367,7 @@ async function createTilemapAtlasIndexed(projectPath, rawInput, access) {
         value: {
           atlasPath: input.atlasPath,
           id: atlas.id,
-          atlasSha256: sha256(bytes),
+          atlasSha256: sha256Hex(bytes),
           sourceSha256: atlas.sourceSha256,
           tiles: atlas.tiles.length,
           primitives: atlas.primitives.length,
@@ -453,7 +453,7 @@ async function createTilemapIndexed(projectPath, rawInput, access) {
         name: input.name,
         units: "8px-tiles",
         atlasPath: input.atlasPath,
-        atlasSha256: sha256(atlasBytes),
+        atlasSha256: sha256Hex(atlasBytes),
         sceneId: scene.id,
         backgroundId,
         backgroundPath: input.backgroundPath,
@@ -482,7 +482,10 @@ async function createTilemapIndexed(projectPath, rawInput, access) {
         }).metadata.tileColors;
       }
       const metadataBytes = jsonBytes(metadata);
-      room = { ...room, native: { ...room.native, pngSha256: sha256(png), metadataSha256: sha256(metadataBytes) } };
+      room = {
+        ...room,
+        native: { ...room.native, pngSha256: sha256Hex(png), metadataSha256: sha256Hex(metadataBytes) },
+      };
       const asset = {
         id: backgroundId,
         name: input.name,
@@ -529,7 +532,7 @@ async function loadBoundRoom(snapshot, recipePath, access, adoption) {
   if (
     adoption &&
     (room.adoptedBinding ||
-      sha256(recipeBytes) !== adoption.before.recipeSha256 ||
+      sha256Hex(recipeBytes) !== adoption.before.recipeSha256 ||
       room.id !== adoption.identity.roomId ||
       room.backgroundId !== adoption.identity.backgroundId ||
       room.sceneId !== adoption.identity.sceneId)
@@ -566,8 +569,8 @@ async function loadBoundRoom(snapshot, recipePath, access, adoption) {
   const background = await readBackground(snapshot, scene);
   if (
     background.asset.resourcePath !== room.backgroundPath ||
-    sha256(background.pngBytes) !== room.native.pngSha256 ||
-    sha256(background.metadataBytes) !== room.native.metadataSha256
+    sha256Hex(background.pngBytes) !== room.native.pngSha256 ||
+    sha256Hex(background.metadataBytes) !== room.native.metadataSha256
   )
     tilemapError(
       "STALE_TILEMAP_OUTPUT",
@@ -614,7 +617,7 @@ async function loadBoundRoom(snapshot, recipePath, access, adoption) {
     sourceBytes,
     pixels,
   } = await readAtlas(snapshot.projectRoot, room.atlasPath, atlasBinding);
-  if (sha256(atlasBytes) !== room.atlasSha256)
+  if (sha256Hex(atlasBytes) !== room.atlasSha256)
     tilemapError("STALE_TILEMAP_ATLAS", "Atlas manifest changed; register/capture a new version explicitly.");
   validateRoomCells(room, pixels);
   const currentPalettes = decodeBackgroundPaletteTiles(background.metadata, room.cells.length);
@@ -640,12 +643,12 @@ async function adoptTilemapBinding(projectPath, input, operation, access) {
       const bound = await loadBoundRoom(snapshot, input.recipePath, access, operation);
       const sceneBytes = await readBytes(snapshot.projectRoot, bound.scene.resourcePath, MAX_TILEMAP_JSON_BYTES);
       const preimages = {
-        recipeSha256: sha256(bound.recipeBytes),
-        atlasSha256: sha256(bound.atlasBytes),
-        sourceSha256: sha256(bound.sourceBytes),
-        pngSha256: sha256(bound.background.pngBytes),
-        metadataSha256: sha256(bound.background.metadataBytes),
-        sceneSha256: sha256(sceneBytes),
+        recipeSha256: sha256Hex(bound.recipeBytes),
+        atlasSha256: sha256Hex(bound.atlasBytes),
+        sourceSha256: sha256Hex(bound.sourceBytes),
+        pngSha256: sha256Hex(bound.background.pngBytes),
+        metadataSha256: sha256Hex(bound.background.metadataBytes),
+        sceneSha256: sha256Hex(sceneBytes),
       };
       for (const key of Object.keys(preimages)) {
         if (operation.before[key] !== preimages[key])
@@ -733,7 +736,7 @@ async function compileRoom(projectPath, input, operations, access) {
           operation.atlasPath === bound.room.atlasPath
             ? { atlas: bound.atlas, pixels: bound.pixels, bytes: bound.atlasBytes }
             : await readAtlas(snapshot.projectRoot, operation.atlasPath);
-        if (sha256(target.bytes) !== operation.atlasSha256)
+        if (sha256Hex(target.bytes) !== operation.atlasSha256)
           tilemapError("STALE_TILEMAP_ATLAS", "The selected replacement atlas does not match its explicit hash.");
         // A separately registered atlas may add patterns, but must not rebind any
         // existing tile or primitive. Diff/render then share the same old meanings.
@@ -812,8 +815,8 @@ async function compileRoom(projectPath, input, operations, access) {
       room = {
         ...room,
         native: {
-          pngSha256: sha256(png),
-          metadataSha256: sha256(metadataBytes),
+          pngSha256: sha256Hex(png),
+          metadataSha256: sha256Hex(metadataBytes),
           collisions: String(sceneResource.collisions),
         },
       };
@@ -876,7 +879,7 @@ async function inspectTilemapIndexed(projectPath, rawInput, access) {
     return {
       atlasPath: input.atlasPath,
       revision: snapshot.revision,
-      atlasSha256: sha256(bytes),
+      atlasSha256: sha256Hex(bytes),
       sourceSha256: atlas.sourceSha256,
       name: atlas.name,
       counts: {

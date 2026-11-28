@@ -5,6 +5,7 @@ import { discoverProject, GameStudioProjectError, inventoryProject } from "./pro
 import { ProjectWorldIndex } from "./project-world-index.js";
 import { assertSafePlatformPath } from "./platform.js";
 import { ENGINE_ROOT } from "./engine-root.js";
+import { sameFile } from "./shared/files.js";
 export const BLANK_PROJECT_GAME_TYPES = ["TOPDOWN", "PLATFORM", "ADVENTURE", "SHMUP", "POINTNCLICK"];
 export const BLANK_PROJECT_COLOR_MODES = ["mono", "mixed", "color"];
 const EXCLUDED_TEMPLATE_DIRECTORIES = new Set([".git", ".local", "artifacts", "build", "dist", "node_modules"]);
@@ -52,9 +53,6 @@ function isExcludedTemplateEntry(name, directory) {
     /\.(?:gb|gbc|tmp|temp|swp)$/iu.test(name) || name === ".DS_Store" || name.startsWith(".~") || name.endsWith("~")
   );
 }
-function sameIdentity(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
-}
 async function rememberCreatedDirectory(destination, entries) {
   const identity = await lstat(destination);
   if (
@@ -75,11 +73,7 @@ async function assertCreatedParents(entries, destination) {
   for (const entry of entries) {
     if (!entry.identity.isDirectory() || !isWithin(entry.path, destination)) continue;
     const current = await lstat(entry.path);
-    if (
-      !current.isDirectory() ||
-      !sameIdentity(current, entry.identity) ||
-      (await realpath(entry.path)) !== entry.path
-    ) {
+    if (!current.isDirectory() || !sameFile(current, entry.identity) || (await realpath(entry.path)) !== entry.path) {
       throw new GameStudioProjectError(
         "UNSAFE_SYMLINK",
         "A project creation directory changed during the operation.",
@@ -112,7 +106,7 @@ async function cleanupCreatedEntries(entries) {
       await assertCreatedParents(entries, entry.path);
       const current = await lstat(entry.path);
       if (
-        !sameIdentity(current, entry.identity) ||
+        !sameFile(current, entry.identity) ||
         current.isSymbolicLink() ||
         (entry.identity.isFile() &&
           (current.size !== entry.identity.size || current.mtimeMs !== entry.identity.mtimeMs))
@@ -132,7 +126,7 @@ async function assertCompleteCreation(entries) {
     await assertCreatedParents(entries, entry.path);
     const current = await lstat(entry.path);
     if (
-      !sameIdentity(current, entry.identity) ||
+      !sameFile(current, entry.identity) ||
       current.isSymbolicLink() ||
       (entry.identity.isFile() && (current.size !== entry.identity.size || current.mtimeMs !== entry.identity.mtimeMs))
     ) {

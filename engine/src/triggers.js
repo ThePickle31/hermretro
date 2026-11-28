@@ -8,7 +8,6 @@ import {
   findLegacyProjectScene,
   findLegacySceneCollectionResource,
   findProjectScene,
-  isJsonObject,
   legacyDescriptorScenes,
   mergeResourceObjects,
   removeProjectResource,
@@ -35,6 +34,7 @@ import {
   findInvalidNativeScriptEvent,
   withNativeScriptEventIds,
 } from "./native-script-events.js";
+import { isObject } from "./shared/values.js";
 export function findSceneTrigger(scene, triggerId, access) {
   const trigger = access
     ? access.trigger(scene.id, triggerId)
@@ -67,7 +67,7 @@ export function createTriggerResource(input, id, index, symbol) {
 }
 export function mergeTriggerChanges(existing, input) {
   if (input.properties !== undefined) {
-    if (!isJsonObject(input.properties)) {
+    if (!isObject(input.properties)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Trigger properties must be a JSON object");
     }
     assertSafeResourceProperties(input.properties, "Trigger properties");
@@ -167,7 +167,7 @@ export async function inspectTrigger(projectPath, input, access) {
 export async function createTrigger(projectPath, input, access) {
   validateResourceName(input.name, "Trigger name");
   if (input.properties !== undefined) {
-    if (!isJsonObject(input.properties)) {
+    if (!isObject(input.properties)) {
       throw new GameStudioProjectError("INVALID_INPUT", "Trigger properties must be a JSON object");
     }
     assertSafeResourceProperties(input.properties, "Trigger properties");

@@ -1,9 +1,10 @@
 import path from "node:path";
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { SCRIPT_KEYS, MAXIMUM_EVENT_DEPTH, isObject } from "./native-script-events.js";
+import { SCRIPT_KEYS, MAXIMUM_EVENT_DEPTH } from "./native-script-events.js";
 import { GameStudioProjectError } from "./project.js";
 import { supplementalResources } from "./world-script-graph.js";
 import { engineUrl } from "./engine-root.js";
+import { isObject } from "./shared/values.js";
 
 // "../src/" reaches the catalog from this module and from the bundle in dist/ alike.
 const EVENT_CATALOG_URL = engineUrl("src/gb-studio-events.json");

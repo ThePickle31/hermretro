@@ -14,60 +14,14 @@ import { buildWorldScriptGraph } from "./world-script-graph.js";
 import { observeReviewedCompiler } from "./reviewed-compiler.js";
 import { REVIEWED_CUSTOM_EVENTS } from "./custom-event-dependencies.js";
 import { legacyPhysicalAssetMetadataLookup, legacyPluginAssetCandidates } from "./legacy-project-assets.js";
+import { PNG_SIGNATURE } from "./shared/bytes.js";
+import { isSystemError } from "./shared/files.js";
+import { FrozenMap, asNumber, asString, deepFreeze, isObject } from "./shared/values.js";
 const ASSET_EXTENSIONS = new Set([".png", ".wav", ".uge", ".mod", ".vgm", ".vgz"]);
-const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const MAXIMUM_DIRTY_PATHS = 2_048;
 const WATCH_RETRY_MS = 1_000;
 const MAXIMUM_WATCH_RETRY_MS = 60_000;
 const EMPTY_COVERAGE = { complete: true, limitations: [] };
-class FrozenResourceMap {
-  #entries;
-  constructor(entries) {
-    this.#entries = new Map(entries);
-    Object.freeze(this);
-  }
-  get size() {
-    return this.#entries.size;
-  }
-  get(key) {
-    return this.#entries.get(key);
-  }
-  has(key) {
-    return this.#entries.has(key);
-  }
-  entries() {
-    return this.#entries.entries();
-  }
-  keys() {
-    return this.#entries.keys();
-  }
-  values() {
-    return this.#entries.values();
-  }
-  [Symbol.iterator]() {
-    return this.#entries[Symbol.iterator]();
-  }
-  forEach(callback, receiver) {
-    this.#entries.forEach((value, key) => callback.call(receiver, value, key, this));
-  }
-}
-function deepFreeze(value) {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) deepFreeze(child);
-  return Object.freeze(value);
-}
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function asString(value, fallback = "") {
-  return typeof value === "string" ? value : fallback;
-}
-function asNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-function systemError(error, code) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
 function category(relativePath, descriptorPath) {
   if (relativePath === descriptorPath) return "descriptor";
   if (relativePath === "project/settings.gbsres") return "settings";
@@ -296,7 +250,7 @@ export class ProjectWorldIndex {
     const variables = structuredClone([...current.variablesById.values()]);
     deepFreeze(variables);
     const frozenMap = (entries) =>
-      new FrozenResourceMap(entries.filter((resource) => resource.id).map((resource) => [resource.id, resource]));
+      new FrozenMap(entries.filter((resource) => resource.id).map((resource) => [resource.id, resource]));
     const snapshot = {
       projectPath: current.projectPath,
       projectRoot: current.projectRoot,
@@ -581,7 +535,7 @@ export class ProjectWorldIndex {
     try {
       canonical = await realpath(directory);
     } catch (error) {
-      if (systemError(error, "ENOENT") || systemError(error, "ENOTDIR")) return;
+      if (isSystemError(error, "ENOENT") || isSystemError(error, "ENOTDIR")) return;
       throw error;
     }
     assertWithinProject(this.projectRoot, canonical, this.#platform);
@@ -651,7 +605,7 @@ export class ProjectWorldIndex {
           try {
             await lstat(physical);
           } catch (missing) {
-            if (!systemError(missing, "ENOENT") && !systemError(missing, "ENOTDIR")) throw missing;
+            if (!isSystemError(missing, "ENOENT") && !isSystemError(missing, "ENOTDIR")) throw missing;
             hasPhysical = false;
           }
           if (hasPhysical) {
@@ -783,7 +737,7 @@ export class ProjectWorldIndex {
       try {
         entry = await lstat(absolute, { bigint: true });
       } catch (error) {
-        if (!systemError(error, "ENOENT") && !systemError(error, "ENOTDIR")) throw error;
+        if (!isSystemError(error, "ENOENT") && !isSystemError(error, "ENOTDIR")) throw error;
         if (this.#dropIndexed(relative, () => false, changedPaths)) semanticChange = true;
         if (relative === descriptorRelative)
           throw new GameStudioProjectError("STALE_PROJECT", "The selected project descriptor was removed", absolute);

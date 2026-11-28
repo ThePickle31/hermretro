@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { compilerDependenciesValid, compilerProfileValid } from "./reviewed-compiler.js";
+import { deepFreeze } from "./shared/values.js";
 /** The reviewed loader reads core handlers first, then this project glob, keyed
  * by the exported ID. We refuse duplicates instead of guessing glob order.
  * Inspection never evaluates project JavaScript or calls the compiler. */
@@ -30,11 +31,6 @@ const isEventInput = (name, file) =>
   (compilerResourcePath(name) && EVENT_INPUT_RESOURCE_TYPES.includes(String(file?.json?._resourceType)));
 function digest(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
-}
-function freeze(value) {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) freeze(child);
-  return Object.freeze(value);
 }
 function bindingValid(binding) {
   return (
@@ -94,7 +90,7 @@ export class ReviewedEventRegistry {
         )
           throw new Error("Invalid reviewed event contract");
         const { extract, ...metadata } = contract;
-        return freeze({ ...structuredClone(metadata), extract });
+        return deepFreeze({ ...structuredClone(metadata), extract });
       }),
     );
     this.fingerprint = digest(
@@ -292,7 +288,7 @@ export function extractReviewedEvent(contract, args, children, context) {
   try {
     // Do not apply editor defaults, execute project functions, or hand mutable
     // indexed resources to a reviewed extractor.
-    const result = contract.extract(freeze(structuredClone(input)), freeze(structuredClone(context)));
+    const result = contract.extract(deepFreeze(structuredClone(input)), deepFreeze(structuredClone(context)));
     if (result?.status !== "complete")
       return incomplete(result?.status === "incomplete" ? result.reason : "No complete effect result was returned");
     if (

@@ -22,7 +22,8 @@ import { discoverProject, GameStudioProjectError, inventoryProject } from "./pro
 import { createSpriteResource } from "./sprites.js";
 import { createNativeSpriteMetadata, MAX_NATIVE_METADATA_BYTES } from "./native-sprite-metadata.js";
 import { nativeImportPath, readNativeImportSnapshot, readNativeProjectMetadata } from "./native-import-files.js";
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+import { PNG_SIGNATURE } from "./shared/bytes.js";
+import { isSystemError } from "./shared/files.js";
 const MAX_PNG_BYTES = 16 * 1024 * 1024;
 const MAX_PNG_CHUNKS = 4_096;
 const MAX_BACKGROUND_DIMENSION = 2040;
@@ -47,9 +48,6 @@ const SPRITE_COLORS = new Set(["#071821", "#86c06c", "#e0f8cf", "#65ff00"]);
 export const RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_BATCH_IMPORTS = 32;
 const IMPORT_ANALYSIS_VIOLATIONS = 8;
-export function isSystemError(error, code) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
 export function assetError(code, message, resourcePath) {
   throw new GameStudioProjectError(code, message, resourcePath);
 }

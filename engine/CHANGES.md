@@ -18,6 +18,12 @@ Every change to the engine raises its version, `version` in `package.json` (2.0.
 version first. A note in this file is not a change to the engine. 2.0.0, the first version named `hermretro-engine`,
 holds every change since ModRetro's 1.0.34.
 
+## 2.0.6
+
+- src/shared/: one home for the helpers 31 modules kept identical copies of (isObject, asString, asNumber, deepFreeze,
+  FrozenMap, isSystemError, sameFile, PNG_SIGNATURE, sha256Hex); tests/engine/shared.test.mjs keeps any copy from
+  coming back
+
 ## 2.0.5
 
 - Every module in `src/` and every `scripts/*.mjs`: in Prettier's format (`tools/engine/prettier.json`, its defaults

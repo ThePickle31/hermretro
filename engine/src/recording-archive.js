@@ -6,7 +6,6 @@ import {
   boundedInteger,
   boundedReadFile,
   canonicalEventPayload,
-  digest,
   encoded,
   MAX_FRAMES,
   MAX_RECORDING_EVENT_BYTES,
@@ -22,6 +21,8 @@ import {
   recordingPrefixPin,
   RECORDING_RESERVE_BYTES,
 } from "./recording-common.js";
+import { sha256Hex } from "./shared/bytes.js";
+import { sameFile } from "./shared/files.js";
 const MANIFEST_BYTES = 1024 * 1024;
 const JOURNAL_CHUNK_BYTES = 64 * 1024;
 const RECORDING_STATUSES = new Set(["recording", "stopped", "cancelled", "failed", "interrupted"]);
@@ -113,9 +114,6 @@ function requireBranch(branches, branchId) {
   const branch = branches[branchId];
   if (branch === undefined) throw new Error("Recording event names an unavailable branch");
   return branch;
-}
-function sameFile(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
 }
 function guardDirectory(root, identity, canonical) {
   const current = lstatSync(root);
@@ -258,7 +256,7 @@ export function readRecording(root, resolvePath, options = {}) {
       if (
         row.sequence !== sequence + 1 ||
         row.previousDigest !== previous ||
-        digest(canonicalEventPayload(line)) !== claimed
+        sha256Hex(canonicalEventPayload(line)) !== claimed
       ) {
         throw new Error("Recording event integrity check failed");
       }
@@ -447,7 +445,7 @@ export function readRecording(root, resolvePath, options = {}) {
     truncatedTail,
     prefixPin: selectedPrefix ?? completePrefix,
     sourcePins: {
-      manifest: { byteLength: manifestBytes.length, sha256: digest(manifestBytes) },
+      manifest: { byteLength: manifestBytes.length, sha256: sha256Hex(manifestBytes) },
       events: completePrefix,
       observedEventLogBytes: observedEventBytes,
       finalized: manifest.status !== "recording",

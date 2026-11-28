@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { PNG } from "pngjs";
 import { chromaticDisplayColor } from "./palettes.js";
+import { PNG_SIGNATURE } from "./shared/bytes.js";
 export const GAME_BOY_FRAME_WIDTH = 160;
 export const GAME_BOY_FRAME_HEIGHT = 144;
 export const MAX_CONTACT_SHEET_FRAMES = 64;
@@ -14,7 +15,6 @@ const GUTTER = 12;
 const PADDING = 8;
 const FONT_WIDTH = 5;
 const FONT_HEIGHT = 7;
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const CANVAS_COLOR = [13, 17, 23, 255];
 const CARD_COLOR = [22, 27, 34, 255];
 const BORDER_COLOR = [48, 54, 61, 255];
