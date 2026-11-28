@@ -3,6 +3,7 @@ folder are fine, and that it refuses to call the old broker replaced once that b
 
 import io
 import json
+import signal
 import socket
 import subprocess
 import sys
@@ -169,6 +170,23 @@ class KeptGateway(unittest.TestCase):
             gateway = self.gateway(Path(tmp), {"broker_pid": 8})
             self.assertEqual(gateway.problems({"broker_pid": 8}), [])
         self.assertEqual(gateway.broker_pid, 8)
+
+
+class CleanUp(unittest.TestCase):
+    def test_every_broker_is_stopped_once_the_kept_gateways_replacement_included(self):
+        held, kept = mock.Mock(), mock.Mock(broker_pid=9)
+        with mock.patch.object(update_check.os, "kill") as kill:
+            update_check.clean_up(held, kept, [7, 8, 0])
+        held.close.assert_called_once_with()
+        kept.stop.assert_called_once_with()
+        self.assertEqual(
+            [call.args for call in kill.call_args_list], [(7, signal.SIGTERM), (8, signal.SIGTERM), (9, signal.SIGTERM)]
+        )
+
+    def test_the_new_broker_the_gateway_kept_is_stopped_once(self):
+        with mock.patch.object(update_check.os, "kill") as kill:
+            update_check.clean_up(None, mock.Mock(broker_pid=8), [7, 8])
+        self.assertEqual([call.args[0] for call in kill.call_args_list], [7, 8])
 
 
 class IdleBroker:
