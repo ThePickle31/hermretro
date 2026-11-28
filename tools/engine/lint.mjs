@@ -83,6 +83,14 @@ function engineConfig({ globals }) {
 export const PACKAGES = ['globals', 'prettier'] // besides eslint (lint_tools.py's preflight reads it)
 const FORMAT = JSON.parse(readFileSync(new URL('./prettier.json', import.meta.url), 'utf8'))
 
+// Whether a path from the root is one PATTERNS names: under the pattern's folder, with its extension.
+function inPatterns(name) {
+  return PATTERNS.some(pattern => {
+    const [folder, extension] = pattern.split('/**/*')
+    return name.startsWith(`${folder}/`) && name.endsWith(extension)
+  })
+}
+
 /** Each file not in Prettier's format, as an error line; with `fix`, each is rewritten in it instead (`fixed`
  * counts those). A file that does not parse is left to ESLint's report of its syntax error. */
 async function formatting(prettier, files, fix) {
@@ -113,10 +121,11 @@ export async function lintEngine({ fix = false, files = [] } = {}) {
     return { missing: missing(PACKAGES, { pinned: true }) }
   }
 
-  // ESLint picks the files (patterns, paths written any way, globs, its ignores); the format is checked on the same.
+  // ESLint resolves the files (paths written any way, globs, its ignores); the format is checked on those of them that
+  // are the engine's sources and scripts (PATTERNS), never the bundle or anything else a broad glob takes in.
   const lint = () => runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
   let report = await lint()
-  const readable = report.paths.filter(name => !report.unparsed.includes(name))
+  const readable = report.paths.filter(name => inPatterns(name) && !report.unparsed.includes(name))
   const format = await formatting(found.prettier, readable, fix)
   if (format.fixed) report = await lint()  // line numbers as the files now stand
   report.errors.push(...format.errors)
