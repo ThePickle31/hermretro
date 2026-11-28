@@ -155,7 +155,6 @@ export class ProjectWorldIndex {
     #bootstrap;
     #refresh;
     #degraded = false;
-    #watchUnavailable = false;
     #inAuthoritativeRebuild = false;
     #discovery;
     #inventory;
@@ -508,7 +507,6 @@ export class ProjectWorldIndex {
         }
     }
     #watchFailed() {
-        this.#watchUnavailable = true;
         this.#degraded = true;
         this.#watchFailures += 1;
         this.#watchRetryAt = Date.now() + Math.min(WATCH_RETRY_MS * 2 ** (this.#watchFailures - 1), MAXIMUM_WATCH_RETRY_MS);

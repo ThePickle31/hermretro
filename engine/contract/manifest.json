@@ -1,11 +1,11 @@
 {
  "manifest_schema": 1,
  "package_name": "hermretro-engine",
- "package_version": "2.0.2",
+ "package_version": "2.0.3",
  "distribution_directory_name": "engine",
  "file_count": 298,
  "symlink_count": 0,
- "total_bytes": 32312972,
+ "total_bytes": 32314581,
  "suffix_counts": {
   ".js": 112,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "23c0ac19adbeffe99e0973536d6dd63d829d78b620ae185d2e0a1273d92066c7",
+ "aggregate_sha256": "c9ee95ca5b97010d473ea1d46d9331847dffea8bf7a75a7b0f916a1452550b33",
  "entries": [
   {
    "path": "LICENSE",
@@ -115,9 +115,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2603471,
+   "size": 2603334,
    "mode": "0o644",
-   "sha256": "14903a4a2471a38d47552196d596cd3d8670fe45d082e4366462fa15404001c4"
+   "sha256": "6d7c0a598885857379316f3a5b7d1a58b5596a698f05dc3c838772173f344fb3"
   },
   {
    "path": "docs/agent-guide.md",
@@ -1020,14 +1020,14 @@
    "type": "file",
    "size": 2865,
    "mode": "0o644",
-   "sha256": "0f0a82ba0e7d020d4f3c4916c46a2bdb05872643a06aa12bb65dd155247aacb4"
+   "sha256": "7d5bb65051667665d134faf4980d6a4fc0282747cde96ab75afd8d60444f2c79"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",
    "type": "file",
-   "size": 34305,
+   "size": 34455,
    "mode": "0o644",
-   "sha256": "47b3accdc2faba6750af8af6e6b04cc9e3278ef06eb93900d9cf01489f161275"
+   "sha256": "db4369ba27a64e42f3c835bc6202bdcc99ee7d22d32aaa1e76856f07f8884597"
   },
   {
    "path": "scripts/chromatic.mjs",
@@ -1060,9 +1060,9 @@
   {
    "path": "scripts/emulator_worker.py",
    "type": "file",
-   "size": 178011,
+   "size": 178039,
    "mode": "0o755",
-   "sha256": "74a62d7c48d1b03ecb6c0fe4c5000d17f04548f4409b90394411bb04f4b9e729"
+   "sha256": "853e3b19c628186bb7de83530b13596d4ec4ec5f2c4fefec606ae3bcdf182dc2"
   },
   {
    "path": "scripts/node-releases.tsv",
@@ -1123,16 +1123,16 @@
   {
    "path": "scripts/setup-io.mjs",
    "type": "file",
-   "size": 47822,
+   "size": 48011,
    "mode": "0o644",
-   "sha256": "94b38e2e2c4ba2ca6372436c136b26876e79634ab3588848af1638bc002d453b"
+   "sha256": "82752b98c17af5fb490ea5e6faa57f0352cfec42afb8be4a4b31fe04cce0468a"
   },
   {
    "path": "scripts/setup-runtime.mjs",
    "type": "file",
-   "size": 31957,
+   "size": 31939,
    "mode": "0o644",
-   "sha256": "6e6a8b505206fc9cb8117225abd116cd561be4fcc1d5e747583941c949356689"
+   "sha256": "a3c96efc6ce4042ff150fda57ec7940a623832e404f628f892d8a13dbe75a8cd"
   },
   {
    "path": "scripts/setup.mjs",
@@ -1340,9 +1340,9 @@
   {
    "path": "src/build.js",
    "type": "file",
-   "size": 70192,
+   "size": 70440,
    "mode": "0o644",
-   "sha256": "c66d9df282374464d7cabdde63afe152c7b7353c4e395311cf0faea255db0abc"
+   "sha256": "48b6c0fa2ac716df537ce0209b7838438f1a15a4ca5f4d90355be9e5cf0af46d"
   },
   {
    "path": "src/chromatic-failure-diagnostics.js",
@@ -1424,9 +1424,9 @@
   {
    "path": "src/device-capture/linux-helper.js",
    "type": "file",
-   "size": 24584,
+   "size": 24827,
    "mode": "0o644",
-   "sha256": "2654f69816e97f0da116a829d84d455c5029377a78b6862d1a97bfc159136d26"
+   "sha256": "bbc569187a88f60243e033dbab42fb8a56fbdd77ab39cfdad9bfc3761ca33184"
   },
   {
    "path": "src/device-capture/linux-packet-stats.js",
@@ -1536,9 +1536,9 @@
   {
    "path": "src/emulator.js",
    "type": "file",
-   "size": 78672,
+   "size": 78936,
    "mode": "0o644",
-   "sha256": "8fcece1174cdfd2682943ead871aef0e013c5344e09eea8af029cd77bcd83a8c"
+   "sha256": "e59481221b82d9455a8f5b53875708411f4cdfd8d03f3ebfb265dce6af7e29a1"
   },
   {
    "path": "src/engine-fields.js",
@@ -1550,9 +1550,9 @@
   {
    "path": "src/entry.js",
    "type": "file",
-   "size": 105293,
+   "size": 105399,
    "mode": "0o644",
-   "sha256": "a52c06ccb29ee55d8207a87a07fd4fa36fee31fa1ffcebcad30fc72af6d1cd21"
+   "sha256": "f5cd24d5381390307552c73ad9867b74c1bc5632729d6ab30474ca6ba803db5d"
   },
   {
    "path": "src/event-catalog.js",
@@ -1683,9 +1683,9 @@
   {
    "path": "src/project-files.js",
    "type": "file",
-   "size": 31824,
+   "size": 32528,
    "mode": "0o644",
-   "sha256": "a4b95ea118f182d8c7ac4ecc0318988c1b82b91b9bc01209e6be37a69b4273ab"
+   "sha256": "ebc8f6495c7d3e2235ee02c2d9984a5b4d26982c8d487bd3f97b4ba8e32f8d09"
   },
   {
    "path": "src/project-revision.js",
@@ -1718,9 +1718,9 @@
   {
    "path": "src/project-world-index.js",
    "type": "file",
-   "size": 68841,
+   "size": 68771,
    "mode": "0o644",
-   "sha256": "f5d394118199390200dfc9d31aabda9bebd9e72ceed9cfa07cfc4ad85ca64b74"
+   "sha256": "af07cdfca81121473b805eb519144f5cda0c1623c2ffd558723bdba9fc1457d8"
   },
   {
    "path": "src/project.js",
@@ -1816,9 +1816,9 @@
   {
    "path": "src/tilemaps.js",
    "type": "file",
-   "size": 40801,
+   "size": 40794,
    "mode": "0o644",
-   "sha256": "9d93a501daea6fba9a8dd094378fea461b41f2883c1dd25d57ea7a5b1e63a9b6"
+   "sha256": "95e46385e8add05d33ce9dd15ea9b216457a297e1fc78a0826fc389069fe37e7"
   },
   {
    "path": "src/tool-domains/chromatic.js",
@@ -1998,9 +1998,9 @@
   {
    "path": "src/web-build.js",
    "type": "file",
-   "size": 49746,
+   "size": 49657,
    "mode": "0o644",
-   "sha256": "4d1e1b2dd5cdd10ad3161d401042176c014418b5d1ab3bd3df97317ff09a24bc"
+   "sha256": "4a6a6f71217a67242bc91234f30ffe8ca3a3b13f0b6e830e1f0b98687dca60ca"
   },
   {
    "path": "src/web-preview-captures.js",
@@ -2061,9 +2061,9 @@
   {
    "path": "src/web-preview.js",
    "type": "file",
-   "size": 70126,
+   "size": 70124,
    "mode": "0o644",
-   "sha256": "45b429f6e751b37887b1e10df5a02e33fbb9a88d5c36040e46bbfaae4d583fc7"
+   "sha256": "9c251250f2792996f785c01190712633dd5ccb197fff1a89942d6c9c81aa8642"
   },
   {
    "path": "src/world-queries.js",

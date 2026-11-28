@@ -262,6 +262,7 @@ async function runWithSourceDebugState(current, setContext, operation) {
                     setContext(current);
                 }
             } catch {
+                // Restoring the previous context is best effort: the caller is given the original error.
             }
         }
         throw error;

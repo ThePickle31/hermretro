@@ -672,7 +672,7 @@ async function serveCaptures(request, response, active, relative) {
         if (request.headers.origin !== `http://${LOOPBACK_ADDRESS}:${active.status.port}` ||
             !hasSingleHeader(request, "x-codex-preview-capture") || request.headers["x-codex-preview-capture"] !== captures.generation ||
             !hasSingleHeader(request, "content-type") || typeof contentType !== "string" ||
-            !/^multipart\/form-data;\s*boundary=(?:[A-Za-z0-9'()+_,.\/:=?-]{1,70}|"[A-Za-z0-9'()+_,.\/:=?-]{1,70}")$/i.test(contentType) ||
+            !/^multipart\/form-data;\s*boundary=(?:[A-Za-z0-9'()+_,./:=?-]{1,70}|"[A-Za-z0-9'()+_,./:=?-]{1,70}")$/i.test(contentType) ||
             request.headers["content-encoding"] !== undefined || request.headers["transfer-encoding"] !== undefined ||
             !hasSingleHeader(request, "content-length") || typeof length !== "string" || !/^[1-9][0-9]*$/.test(length)) {
             reject(response, 400, "Invalid capture upload");

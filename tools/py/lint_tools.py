@@ -27,10 +27,14 @@ RUFF_FORMAT = [str(RUFF), "format", "--config", "tools/py/ruff.toml", "--force-e
 RUFF_SETUP = "python tools/py/setup.py (once; about 5 s, then a no-op until tools/py/requirements.txt changes)"
 # Both at once: what a fresh checkout needs before `python tools/check.py` can lint.
 LINT_SETUP = "python tools/py/setup.py && npm ci --prefix tools/npm --ignore-scripts"
-# The same lookup lint-page.mjs makes (tools/bundle/node-modules.mjs), so the answer cannot drift from it.
+# The same lookups the two ESLint runs make, for the packages each names (tools/bundle/node-modules.mjs), so the answer
+# cannot drift from them: the page's in any of its folders (exit 1 when none has them), the engine's in tools/npm only
+# (exit 2).
 ESLINT_PROBE = (
-    "import { findModules } from './tools/bundle/node-modules.mjs';"
-    "process.exit(findModules(['eslint', 'eslint-plugin-react-hooks', 'globals']) ? 0 : 1)"
+    "import { findModules, PINNED_MODULES } from './tools/bundle/node-modules.mjs';"
+    "import { PACKAGES as PAGE } from './tools/bundle/lint-page.mjs';"
+    "import { PACKAGES as ENGINE } from './tools/engine/lint.mjs';"
+    "process.exit(!findModules(['eslint', ...PAGE]) ? 1 : !findModules(['eslint', ...ENGINE], [PINNED_MODULES]) ? 2 : 0)"
 )
 
 
@@ -46,11 +50,13 @@ def ruff_missing() -> str | None:
 
 
 def eslint_missing() -> str | None:
-    """Why the page's ESLint cannot run, or None (without node the page lint is skipped, as before)."""
+    """Why the page's or the engine's ESLint cannot run, or None (without node both are skipped, as before)."""
     node = shutil.which("node")
     if not node:
         return None
     probe = subprocess.run([node, "--input-type=module", "-e", ESLINT_PROBE], cwd=ROOT, capture_output=True)
+    if probe.returncode == 2:
+        return "the engine's eslint is not installed (tools/npm/node_modules, the pinned versions)"
     return None if probe.returncode == 0 else "eslint is not installed (tools/npm/node_modules)"
 
 
@@ -69,6 +75,16 @@ def ruff_format_check(paths: list[str]) -> list[str]:
     return [*RUFF_FORMAT[:-1], "--check", "--output-format", "concise", *paths]
 
 
+# The exit code of either ESLint run when ESLint or a package it needs is not installed (MISSING_TOOLS in
+# tools/bundle/eslint-run.mjs); an error is 1.
+LINT_MISSING_TOOLS = 3
+
+
 def page_lint(node: str, files: list[str]) -> list[str]:
     """The page lint (ESLint over page/**/*.js; check.py's lint: every file, ``files`` empty), with its settings."""
     return [node, "tools/bundle/lint-page.mjs", *files]
+
+
+def engine_lint(node: str) -> list[str]:
+    """The engine lint (ESLint over engine/src and engine/scripts), with its settings."""
+    return [node, "tools/engine/lint.mjs"]

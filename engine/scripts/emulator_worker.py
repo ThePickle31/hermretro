@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import base64
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import hashlib
 import importlib.metadata
 import importlib.resources
@@ -514,7 +514,7 @@ class Recording:
         self.write_new(self.root / ".npmignore", b"*\n")
         self.header = {
             "schemaVersion": 1, "kind": "gb-studio-playtest", "sessionId": self.session_id,
-            "createdAt": datetime.now(timezone.utc).isoformat(), "rom": rom, "runtime": runtime,
+            "createdAt": datetime.now(UTC).isoformat(), "rom": rom, "runtime": runtime,
             "startingCondition": self.branches[self.branch_id]["startingCondition"], "limits": limits,
         }
         self._write_manifest("recording")
@@ -1047,7 +1047,7 @@ def read_recording(root: Path, resolve_path: Any, *, prefix_pin: dict[str, Any] 
                 branches[current] = {"actions": prefix_actions, "evidence": evidence,
                                      "bootHashes": recorded_frame_hashes(row.get("bootHashes"), boot_frames),
                                      "frameHashes": [recorded_action_hashes(hashes, action)
-                                                     for hashes, action in zip(prefix_hashes, prefix_actions)],
+                                                     for hashes, action in zip(prefix_hashes, prefix_actions, strict=False)],
                                      "frame": row["frame"], "parentBranchId": row["parentBranchId"],
                                      "sourceSessionId": row["sourceSessionId"],
                                      "checkpointId": row["checkpointId"], "startingCondition": row["startingCondition"],
@@ -1186,7 +1186,7 @@ class ReplayComparison:
         # The hash of frame n (1 onward) is at (n - 1) * FRAME_HASH_CHARS; a frame the attempt kept none of is unknown.
         self.hashes = "".join([branch["bootHashes"] or UNKNOWN_FRAME_HASH * initial_frames] + [
             hashes or UNKNOWN_FRAME_HASH * action["frames"]
-            for action, hashes in zip(actions, branch["frameHashes"]) if action["type"] == "step"])
+            for action, hashes in zip(actions, branch["frameHashes"], strict=False) if action["type"] == "step"])
         frames = len(self.hashes) // FRAME_HASH_CHARS
         unknown = self.hashes.count(UNKNOWN_FRAME_HASH)
         self.coverage = "every-frame" if unknown == 0 else "retained-frames" if unknown == frames else "partial"
@@ -2145,7 +2145,7 @@ class EmulatorWorker:
             if not items:
                 return None
             points = sorted({start_frame, end_frame, *(item["frame"] for item in items)})
-            return max((right - left for left, right in zip(points, points[1:])), default=0)
+            return max((right - left for left, right in zip(points, points[1:], strict=False)), default=0)
 
         imported_inputs = [item for item in selected.inputs if item["origin"]["kind"] == "imported-prefix"]
         unavailable = [item["actionIndex"] for item in selected.inputs

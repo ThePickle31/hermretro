@@ -580,6 +580,7 @@ export function materializeChromaticExecutable(target, bytes, {
         if (temporaryIdentity) {
           const current = lstatSync(temporary);
           if (current.dev !== temporaryIdentity.dev || current.ino !== temporaryIdentity.ino || current.uid !== temporaryIdentity.uid) {
+            // hermretro: allow no-unsafe-finally — a temporary file whose identity changed is never removed; refusing outranks the error before it
             throw new Error("Chromatic staging identity changed; refusing cleanup.");
           }
           unlinkSync(temporary);
