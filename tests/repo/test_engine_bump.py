@@ -21,6 +21,9 @@ class Version(unittest.TestCase):
         self.assertEqual(bump.next_version((2, 0, 3), (2, 0, 2)), (2, 0, 3))
         self.assertEqual(bump.next_version((2, 1, 0), (2, 0, 9)), (2, 1, 0))
 
+    def test_a_branch_behind_its_base_gets_past_the_base(self):
+        self.assertEqual(bump.next_version((2, 0, 2), (2, 0, 3)), (2, 0, 4))
+
     def test_a_base_without_an_engine_has_no_version_to_raise(self):
         self.assertEqual(bump.next_version((2, 0, 0), None), (2, 0, 0))
 

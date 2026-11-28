@@ -142,7 +142,9 @@ class PrepareToolchain(unittest.TestCase):
         self.assertEqual(list(self.parent.iterdir()), [])
 
     def test_a_named_destination_installs_through_a_private_broker_it_stops_and_removes(self):
-        code, broker, process, _err, deps = self.run_main(HERMRETRO_DEPS_ROOT="relative/toolchain")
+        # As in a process started with it set: paths resolved the same folder when it was imported.
+        with mock.patch.object(paths, "DEPS_ROOT", Path("relative/toolchain").resolve()):
+            code, broker, process, _err, deps = self.run_main(HERMRETRO_DEPS_ROOT="relative/toolchain")
         self.assertEqual(code, 0)
         [state] = self.started
         self.assertEqual(state.parent, self.parent)

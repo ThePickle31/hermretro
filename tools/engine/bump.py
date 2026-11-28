@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -44,10 +45,10 @@ def dotted(numbers: tuple[int, int, int]) -> str:
 
 def next_version(current: tuple[int, int, int], base: tuple[int, int, int] | None) -> tuple[int, int, int]:
     """The version a change goes under: the current one when this branch already raised it above the base's (or
-    the base has no engine), the next patch otherwise."""
+    the base has no engine), otherwise the patch after the base's (a branch behind its base gets past it too)."""
     if base is None or current > base:
         return current
-    return (current[0], current[1], current[2] + 1)
+    return (base[0], base[1], base[2] + 1)
 
 
 def with_version(package: str, new: str) -> str:
@@ -121,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.line.strip():
         parser.error("the changelog line is empty")
+    os.chdir(ROOT)  # git reads the base in this repository, wherever this was started from
     try:
         new = record(args.line, args.base)
     except Refused as refused:

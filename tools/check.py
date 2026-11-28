@@ -371,10 +371,21 @@ def check_acceptance(args) -> str:
 
     env, toolchain = acceptance_env(paths)
     if not toolchain.is_dir():
-        raise Skip(
-            f"no toolchain at {toolchain}\nFIX: python tools/ci/prepare_toolchain.py, once (about 700 MB): it makes "
-            "the development toolchain every checkout uses, or the one HERMRETRO_DEPS_ROOT names when it is set"
+        if env.get("GB_STUDIO_SETUP_ROOT"):
+            fix = "point GB_STUDIO_SETUP_ROOT at a toolchain, or unset it"
+        else:
+            fix = (
+                "python tools/ci/prepare_toolchain.py, once (about 700 MB): it makes the development toolchain "
+                "every checkout uses, or the one HERMRETRO_DEPS_ROOT names when it is set"
+            )
+        raise Skip(f"no toolchain at {toolchain}\nFIX: {fix}")
+    # The suite run by hand, as this run starts it.
+    rerun = (
+        " ".join(
+            f"{name}={env[name]}" for name in ("TMPDIR", "HERMRETRO_DEPS_ROOT", "GB_STUDIO_SETUP_ROOT") if env.get(name)
         )
+        + " python tests/acceptance/broker_acceptance.py"
+    )
     (ROOT / "notes" / "evidence" / "broker-acceptance.json").unlink(missing_ok=True)  # never report an old run
     try:
         result = run(
@@ -387,8 +398,8 @@ def check_acceptance(args) -> str:
             for output in (stopped.stdout, stopped.stderr)
         ).strip()
         raise AssertionError(
-            f"the acceptance suite did not finish in {ACCEPTANCE_MINUTES} minutes\n{printed}\nFIX: rerun python "
-            "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and see where it stops"
+            f"the acceptance suite did not finish in {ACCEPTANCE_MINUTES} minutes\n{printed}\nFIX: {rerun} and see "
+            "where it stops"
         )
     passed = sum(line.startswith("PASS ") for line in result.stdout.splitlines())
     failed = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
@@ -400,8 +411,7 @@ def check_acceptance(args) -> str:
                 if not item.get("passed"):
                     details.append(f"{item['id']}: {json.dumps(item.get('detail'), default=str)[:600]}")
         raise AssertionError(
-            "\n".join(failed + details) + "\n" + tail(result.stderr, 15) + "\nFIX: rerun python "
-            "tests/acceptance/broker_acceptance.py with TMPDIR=" + short_tmp() + " and read its output"
+            "\n".join(failed + details) + "\n" + tail(result.stderr, 15) + f"\nFIX: {rerun} and read its output"
         )
     return f"{passed} passed"
 

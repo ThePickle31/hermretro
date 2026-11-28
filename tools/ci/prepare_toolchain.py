@@ -238,7 +238,7 @@ def main() -> int:
     if reason:
         print(reason, file=sys.stderr)
         return 2
-    if deps != paths.DEPS_ROOT:
+    if os.environ.get("HERMRETRO_DEPS_ROOT") or deps != paths.DEPS_ROOT:
         # Absolute, as this process resolved it: the broker runs from the plugin folder and reads it again.
         os.environ["HERMRETRO_DEPS_ROOT"] = str(deps)
     print(f"toolchain: {deps / 'toolchain'}", flush=True)
