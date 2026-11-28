@@ -1,6 +1,9 @@
 """The update check's own judgements (tools/ci/update_check.py and update_inside.py): which leftovers in the plugin
 folder are fine, and that it refuses to call the old broker replaced once that broker has already exited by itself."""
 
+import io
+import json
+import signal
 import socket
 import subprocess
 import sys
@@ -9,6 +12,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "ci"))
@@ -139,6 +143,50 @@ class OldBroker(unittest.TestCase):
             update_inside.drive_holding(held, 1234, lambda _: False, lambda: self.fail("drove a gone broker"), "")
         self.assertIn("pid 1234", str(raised.exception))
         self.assertEqual(held.fileno(), -1)
+
+
+class KeptGateway(unittest.TestCase):
+    """The old version's gateway, still running after the update: the broker it reached is remembered, so the check
+    stops one it started in place of the new version's."""
+
+    def gateway(self, folder: Path, found: dict):
+        out = folder / "kept.json"
+        out.write_text(json.dumps(found))
+        gateway = object.__new__(update_inside.OldGateway)  # without the Hermes process it would start
+        gateway.fix, gateway.out, gateway.broker_pid = "", out, None
+        gateway.process = mock.Mock(stdin=io.StringIO())
+        gateway.reader = mock.Mock()
+        return gateway
+
+    def test_a_broker_it_started_in_place_of_the_new_one_is_remembered_and_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gateway = self.gateway(Path(tmp), {"broker_pid": 9})
+            [problem] = gateway.problems({"broker_pid": 8})
+        self.assertIn("replaced the new broker (pid 8) with pid 9", problem)
+        self.assertEqual(gateway.broker_pid, 9)
+
+    def test_the_new_broker_kept_is_remembered_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gateway = self.gateway(Path(tmp), {"broker_pid": 8})
+            self.assertEqual(gateway.problems({"broker_pid": 8}), [])
+        self.assertEqual(gateway.broker_pid, 8)
+
+
+class CleanUp(unittest.TestCase):
+    def test_every_broker_is_stopped_once_the_kept_gateways_replacement_included(self):
+        held, kept = mock.Mock(), mock.Mock(broker_pid=9)
+        with mock.patch.object(update_check.os, "kill") as kill:
+            update_check.clean_up(held, kept, [7, 8, 0])
+        held.close.assert_called_once_with()
+        kept.stop.assert_called_once_with()
+        self.assertEqual(
+            [call.args for call in kill.call_args_list], [(7, signal.SIGTERM), (8, signal.SIGTERM), (9, signal.SIGTERM)]
+        )
+
+    def test_the_new_broker_the_gateway_kept_is_stopped_once(self):
+        with mock.patch.object(update_check.os, "kill") as kill:
+            update_check.clean_up(None, mock.Mock(broker_pid=8), [7, 8])
+        self.assertEqual([call.args[0] for call in kill.call_args_list], [7, 8])
 
 
 class IdleBroker:

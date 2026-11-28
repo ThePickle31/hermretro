@@ -134,16 +134,7 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         if kept is not None:
             problems += kept.problems(after)
     finally:
-        if held is not None:
-            held.close()
-        if kept is not None:
-            kept.stop()
-        for pid in brokers:  # whatever happened, leave no broker of the throwaway home running
-            if pid:
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                except OSError:
-                    pass
+        clean_up(held, kept, brokers)
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
@@ -153,6 +144,21 @@ def update(args, hermes: list[str], tmp: Path, root: Path) -> int:
         f"games and library kept, the broker {broker_fate}, the agent side only in hermretro"
     )
     return 0
+
+
+def clean_up(held, kept, brokers: list) -> None:
+    """Whatever happened, leave nothing of the throwaway home running: the held connection, the old version's gateway,
+    and each broker once, the drives' and the one that gateway reached (one it started in place of the new one)."""
+    if held is not None:
+        held.close()
+    if kept is not None:
+        kept.stop()
+    for pid in dict.fromkeys([*brokers, kept.broker_pid if kept is not None else None]):
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
 
 
 def _leftovers(plugin: Path, fix: str) -> list[str]:
