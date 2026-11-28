@@ -66,7 +66,8 @@ function engineConfig({ globals }) {
       linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: 'off' },
       rules: { ...RULES, 'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true }] }
     },
-    { files: PATTERNS, ignores: BROWSER, languageOptions: { globals: globals.node } },
+    // Node's own globals, without CommonJS's (require, __dirname): every engine file is an ES module.
+    { files: PATTERNS, ignores: BROWSER, languageOptions: { globals: globals.nodeBuiltin } },
     { files: BROWSER, languageOptions: { globals: globals.browser } },
     { files: PLAYER_PAGE, languageOptions: { globals: PLAYER_GLOBALS } }
   ]
