@@ -26,6 +26,7 @@ import {
   writeProjectBytesAtomic,
 } from "./project-files.js";
 import { legacyPhysicalAssetMetadataLookup, legacyPluginAssetCandidates } from "./legacy-project-assets.js";
+import { PNG_SIGNATURE } from "./shared/bytes.js";
 import { asNumber, asString, isObject } from "./shared/values.js";
 export { GameStudioProjectError };
 /** Stable native IDs must resolve to exactly one physical project asset across resource kinds. */
@@ -298,8 +299,7 @@ async function pngDimensions(filename) {
   try {
     const header = Buffer.alloc(24);
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
-    const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    if (bytesRead < 24 || !header.subarray(0, 8).equals(signature)) return null;
+    if (bytesRead < 24 || !header.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
     return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
   } finally {
     await handle.close();

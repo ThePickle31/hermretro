@@ -12,6 +12,7 @@ import {
 } from "../scripts/chromatic.mjs";
 import { inspectRom } from "./build.js";
 import { ChromaticJournal } from "./chromatic-journal.js";
+import { isObject } from "./shared/values.js";
 export class ChromaticDeviceError extends Error {
   code;
   details;
@@ -44,15 +45,12 @@ const commandFields = {
     "saveMode",
   ],
 };
-function record(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 function copy(value) {
   return JSON.parse(JSON.stringify(value));
 }
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (record(value))
+  if (isObject(value))
     return `{${Object.keys(value)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
@@ -69,13 +67,13 @@ function required(value, name) {
 }
 function vendorEnvelope(value, operation) {
   return (
-    record(value) &&
+    isObject(value) &&
     value.schema_version === 1 &&
     value.operation === operation &&
     typeof value.ok === "boolean" &&
     Object.hasOwn(value, "result") &&
     Object.hasOwn(value, "error") &&
-    (value.ok ? record(value.result) && value.error === null : value.result === null && record(value.error))
+    (value.ok ? isObject(value.result) && value.error === null : value.result === null && isObject(value.error))
   );
 }
 const CARTRIDGE_RECOVERY =
@@ -174,7 +172,7 @@ function vendorRecovery(error, command, platform) {
     .join("\n");
   const deviceCommand = ["list-devices", "detect-cart", "write-homebrew", "live-demo"].includes(command);
   if (deviceCommand && error.code === "device.player_ambiguous") {
-    const player = record(error.details) ? error.details.requested_player : undefined;
+    const player = isObject(error.details) ? error.details.requested_player : undefined;
     return playerConflictRecovery(
       Number.isSafeInteger(player) && Number(player) >= 1 && Number(player) <= 8 ? Number(player) : undefined,
     );
@@ -193,7 +191,7 @@ function vendorRecovery(error, command, platform) {
         )))
   )
     return deviceAccessRecovery(platform);
-  const phase = record(error.details) ? error.details.phase : undefined;
+  const phase = isObject(error.details) ? error.details.phase : undefined;
   if (
     ["detect-cart", "write-homebrew"].includes(command) &&
     (error.code === "cartridge.not_readable" ||
@@ -210,7 +208,7 @@ function vendorRecovery(error, command, platform) {
 }
 /** Public diagnostics never echo activation codes, credentials or raw vendor details. */
 export function chromaticErrorMessage(error) {
-  const value = record(error) ? error : {};
+  const value = isObject(error) ? error : {};
   const message = typeof value.message === "string" ? value.message : "The device operation failed.";
   // This changes wording only: it does not establish activation state or a safe retry.
   if (
@@ -431,7 +429,7 @@ async function isolatedLiveSaves(root, sha256, create) {
 function deviceRows(vendor) {
   const result = vendor.result;
   if (
-    !record(result) ||
+    !isObject(result) ||
     !Array.isArray(result.devices) ||
     result.devices.length > 64 ||
     !Array.isArray(result.unmatched)
@@ -443,11 +441,11 @@ function deviceRows(vendor) {
   }
   for (const device of result.devices) {
     if (
-      !record(device) ||
+      !isObject(device) ||
       !Number.isSafeInteger(device.player) ||
       Number(device.player) < 1 ||
       Number(device.player) > 8 ||
-      !record(device.location) ||
+      !isObject(device.location) ||
       typeof device.location.bus_id !== "string" ||
       device.location.bus_id.length === 0 ||
       device.location.bus_id.length > 64 ||
@@ -455,10 +453,10 @@ function deviceRows(vendor) {
       device.location.port_chain.length === 0 ||
       device.location.port_chain.length > 16 ||
       device.location.port_chain.some((port) => !Number.isSafeInteger(port) || port < 1 || port > 255) ||
-      !record(device.gwu2x) ||
+      !isObject(device.gwu2x) ||
       device.gwu2x.vendor_id !== 0x33aa ||
       device.gwu2x.product_id !== 0x0120 ||
-      !record(device.player_function) ||
+      !isObject(device.player_function) ||
       device.player_function.vendor_id !== 0x374e ||
       device.player_function.product_id !== 0x0100 + Number(device.player)
     ) {
@@ -544,7 +542,7 @@ export class ChromaticService {
           : "outcome-unverified",
       processClosure: operation.commands.map((command) => {
         const launch = command.process ?? command.events.find((event) => event.type === "started");
-        const elevation = record(launch?.elevation) ? launch.elevation : undefined;
+        const elevation = isObject(launch?.elevation) ? launch.elevation : undefined;
         return {
           command: command.args[0],
           scope:
@@ -771,7 +769,7 @@ export class ChromaticService {
           ? error.code
           : "CHROMATIC_JOURNAL_UNAVAILABLE",
         error instanceof Error ? error.message : String(error),
-        error instanceof Error && "details" in error && record(error.details) ? error.details : undefined,
+        error instanceof Error && "details" in error && isObject(error.details) ? error.details : undefined,
       );
     }
     if (input.deviceToken) this.#selections.delete(input.deviceToken);
@@ -807,7 +805,7 @@ export class ChromaticService {
                       ? error.code
                       : "CHROMATIC_EXECUTION_ERROR",
                   message: error instanceof Error ? error.message : String(error),
-                  ...(error instanceof Error && "details" in error && record(error.details)
+                  ...(error instanceof Error && "details" in error && isObject(error.details)
                     ? { details: error.details }
                     : {}),
                 };
@@ -936,7 +934,7 @@ export class ChromaticService {
     try {
       parsed = lifecycle ? lifecycle.finish() : JSON.parse(result.stdout.text);
       if (lifecycle?.summary.error) command.jsonError = lifecycle.summary.error;
-      if (record(parsed)) {
+      if (isObject(parsed)) {
         if (result.elevation?.method === "windows-run-as") command.elevationResponse = parsed;
         else command.vendor = parsed;
       }
@@ -971,7 +969,7 @@ export class ChromaticService {
     if (result.elevation?.method === "windows-run-as") {
       const binding = result.elevation;
       if (
-        !record(parsed) ||
+        !isObject(parsed) ||
         parsed.schemaVersion !== 1 ||
         parsed.source !== "codex-chromatic-uac" ||
         binding.operationId !== operation.operationId ||
@@ -997,11 +995,11 @@ export class ChromaticService {
       const dismissed =
         parsed.phase === "request" &&
         parsed.launchAttempted === true &&
-        record(parsed.error) &&
+        isObject(parsed.error) &&
         parsed.error.nativeErrorCode === 1223;
       if (
         (beforeRequest || dismissed) &&
-        record(parsed.error) &&
+        isObject(parsed.error) &&
         !Object.hasOwn(parsed, "vendorPid") &&
         !Object.hasOwn(parsed, "vendorExitCode")
       ) {
@@ -1215,9 +1213,9 @@ export class ChromaticService {
         "--yes",
       ]);
       const result = vendor.result;
-      const cartridge = record(result.cartridge) ? result.cartridge : undefined;
+      const cartridge = isObject(result.cartridge) ? result.cartridge : undefined;
       const flash = cartridge?.flash;
-      const unidentified = cartridge && (flash === null || (record(flash) && flash.model === null));
+      const unidentified = cartridge && (flash === null || (isObject(flash) && flash.model === null));
       return {
         vendorResult: result,
         selectedDevice: selected.device,

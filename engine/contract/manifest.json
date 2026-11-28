@@ -5,7 +5,7 @@
  "distribution_directory_name": "engine",
  "file_count": 302,
  "symlink_count": 0,
- "total_bytes": 32230955,
+ "total_bytes": 32230479,
  "suffix_counts": {
   ".js": 116,
   ".md": 60,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "69c52847b84fb5acdb18fecb2cd497cfc215f6e532aff82805849682f8099ba3",
+ "aggregate_sha256": "95d0df85f69af910b2df80b6e0ab6853dff286c3f713346f11347c97945e80e2",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 11930,
+   "size": 11962,
    "mode": "0o644",
-   "sha256": "3dd7f5f31a1d31682dd9d5d6af9ea9effbb1de2061e5eea671b925be98040e29"
+   "sha256": "1b74c96205433f2dbaf63e134019f32fe1c896d70cf0cf2c134fb0f5d1e2eb9e"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -115,9 +115,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2627826,
+   "size": 2627359,
    "mode": "0o644",
-   "sha256": "3c29049cb33a3f1bf2c768ac6da90ab2872853d745aa49872b7fe40264c84389"
+   "sha256": "7ea1c1dbe2ef2f8a8d06c8067bf7d358a95273cc77e4858429808dfb35bd8c18"
   },
   {
    "path": "docs/agent-guide.md",
@@ -1347,9 +1347,9 @@
   {
    "path": "src/chromatic-failure-diagnostics.js",
    "type": "file",
-   "size": 4218,
+   "size": 4201,
    "mode": "0o644",
-   "sha256": "88363e963eab7645cfb512f28e8cade2e09ba40773698b5e09ff450816a45819"
+   "sha256": "1cdd527fd844c4ef9a764de66e041b00296945e411383770657b99264cc329eb"
   },
   {
    "path": "src/chromatic-journal.js",
@@ -1361,9 +1361,9 @@
   {
    "path": "src/chromatic.js",
    "type": "file",
-   "size": 55643,
+   "size": 55626,
    "mode": "0o644",
-   "sha256": "390b17585c99cf35cd864a511726e001e77a71829a02775e93fd26751923e138"
+   "sha256": "95ac3ce17c0a97ee1a4658748a5f852a84d0abd03e010e5d29dc2723a02764a7"
   },
   {
    "path": "src/collisions.js",
@@ -1522,23 +1522,23 @@
   {
    "path": "src/dialogue-preview.js",
    "type": "file",
-   "size": 14542,
+   "size": 14544,
    "mode": "0o644",
-   "sha256": "5232f868647d8995150c255003abaf7ac3d8efc37462093b3adbe89729c343f1"
+   "sha256": "a5f227ba3e3de6b99c716b99b99246ee87657da04838aab2412252d957f61388"
   },
   {
    "path": "src/dialogue.js",
    "type": "file",
-   "size": 27110,
+   "size": 27128,
    "mode": "0o644",
-   "sha256": "c974500a65af873645d38906dcdf98d7131e933ceb82233d37da11fc18ce712b"
+   "sha256": "7327a82cdd44d806960a45532dae43339067a1dda8b4512fd04c37509756f5f9"
   },
   {
    "path": "src/emulator.js",
    "type": "file",
-   "size": 72774,
+   "size": 72759,
    "mode": "0o644",
-   "sha256": "31ccae1635f7e2c0d0cfdf46dc475128332c0d49967dedfafe4870733378747d"
+   "sha256": "1b1b32358471330a70f8857e228c762962b3463060d2c7e31a054437b2313433"
   },
   {
    "path": "src/engine-fields.js",
@@ -1732,9 +1732,9 @@
   {
    "path": "src/project.js",
    "type": "file",
-   "size": 55007,
+   "size": 54992,
    "mode": "0o644",
-   "sha256": "cfac61777642e58dd72931657a290b7e90198bbc52d766b807deb80a58d3d17c"
+   "sha256": "edd2c86c935a3dca0a91e11b94a719d2cef10da3de360f98404aae37848e0834"
   },
   {
    "path": "src/recording-archive.js",
@@ -1858,9 +1858,9 @@
   {
    "path": "src/tool-domains/playtest.js",
    "type": "file",
-   "size": 22958,
+   "size": 22977,
    "mode": "0o644",
-   "sha256": "1a58bd5ac3e2be26fae309d9a7165a2c7bd7476456cd6bdcfc01b5a224c8272c"
+   "sha256": "b597c96aee75abad9ea93a563c69150de73fcdfad349f690f3316625f387a4bb"
   },
   {
    "path": "src/tool-domains/register.js",
@@ -2033,16 +2033,16 @@
   {
    "path": "src/web-preview-captures.js",
    "type": "file",
-   "size": 34278,
+   "size": 34260,
    "mode": "0o644",
-   "sha256": "a9312556eea9fa0666a37efb55f1d0fdc31381f51e5600ea6efd8091dbdcf79a"
+   "sha256": "706433bff3523968b9560cbbc7133598e9d736479377ec2f004d0fee506e57e9"
   },
   {
    "path": "src/web-preview-flash.js",
    "type": "file",
-   "size": 18532,
+   "size": 18534,
    "mode": "0o644",
-   "sha256": "34e6ad6b79e41f6ab625505d99354af3af350b1d846809a8b1c288ac3925fd81"
+   "sha256": "9a75fec4d9cd771c15f20fbf8ec667684e2a673d8250f3019840f6cab0ba7c2a"
   },
   {
    "path": "src/web-preview-input.js",

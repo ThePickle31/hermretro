@@ -23559,7 +23559,7 @@ async function prepareToolchain(packageRoot, components, options = {}) {
 }
 
 // src/project-snapshot.js
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 import { readdir as readdir3, readFile as readFile4, realpath as realpath7 } from "node:fs/promises";
 import path12 from "node:path";
 
@@ -23608,7 +23608,7 @@ function isSemanticCursorCurrent(payload, current, query) {
 }
 
 // src/project.js
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 import { access as access2, lstat as lstat6, mkdir as mkdir2, open as open3, readdir as readdir2, readFile as readFile3, realpath as realpath6, rename as rename2, rm as rm2, stat as stat2 } from "node:fs/promises";
 import path10 from "node:path";
 
@@ -24312,10 +24312,10 @@ function parseRecoverableProjectLockRecord(content, scope) {
   try {
     const value = JSON.parse(content.toString("utf8"));
     if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
-    const record7 = value;
-    if (record7.version !== 2 || record7.scope !== scope || typeof record7.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record7.token) || typeof record7.pid !== "number" || !Number.isSafeInteger(record7.pid) || record7.pid < 1 || record7.pid > 2147483647 || typeof record7.hostname !== "string" || record7.hostname.length < 1 || record7.hostname !== hostname2() || typeof record7.acquiredAt !== "string" || !Number.isFinite(Date.parse(record7.acquiredAt)) || new Date(record7.acquiredAt).toISOString() !== record7.acquiredAt)
+    const record4 = value;
+    if (record4.version !== 2 || record4.scope !== scope || typeof record4.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record4.token) || typeof record4.pid !== "number" || !Number.isSafeInteger(record4.pid) || record4.pid < 1 || record4.pid > 2147483647 || typeof record4.hostname !== "string" || record4.hostname.length < 1 || record4.hostname !== hostname2() || typeof record4.acquiredAt !== "string" || !Number.isFinite(Date.parse(record4.acquiredAt)) || new Date(record4.acquiredAt).toISOString() !== record4.acquiredAt)
       return void 0;
-    return record7;
+    return record4;
   } catch {
     return void 0;
   }
@@ -24343,21 +24343,21 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
     const closed = await handle.stat({ bigint: true });
     if (!sameFile(opened, closed) || closed.size !== BigInt(bytesRead) || opened.mtimeNs !== closed.mtimeNs || opened.ctimeNs !== closed.ctimeNs)
       return void 0;
-    const record7 = parseRecoverableProjectLockRecord(content.subarray(0, bytesRead), scope);
-    if (!record7) return void 0;
+    const record4 = parseRecoverableProjectLockRecord(content.subarray(0, bytesRead), scope);
+    if (!record4) return void 0;
     const current = await resourceLockFile(lockPath, resourcePath, uid, maximumLinks);
     if (!current || !sameFile(closed, current) || current.size !== closed.size || current.mtimeNs !== closed.mtimeNs || current.ctimeNs !== closed.ctimeNs)
       return void 0;
     if (current.nlink === 2n) {
       const staging = await resourceLockFile(
-        projectRecoveryPendingPath(lockPath, record7.token),
+        projectRecoveryPendingPath(lockPath, record4.token),
         resourcePath,
         uid,
         maximumLinks
       );
       if (!staging || !sameFile(current, staging)) return void 0;
     }
-    return { entry: current, record: record7 };
+    return { entry: current, record: record4 };
   } finally {
     await handle.close();
   }
@@ -24365,10 +24365,10 @@ async function readRecoverableProjectLock(lockPath, resourcePath, uid, scope) {
 function sameRecoverableProjectLock(left, right) {
   return sameFile(left.entry, right.entry) && left.record.scope === right.record.scope && left.record.token === right.record.token && left.record.pid === right.record.pid && left.record.hostname === right.record.hostname && left.record.acquiredAt === right.record.acquiredAt;
 }
-function projectLockOwnerIsDead(record7) {
-  if (record7.hostname !== hostname2() || record7.pid === process.pid) return false;
+function projectLockOwnerIsDead(record4) {
+  if (record4.hostname !== hostname2() || record4.pid === process.pid) return false;
   try {
-    process.kill(record7.pid, 0);
+    process.kill(record4.pid, 0);
     return false;
   } catch (error2) {
     return isSystemError(error2, "ESRCH");
@@ -26416,8 +26416,8 @@ function catalogHolds(condition, args) {
   if ("set" in condition && Boolean(value) !== condition.set) return false;
   return true;
 }
-function catalogShown(record7, args) {
-  return (record7.whenAny ?? [record7.when ?? []]).some(
+function catalogShown(record4, args) {
+  return (record4.whenAny ?? [record4.when ?? []]).some(
     (alternative) => alternative.every((condition) => catalogHolds(condition, args))
   );
 }
@@ -27485,6 +27485,13 @@ function legacyPluginAssetCandidates(discovery) {
   return [...paths.values()].flatMap((candidates) => candidates.length === 1 ? candidates : []);
 }
 
+// src/shared/bytes.js
+import { createHash as createHash5 } from "node:crypto";
+var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+function sha256Hex(value) {
+  return createHash5("sha256").update(value).digest("hex");
+}
+
 // src/project.js
 function resolveNativeAssetIdentity(source, id3) {
   const indexed = "asset" in source ? source.asset({ assetId: id3 }) : void 0;
@@ -27598,7 +27605,7 @@ function safeSlug(value, fallback) {
   return slug || fallback;
 }
 function stableId(...parts) {
-  const bytes2 = createHash5("sha256").update(parts.join("\0")).digest();
+  const bytes2 = createHash6("sha256").update(parts.join("\0")).digest();
   bytes2[6] = (bytes2[6] ?? 0) & 15 | 80;
   bytes2[8] = (bytes2[8] ?? 0) & 63 | 128;
   const hex = bytes2.subarray(0, 16).toString("hex");
@@ -27748,8 +27755,7 @@ async function pngDimensions(filename) {
   try {
     const header = Buffer.alloc(24);
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
-    const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    if (bytesRead < 24 || !header.subarray(0, 8).equals(signature)) return null;
+    if (bytesRead < 24 || !header.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
     return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
   } finally {
     await handle.close();
@@ -28628,7 +28634,7 @@ async function updateDialogue(projectPath, input, indexedAccess) {
 `, "utf8");
     if (await resourceRevision(inventory.projectRoot, target) !== loaded.revision) stale();
     await writeProjectBytesAtomic(inventory.projectRoot, target, output);
-    const revision2 = createHash5("sha256").update(output).digest("hex");
+    const revision2 = createHash6("sha256").update(output).digest("hex");
     await indexedAccess?.noteCommittedPaths([target]);
     return {
       projectPath: inventory.projectPath,
@@ -28688,7 +28694,7 @@ async function updateSettings(projectPath, updates, indexedAccess) {
 }
 
 // src/project-revision.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import path11 from "node:path";
 var SHA256_HEX2 = /^[a-f\d]{64}$/u;
 var ROOT_DOMAIN = Buffer.from(`codex-gb-studio\0${PROJECT_REVISION_ALGORITHM}\0root\0`, "utf8");
@@ -28716,7 +28722,7 @@ function fileHash(relativePath2, sha2562) {
     throw new TypeError("Project revision entries require a lowercase 64-character SHA-256 digest");
   }
   const encodedPath = Buffer.from(relativePath2, "utf8");
-  const digest3 = createHash6("sha256").update(FILE_DOMAIN);
+  const digest3 = createHash7("sha256").update(FILE_DOMAIN);
   updateLength(digest3, encodedPath.length);
   digest3.update(encodedPath).update(Buffer.from(sha2562, "hex"));
   return digest3.digest();
@@ -28725,7 +28731,7 @@ function createNode() {
   return { children: /* @__PURE__ */ new Map(), hash: Buffer.alloc(0) };
 }
 function rehashNode(node) {
-  const digest3 = createHash6("sha256").update(NODE_DOMAIN);
+  const digest3 = createHash7("sha256").update(NODE_DOMAIN);
   digest3.update(Buffer.from([node.fileHash ? 1 : 0]));
   if (node.fileHash) digest3.update(node.fileHash);
   const children = [...node.children.entries()].sort(([left], [right]) => compareNames(left, right));
@@ -28811,7 +28817,7 @@ var ProjectRevisionTree = class {
     return true;
   }
   revision() {
-    return createHash6("sha256").update(ROOT_DOMAIN).update(this.#root.hash).digest("hex");
+    return createHash7("sha256").update(ROOT_DOMAIN).update(this.#root.hash).digest("hex");
   }
   entries() {
     return [...this.#entries.entries()].sort(([left], [right]) => compareNames(left, right)).map(([relativePath2, sha2562]) => ({ relativePath: relativePath2, sha256: sha2562 }));
@@ -28954,7 +28960,7 @@ async function discoveryRevision(discovery, exclude = /* @__PURE__ */ new Set())
     const content = await readFile4(file2);
     entries.push({
       relativePath: relative6,
-      sha256: createHash7("sha256").update(content).digest("hex")
+      sha256: createHash8("sha256").update(content).digest("hex")
     });
   }
   return new ProjectRevisionTree(entries).revision();
@@ -29170,7 +29176,7 @@ function cursorFilter(options) {
     layout: options.layout ?? "normalized",
     ...query === void 0 ? {} : { query }
   };
-  return createHash7("sha256").update(JSON.stringify(filters)).digest("base64url").slice(0, 16);
+  return createHash8("sha256").update(JSON.stringify(filters)).digest("base64url").slice(0, 16);
 }
 function parseCursor(snapshot, options) {
   if (!options.cursor) return 0;
@@ -29429,9 +29435,9 @@ function inventoryProjectSnapshot(snapshot, options = {}) {
     returned: 0,
     nextCursor: null
   };
-  for (const record7 of records.slice(offset, offset + limit)) {
-    const destination = recordArray(result, record7.kind);
-    destination.push(record7.resource);
+  for (const record4 of records.slice(offset, offset + limit)) {
+    const destination = recordArray(result, record4.kind);
+    destination.push(record4.resource);
     result.returned += 1;
     const followingOffset = offset + result.returned;
     result.nextCursor = followingOffset < records.length ? nextCursor(snapshot, options, followingOffset) : null;
@@ -29498,15 +29504,6 @@ import { randomUUID as randomUUID2 } from "node:crypto";
 import { constants as constants3 } from "node:fs";
 import { link as link2, lstat as lstat7, mkdir as mkdir3, mkdtemp, open as open4, opendir, rename as rename3, rmdir, unlink as unlink3 } from "node:fs/promises";
 import path13 from "node:path";
-
-// src/shared/bytes.js
-import { createHash as createHash8 } from "node:crypto";
-var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-function sha256Hex(value) {
-  return createHash8("sha256").update(value).digest("hex");
-}
-
-// src/native-import-files.js
 var missing = (error2) => !!error2 && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
 var fail = (code, message2) => {
   throw new GameStudioProjectError(code, message2);
@@ -33372,11 +33369,11 @@ var GB_STUDIO_EVENT_COMPILE_FAILURE = /^(?:Error: )?Compiling "([^"]+)" failed w
 var GB_STUDIO_EVENT_COMPILE_LINE = /\bCompiling "[^"]+" failed with error "/;
 function failedGbStudioEventCompile(stderr) {
   const text = stderr.replace(/\r\n/g, "\n");
-  const record7 = [...text.matchAll(GB_STUDIO_BUILD_FAILURE)].at(-1);
-  if (!record7) return void 0;
+  const record4 = [...text.matchAll(GB_STUDIO_BUILD_FAILURE)].at(-1);
+  if (!record4) return void 0;
   let failure;
   let match = GB_STUDIO_EVENT_COMPILE_FAILURE.exec(
-    text.slice(record7.index + record7[0].length).split(/\n\s+at /)[0].trimEnd()
+    text.slice(record4.index + record4[0].length).split(/\n\s+at /)[0].trimEnd()
   );
   for (; match; match = GB_STUDIO_EVENT_COMPILE_FAILURE.exec(match[2]))
     failure = { event: match[1], cause: match[2], location: match[3] };
@@ -34969,15 +34966,12 @@ var commandFields = {
     "saveMode"
   ]
 };
-function record2(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 function copy(value) {
   return JSON.parse(JSON.stringify(value));
 }
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (record2(value))
+  if (isObject2(value))
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   return JSON.stringify(value) ?? "undefined";
 }
@@ -34990,7 +34984,7 @@ function required2(value, name3) {
   return value;
 }
 function vendorEnvelope(value, operation) {
-  return record2(value) && value.schema_version === 1 && value.operation === operation && typeof value.ok === "boolean" && Object.hasOwn(value, "result") && Object.hasOwn(value, "error") && (value.ok ? record2(value.result) && value.error === null : value.result === null && record2(value.error));
+  return isObject2(value) && value.schema_version === 1 && value.operation === operation && typeof value.ok === "boolean" && Object.hasOwn(value, "result") && Object.hasOwn(value, "error") && (value.ok ? isObject2(value.result) && value.error === null : value.result === null && isObject2(value.error));
 }
 var CARTRIDGE_RECOVERY = "Only ModRetro cartridges are supported. Ask the user to clean the contacts on their cartridge and re-seat it into Chromatic before another authorized attempt.";
 function playerConflictRecovery(player2) {
@@ -35061,7 +35055,7 @@ function vendorRecovery(error2, command, platform) {
   const causes = [error2.message, ...Array.isArray(error2.causes) ? error2.causes : []].filter((value) => typeof value === "string").join("\n");
   const deviceCommand = ["list-devices", "detect-cart", "write-homebrew", "live-demo"].includes(command);
   if (deviceCommand && error2.code === "device.player_ambiguous") {
-    const player2 = record2(error2.details) ? error2.details.requested_player : void 0;
+    const player2 = isObject2(error2.details) ? error2.details.requested_player : void 0;
     return playerConflictRecovery(
       Number.isSafeInteger(player2) && Number(player2) >= 1 && Number(player2) <= 8 ? Number(player2) : void 0
     );
@@ -35075,7 +35069,7 @@ function vendorRecovery(error2, command, platform) {
     causes
   )))
     return deviceAccessRecovery(platform);
-  const phase = record2(error2.details) ? error2.details.phase : void 0;
+  const phase = isObject2(error2.details) ? error2.details.phase : void 0;
   if (["detect-cart", "write-homebrew"].includes(command) && (error2.code === "cartridge.not_readable" || error2.code === "cartridge.inspect_failed" && ["detect", "read_header", "probe_flash"].includes(String(phase)) || error2.code === "flash.unsupported" || error2.code === "flash.write_failed" && phase === "identify"))
     return {
       code: "CHROMATIC_CARTRIDGE_NOT_DETECTED",
@@ -35085,7 +35079,7 @@ function vendorRecovery(error2, command, platform) {
   return void 0;
 }
 function chromaticErrorMessage(error2) {
-  const value = record2(error2) ? error2 : {};
+  const value = isObject2(error2) ? error2 : {};
   const message2 = typeof value.message === "string" ? value.message : "The device operation failed.";
   if (value.code === "feature.developer_mode_required" || /developer[ -]mode|activation|not activated/iu.test(message2)) {
     return "Use ModRetro Updater to activate Developer Mode on this computer, then return here to install your game.";
@@ -35273,14 +35267,14 @@ async function isolatedLiveSaves(root, sha2562, create) {
 }
 function deviceRows(vendor) {
   const result = vendor.result;
-  if (!record2(result) || !Array.isArray(result.devices) || result.devices.length > 64 || !Array.isArray(result.unmatched)) {
+  if (!isObject2(result) || !Array.isArray(result.devices) || result.devices.length > 64 || !Array.isArray(result.unmatched)) {
     throw new ChromaticDeviceError(
       "CHROMATIC_DISCOVERY_SCHEMA",
       "Device discovery did not return the supported device-list shape. No device was selected."
     );
   }
   for (const device of result.devices) {
-    if (!record2(device) || !Number.isSafeInteger(device.player) || Number(device.player) < 1 || Number(device.player) > 8 || !record2(device.location) || typeof device.location.bus_id !== "string" || device.location.bus_id.length === 0 || device.location.bus_id.length > 64 || !Array.isArray(device.location.port_chain) || device.location.port_chain.length === 0 || device.location.port_chain.length > 16 || device.location.port_chain.some((port) => !Number.isSafeInteger(port) || port < 1 || port > 255) || !record2(device.gwu2x) || device.gwu2x.vendor_id !== 13226 || device.gwu2x.product_id !== 288 || !record2(device.player_function) || device.player_function.vendor_id !== 14158 || device.player_function.product_id !== 256 + Number(device.player)) {
+    if (!isObject2(device) || !Number.isSafeInteger(device.player) || Number(device.player) < 1 || Number(device.player) > 8 || !isObject2(device.location) || typeof device.location.bus_id !== "string" || device.location.bus_id.length === 0 || device.location.bus_id.length > 64 || !Array.isArray(device.location.port_chain) || device.location.port_chain.length === 0 || device.location.port_chain.length > 16 || device.location.port_chain.some((port) => !Number.isSafeInteger(port) || port < 1 || port > 255) || !isObject2(device.gwu2x) || device.gwu2x.vendor_id !== 13226 || device.gwu2x.product_id !== 288 || !isObject2(device.player_function) || device.player_function.vendor_id !== 14158 || device.player_function.product_id !== 256 + Number(device.player)) {
       throw new ChromaticDeviceError(
         "CHROMATIC_DISCOVERY_SCHEMA",
         "Discovery returned an incomplete, ambiguous, or unrecognized device identity. No device was selected."
@@ -35352,7 +35346,7 @@ var ChromaticService = class {
       cartridgeWrite: !writeDispatched ? "not-dispatched" : operation.success ? "vendor-reported-success" : "outcome-unverified",
       processClosure: operation.commands.map((command) => {
         const launch = command.process ?? command.events.find((event) => event.type === "started");
-        const elevation = record2(launch?.elevation) ? launch.elevation : void 0;
+        const elevation = isObject2(launch?.elevation) ? launch.elevation : void 0;
         return {
           command: command.args[0],
           scope: elevation?.method === "windows-run-as" ? "os-broker" : elevation?.method === "polkit" ? "polkit-or-vendor" : launch ? "vendor" : "unobserved",
@@ -35537,7 +35531,7 @@ var ChromaticService = class {
       throw new ChromaticDeviceError(
         error2 instanceof Error && "code" in error2 && typeof error2.code === "string" ? error2.code : "CHROMATIC_JOURNAL_UNAVAILABLE",
         error2 instanceof Error ? error2.message : String(error2),
-        error2 instanceof Error && "details" in error2 && record2(error2.details) ? error2.details : void 0
+        error2 instanceof Error && "details" in error2 && isObject2(error2.details) ? error2.details : void 0
       );
     }
     if (input.deviceToken) this.#selections.delete(input.deviceToken);
@@ -35566,7 +35560,7 @@ var ChromaticService = class {
         operation.error = error2 instanceof ChromaticDeviceError ? { code: error2.code, message: error2.message, ...error2.details ? { details: error2.details } : {} } : {
           code: error2 instanceof Error && "code" in error2 && typeof error2.code === "string" ? error2.code : "CHROMATIC_EXECUTION_ERROR",
           message: error2 instanceof Error ? error2.message : String(error2),
-          ...error2 instanceof Error && "details" in error2 && record2(error2.details) ? { details: error2.details } : {}
+          ...error2 instanceof Error && "details" in error2 && isObject2(error2.details) ? { details: error2.details } : {}
         };
       }
     ).finally(() => {
@@ -35677,7 +35671,7 @@ var ChromaticService = class {
     try {
       parsed = lifecycle ? lifecycle.finish() : JSON.parse(result.stdout.text);
       if (lifecycle?.summary.error) command.jsonError = lifecycle.summary.error;
-      if (record2(parsed)) {
+      if (isObject2(parsed)) {
         if (result.elevation?.method === "windows-run-as") command.elevationResponse = parsed;
         else command.vendor = parsed;
       }
@@ -35705,15 +35699,15 @@ var ChromaticService = class {
     }
     if (result.elevation?.method === "windows-run-as") {
       const binding = result.elevation;
-      if (!record2(parsed) || parsed.schemaVersion !== 1 || parsed.source !== "codex-chromatic-uac" || binding.operationId !== operation.operationId || parsed.operationId !== operation.operationId || args[0] !== "install-drivers" || !/^[a-f0-9]{64}$/u.test(binding.sha256 ?? "") || parsed.executable !== binding.requestedExecutable || parsed.sha256 !== binding.sha256 || canonical(parsed.args) !== canonical(binding.requestedArgs) || parsed.vendorStdout !== "unobserved" || parsed.vendorStderr !== "unobserved" || parsed.handlesDisposed !== true || parsed.disposalError !== void 0 || result.stdout.truncated || !result.stdout.utf8Valid) {
+      if (!isObject2(parsed) || parsed.schemaVersion !== 1 || parsed.source !== "codex-chromatic-uac" || binding.operationId !== operation.operationId || parsed.operationId !== operation.operationId || args[0] !== "install-drivers" || !/^[a-f0-9]{64}$/u.test(binding.sha256 ?? "") || parsed.executable !== binding.requestedExecutable || parsed.sha256 !== binding.sha256 || canonical(parsed.args) !== canonical(binding.requestedArgs) || parsed.vendorStdout !== "unobserved" || parsed.vendorStderr !== "unobserved" || parsed.handlesDisposed !== true || parsed.disposalError !== void 0 || result.stdout.truncated || !result.stdout.utf8Valid) {
         throw new ChromaticDeviceError(
           "CHROMATIC_ELEVATION_UNRESOLVED",
           "The OS elevation result is missing or inconsistent. The vendor process remains unresolved; preserve this operation and do not retry."
         );
       }
       const beforeRequest = parsed.phase === "verify" && parsed.launchAttempted === false;
-      const dismissed = parsed.phase === "request" && parsed.launchAttempted === true && record2(parsed.error) && parsed.error.nativeErrorCode === 1223;
-      if ((beforeRequest || dismissed) && record2(parsed.error) && !Object.hasOwn(parsed, "vendorPid") && !Object.hasOwn(parsed, "vendorExitCode")) {
+      const dismissed = parsed.phase === "request" && parsed.launchAttempted === true && isObject2(parsed.error) && parsed.error.nativeErrorCode === 1223;
+      if ((beforeRequest || dismissed) && isObject2(parsed.error) && !Object.hasOwn(parsed, "vendorPid") && !Object.hasOwn(parsed, "vendorExitCode")) {
         command.elevatedClosure = "not-started";
         throw new ChromaticDeviceError(
           dismissed ? "CHROMATIC_ELEVATION_CANCELLED" : "CHROMATIC_ELEVATION_REFUSED",
@@ -35865,9 +35859,9 @@ var ChromaticService = class {
         "--yes"
       ]);
       const result = vendor2.result;
-      const cartridge = record2(result.cartridge) ? result.cartridge : void 0;
+      const cartridge = isObject2(result.cartridge) ? result.cartridge : void 0;
       const flash = cartridge?.flash;
-      const unidentified = cartridge && (flash === null || record2(flash) && flash.model === null);
+      const unidentified = cartridge && (flash === null || isObject2(flash) && flash.model === null);
       return {
         vendorResult: result,
         selectedDevice: selected.device,
@@ -41131,7 +41125,7 @@ async function readBoundedProjectFile(projectRoot, resourcePath) {
   return readFile10(canonical2);
 }
 function decodeFontImage(bytes2, resourcePath) {
-  if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+  if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new GameStudioProjectError("INVALID_FONT", `Font is not a valid PNG: ${resourcePath}`, resourcePath);
   }
   const width = bytes2.readUInt32BE(16);
@@ -42631,8 +42625,8 @@ var RecordingMaintenance = class {
       } catch {
         throw new AccessSnapshotError("invalid-record");
       }
-      const record7 = parsed;
-      if (record7 === null || typeof record7 !== "object" || Array.isArray(record7) || Object.keys(record7).sort().join(",") !== "pid,schemaVersion,token" || record7.schemaVersion !== 1 || !Number.isSafeInteger(record7.pid) || record7.pid <= 0 || typeof record7.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(record7.token)) {
+      const record4 = parsed;
+      if (record4 === null || typeof record4 !== "object" || Array.isArray(record4) || Object.keys(record4).sort().join(",") !== "pid,schemaVersion,token" || record4.schemaVersion !== 1 || !Number.isSafeInteger(record4.pid) || record4.pid <= 0 || typeof record4.token !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(record4.token)) {
         throw new AccessSnapshotError("invalid-record");
       }
       const sha2562 = createHash22("sha256").update(raw).digest("hex");
@@ -42645,7 +42639,7 @@ var RecordingMaintenance = class {
           status: "present-unverified",
           sha256: sha2562,
           identity: identity3(st),
-          ownerPidClaim: record7.pid,
+          ownerPidClaim: record4.pid,
           ownerProcessStart: "unrecorded",
           ownerReachability: "unknown",
           relation: matchesSavedLease ? "matches-this-services-saved-lease" : "not-established"
@@ -42733,13 +42727,13 @@ var RecordingMaintenance = class {
     return recordingInventory(root, this.resolvePath);
   }
   #closed(root) {
-    const record7 = readRecording(root, this.resolvePath);
-    if (!["stopped", "cancelled", "failed"].includes(record7.status) || !record7.sourcePins.finalized || record7.truncatedTail) {
+    const record4 = readRecording(root, this.resolvePath);
+    if (!["stopped", "cancelled", "failed"].includes(record4.status) || !record4.sourcePins.finalized || record4.truncatedTail) {
       throw new Error(
         "Only a finalized recording with complete integrity is eligible; live or unresolved recordings cannot be archived"
       );
     }
-    return record7;
+    return record4;
   }
   #archiveRoot() {
     return join4(this.project, "artifacts", "recording-archives");
@@ -42760,8 +42754,8 @@ var RecordingMaintenance = class {
     const current = this.#snapshot(value.archivePath);
     if (JSON.stringify(current) !== JSON.stringify(value.inventory))
       throw new Error("Archived recording bytes or modes changed");
-    const record7 = this.#closed(value.archivePath);
-    if (record7.sessionId !== value.sessionId || record7.sourcePins.manifest.sha256 !== value.manifestSha256)
+    const record4 = this.#closed(value.archivePath);
+    if (record4.sessionId !== value.sessionId || record4.sourcePins.manifest.sha256 !== value.manifestSha256)
       throw new Error("Archived recording provenance changed");
     return { raw, value };
   }
@@ -42788,7 +42782,7 @@ var RecordingMaintenance = class {
     const original = this.resolvePath(recordingPath, { existing: true });
     if (this.isArchived(original) || !absent2(join4(original, POINTER)) || original === this.project || inside3(original, this.#archiveRoot()))
       throw new Error("Recording archive source is not eligible");
-    const record7 = this.#closed(original);
+    const record4 = this.#closed(original);
     const inventory = this.#snapshot(original);
     const archiveRoot = this.#archiveRoot();
     this.#protectedDirectory(archiveRoot);
@@ -42802,8 +42796,8 @@ var RecordingMaintenance = class {
       schemaVersion: 1,
       originalPath: original,
       archivePath,
-      sessionId: record7.sessionId,
-      manifestSha256: record7.sourcePins.manifest.sha256,
+      sessionId: record4.sessionId,
+      manifestSha256: record4.sourcePins.manifest.sha256,
       inventory
     };
     const raw = Buffer.from(JSON.stringify(value) + "\n");
@@ -42839,12 +42833,12 @@ var RecordingMaintenance = class {
       const sibling = join4(dirname2(original), name3);
       const st = lstatSync6(sibling);
       if (!st.isDirectory() || st.isSymbolicLink() || absent2(join4(sibling, "recording.json"))) continue;
-      const record7 = JSON.parse(file(join4(sibling, "recording.json"), 1024 * 1024).toString("utf8"));
-      if (!record7 || typeof record7 !== "object" || Array.isArray(record7))
+      const record4 = JSON.parse(file(join4(sibling, "recording.json"), 1024 * 1024).toString("utf8"));
+      if (!record4 || typeof record4 !== "object" || Array.isArray(record4))
         throw new Error("Invalid neighboring recording quota metadata");
-      if (record7.kind !== "gb-studio-playtest") continue;
+      if (record4.kind !== "gb-studio-playtest") continue;
       siblings++;
-      reserved += boundedInteger(record7.limits?.maxBytes, "recording reservation", 64 * 1024, MAX_RECORDING_BYTES);
+      reserved += boundedInteger(record4.limits?.maxBytes, "recording reservation", 64 * 1024, MAX_RECORDING_BYTES);
     }
     if (siblings >= MAX_SIBLING_RECORDINGS || reserved + restored.limits.maxBytes > MAX_SIBLING_RESERVED_BYTES) {
       throw new Error("Restoring this recording would exceed retained recording quota");
@@ -43144,7 +43138,7 @@ var EmulatorService = class {
     }
     for (const sample of result.samples) {
       const bytes2 = typeof sample?.pngBase64 === "string" ? Buffer.from(sample.pngBase64, "base64") : Buffer.alloc(0);
-      if (!["expected", "actual", "end"].includes(sample.role) || !Number.isSafeInteger(sample.frame) || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash23("sha256").update(bytes2).digest("hex") !== sample.sha256) {
+      if (!["expected", "actual", "end"].includes(sample.role) || !Number.isSafeInteger(sample.frame) || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash23("sha256").update(bytes2).digest("hex") !== sample.sha256) {
         throw new EmulatorError("The replay returned an image that failed PNG dimension or SHA-256 verification");
       }
     }
@@ -43650,7 +43644,7 @@ var EmulatorService = class {
         throw new EmulatorError("The sampled framebuffer does not describe the requested controller input");
       }
       const bytes2 = Buffer.from(sample.pngBase64, "base64");
-      if (bytes2.toString("base64") !== sample.pngBase64 || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash23("sha256").update(bytes2).digest("hex") !== sample.sha256) {
+      if (bytes2.toString("base64") !== sample.pngBase64 || bytes2.length < 24 || bytes2.length > MAX_EMULATOR_SAMPLE_BYTES || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash23("sha256").update(bytes2).digest("hex") !== sample.sha256) {
         throw new EmulatorError("The stepped observation failed PNG dimension or SHA-256 verification");
       }
       const decoded = import_pngjs7.PNG.sync.read(bytes2, { checkCRC: true });
@@ -44449,10 +44443,10 @@ function redactValue(value, sanitizeString) {
   if (typeof value === "string") return sanitizeString(value);
   if (Array.isArray(value)) return value.map((entry) => redactValue(entry, sanitizeString));
   if (value === null || typeof value !== "object") return value;
-  const record7 = value;
-  const preserveBinary = record7.type === "image" || record7.type === "audio";
+  const record4 = value;
+  const preserveBinary = record4.type === "image" || record4.type === "audio";
   const output = {};
-  for (const [key, entry] of Object.entries(record7)) {
+  for (const [key, entry] of Object.entries(record4)) {
     let sanitizedKey = sanitizeString(key);
     if (Object.hasOwn(output, sanitizedKey)) {
       let suffix = 2;
@@ -48471,7 +48465,7 @@ async function loadImage(root, resourcePath, expectedType) {
   }
   assertInsideRoot(root, canonical2);
   const bytes2 = await readFile13(canonical2);
-  if (bytes2.length > MAX_IMAGE_BYTES2 || bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+  if (bytes2.length > MAX_IMAGE_BYTES2 || bytes2.length < 24 || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new GameStudioProjectError(
       "INVALID_RESOURCE",
       `${expectedType} is not a bounded PNG: ${resourcePath}`,
@@ -50890,7 +50884,7 @@ async function reviewedImage(frame3, authorizedRoot) {
     if (count3 !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs || await realpath18(frame3.path) !== path48)
       throw new Error("The recorded review image changed while being read.");
     const bytes2 = buffer.subarray(0, count3);
-    if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash27("sha256").update(bytes2).digest("hex") !== frame3.sha256) {
+    if (bytes2.length < 24 || !bytes2.subarray(0, 8).equals(PNG_SIGNATURE) || bytes2.readUInt32BE(16) !== 160 || bytes2.readUInt32BE(20) !== 144 || createHash27("sha256").update(bytes2).digest("hex") !== frame3.sha256) {
       throw new Error("Recorded review image failed PNG/dimension/digest verification.");
     }
     return bytes2;
@@ -53332,7 +53326,7 @@ var PreviewStateStore = class {
     return this.serialized(async () => {
       const directories = await this.directories(false);
       if (!directories) return [];
-      return (await this.history(directories)).records.slice(0, MAX_PREVIEW_STATES).map((record7) => record7.metadata);
+      return (await this.history(directories)).records.slice(0, MAX_PREVIEW_STATES).map((record4) => record4.metadata);
     });
   }
   async latest() {
@@ -53668,7 +53662,7 @@ function dimensions2(width, height) {
 }
 function validateHeader(kind, extension, header, size, metadata2) {
   if (kind === "screenshot") {
-    if (size < 45 || header.length < 33 || !header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || header.readUInt32BE(8) !== 13 || header.toString("ascii", 12, 16) !== "IHDR")
+    if (size < 45 || header.length < 33 || !header.subarray(0, 8).equals(PNG_SIGNATURE) || header.readUInt32BE(8) !== 13 || header.toString("ascii", 12, 16) !== "IHDR")
       fail4("INVALID_MEDIA", "The screenshot is not a PNG image.");
     const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
     if (!dimensions2(width, height) || metadata2.width !== void 0 && (metadata2.width !== width || metadata2.height !== height)) {
@@ -53919,7 +53913,7 @@ var PreviewCaptureStore = class {
     validateHeader(input.kind, type.extension, header, size, metadata2);
     if (input.kind === "screenshot") validatePng(Buffer.from(await blob.arrayBuffer()), metadata2);
     const id3 = randomUUID13(), createdAt = (/* @__PURE__ */ new Date()).toISOString();
-    const record7 = {
+    const record4 = {
       id: id3,
       kind: input.kind,
       mimeType: type.mimeType,
@@ -53933,10 +53927,10 @@ var PreviewCaptureStore = class {
       format: physical(this.identity) ? PHYSICAL_FORMAT : FORMAT2,
       version: 1,
       id: id3,
-      kind: record7.kind,
-      mimeType: record7.mimeType,
+      kind: record4.kind,
+      mimeType: record4.mimeType,
       bytes: size,
-      sha256: record7.sha256,
+      sha256: record4.sha256,
       createdAt,
       identity: this.identity,
       metadata: metadata2
@@ -53944,10 +53938,10 @@ var PreviewCaptureStore = class {
     if (Buffer.byteLength(document()) > MAX_PREVIEW_CAPTURE_METADATA_BYTES)
       fail4("TOO_LARGE", "Capture metadata including its identity exceeds 2 MiB.");
     const directories = await this.directories(true);
-    const media = { path: this.paths.join(this.directory, `.${id3}.media.tmp`), final: record7.path, published: false };
+    const media = { path: this.paths.join(this.directory, `.${id3}.media.tmp`), final: record4.path, published: false };
     const sidecar = {
       path: this.paths.join(this.directory, `.${id3}.metadata.tmp`),
-      final: record7.metadataPath,
+      final: record4.metadataPath,
       published: false
     };
     const files = [media, sidecar];
@@ -53977,7 +53971,7 @@ var PreviewCaptureStore = class {
         reader.releaseLock();
       }
       if (written !== size || !prefix2.equals(header)) fail4("INVALID_MEDIA", "Capture bytes changed while being saved.");
-      record7.sha256 = digest3.digest("hex");
+      record4.sha256 = digest3.digest("hex");
       await this.finishTemporary(media, size, directories);
       await this.createTemporary(sidecar, directories);
       const text = document();
@@ -54037,8 +54031,8 @@ var PreviewCaptureStore = class {
     if (failure) {
       const partial2 = {
         id: id3,
-        path: record7.path,
-        metadataPath: record7.metadataPath,
+        path: record4.path,
+        metadataPath: record4.metadataPath,
         mediaPublished: media.published,
         metadataPublished: sidecar.published,
         publicationAttempted,
@@ -54051,7 +54045,7 @@ var PreviewCaptureStore = class {
         { cause: failure }
       );
     }
-    return record7;
+    return record4;
   }
   async open(id3, part = "media") {
     if (typeof id3 !== "string" || !CAPTURE_ID.test(id3))
@@ -54067,7 +54061,7 @@ var PreviewCaptureStore = class {
       if (isError2(error2, "ENOENT")) return null;
       throw error2;
     }
-    let record7, metadata2;
+    let record4, metadata2;
     try {
       let value;
       try {
@@ -54082,7 +54076,7 @@ var PreviewCaptureStore = class {
         fail4("CORRUPT_FILE", "The capture size is invalid.");
       metadata2 = metadataSnapshot(value.metadata);
       this.checkMetadata(metadata2, value.kind, type2.mimeType, value.bytes);
-      record7 = {
+      record4 = {
         id: id3,
         kind: value.kind,
         mimeType: type2.mimeType,
@@ -54098,21 +54092,21 @@ var PreviewCaptureStore = class {
     }
     if (part === "metadata")
       return {
-        record: record7,
+        record: record4,
         handle: sidecar.handle,
         bytes: sidecar.bytes,
         sha256: sidecar.sha256,
         mimeType: "application/json"
       };
     await sidecar.handle.close();
-    const type = mediaType(record7.kind, record7.mimeType);
-    const media = await this.openVerified(record7.path, type.limit, directories, record7.kind === "screenshot");
+    const type = mediaType(record4.kind, record4.mimeType);
+    const media = await this.openVerified(record4.path, type.limit, directories, record4.kind === "screenshot");
     try {
-      if (media.bytes !== record7.bytes || media.sha256 !== record7.sha256)
+      if (media.bytes !== record4.bytes || media.sha256 !== record4.sha256)
         fail4("CORRUPT_FILE", "The saved capture differs from its metadata.");
-      validateHeader(record7.kind, type.extension, media.header, media.bytes, metadata2);
-      if (record7.kind === "screenshot") validatePng(media.content, metadata2);
-      return { record: record7, handle: media.handle, bytes: media.bytes, sha256: media.sha256, mimeType: record7.mimeType };
+      validateHeader(record4.kind, type.extension, media.header, media.bytes, metadata2);
+      if (record4.kind === "screenshot") validatePng(media.content, metadata2);
+      return { record: record4, handle: media.handle, bytes: media.bytes, sha256: media.sha256, mimeType: record4.mimeType };
     } catch (error2) {
       await media.handle.close();
       throw error2;
@@ -54280,7 +54274,7 @@ var PreviewPlayerControlError = class extends Error {
 function fail5(code, message2) {
   throw new PreviewPlayerControlError(code, message2);
 }
-function record3(value, required3, optional2, code) {
+function record2(value, required3, optional2, code) {
   if (!value || typeof value !== "object" || Array.isArray(value) || required3.some((key) => !Object.hasOwn(value, key)) || Object.keys(value).some((key) => !required3.includes(key) && !optional2.includes(key)))
     fail5(code, "Invalid browser control fields.");
   return value;
@@ -54304,7 +54298,7 @@ function build(value, code) {
   return { romSha256: value.romSha256, runtimeSha256: value.runtimeSha256, sourceRevision: value.sourceRevision };
 }
 function pollPayload(value) {
-  const item = record3(
+  const item = record2(
     value,
     ["viewId", "romSha256", "runtimeSha256", "sourceRevision", "frame", "paused"],
     ["result"],
@@ -54315,7 +54309,7 @@ function pollPayload(value) {
     fail5("INVALID_PAYLOAD", "Invalid browser frame or paused status.");
   const poll = { ...identity6, viewId: uuid3(item.viewId, "INVALID_PAYLOAD"), frame: item.frame, paused: item.paused };
   if (item.result !== void 0) {
-    const result = record3(item.result, ["id", "ok"], ["state", "frame", "error"], "INVALID_PAYLOAD");
+    const result = record2(item.result, ["id", "ok"], ["state", "frame", "error"], "INVALID_PAYLOAD");
     if (typeof result.ok !== "boolean" || result.frame !== void 0 && !frame2(result.frame))
       fail5("INVALID_PAYLOAD", "Invalid browser command result.");
     const parsed = { id: uuid3(result.id, "INVALID_PAYLOAD"), ok: result.ok };
@@ -54342,7 +54336,7 @@ var PreviewPlayerControl = class {
   constructor(identity6, projectRoot, cartridgeType = 0) {
     if (projectRoot) this.recording = new PreviewRecordingBroker(projectRoot, void 0, cartridgeType);
     this.identity = build(
-      record3(identity6, ["romSha256", "runtimeSha256", "sourceRevision"], [], "INVALID_IDENTITY"),
+      record2(identity6, ["romSha256", "runtimeSha256", "sourceRevision"], [], "INVALID_IDENTITY"),
       "INVALID_IDENTITY"
     );
   }
@@ -54434,7 +54428,7 @@ var PreviewPlayerControl = class {
     this.assertOpen();
     if (this.input.blocking || this.recording?.busy)
       fail5("BUSY", "Browser input or recording is pending or unresolved.");
-    const args = record3(options, [], ["viewId", "state"], "INVALID_REQUEST");
+    const args = record2(options, [], ["viewId", "state"], "INVALID_REQUEST");
     if (!["capture", "restore"].includes(action)) fail5("INVALID_REQUEST", "Unsupported browser control action.");
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS3)
       fail5("INVALID_REQUEST", "Browser command timeout must be between 1 and 15000 milliseconds.");
@@ -54533,13 +54527,13 @@ var RECOVERY = [
   ["CHROMATIC_PLAYER_AMBIGUOUS", "change_player_numbers"],
   ["CHROMATIC_CARTRIDGE_NOT_DETECTED", "clean_and_reseat_cartridge"]
 ];
-var record4 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var record3 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 function copyFlashFailureDetails(value) {
-  if (!record4(value) || value.source !== "validated-vendor-error") return void 0;
+  if (!record3(value) || value.source !== "validated-vendor-error") return void 0;
   const phase = PHASES.find((item) => item === value.phase);
   const observed = Array.isArray(value.observedTokens) ? value.observedTokens.slice(0, 8) : [];
   const observedTokens = TOKENS.filter((item) => observed.includes(item));
-  const recovery = record4(value.recovery) ? value.recovery : void 0;
+  const recovery = record3(value.recovery) ? value.recovery : void 0;
   const pair = RECOVERY.find(([code, action]) => code === recovery?.code && action === recovery?.action);
   if (!phase && !observedTokens.length && !pair) return void 0;
   return {
@@ -54551,7 +54545,6 @@ function copyFlashFailureDetails(value) {
 }
 
 // src/chromatic-failure-diagnostics.js
-var record5 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 var positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
 var nonnegativeInteger = (value) => Number.isSafeInteger(value) && value >= 0;
 var MAX_TEXT = 2048;
@@ -54559,24 +54552,24 @@ var MAX_CAUSES = 8;
 var TOKENS2 = ["LIBUSB_ERROR_ACCESS", "IOKit 0xe00002be"];
 function completeProcess(command) {
   const process3 = command.process;
-  if (!record5(process3) || process3.error || !positiveInteger(process3.pid) || !record5(process3.spawn) || process3.spawn.pid !== process3.pid || !record5(process3.exit) || !record5(process3.close) || !Number.isInteger(process3.exit.code) || process3.exit.code !== process3.close.code || process3.exit.signal !== null || process3.close.signal !== null || !Array.isArray(process3.observationErrors) || process3.observationErrors.length || !record5(process3.stdout) || process3.stdout.truncated !== false || process3.stdout.utf8Valid !== true || !record5(command.rawOutput) || typeof command.dispatchAttemptedAt !== "string")
+  if (!isObject2(process3) || process3.error || !positiveInteger(process3.pid) || !isObject2(process3.spawn) || process3.spawn.pid !== process3.pid || !isObject2(process3.exit) || !isObject2(process3.close) || !Number.isInteger(process3.exit.code) || process3.exit.code !== process3.close.code || process3.exit.signal !== null || process3.close.signal !== null || !Array.isArray(process3.observationErrors) || process3.observationErrors.length || !isObject2(process3.stdout) || process3.stdout.truncated !== false || process3.stdout.utf8Valid !== true || !isObject2(command.rawOutput) || typeof command.dispatchAttemptedAt !== "string")
     return false;
   return ["stdout", "stderr"].every((name3) => {
     const stream = process3[name3], raw = command.rawOutput[name3];
-    return record5(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && nonnegativeInteger(stream.bytes) && record5(raw) && raw.complete === true && raw.observedBytes === stream.bytes;
+    return isObject2(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && nonnegativeInteger(stream.bytes) && isObject2(raw) && raw.complete === true && raw.observedBytes === stream.bytes;
   });
 }
 function flashFailureDetails(operation, command) {
-  if (!record5(operation) || operation.state !== "failed" || operation.success !== false || operation.journalError || !Array.isArray(operation.commands) || !record5(operation.error) || !record5(operation.error.details) || operation.error.code !== "CHROMATIC_VENDOR_FAILED" && operation.error.code !== "CHROMATIC_VENDOR_ERROR")
+  if (!isObject2(operation) || operation.state !== "failed" || operation.success !== false || operation.journalError || !Array.isArray(operation.commands) || !isObject2(operation.error) || !isObject2(operation.error.details) || operation.error.code !== "CHROMATIC_VENDOR_FAILED" && operation.error.code !== "CHROMATIC_VENDOR_ERROR")
     return void 0;
   const details = operation.error.details;
-  if (!nonnegativeInteger(details.commandIndex) || details.commandIndex >= operation.commands.length || operation.commands[details.commandIndex] !== command || !record5(command) || !Array.isArray(command.args) || typeof command.args[0] !== "string" || !["list-devices", "detect-cart", "write-homebrew"].includes(command.args[0]) || !completeProcess(command))
+  if (!nonnegativeInteger(details.commandIndex) || details.commandIndex >= operation.commands.length || operation.commands[details.commandIndex] !== command || !isObject2(command) || !Array.isArray(command.args) || typeof command.args[0] !== "string" || !["list-devices", "detect-cart", "write-homebrew"].includes(command.args[0]) || !completeProcess(command))
     return void 0;
   const process3 = command.process;
   const exit = process3.exit;
   if (operation.error.code === "CHROMATIC_VENDOR_ERROR" !== (exit.code === 0)) return void 0;
   const vendor = command.vendor;
-  if (!record5(vendor) || vendor.schema_version !== 1 || vendor.operation !== command.args[0] || vendor.ok !== false || vendor.result !== null || !record5(vendor.error) || typeof details.vendorCode !== "string" || !/^[a-zA-Z0-9_.-]{1,128}$/u.test(details.vendorCode) || details.vendorCode !== vendor.error.code)
+  if (!isObject2(vendor) || vendor.schema_version !== 1 || vendor.operation !== command.args[0] || vendor.ok !== false || vendor.result !== null || !isObject2(vendor.error) || typeof details.vendorCode !== "string" || !/^[a-zA-Z0-9_.-]{1,128}$/u.test(details.vendorCode) || details.vendorCode !== vendor.error.code)
     return void 0;
   const error2 = vendor.error;
   const texts = [];
@@ -54585,11 +54578,11 @@ function flashFailureDetails(operation, command) {
   };
   add(error2.message);
   for (const cause of Array.isArray(error2.causes) ? error2.causes.slice(0, MAX_CAUSES) : []) {
-    add(record5(cause) ? cause.message : cause);
+    add(isObject2(cause) ? cause.message : cause);
   }
   return copyFlashFailureDetails({
     source: "validated-vendor-error",
-    phase: record5(error2.details) ? error2.details.phase : void 0,
+    phase: isObject2(error2.details) ? error2.details.phase : void 0,
     observedTokens: TOKENS2.filter((token) => texts.some((text) => text.trim() === token)),
     // Project only recovery the service already produced; never run recovery
     // classification again or infer an action from an observed token.
@@ -54606,19 +54599,18 @@ var PreviewFlashError = class extends Error {
   }
 };
 var UUID4 = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-var record6 = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 var uncertain = (operation) => operation?.state === "unresolved" || operation?.cartridgeWrite === "outcome-unverified";
 var diagnosticCode = (value) => typeof value === "string" && /^[a-zA-Z0-9_.-]{1,128}$/u.test(value) ? value : void 0;
 function operationDiagnostics(operation) {
-  const commands = Array.isArray(operation.commands) ? operation.commands.filter(record6) : [];
-  const errorDetails = record6(operation.error) && record6(operation.error.details) ? operation.error.details : {};
+  const commands = Array.isArray(operation.commands) ? operation.commands.filter(isObject2) : [];
+  const errorDetails = isObject2(operation.error) && isObject2(operation.error.details) ? operation.error.details : {};
   const attempted = commands.filter((command) => typeof command.dispatchAttemptedAt === "string");
   const closed = attempted.length > 0 && attempted.every((command) => {
-    const process3 = record6(command.process) ? command.process : {};
-    const elevation = record6(process3.elevation) ? process3.elevation : {};
-    return command.processStart === "not-started" || record6(process3.close) && typeof process3.close.at === "string" && (elevation.method !== "windows-run-as" || command.elevatedClosure === "vendor-exit-observed" || command.elevatedClosure === "not-started");
+    const process3 = isObject2(command.process) ? command.process : {};
+    const elevation = isObject2(process3.elevation) ? process3.elevation : {};
+    return command.processStart === "not-started" || isObject2(process3.close) && typeof process3.close.at === "string" && (elevation.method !== "windows-run-as" || command.elevatedClosure === "vendor-exit-observed" || command.elevatedClosure === "not-started");
   });
-  const boundary = (value) => record6(value) ? {
+  const boundary = (value) => isObject2(value) ? {
     ...value.code === null || Number.isInteger(value.code) ? { code: value.code } : {},
     ...value.signal === null || diagnosticCode(value.signal) ? { signal: value.signal } : {}
   } : void 0;
@@ -54626,7 +54618,7 @@ function operationDiagnostics(operation) {
     processCompletion: closed ? "closed" : commands.length === 0 && Array.isArray(operation.commands) ? "not-dispatched" : "unconfirmed",
     ...operation.journalError ? { journal: "Final status could not be recorded." } : {},
     commands: commands.slice(0, 16).map((command, index) => {
-      const process3 = record6(command.process) ? command.process : {};
+      const process3 = isObject2(command.process) ? command.process : {};
       const failureDetails2 = flashFailureDetails(operation, command);
       return {
         command: Array.isArray(command.args) ? diagnosticCode(command.args[0]) : void 0,
@@ -54641,10 +54633,10 @@ function operationDiagnostics(operation) {
         vendorCode: errorDetails.commandIndex === index ? diagnosticCode(errorDetails.vendorCode) : void 0,
         ...failureDetails2 ? { failureDetails: failureDetails2 } : {},
         // Raw strings, argv, environment, auth values and vendor details stay out of the UI.
-        outputComplete: Array.isArray(process3.observationErrors) && process3.observationErrors.length === 0 && record6(command.rawOutput) && ["stdout", "stderr"].every((name3) => {
+        outputComplete: Array.isArray(process3.observationErrors) && process3.observationErrors.length === 0 && isObject2(command.rawOutput) && ["stdout", "stderr"].every((name3) => {
           const output = command.rawOutput;
           const stream = process3[name3];
-          return record6(output[name3]) && output[name3].complete === true && record6(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && output[name3].observedBytes === stream.bytes;
+          return isObject2(output[name3]) && output[name3].complete === true && isObject2(stream) && !stream.error && stream.endObserved === true && stream.closeObserved === true && output[name3].observedBytes === stream.bytes;
         })
       };
     }),
@@ -54676,7 +54668,7 @@ var PreviewFlashControl = class {
   }
   /** A changed project may read an exact existing request, never admit work. */
   recover(value, binding) {
-    if (!record6(value) || typeof value.requestId !== "string" || !["status", "discover", "flash"].includes(String(value.action)))
+    if (!isObject2(value) || typeof value.requestId !== "string" || !["status", "discover", "flash"].includes(String(value.action)))
       return void 0;
     const original = this.#requests.get(value.requestId);
     if (!original || value.generation !== binding.generation || original.binding.generation !== binding.generation)
@@ -54694,10 +54686,10 @@ var PreviewFlashControl = class {
   }
   #devices(binding) {
     const operation = this.#discoveryOperation(binding);
-    if (operation?.state !== "succeeded" || !record6(operation.result) || !Array.isArray(operation.result.devices))
+    if (operation?.state !== "succeeded" || !isObject2(operation.result) || !Array.isArray(operation.result.devices))
       return [];
     return operation.result.devices.flatMap((device) => {
-      if (!record6(device) || typeof device.deviceToken !== "string" || !UUID4.test(device.deviceToken) || typeof device.expiresAt !== "string" || !record6(device.location) || !Array.isArray(device.location.port_chain))
+      if (!isObject2(device) || typeof device.deviceToken !== "string" || !UUID4.test(device.deviceToken) || typeof device.expiresAt !== "string" || !isObject2(device.location) || !Array.isArray(device.location.port_chain))
         return [];
       return [
         {
@@ -54713,7 +54705,7 @@ var PreviewFlashControl = class {
     try {
       observation = this.#operation(this.#observation);
     } catch (error2) {
-      if (!record6(error2) || error2.code !== "CHROMATIC_OPERATION_UNKNOWN") throw error2;
+      if (!isObject2(error2) || error2.code !== "CHROMATIC_OPERATION_UNKNOWN") throw error2;
       observation = {
         state: "failed",
         error: {
@@ -54734,12 +54726,12 @@ var PreviewFlashControl = class {
     const operation = request === this.#latest ? latest : this.#operation(request);
     const discovery = this.#discoveryOperation(binding);
     const discoveryFailed = discovery?.state === "failed" || discovery?.state === "unresolved";
-    const discoveryError = discoveryFailed && record6(discovery.error) ? discovery.error : void 0;
-    const discoveryNotices = discovery?.state === "succeeded" && record6(discovery.result) && Array.isArray(discovery.result.diagnostics) ? discovery.result.diagnostics.filter(record6).slice(0, 9).flatMap((item) => {
+    const discoveryError = discoveryFailed && isObject2(discovery.error) ? discovery.error : void 0;
+    const discoveryNotices = discovery?.state === "succeeded" && isObject2(discovery.result) && Array.isArray(discovery.result.diagnostics) ? discovery.result.diagnostics.filter(isObject2).slice(0, 9).flatMap((item) => {
       const code = diagnosticCode(item.code);
       return code && typeof item.message === "string" ? [{ code, message: chromaticErrorMessage(item) }] : [];
     }) : [];
-    const backend = record6(status.backend) ? status.backend : {};
+    const backend = isObject2(status.backend) ? status.backend : {};
     const reviewed = this.#reviewed?.operationId === this.#latest?.operationId && this.#reviewed?.generation === binding.generation && this.#reviewed?.romSha256 === binding.romSha256 && this.#canDismiss(binding, latest, status);
     const blocked = !!status.activeOperation || !!status.retainedReservation || status.acceptingOperations !== true || uncertain(latest) && !reviewed;
     return {
@@ -54784,7 +54776,7 @@ var PreviewFlashControl = class {
           stage: operation.stage,
           cartridgeWrite: operation.cartridgeWrite,
           ...typeof operation.success === "boolean" ? { success: operation.success } : {},
-          ...record6(operation.error) ? {
+          ...isObject2(operation.error) ? {
             error: {
               code: diagnosticCode(operation.error.code),
               message: chromaticErrorMessage(operation.error)
@@ -54807,7 +54799,7 @@ var PreviewFlashControl = class {
     return this.#status(binding);
   }
   execute(value, binding) {
-    if (!record6(value) || value.generation !== binding.generation) {
+    if (!isObject2(value) || value.generation !== binding.generation) {
       throw new PreviewFlashError("PREVIEW_CHANGED", "This preview changed. Reload it before using device controls.");
     }
     const allowed = value.action === "dismiss_failure" ? ["action", "generation", "requestId", "operationId", "acknowledgePreviousOutcome"] : value.action === "status" ? ["action", "generation", "requestId"] : value.action === "observe" || value.action === "refresh" ? ["action", "generation"] : value.action === "discover" ? ["action", "generation", "requestId"] : value.action === "flash" ? [
@@ -55578,11 +55570,11 @@ async function serveHistory(request, response, active, relative6) {
   response.setHeader("Content-Length", Buffer.byteLength(text));
   response.end(request.method === "HEAD" ? void 0 : text);
 }
-function captureLinks(record7) {
+function captureLinks(record4) {
   return {
-    ...record7,
-    url: `./${CAPTURE_MOUNT}/${record7.id}/media`,
-    metadataUrl: `./${CAPTURE_MOUNT}/${record7.id}/metadata`
+    ...record4,
+    url: `./${CAPTURE_MOUNT}/${record4.id}/media`,
+    metadataUrl: `./${CAPTURE_MOUNT}/${record4.id}/metadata`
   };
 }
 async function serveCaptures(request, response, active, relative6) {
@@ -55668,8 +55660,8 @@ async function serveCaptures(request, response, active, relative6) {
           return;
         }
         if (managed && kind !== "video") throw new Error("Managed recording must be video.");
-        const record7 = await captures.store.save({ kind, media, mimeType: media.type, metadata: metadata2 });
-        const linked = captureLinks(record7);
+        const record4 = await captures.store.save({ kind, media, mimeType: media.type, metadata: metadata2 });
+        const linked = captureLinks(record4);
         if (managed)
           await annotations.players.recording.published(
             managed.id,
@@ -57767,7 +57759,7 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
   escalation;
   constructor(child, purpose, pipes, diagnostics) {
     this.child = child;
-    const record7 = {
+    const record4 = {
       purpose,
       ...child.pid === void 0 ? {} : { pid: child.pid },
       startedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -57775,7 +57767,7 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
       streamsSettled: false,
       stderr: ""
     };
-    this.record = record7;
+    this.record = record4;
     child.once("spawn", () => {
       this.record.spawnObserved = true;
     });
@@ -57822,9 +57814,9 @@ var LinuxCaptureProcess = class _LinuxCaptureProcess {
     this.finished = (async () => {
       await close;
       await Promise.all(streams);
-      record7.streamsSettled = true;
-      if (this.failure) record7.error = this.failure.message.slice(0, 2e3);
-      return { record: record7, ...this.failure ? { error: this.failure } : {} };
+      record4.streamsSettled = true;
+      if (this.failure) record4.error = this.failure.message.slice(0, 2e3);
+      return { record: record4, ...this.failure ? { error: this.failure } : {} };
     })();
   }
   static launch(executable, args, purpose, pipes, deviceFd, diagnostics = { bytes: 0 }) {
@@ -58015,7 +58007,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
         format: "jpeg"
       } : null,
       lastError: this.lastError,
-      processes: this.processes.map((record7) => ({ ...record7 })),
+      processes: this.processes.map((record4) => ({ ...record4 })),
       sampleEvidence: "encoded-output",
       sourceGeneration: this.sourceGeneration,
       sourceClock: "ffmpeg-relative-input"
@@ -58289,7 +58281,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
           reason: r.reason === "limit" ? "limit" : reason,
           error: r.error ? { code: "LINUX_RECORDING_FAILED", message: r.error.message.slice(0, 2e3) } : null,
           devicesReleased: true,
-          processes: this.processes.map((record7) => ({ ...record7 })),
+          processes: this.processes.map((record4) => ({ ...record4 })),
           sampleEvidence: "encoded-output",
           encodedDurationMs: Math.max(
             0,
@@ -58491,7 +58483,7 @@ var LinuxNativeHelper = class _LinuxNativeHelper {
             },
             devicesReleased: true,
             sampleEvidence: "encoded-output",
-            processes: this.processes.map((record7) => ({ ...record7 }))
+            processes: this.processes.map((record4) => ({ ...record4 }))
           };
           this.events({ event: "recording_finished", ...this.next(), recording: r.final });
         }
@@ -59516,9 +59508,9 @@ var NativeDeviceCaptureService = class {
   }
   async readImage(a, action) {
     const helper = a.helper, raw = await helper.request(action);
-    const record7 = raw && typeof raw === "object" ? raw : void 0;
-    const hasLease = !!record7 && Object.hasOwn(record7, "leaseId");
-    const parsedLease = hasLease ? external_exports.string().uuid().safeParse(record7.leaseId) : void 0;
+    const record4 = raw && typeof raw === "object" ? raw : void 0;
+    const hasLease = !!record4 && Object.hasOwn(record4, "leaseId");
+    const parsedLease = hasLease ? external_exports.string().uuid().safeParse(record4.leaseId) : void 0;
     let frame3, failed = false, firstError;
     try {
       const image = nativeImageSchema.parse(raw);
@@ -59538,10 +59530,10 @@ var NativeDeviceCaptureService = class {
       try {
         if (!parsedLease?.success) throw new Error("Native frame lease ID is invalid.");
         const leaseId = parsedLease.data;
-        if (record7.sessionId !== helper.ready.sessionId)
+        if (record4.sessionId !== helper.ready.sessionId)
           throw new Error("Native frame lease belongs to another session.");
         const released = nativeFrameReleaseSchema.parse(await helper.request("release_frame", { leaseId }));
-        if (released.sessionId !== helper.ready.sessionId || released.leaseId !== leaseId || typeof record7.stateSequence !== "number" || released.stateSequence < record7.stateSequence)
+        if (released.sessionId !== helper.ready.sessionId || released.leaseId !== leaseId || typeof record4.stateSequence !== "number" || released.stateSequence < record4.stateSequence)
           throw new Error("Native frame release identity did not match.");
       } catch (error2) {
         const releaseError = error2 instanceof Error ? error2.message : String(error2);
@@ -60077,12 +60069,12 @@ var NativeDeviceCaptureService = class {
         },
         status: this.status()
       };
-    const record7 = id3 ? a.recordings.get(id3)?.result ?? a.captures.get(id3) : [...a.recordings.values()].reverse().find((r) => r.result)?.result;
-    if (!record7)
+    const record4 = id3 ? a.recordings.get(id3)?.result ?? a.captures.get(id3) : [...a.recordings.values()].reverse().find((r) => r.result)?.result;
+    if (!record4)
       return { success: false, error: "No completed capture is available for that ID.", status: this.status(id3) };
-    const capture = { ...record7, url: this.url(a) + "captures/" + record7.id };
-    if (record7.kind === "video") return { success: true, capture, status: this.status(id3) };
-    const file2 = await a.store.read(record7.id);
+    const capture = { ...record4, url: this.url(a) + "captures/" + record4.id };
+    if (record4.kind === "video") return { success: true, capture, status: this.status(id3) };
+    const file2 = await a.store.read(record4.id);
     this.current(a);
     if (!file2) throw new Error("Saved screenshot was not found.");
     return {

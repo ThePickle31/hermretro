@@ -1,5 +1,5 @@
 import { copyFlashFailureDetails } from "./web-annotations/flash-diagnostics.js";
-const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+import { isObject } from "./shared/values.js";
 const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
 const nonnegativeInteger = (value) => Number.isSafeInteger(value) && value >= 0;
 const MAX_TEXT = 2048;
@@ -11,23 +11,23 @@ const TOKENS = ["LIBUSB_ERROR_ACCESS", "IOKit 0xe00002be"];
 function completeProcess(command) {
   const process = command.process;
   if (
-    !record(process) ||
+    !isObject(process) ||
     process.error ||
     !positiveInteger(process.pid) ||
-    !record(process.spawn) ||
+    !isObject(process.spawn) ||
     process.spawn.pid !== process.pid ||
-    !record(process.exit) ||
-    !record(process.close) ||
+    !isObject(process.exit) ||
+    !isObject(process.close) ||
     !Number.isInteger(process.exit.code) ||
     process.exit.code !== process.close.code ||
     process.exit.signal !== null ||
     process.close.signal !== null ||
     !Array.isArray(process.observationErrors) ||
     process.observationErrors.length ||
-    !record(process.stdout) ||
+    !isObject(process.stdout) ||
     process.stdout.truncated !== false ||
     process.stdout.utf8Valid !== true ||
-    !record(command.rawOutput) ||
+    !isObject(command.rawOutput) ||
     typeof command.dispatchAttemptedAt !== "string"
   )
     return false;
@@ -35,12 +35,12 @@ function completeProcess(command) {
     const stream = process[name],
       raw = command.rawOutput[name];
     return (
-      record(stream) &&
+      isObject(stream) &&
       !stream.error &&
       stream.endObserved === true &&
       stream.closeObserved === true &&
       nonnegativeInteger(stream.bytes) &&
-      record(raw) &&
+      isObject(raw) &&
       raw.complete === true &&
       raw.observedBytes === stream.bytes
     );
@@ -51,13 +51,13 @@ function completeProcess(command) {
  */
 export function flashFailureDetails(operation, command) {
   if (
-    !record(operation) ||
+    !isObject(operation) ||
     operation.state !== "failed" ||
     operation.success !== false ||
     operation.journalError ||
     !Array.isArray(operation.commands) ||
-    !record(operation.error) ||
-    !record(operation.error.details) ||
+    !isObject(operation.error) ||
+    !isObject(operation.error.details) ||
     (operation.error.code !== "CHROMATIC_VENDOR_FAILED" && operation.error.code !== "CHROMATIC_VENDOR_ERROR")
   )
     return undefined;
@@ -66,7 +66,7 @@ export function flashFailureDetails(operation, command) {
     !nonnegativeInteger(details.commandIndex) ||
     details.commandIndex >= operation.commands.length ||
     operation.commands[details.commandIndex] !== command ||
-    !record(command) ||
+    !isObject(command) ||
     !Array.isArray(command.args) ||
     typeof command.args[0] !== "string" ||
     !["list-devices", "detect-cart", "write-homebrew"].includes(command.args[0]) ||
@@ -78,12 +78,12 @@ export function flashFailureDetails(operation, command) {
   if ((operation.error.code === "CHROMATIC_VENDOR_ERROR") !== (exit.code === 0)) return undefined;
   const vendor = command.vendor;
   if (
-    !record(vendor) ||
+    !isObject(vendor) ||
     vendor.schema_version !== 1 ||
     vendor.operation !== command.args[0] ||
     vendor.ok !== false ||
     vendor.result !== null ||
-    !record(vendor.error) ||
+    !isObject(vendor.error) ||
     typeof details.vendorCode !== "string" ||
     !/^[a-zA-Z0-9_.-]{1,128}$/u.test(details.vendorCode) ||
     details.vendorCode !== vendor.error.code
@@ -96,11 +96,11 @@ export function flashFailureDetails(operation, command) {
   };
   add(error.message);
   for (const cause of Array.isArray(error.causes) ? error.causes.slice(0, MAX_CAUSES) : []) {
-    add(record(cause) ? cause.message : cause);
+    add(isObject(cause) ? cause.message : cause);
   }
   return copyFlashFailureDetails({
     source: "validated-vendor-error",
-    phase: record(error.details) ? error.details.phase : undefined,
+    phase: isObject(error.details) ? error.details.phase : undefined,
     observedTokens: TOKENS.filter((token) => texts.some((text) => text.trim() === token)),
     // Project only recovery the service already produced; never run recovery
     // classification again or infer an action from an observed token.

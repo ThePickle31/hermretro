@@ -3,7 +3,7 @@ import { constants, openAsBlob } from "node:fs";
 import { link, lstat, mkdir, open, realpath, unlink } from "node:fs/promises";
 import { PNG } from "pngjs";
 import { assertSafePlatformPath, isPathWithinRoot, platformPath } from "./platform.js";
-import { sha256Hex } from "./shared/bytes.js";
+import { PNG_SIGNATURE, sha256Hex } from "./shared/bytes.js";
 import { sameFile } from "./shared/files.js";
 export const MAX_PREVIEW_SCREENSHOT_BYTES = 8 * 1024 * 1024;
 export const MAX_PREVIEW_VIDEO_BYTES = 128 * 1024 * 1024;
@@ -103,7 +103,7 @@ function validateHeader(kind, extension, header, size, metadata) {
     if (
       size < 45 ||
       header.length < 33 ||
-      !header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      !header.subarray(0, 8).equals(PNG_SIGNATURE) ||
       header.readUInt32BE(8) !== 13 ||
       header.toString("ascii", 12, 16) !== "IHDR"
     )

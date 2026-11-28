@@ -20,9 +20,9 @@ holds every change since ModRetro's 1.0.34.
 
 ## 2.0.6
 
-- src/shared/: one home for the helpers 31 modules kept identical copies of (isObject, asString, asNumber, deepFreeze,
-  FrozenMap, isSystemError, sameFile, PNG_SIGNATURE, sha256Hex); tests/engine/shared.test.mjs keeps any copy from
-  coming back
+- src/shared/: one home for the helpers 42 modules kept copies of, under their names or others (isObject, asString,
+  asNumber, deepFreeze, FrozenMap, isSystemError, sameFile, PNG_SIGNATURE, sha256Hex); tests/engine/shared.test.mjs
+  keeps any copy from coming back
 
 ## 2.0.5
 

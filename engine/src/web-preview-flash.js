@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { flashFailureDetails } from "./chromatic-failure-diagnostics.js";
 import { chromaticErrorMessage } from "./chromatic.js";
+import { isObject } from "./shared/values.js";
 export class PreviewFlashError extends Error {
   code;
   constructor(code, message) {
@@ -9,23 +10,22 @@ export class PreviewFlashError extends Error {
   }
 }
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-const record = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 const uncertain = (operation) =>
   operation?.state === "unresolved" || operation?.cartridgeWrite === "outcome-unverified";
 const diagnosticCode = (value) =>
   typeof value === "string" && /^[a-zA-Z0-9_.-]{1,128}$/u.test(value) ? value : undefined;
 function operationDiagnostics(operation) {
-  const commands = Array.isArray(operation.commands) ? operation.commands.filter(record) : [];
-  const errorDetails = record(operation.error) && record(operation.error.details) ? operation.error.details : {};
+  const commands = Array.isArray(operation.commands) ? operation.commands.filter(isObject) : [];
+  const errorDetails = isObject(operation.error) && isObject(operation.error.details) ? operation.error.details : {};
   const attempted = commands.filter((command) => typeof command.dispatchAttemptedAt === "string");
   const closed =
     attempted.length > 0 &&
     attempted.every((command) => {
-      const process = record(command.process) ? command.process : {};
-      const elevation = record(process.elevation) ? process.elevation : {};
+      const process = isObject(command.process) ? command.process : {};
+      const elevation = isObject(process.elevation) ? process.elevation : {};
       return (
         command.processStart === "not-started" ||
-        (record(process.close) &&
+        (isObject(process.close) &&
           typeof process.close.at === "string" &&
           (elevation.method !== "windows-run-as" ||
             command.elevatedClosure === "vendor-exit-observed" ||
@@ -33,7 +33,7 @@ function operationDiagnostics(operation) {
       );
     });
   const boundary = (value) =>
-    record(value)
+    isObject(value)
       ? {
           ...(value.code === null || Number.isInteger(value.code) ? { code: value.code } : {}),
           ...(value.signal === null || diagnosticCode(value.signal) ? { signal: value.signal } : {}),
@@ -47,7 +47,7 @@ function operationDiagnostics(operation) {
         : "unconfirmed",
     ...(operation.journalError ? { journal: "Final status could not be recorded." } : {}),
     commands: commands.slice(0, 16).map((command, index) => {
-      const process = record(command.process) ? command.process : {};
+      const process = isObject(command.process) ? command.process : {};
       const failureDetails = flashFailureDetails(operation, command);
       return {
         command: Array.isArray(command.args) ? diagnosticCode(command.args[0]) : undefined,
@@ -65,14 +65,14 @@ function operationDiagnostics(operation) {
         outputComplete:
           Array.isArray(process.observationErrors) &&
           process.observationErrors.length === 0 &&
-          record(command.rawOutput) &&
+          isObject(command.rawOutput) &&
           ["stdout", "stderr"].every((name) => {
             const output = command.rawOutput;
             const stream = process[name];
             return (
-              record(output[name]) &&
+              isObject(output[name]) &&
               output[name].complete === true &&
-              record(stream) &&
+              isObject(stream) &&
               !stream.error &&
               stream.endObserved === true &&
               stream.closeObserved === true &&
@@ -132,7 +132,7 @@ export class PreviewFlashControl {
   /** A changed project may read an exact existing request, never admit work. */
   recover(value, binding) {
     if (
-      !record(value) ||
+      !isObject(value) ||
       typeof value.requestId !== "string" ||
       !["status", "discover", "flash"].includes(String(value.action))
     )
@@ -157,15 +157,15 @@ export class PreviewFlashControl {
   }
   #devices(binding) {
     const operation = this.#discoveryOperation(binding);
-    if (operation?.state !== "succeeded" || !record(operation.result) || !Array.isArray(operation.result.devices))
+    if (operation?.state !== "succeeded" || !isObject(operation.result) || !Array.isArray(operation.result.devices))
       return [];
     return operation.result.devices.flatMap((device) => {
       if (
-        !record(device) ||
+        !isObject(device) ||
         typeof device.deviceToken !== "string" ||
         !UUID.test(device.deviceToken) ||
         typeof device.expiresAt !== "string" ||
-        !record(device.location) ||
+        !isObject(device.location) ||
         !Array.isArray(device.location.port_chain)
       )
         return [];
@@ -183,7 +183,7 @@ export class PreviewFlashControl {
     try {
       observation = this.#operation(this.#observation);
     } catch (error) {
-      if (!record(error) || error.code !== "CHROMATIC_OPERATION_UNKNOWN") throw error;
+      if (!isObject(error) || error.code !== "CHROMATIC_OPERATION_UNKNOWN") throw error;
       // A hidden preview may miss the terminal result before other observers
       // replace it. Only a read-only scan may be recovered with a new discovery.
       observation = {
@@ -206,18 +206,18 @@ export class PreviewFlashControl {
     const operation = request === this.#latest ? latest : this.#operation(request);
     const discovery = this.#discoveryOperation(binding);
     const discoveryFailed = discovery?.state === "failed" || discovery?.state === "unresolved";
-    const discoveryError = discoveryFailed && record(discovery.error) ? discovery.error : undefined;
+    const discoveryError = discoveryFailed && isObject(discovery.error) ? discovery.error : undefined;
     const discoveryNotices =
-      discovery?.state === "succeeded" && record(discovery.result) && Array.isArray(discovery.result.diagnostics)
+      discovery?.state === "succeeded" && isObject(discovery.result) && Array.isArray(discovery.result.diagnostics)
         ? discovery.result.diagnostics
-            .filter(record)
+            .filter(isObject)
             .slice(0, 9)
             .flatMap((item) => {
               const code = diagnosticCode(item.code);
               return code && typeof item.message === "string" ? [{ code, message: chromaticErrorMessage(item) }] : [];
             })
         : [];
-    const backend = record(status.backend) ? status.backend : {};
+    const backend = isObject(status.backend) ? status.backend : {};
     const reviewed =
       this.#reviewed?.operationId === this.#latest?.operationId &&
       this.#reviewed?.generation === binding.generation &&
@@ -277,7 +277,7 @@ export class PreviewFlashControl {
               stage: operation.stage,
               cartridgeWrite: operation.cartridgeWrite,
               ...(typeof operation.success === "boolean" ? { success: operation.success } : {}),
-              ...(record(operation.error)
+              ...(isObject(operation.error)
                 ? {
                     error: {
                       code: diagnosticCode(operation.error.code),
@@ -308,7 +308,7 @@ export class PreviewFlashControl {
     return this.#status(binding);
   }
   execute(value, binding) {
-    if (!record(value) || value.generation !== binding.generation) {
+    if (!isObject(value) || value.generation !== binding.generation) {
       throw new PreviewFlashError("PREVIEW_CHANGED", "This preview changed. Reload it before using device controls.");
     }
     const allowed =
