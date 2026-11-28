@@ -8,7 +8,7 @@ hooks.py and studio_profile.py are never imported from here.
 
 from .copy_lease import DESCRIPTOR_VARIABLE as COPY_LEASE_VARIABLE, hold as hold_copy
 from .progress import download_bytes, progress as install_progress
-from .provision import prune_prepared_copies, select_engine
+from .prepared_copies import prune_prepared_copies, select_engine
 from .trees import folder_bytes
 from .seed import seed_toolchain_cache
 from .recovery import (
