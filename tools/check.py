@@ -132,6 +132,10 @@ def check_engine(args) -> str:
         )
     built = output.splitlines()[-1] if output else "ok"
     # The engine's own tests, on its source modules (tests/engine/register.mjs gives them its pinned packages).
+    if not list(ROOT.glob(ENGINE_TESTS[-1])):
+        raise AssertionError(
+            f"no engine tests match {ENGINE_TESTS[-1]}\nFIX: point ENGINE_TESTS in tools/check.py at them"
+        )
     tested = run([node, *ENGINE_TESTS])
     said = (tested.stdout + tested.stderr).strip()
     counts = dict(re.findall(r"^\u2139 (pass|fail) (\d+)$", said, re.M))

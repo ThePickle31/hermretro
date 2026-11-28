@@ -1,5 +1,7 @@
 // engine/src/scene-batch.js: a scene batch applies all of its operations or none, against the revision it names.
 import assert from "node:assert/strict";
+import { chmod, mkdir } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 
 import { applySceneBatch } from "../../engine/src/scene-batch.js";
@@ -25,6 +27,28 @@ test("a batch whose later operation fails leaves every file as it was", async (t
       ],
     }),
     { code: "ACTOR_NOT_FOUND" },
+  );
+  assert.deepEqual(await projectFiles(project), before);
+});
+
+test("a write that fails after an earlier one landed rolls the earlier one back", async (t) => {
+  // Files are written in path order: the actor under actors/, then the trigger under triggers/, which cannot be
+  // written. A process that may write anywhere (root) ignores the folder's mode, so the failure cannot be made there.
+  if (process.getuid?.() === 0) return t.skip("root writes into a read-only folder");
+  const { project, sceneId } = await starterScene(t);
+  const triggers = path.join(path.dirname(project), "project", "scenes", "start", "triggers");
+  await mkdir(triggers);
+  await chmod(triggers, 0o555); // empty, so the copy's removal still takes it (that needs only its parent's mode)
+  const before = await projectFiles(project);
+  await assert.rejects(
+    applySceneBatch(project, {
+      sceneId,
+      operations: [
+        { type: "actor.create", name: "Rolled Back", x: 2, y: 2 },
+        { type: "trigger.create", name: "Unwritable", x: 4, y: 4, width: 2, height: 2 },
+      ],
+    }),
+    { code: "TRANSACTION_COMMIT_FAILED" },
   );
   assert.deepEqual(await projectFiles(project), before);
 });
