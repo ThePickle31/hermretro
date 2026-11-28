@@ -25,26 +25,38 @@ test("the root is the engine folder, and paths and URLs inside it resolve there"
   assert.equal(JSON.parse(readFileSync(engineUrl("package.json"), "utf8")).name, "hermretro-engine");
 });
 
-/** Every use of `import.meta` in a module's code (not its comments), with its parent node. */
+/** Every use of `import.meta` in a module's code (not its comments), with the nodes around it, nearest first. */
 function metaUses(source) {
   const found = [];
-  const visit = (node, parent) => {
+  const visit = (node, around) => {
     if (!node || typeof node.type !== "string") return;
-    if (node.type === "MetaProperty" && node.meta.name === "import") found.push({ node, parent });
+    if (node.type === "MetaProperty" && node.meta.name === "import") found.push({ node, around });
     for (const value of Object.values(node)) {
       for (const child of Array.isArray(value) ? value : [value]) {
-        if (child && typeof child.type === "string") visit(child, node);
+        if (child && typeof child.type === "string") visit(child, [node, ...around]);
       }
     }
   };
-  visit(acorn.parse(source, { ecmaVersion: "latest", sourceType: "module", locations: true }), null);
+  visit(acorn.parse(source, { ecmaVersion: "latest", sourceType: "module", locations: true }), []);
   return found;
 }
 
-// entry.js asks whether it is the script node started (`import.meta.url === pathToFileURL(...)`): about itself, not a
-// path, so the one use allowed outside engine-root.js.
-const startsItself = (relative, { parent }) =>
-  relative === "engine/src/entry.js" && parent?.type === "MemberExpression" && parent.property.name === "url";
+// entry.js asks whether it is the script node started, `import.meta.url === pathToFileURL(...).href`: about itself, not a
+// path, so the one use allowed outside engine-root.js, and only in that comparison.
+function startsItself(relative, { around: [member, comparison] }) {
+  const other = comparison?.left === member ? comparison?.right : comparison?.left;
+  return (
+    relative === "engine/src/entry.js" &&
+    member?.type === "MemberExpression" &&
+    member.property.name === "url" &&
+    comparison?.type === "BinaryExpression" &&
+    comparison.operator === "===" &&
+    other?.type === "MemberExpression" &&
+    other.property.name === "href" &&
+    other.object.type === "CallExpression" &&
+    other.object.callee.name === "pathToFileURL"
+  );
+}
 
 test("no module that runs in Node works a path out from its own location", () => {
   const found = [];
@@ -55,7 +67,5 @@ test("no module that runs in Node works a path out from its own location", () =>
     const uses = metaUses(readFileSync(path.join(REPO, relative), "utf8")).filter((use) => !startsItself(relative, use));
     found.push(...uses.map(({ node }) => `${relative}:${node.loc.start.line}`));
   }
-  const entryUses = metaUses(readFileSync(path.join(SRC, "entry.js"), "utf8"));
-  assert.equal(entryUses.length, 1, "entry.js uses import.meta once, to ask whether it is the script node started");
   assert.deepEqual(found, [], "FIX: take the path from engine/src/engine-root.js (enginePath, engineUrl, ENGINE_ROOT)");
 });

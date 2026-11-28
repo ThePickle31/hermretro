@@ -61,7 +61,7 @@ into a folder of that name.
 | Tilemaps | `tilemaps.js`, `tilemap-compose.js`, `tilemap-schema.js` |
 | The Chromatic | `chromatic.js`, `chromatic-journal.js`, `chromatic-failure-diagnostics.js`, `native-device-capture.js` and the server's side of `device-capture/` (its capture helpers, protocol and schemas) |
 | Shared | `platform.js` (paths and the environment on each system) |
-| The browser's files | `web-annotations/` (the player page's scripts, served flat by name); in `device-capture/`, the capture page's scripts (`native-client.js`, `native-entry.js`, `device-picker.js`, `native-timing-diagnostics.js`), served with the helpers they import |
+| The browser's files | `web-annotations/` (the player page's scripts, served flat by name); in `device-capture/`, the capture page's scripts (`native-client.js`, `native-entry.js`, `device-picker.js`, `native-timing-diagnostics.js`), served with the helpers they import. `page.js` and `native-page.js` are both: the server imports them and serves them to the page, which imports them too |
 
 Three rules keep it that way, each checked by a test:
 
