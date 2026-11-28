@@ -15,7 +15,7 @@ import { eslintTools, isMain, missing, printReport, runEslint } from '../bundle/
 const PATTERNS = ['engine/src/**/*.js', 'engine/scripts/**/*.mjs']
 // The scripts the player's page and the capture page run in the browser (each says `/// <reference lib="dom" />`,
 // but native-entry.js, which only starts native-client.js): browser globals only, never Node's.
-const BROWSER = [
+export const BROWSER = [
   'engine/src/web-annotations/**/*.js',
   'engine/src/device-capture/device-picker.js',
   'engine/src/device-capture/native-client.js',

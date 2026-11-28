@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { inspectRom, runBuildCommand } from "./build.js";
 import { assertSafePlatformPath, isPathWithinRoot, readPlatformEnvironmentVariable, runtimeExecutablePaths, sanitizeSubprocessEnvironment, verifyWindowsPrivatePath, } from "./platform.js";
+import { ENGINE_ROOT } from "./engine-root.js";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 600_000;
 const MAX_ARTIFACT_FILES = 4_096;
@@ -148,7 +149,7 @@ async function discoverToolchainRoot(projectRoot, runtime, configuredRoot) {
             break;
         current = parent;
     }
-    const packageRoot = await realpath(path.resolve(import.meta.dirname, ".."));
+    const packageRoot = await realpath(ENGINE_ROOT);
     if ((await Promise.all(cliCandidates(packageRoot, runtime).map((candidate) => exists(candidate)))).some(Boolean)) {
         return canonicalToolchainRoot(packageRoot);
     }

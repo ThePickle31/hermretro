@@ -3,10 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { accessSync, appendFileSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 import { RecordingMaintenance } from "./recording-maintenance.js";
 import { assertSafePlatformPath, isPathWithinRoot, runtimeExecutablePaths, sanitizeSubprocessEnvironment, } from "./platform.js";
+import { enginePath } from "./engine-root.js";
 export const MAX_EMULATOR_FRAMES = 3_600;
 export const MAX_EMULATOR_TIMELINE_ACTIONS = 128;
 export const MAX_EMULATOR_TIMELINE_CHECKPOINTS = 64;
@@ -116,7 +116,7 @@ export class EmulatorService {
             });
         }
         this.#recordingMaintenance = new RecordingMaintenance(this.projectRoot);
-        const bundledWorker = fileURLToPath(new URL("../scripts/emulator_worker.py", import.meta.url));
+        const bundledWorker = enginePath("scripts/emulator_worker.py");
         this.#workerPath = resolve(options.workerPath ?? bundledWorker);
         const packageRoot = dirname(dirname(bundledWorker));
         const configuredToolchain = options.toolchainRoot ?? process.env.GB_STUDIO_TOOLCHAIN_ROOT;

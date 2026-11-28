@@ -1,10 +1,10 @@
 import { readdir, readFile, open, rm } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { projectRelativePath, resolveProjectPath, projectPathExists, readProjectJson, writeProjectBytesAtomic, writeProjectJsonAtomic, stableResourceId, resourceSlug } from "./project-files.js";
 import { GameStudioProjectError, inventoryProject } from "./project.js";
 import { RESOURCE_ID, isSystemError, assetError, assertDistributedProject, ensureName } from "./assets.js";
+import { enginePath } from "./engine-root.js";
 
 const AUDIO_FORMATS = {
     // The spellings GB Studio's loaders find (loadMusicData, loadSoundData): their globs match an all-lowercase or
@@ -22,7 +22,7 @@ const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 const MAX_BANK_BYTES = 16384;
 const GB_FRAMES_PER_SECOND = 4194304 / 70224;
 export const BUNDLED_TRACKS = ["bright-start", "meadow-walk", "cave-echo", "victory-lap"];
-const BUNDLED_MUSIC = fileURLToPath(new URL("../assets/music/", import.meta.url));
+const BUNDLED_MUSIC = enginePath("assets/music/");
 export function isAudioKind(kind) {
     return kind === "music" || kind === "sound";
 }

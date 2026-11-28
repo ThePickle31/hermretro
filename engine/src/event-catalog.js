@@ -3,9 +3,10 @@ import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { SCRIPT_KEYS, MAXIMUM_EVENT_DEPTH, isObject } from "./native-script-events.js";
 import { GameStudioProjectError } from "./project.js";
 import { supplementalResources } from "./world-script-graph.js";
+import { engineUrl } from "./engine-root.js";
 
 // "../src/" reaches the catalog from this module and from the bundle in dist/ alike.
-const EVENT_CATALOG_URL = new URL("../src/gb-studio-events.json", import.meta.url);
+const EVENT_CATALOG_URL = engineUrl("src/gb-studio-events.json");
 const EVENT_LIST_LIMIT = 40;
 const EVENT_UNCATEGORIZED = "Uncategorized";
 const EVENT_FIELD_TYPES = {

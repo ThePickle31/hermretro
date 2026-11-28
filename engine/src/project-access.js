@@ -1,8 +1,6 @@
 /** Public revisions cover the selected descriptor and these authored subtrees. */
 export const PROJECT_REVISION_ALGORITHM = "sha256-merkle-v2";
 export const PUBLIC_REVISION_DIRECTORIES = ["project", "assets"];
-/** Plugins affect semantic freshness but deliberately do not change public revisions. */
-export const SEMANTIC_PLUGIN_DIRECTORY = "plugins";
 export const PROJECT_RESPONSE_LIMITS = Object.freeze({
     inspectionBytes: 4 * 1024,
     inventoryBytes: 32 * 1024,

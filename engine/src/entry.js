@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -32,13 +32,14 @@ import { PreviewInputError } from "./web-preview-input.js";
 import { WebPreviewService } from "./web-preview.js";
 import { nativeSelectionSchema } from "./device-capture/native-protocol.js";
 import { NativeDeviceCaptureService } from "./native-device-capture.js";
+import { enginePath, engineUrl } from "./engine-root.js";
 
 const SERVER_NAME = "hermretro-engine";
 const SERVER_TITLE = "hermretro engine";
 // The engine's version has one home, its package.json, one folder up from src/ and dist/ alike.
-const SERVER_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
-const WEB_ANNOTATION_ASSETS = fileURLToPath(new URL("../src/web-annotations/", import.meta.url));
-const DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path.resolve(process.env.CHROMATIC_DEVICE_SKINS) : fileURLToPath(new URL("../../player/skins/", import.meta.url));
+const SERVER_VERSION = JSON.parse(readFileSync(engineUrl("package.json"), "utf8")).version;
+const WEB_ANNOTATION_ASSETS = enginePath("src/web-annotations/");
+const DEVICE_ASSETS = process.env.CHROMATIC_DEVICE_SKINS ? path.resolve(process.env.CHROMATIC_DEVICE_SKINS) : enginePath("../player/skins/");
 const readOnly = {
     readOnlyHint: true,
     destructiveHint: false,
@@ -332,10 +333,10 @@ function createGbStudioServer(options = {}) {
     });
     const deviceCapture = new NativeDeviceCaptureService({
         ...options.deviceCapture,
-        helperManifest: fileURLToPath(new URL("../native/capture/macos/manifest.json", import.meta.url)),
-        linuxHelperManifest: fileURLToPath(new URL("../native/capture/linux/manifest.json", import.meta.url)),
+        helperManifest: enginePath("native/capture/macos/manifest.json"),
+        linuxHelperManifest: enginePath("native/capture/linux/manifest.json"),
         deviceAssetsRoot: DEVICE_ASSETS,
-        assetsRoot: fileURLToPath(new URL("../src/", import.meta.url)),
+        assetsRoot: enginePath("src/"),
         isSelected: (root, generation) => session.selectedProject?.projectRoot === root && session.selectionGeneration === generation
     });
     let initialSelectionError;

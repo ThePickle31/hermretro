@@ -39,6 +39,40 @@ maintains it as `hermretro-engine`, from version 2.0.0: every change since 1.0.3
 | `third-party/chromatic-cli/` | The provenance, SBOM and notice of ModRetro's Chromatic CLI, which setup downloads |
 | `licenses/`, `LICENSE`, `THIRD_PARTY_NOTICES.md` | The licence and the notices of everything the engine includes |
 
+## Modules
+
+`src/` by area: what each part of the engine is, and where its code lives. The engine's reorganization moves each area
+into a folder of that name.
+
+| Area | Modules |
+|---|---|
+| The server | `entry.js` (the server and the tools it registers itself), `tool-domains/` (the other tools, by domain), `engine-root.js` (paths to the engine's own files) |
+| The project | `project.js`, `project-files.js`, `project-access.js`, `project-snapshot.js`, `project-session.js`, `project-revision.js`, `project-error.js`, `project-tree-watcher.js`, `native-import-files.js`, `resource-codec.js`, `legacy-project-assets.js` |
+| The world index and queries | `project-world-index.js`, `world-queries.js`, `world-script-graph.js`, `custom-event-dependencies.js` |
+| Editing a game | `scene-batch.js`, `actors.js`, `triggers.js`, `collisions.js`, `dialogue.js`, `dialogue-preview.js`, `game-scripts.js`, `game-variables.js`, `engine-fields.js` |
+| Events | `event-catalog.js`, `native-script-events.js`, `gb-studio-events.json` |
+| Building | `build.js`, `build-provenance.js`, `web-build.js`, `compiler-selection.js`, `reviewed-compiler.js`, `toolchain-prepare.js` |
+| Debugging a build | `debug-symbols.js`, `source-debug.js` |
+| The emulator | `emulator.js` (it drives `scripts/emulator_worker.py`), `playtest-errors.js` |
+| Recordings | `recording-common.js`, `recording-archive.js`, `recording-location.js`, `recording-maintenance.js` |
+| The browser preview | `web-preview.js`, `web-preview-*.js`, `loopback-listener.js`, `mcp-path-privacy.js` |
+| Graphics | `graphics.js`, `graphics-palette-packing.js`, `palettes.js`, `sprites.js`, `scene-graphics.js`, `contact-sheet.js`, `native-sprite-metadata.js` |
+| Assets and music | `assets.js`, `audio.js` |
+| Tilemaps | `tilemaps.js`, `tilemap-compose.js`, `tilemap-schema.js` |
+| The Chromatic | `chromatic.js`, `chromatic-journal.js`, `chromatic-failure-diagnostics.js`, `native-device-capture.js` and the server's side of `device-capture/` (its capture helpers, protocol and schemas) |
+| Shared | `platform.js` (paths and the environment on each system) |
+| The browser's files | `web-annotations/` (the player page's scripts, served flat by name); in `device-capture/`, the capture page's scripts (`native-client.js`, `native-entry.js`, `device-picker.js`, `native-timing-diagnostics.js`), served with the helpers they import. `page.js` and `native-page.js` are both: the server imports them and serves them to the page, which imports them too |
+
+Three rules keep it that way, each checked by a test:
+
+- **Paths from `engine-root.js`.** A module that runs in Node takes a path to the engine's own files from
+  `engine-root.js` (`enginePath`, `engineUrl`, `ENGINE_ROOT`), never from its own location: in the tests a module runs
+  from `src/`, in production from `dist/server.js` (`tests/engine/engine-root.test.mjs`).
+- **No import cycles** but the known ones, which the reorganization takes off one by one
+  (`tests/engine/imports.test.mjs`).
+- **600 lines at most** per module; the files over it when the rule came in are listed in `tools/layout.toml`
+  (`tests/repo/test_layout.py`).
+
 ## Changing it
 
 The commands run from the hermretro repository root.

@@ -35,9 +35,23 @@ def files() -> list[str]:
     return sorted(name for name in out.split("\0") if name and (ROOT / name).is_file())
 
 
+def engine_module(name: str) -> bool:
+    """One of the engine's modules, which [size.engine] measures."""
+    return name.startswith(LAYOUT["size"]["engine"]["root"]) and name.endswith(".js")
+
+
+def limit(name: str) -> int:
+    """The lines a source file may have: the engine's modules by [size.engine], the rest by [size]."""
+    return LAYOUT["size"]["engine"]["fail"] if engine_module(name) else LAYOUT["size"]["fail"]
+
+
+def line_count(name: str) -> int:
+    return (ROOT / name).read_text(encoding="utf-8", errors="replace").count("\n")
+
+
 def measured(name: str) -> bool:
     size = LAYOUT["size"]
-    return (
+    return engine_module(name) or (
         name.endswith(tuple(size["extensions"]))
         and not name.startswith(tuple(size["exempt"]))
         and not (name.startswith("engine/contract/") and name.endswith(".json"))
@@ -49,10 +63,10 @@ class Layout(unittest.TestCase):
         size, exceptions = LAYOUT["size"], LAYOUT.get("exceptions", {})
         too_big = []
         for name in filter(measured, files()):
-            lines = (ROOT / name).read_text(encoding="utf-8", errors="replace").count("\n")
-            if lines > size["fail"] and name not in exceptions:
-                too_big.append(f"{name}: {lines} lines")
-            elif lines > size["warn"]:
+            lines = line_count(name)
+            if lines > limit(name) and name not in exceptions:
+                too_big.append(f"{name}: {lines} lines (over {limit(name)})")
+            elif lines > size["warn"] and not engine_module(name):
                 warn(
                     f"{name} has {lines} lines (warning above {size['warn']}, failure above {size['fail']})"
                     + (f"; allowed: {exceptions[name]}" if name in exceptions else "")
@@ -60,6 +74,15 @@ class Layout(unittest.TestCase):
         missing = [name for name in exceptions if not (ROOT / name).is_file()]
         self.assertEqual(
             missing, [], "tools/layout.toml [exceptions] names files that no longer exist\nFIX: remove those lines"
+        )
+        # An exception lasts only while its file is over the limit: once it is split, the limit holds it again.
+        stale = [
+            f"{name}: {line_count(name)} lines"
+            for name in exceptions
+            if name not in missing and line_count(name) <= limit(name)
+        ]
+        self.assertEqual(
+            stale, [], "tools/layout.toml [exceptions] lists files no longer over the limit\nFIX: remove those lines"
         )
         self.assertEqual(
             too_big,

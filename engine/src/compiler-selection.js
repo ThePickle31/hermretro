@@ -1,6 +1,7 @@
 import { access, lstat, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { assertSafePlatformPath, isPathWithinRoot, readPlatformEnvironmentVariable, runtimeExecutablePaths } from "./platform.js";
+import { ENGINE_ROOT } from "./engine-root.js";
 // Shared by compilation and reviewed dependency inspection. Selection is not
 // a trust claim: reviewed consumers independently match their expected bytes.
 function configuredEnvironmentValue(name) {
@@ -83,7 +84,7 @@ export async function resolveToolchainRoot(projectRoot, configuredRoot) {
         }
         ancestor = parent;
     }
-    const packageRoot = await realpath(path.resolve(import.meta.dirname, ".."));
+    const packageRoot = await realpath(ENGINE_ROOT);
     if (await hasLocalToolchain(packageRoot)) {
         return canonicalToolchainOwner(packageRoot);
     }

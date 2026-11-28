@@ -1,13 +1,13 @@
 {
  "manifest_schema": 1,
  "package_name": "hermretro-engine",
- "package_version": "2.0.3",
+ "package_version": "2.0.4",
  "distribution_directory_name": "engine",
- "file_count": 298,
+ "file_count": 299,
  "symlink_count": 0,
- "total_bytes": 32314581,
+ "total_bytes": 32280629,
  "suffix_counts": {
-  ".js": 112,
+  ".js": 113,
   ".md": 60,
   ".gbsres": 42,
   ".json": 21,
@@ -26,7 +26,7 @@
   ".py": 1,
   ".tsv": 1
  },
- "aggregate_sha256": "c9ee95ca5b97010d473ea1d46d9331847dffea8bf7a75a7b0f916a1452550b33",
+ "aggregate_sha256": "36e23090a33e80945b574392185660ab64695ffed26cf7162a2710c6ebfbaed5",
  "entries": [
   {
    "path": "LICENSE",
@@ -38,9 +38,9 @@
   {
    "path": "README.md",
    "type": "file",
-   "size": 8355,
+   "size": 11492,
    "mode": "0o644",
-   "sha256": "2308d3e744269f0ed90f388c5f82f2377b2e8efde713eed30d4ce0b94467dd31"
+   "sha256": "e198d9f14ddfe91e9523bdd7eedab1c0dea4719436c09b078f0b8e8b34a94fdf"
   },
   {
    "path": "THIRD_PARTY_NOTICES.md",
@@ -115,9 +115,9 @@
   {
    "path": "dist/server.js",
    "type": "file",
-   "size": 2603334,
+   "size": 2603018,
    "mode": "0o644",
-   "sha256": "6d7c0a598885857379316f3a5b7d1a58b5596a698f05dc3c838772173f344fb3"
+   "sha256": "380f85ad38cb4d22f100434e32a64a0b33d208019099d69ff51340f2ae8793b9"
   },
   {
    "path": "docs/agent-guide.md",
@@ -1020,7 +1020,7 @@
    "type": "file",
    "size": 2865,
    "mode": "0o644",
-   "sha256": "7d5bb65051667665d134faf4980d6a4fc0282747cde96ab75afd8d60444f2c79"
+   "sha256": "627aae70944fb63446722917c72b834a1be2d390d94717eb42b6ec5a2821fb70"
   },
   {
    "path": "scripts/chromatic-runtime.mjs",
@@ -1326,9 +1326,9 @@
   {
    "path": "src/audio.js",
    "type": "file",
-   "size": 40865,
+   "size": 40838,
    "mode": "0o644",
-   "sha256": "a04eee7d635ac222e36e5f2d848ce5ddeb0de57307af70d1a42e5598f11a9956"
+   "sha256": "748eded274bf1a60560854a9304c2ecfcc0e2d16131346673126f0f1974a2aed"
   },
   {
    "path": "src/build-provenance.js",
@@ -1375,16 +1375,16 @@
   {
    "path": "src/compiler-selection.js",
    "type": "file",
-   "size": 4540,
+   "size": 4560,
    "mode": "0o644",
-   "sha256": "a40a7c91f891ec212d661c952c12e89c186ed91313c7f859981afff3bd03c4d8"
+   "sha256": "f481402cd3043e27d96f868f68001bf4eac167f90e65c0827f83e9c292606a9e"
   },
   {
    "path": "src/contact-sheet.js",
    "type": "file",
-   "size": 33725,
+   "size": 15236,
    "mode": "0o644",
-   "sha256": "4e0e9e0fe7a72bed22a686e13191b482fbd78f9ec27befcf63a1a79927397fc3"
+   "sha256": "4bcc1434c91e307d41c49996625f83fa0f43055a42714d946d2c79ba7e31284c"
   },
   {
    "path": "src/custom-event-dependencies.js",
@@ -1396,9 +1396,9 @@
   {
    "path": "src/debug-symbols.js",
    "type": "file",
-   "size": 17799,
+   "size": 16987,
    "mode": "0o644",
-   "sha256": "de4e30fc41ce5bd956b1996c1f2128ced15b10b6f7b1e5c27d991fdc69af7d38"
+   "sha256": "f3f486beb07d7eeeb94a369e3e7a62eabb5494bc5610d6c70b56e447768d4e48"
   },
   {
    "path": "src/device-capture/device-picker.js",
@@ -1508,9 +1508,9 @@
   {
    "path": "src/device-capture/page.js",
    "type": "file",
-   "size": 21620,
+   "size": 21422,
    "mode": "0o644",
-   "sha256": "5793157d359fdcfff675c06222be6a1885eb0af06e3738d52420b0f30448cb00"
+   "sha256": "bd2033a020b651f446f4b2b124460b500cde1bafddbb1b4ef11100668fdbfbbd"
   },
   {
    "path": "src/device-capture/service-stage-trace.js",
@@ -1536,9 +1536,9 @@
   {
    "path": "src/emulator.js",
    "type": "file",
-   "size": 78936,
+   "size": 78909,
    "mode": "0o644",
-   "sha256": "e59481221b82d9455a8f5b53875708411f4cdfd8d03f3ebfb265dce6af7e29a1"
+   "sha256": "de913c2b1365daa965d67816b39f823c92d51f42691972f54c11a6a5ce019737"
   },
   {
    "path": "src/engine-fields.js",
@@ -1548,18 +1548,25 @@
    "sha256": "a847b8c481bdcbe7b78d1d0f5583cd49a05ba95949b57da7f9d2df60e194b2fc"
   },
   {
+   "path": "src/engine-root.js",
+   "type": "file",
+   "size": 1025,
+   "mode": "0o644",
+   "sha256": "b41f7e3bf585eee84b41d63e3ebb7da387b17a2d71616b384d4ac7d4525419aa"
+  },
+  {
    "path": "src/entry.js",
    "type": "file",
-   "size": 105399,
+   "size": 105264,
    "mode": "0o644",
-   "sha256": "f5cd24d5381390307552c73ad9867b74c1bc5632729d6ab30474ca6ba803db5d"
+   "sha256": "1d42bb287ae00b2c12fa204fc106cdcb26895c9434ccf03c4da41a5105b48ccc"
   },
   {
    "path": "src/event-catalog.js",
    "type": "file",
-   "size": 32453,
+   "size": 32481,
    "mode": "0o644",
-   "sha256": "3e7bd0ceb5a49d3f9429ba90cb8a12d7bec347b3cea103404c5cabe820f6aa92"
+   "sha256": "cea924080692ebfd8601cd2cafdb1c9e7d68f3e6d493b223f3eb302f73450113"
   },
   {
    "path": "src/game-scripts.js",
@@ -1599,9 +1606,9 @@
   {
    "path": "src/legacy-project-assets.js",
    "type": "file",
-   "size": 3912,
+   "size": 3648,
    "mode": "0o644",
-   "sha256": "f10bd366f4f0ce938c7d218c05c807cbd14511f7d75df5c5b0b5192c2a259d2a"
+   "sha256": "570ec9dd5b4f28f56228d061cbb5f7122d0b39fdda3991f574e4a1db6f517caa"
   },
   {
    "path": "src/loopback-listener.js",
@@ -1669,9 +1676,9 @@
   {
    "path": "src/project-access.js",
    "type": "file",
-   "size": 2735,
+   "size": 2593,
    "mode": "0o644",
-   "sha256": "fc7955a5477c854461654c0a8cb4f36c8f8017833bbf0e87ff1be2177612155d"
+   "sha256": "bd0e436f5d5f436b23ebcdd3d752cced4f99588ac3a21087f1700b6a5d150724"
   },
   {
    "path": "src/project-error.js",
@@ -1697,9 +1704,9 @@
   {
    "path": "src/project-session.js",
    "type": "file",
-   "size": 31634,
+   "size": 31654,
    "mode": "0o644",
-   "sha256": "12b9d486d364d6d182981419ef30ddf05d3cb119a996a4fe1380a3a2b759eef3"
+   "sha256": "d8d7f4788aca4ced1b8d85d470a74563a711019533f4ab87944877238660c4f6"
   },
   {
    "path": "src/project-snapshot.js",
@@ -1732,16 +1739,16 @@
   {
    "path": "src/recording-archive.js",
    "type": "file",
-   "size": 35919,
+   "size": 23578,
    "mode": "0o644",
-   "sha256": "6e2e68edd23f25af3bd2adcbff10afa8fd45979ae90e7db93075d63af14665c3"
+   "sha256": "10de1db54160161a7f263729dbc2917d5f9a7a00f63372f7776024422567dba7"
   },
   {
    "path": "src/recording-common.js",
    "type": "file",
-   "size": 19560,
+   "size": 14109,
    "mode": "0o644",
-   "sha256": "0271e5d59173f05171217a8f112618c70fa51054c5d679274a22cdd8d65c458a"
+   "sha256": "2a520ee4704d4b13626a1c2430813ddd16429bea01908cc414f794fb8321bc2b"
   },
   {
    "path": "src/recording-location.js",
@@ -1998,9 +2005,9 @@
   {
    "path": "src/web-build.js",
    "type": "file",
-   "size": 49657,
+   "size": 49677,
    "mode": "0o644",
-   "sha256": "4a6a6f71217a67242bc91234f30ffe8ca3a3b13f0b6e830e1f0b98687dca60ca"
+   "sha256": "fbe43f0f68982760fe6dad1fc7011919291b5ce878d2341714daa20e9669261e"
   },
   {
    "path": "src/web-preview-captures.js",

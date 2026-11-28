@@ -1,23 +1,13 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, statSync, writeSync, } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { PNG } from "pngjs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync } from "node:fs";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { recordingArchiveOrigin } from "./recording-location.js";
 export const MAX_FRAMES = 3_600;
-export const MAX_TIMELINE_ACTIONS = 128;
-export const MAX_TIMELINE_CHECKPOINTS = 64;
-export const MAX_STEP_SAMPLES = 8;
-export const MAX_INSPECTION_BYTES = 256;
 export const MAX_OAM_OBJECTS = 40;
-export const PROTOCOL_VERSION = 1;
-export const GB_HZ = 4_194_304;
-export const FRAME_DOTS = 70_224;
 export const MAX_RECORDING_BYTES = 512 * 1024 * 1024;
 export const MAX_RECORDING_FRAMES = 216_000;
 export const MAX_RECORDING_WALL_MS = 3_600_000;
 export const MAX_RECENT_FRAMES = 64;
-export const MAX_CLIP_FRAMES = 600;
-export const MAX_STATE_BYTES = 16 * 1024 * 1024;
 export const MAX_ROM_BYTES = 32 * 1024 * 1024;
 export const MAX_RECORDING_EVENTS = 250_000;
 export const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
@@ -29,7 +19,6 @@ export const MAX_REVIEW_FRAME_RECORDS = MAX_FRAMES + MAX_REVIEW_ACTIONS + 1;
 export const RECORDING_RESERVE_BYTES = 16 * 1024;
 export const MAX_SIBLING_RECORDINGS = 64;
 export const MAX_SIBLING_RESERVED_BYTES = 1024 * 1024 * 1024;
-export const MAX_RECORDING_BRANCHES = 64;
 export const WIDTH = 160;
 export const HEIGHT = 144;
 export const RGBA_BYTES = WIDTH * HEIGHT * 4;
@@ -38,14 +27,7 @@ export const DEFAULT_RECORDING_LIMITS = {
     maxFrames: 36_000, maxWallTimeMs: 900_000,
 };
 export const BUTTONS = new Set(["a", "b", "up", "down", "left", "right", "start", "select"]);
-export const MEMORY_REGIONS = {
-    vram: [0x8000, 0x2000], wram: [0xc000, 0x2000], oam: [0xfe00, 0xa0], hram: [0xff80, 0x7f],
-};
 export class RecordingLimitError extends Error {
-}
-export class SessionCancelled extends Error {
-}
-export class RequestValidationError extends Error {
 }
 export function isObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -231,48 +213,6 @@ export function inside(root, value) {
     const path = relative(root, value);
     return path === "" || (!isAbsolute(path) && path !== ".." && !path.startsWith(`..${sep}`));
 }
-/** Canonical authorization remains independent of evidence hash authentication. */
-export function projectResolver(projectRoot) {
-    const root = realpathSync(projectRoot);
-    const identity = statSync(root);
-    if (!identity.isDirectory())
-        throw new Error("The emulator project root must be a directory");
-    return (value, { existing }) => {
-        const now = lstatSync(root);
-        if (now.isSymbolicLink() || now.dev !== identity.dev || now.ino !== identity.ino || realpathSync(root) !== root)
-            throw new Error("The authorized emulator project root changed");
-        if (typeof value !== "string" || !value.trim() || value.includes("\0"))
-            throw new Error("A non-empty project-relative or absolute path is required");
-        // The server already expands user paths. Workers do not independently grant
-        // access to the host home directory or Windows device/network namespaces.
-        if (value.startsWith("~") || /^\\\\|^\/\//.test(value) || /^(?:\\\\[?.]\\)/.test(value))
-            throw new Error("Emulator paths must use an authorized local path");
-        const lexical = resolve(root, value);
-        if (!inside(root, lexical))
-            throw new Error("Emulator paths must remain inside the project root");
-        let ancestor = lexical;
-        const tail = [];
-        for (;;) {
-            try {
-                lstatSync(ancestor);
-                break;
-            }
-            catch (error) {
-                if (error.code !== "ENOENT" || existing)
-                    throw error;
-                const parent = dirname(ancestor);
-                if (parent === ancestor)
-                    throw error;
-                tail.unshift(ancestor.slice(parent.length + (parent.endsWith(sep) ? 0 : 1)));
-                ancestor = parent;
-            }
-        }
-        const canonical = resolve(realpathSync(ancestor), ...tail);
-        if (!inside(root, canonical))
-            throw new Error("Emulator paths must remain inside the project root");
-        return canonical;
-    };
-}
 /** Bounded, no-follow, regular-file read with path/fd identity checked twice. */
 export function boundedReadFile(path, maximum, label = "Recording metadata") {
     const before = lstatSync(path);
@@ -305,40 +245,6 @@ export function boundedReadFile(path, maximum, label = "Recording metadata") {
             throw new Error(`${label} changed while being read`);
         }
         return Buffer.concat(chunks, size);
-    }
-    finally {
-        closeSync(fd);
-    }
-}
-export function writeExclusive(path, data, resolvePath, onCreated) {
-    if (resolvePath(path, { existing: false }) !== path)
-        throw new Error("The artifact output path changed");
-    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-    if (resolvePath(path, { existing: false }) !== path)
-        throw new Error("The artifact output directory changed");
-    const parent = lstatSync(dirname(path));
-    if (!parent.isDirectory() || parent.isSymbolicLink())
-        throw new Error("The artifact output directory is invalid");
-    const fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
-    try {
-        const opened = fstatSync(fd);
-        if (!opened.isFile() || opened.nlink !== 1)
-            throw new Error("An artifact must be a regular file with one link");
-        onCreated?.(opened);
-        if (resolvePath(path, { existing: true }) !== path)
-            throw new Error("The artifact path changed before write");
-        let written = 0;
-        while (written < data.length) {
-            const count = writeSync(fd, data, written, data.length - written);
-            if (count <= 0)
-                throw new Error("The artifact could not be written completely");
-            written += count;
-        }
-        const after = lstatSync(path);
-        const parentAfter = lstatSync(dirname(path));
-        if (after.dev !== opened.dev || after.ino !== opened.ino || after.nlink !== 1 || after.isSymbolicLink() || after.size !== data.length || parentAfter.dev !== parent.dev || parentAfter.ino !== parent.ino || resolvePath(path, { existing: true }) !== path) {
-            throw new Error("The artifact path changed during write");
-        }
     }
     finally {
         closeSync(fd);
@@ -400,18 +306,4 @@ export function artifactUsage(root, resolvePath) {
         }
     }
     return total;
-}
-export function encodePng(rgba) {
-    if (rgba.length !== RGBA_BYTES)
-        throw new Error("The emulator framebuffer must have native 160 x 144 dimensions");
-    return PNG.sync.write({ width: WIDTH, height: HEIGHT, data: Buffer.from(rgba) }, { colorType: 6 });
-}
-export function decodePng(data) {
-    if (data.length > 1024 * 1024 || data.length < 24 || !data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || data.readUInt32BE(16) !== WIDTH || data.readUInt32BE(20) !== HEIGHT) {
-        throw new Error("A retained framebuffer must be a bounded native 160 x 144 PNG");
-    }
-    const result = PNG.sync.read(data, { checkCRC: true });
-    if (result.width !== WIDTH || result.height !== HEIGHT || result.data.length !== RGBA_BYTES)
-        throw new Error("A retained framebuffer has invalid native dimensions");
-    return Buffer.from(result.data);
 }
