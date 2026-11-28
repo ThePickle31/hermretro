@@ -13,8 +13,7 @@
   ui VERB           drive the sandbox's page and take screenshots (shot, text, go, click, type, say, ...)
   mockup FOLDER     shoot a round of mockups in the sandbox, in every state, width and theme, and write
                     FOLDER/gallery.html
-  remote HOST [CHECK ...]
-                    this checkout's HEAD checked on another machine over ssh (default: unit), for a change that
+  remote HOST       the unit tests of this checkout's HEAD on another machine over ssh, for a change that
                     must hold on a system this one is not
   review VERB       a pull request's review (tools/review/README.md): prepare, take and record a pass's briefs,
                     findings and answers (--pass N), or say where it stands (status)
@@ -314,7 +313,7 @@ def cmd_mockup(args) -> int:
 
 
 def cmd_remote(args) -> int:
-    return remote.run(TOP, args.host, args.checks or ["unit"])
+    return remote.run(TOP, args.host)
 
 
 def cmd_review(args) -> int:
@@ -426,7 +425,6 @@ def parser() -> argparse.ArgumentParser:
     round_.set_defaults(run=cmd_mockup)
     elsewhere = commands.add_parser("remote")
     elsewhere.add_argument("host", help="the machine, as ssh names it")
-    elsewhere.add_argument("checks", nargs="*", help="tools/check.py's checks to run there (default: unit)")
     elsewhere.set_defaults(run=cmd_remote)
     reviewing = commands.add_parser("review")
     reviewing.add_argument("verb", choices=["prepare", "take", "record", "status"])

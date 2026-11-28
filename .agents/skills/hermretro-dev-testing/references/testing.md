@@ -40,8 +40,10 @@ the real Hermes home: Node discovery looks in the Hermes tools folder (`<Hermes 
 and its broker is handed `HERMRETRO_HOME` (`spawn_broker`), which the install only reads (where games live).
 
 A change that has to hold on another system (this machine is Linux and the change touches macOS, or the other way):
-commit, then `python tools/dev remote <ssh host> [CHECK ...]` runs `tools/check.py` (by default `unit`) on that commit
-on the host, in a checkout of its own (`~/.cache/hermretro-dev/checkout` there), from the user's login shell.
+commit, then `python tools/dev remote <ssh host>` runs `tools/check.py unit` on that commit on the host, in a checkout
+of its own (`~/.cache/hermretro-dev/checkout` there, with `checkout.lock` beside it), from the user's login shell, after
+`tools/dev setup` there. Only the unit tests: they run in empty temporary homes, so the host's own hermretro is never
+used.
 
 One-time setup: `python tools/dev setup` (the Python lint and the npm tools for the page checks; Node 22 or newer). The checks never install anything themselves.
 
