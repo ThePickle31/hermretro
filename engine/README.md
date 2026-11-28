@@ -63,13 +63,15 @@ into a folder of that name.
 | Shared | `platform.js` (paths and the environment on each system) |
 | The browser's files | `web-annotations/` (the player page's scripts, served flat by name); in `device-capture/`, the capture page's scripts (`native-client.js`, `native-entry.js`, `device-picker.js`, `native-timing-diagnostics.js`), served with the helpers they import. `page.js` and `native-page.js` are both: the server imports them and serves them to the page, which imports them too |
 
-Three rules keep it that way, each checked by a test:
+Four rules keep it that way, each checked:
 
 - **Paths from `engine-root.js`.** A module that runs in Node takes a path to the engine's own files from
   `engine-root.js` (`enginePath`, `engineUrl`, `ENGINE_ROOT`), never from its own location: in the tests a module runs
   from `src/`, in production from `dist/server.js` (`tests/engine/engine-root.test.mjs`).
 - **No import cycles** but the known ones, which the reorganization takes off one by one
   (`tests/engine/imports.test.mjs`).
+- **One format**, Prettier's (`tools/engine/prettier.json`), so a diff shows only real changes: `python tools/check.py
+  fix` applies it (`tools/engine/lint.mjs`, which `python tools/check.py lint` runs).
 - **600 lines at most** per module; the files over it when the rule came in are listed in `tools/layout.toml`
   (`tests/repo/test_layout.py`).
 

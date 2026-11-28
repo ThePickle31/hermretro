@@ -18,6 +18,14 @@ Every change to the engine raises its version, `version` in `package.json` (2.0.
 version first. A note in this file is not a change to the engine. 2.0.0, the first version named `hermretro-engine`,
 holds every change since ModRetro's 1.0.34.
 
+## 2.0.5
+
+- Every module in `src/` and every `scripts/*.mjs`: in Prettier's format (`tools/engine/prettier.json`, its defaults
+  at 120 columns), the one layout for everyone, so a diff shows only real changes. Layout only:
+  `tools/engine/compare_bundles.mjs` finds the same program in each of the 110 modules, the 12 scripts and the bundle,
+  before and after. `scripts/setup-io.mjs`: its allowed `throw` in a `finally` keeps its reason on the line above it,
+  where the split statement left it.
+
 ## 2.0.4
 
 - `src/engine-root.js` (new), `src/entry.js`, `src/audio.js`, `src/event-catalog.js`, `src/compiler-selection.js`,

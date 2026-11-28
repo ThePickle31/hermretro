@@ -4,13 +4,20 @@
  * `python tools/check.py lint`.
  *
  *   node tools/engine/lint.mjs           report; exits 1 on an error
+ *   node tools/engine/lint.mjs --fix     put every file in Prettier's format first (the only automatic fix)
  *   node tools/engine/lint.mjs FILE...   only these files
+ *
+ * Every file is also held to Prettier's format (tools/engine/prettier.json: its defaults, 120 columns), the one layout
+ * for everyone, so a diff shows only real changes.
  *
  * A deliberate exception is `// hermretro: allow <rule> — <reason>` on its line, as for the page
  * (tools/bundle/eslint-run.mjs). Fixing a report changes the engine: record it with tools/engine/bump.py.
- * ESLint and `globals` come from tools/npm only, the versions this repository pins.
+ * ESLint, `globals` and Prettier come from tools/npm only, the versions this repository pins.
  */
-import { eslintTools, isMain, missing, printReport, runEslint } from '../bundle/eslint-run.mjs'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+
+import { ROOT, eslintTools, isMain, missing, printReport, runEslint } from '../bundle/eslint-run.mjs'
 
 const PATTERNS = ['engine/src/**/*.js', 'engine/scripts/**/*.mjs']
 // The scripts the player's page and the capture page run in the browser (each says `/// <reference lib="dom" />`,
@@ -73,20 +80,54 @@ function engineConfig({ globals }) {
   ]
 }
 
-export const PACKAGES = ['globals'] // besides eslint (lint_tools.py's preflight reads it)
+export const PACKAGES = ['globals', 'prettier'] // besides eslint (lint_tools.py's preflight reads it)
+const FORMAT = JSON.parse(readFileSync(new URL('./prettier.json', import.meta.url), 'utf8'))
 
-export async function lintEngine({ files = [] } = {}) {
+/** The engine files ESLint looks at (PATTERNS), or those of `files` among them. */
+function engineFiles(files) {
+  const roots = { 'engine/src/': '.js', 'engine/scripts/': '.mjs' }
+  const all = Object.entries(roots).flatMap(([folder, extension]) =>
+    readdirSyncRecursive(path.join(ROOT, folder)).filter(name => name.endsWith(extension)).map(name => folder + name)
+  )
+  return files.length ? all.filter(name => files.includes(name)) : all
+}
+
+function readdirSyncRecursive(folder) {
+  return readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter(entry => entry.isFile())
+    .map(entry => path.relative(folder, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+}
+
+/** Each file not in Prettier's format, as an error line; with `fix`, each is rewritten in it instead. */
+async function formatting(prettier, files, fix) {
+  const errors = []
+  for (const name of files) {
+    const file = path.join(ROOT, name)
+    const source = readFileSync(file, 'utf8')
+    const options = { ...FORMAT, filepath: file }
+    if (await prettier.check(source, options)) continue
+    if (fix) writeFileSync(file, await prettier.format(source, options))
+    else errors.push(`${name}:1:1  not in Prettier's format [format]\n    why: one layout for everyone, so a diff shows only real changes. Fix: node tools/engine/lint.mjs --fix.`)
+  }
+  return errors
+}
+
+export async function lintEngine({ fix = false, files = [] } = {}) {
   const found = eslintTools(PACKAGES, { pinned: true })
 
   if (!found) {
     return { missing: missing(PACKAGES, { pinned: true }) }
   }
 
-  return runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
+  const format = await formatting(found.prettier, engineFiles(files), fix)
+  const report = await runEslint({ eslint: found.eslint, config: engineConfig(found), patterns: PATTERNS, help: HELP, files })
+  report.errors.push(...format)
+  return report
 }
 
 if (isMain(import.meta.url)) {
-  const report = await lintEngine({ files: process.argv.slice(2).filter(arg => !arg.startsWith('--')) })
+  const argv = process.argv.slice(2)
+  const report = await lintEngine({ fix: argv.includes('--fix'), files: argv.filter(arg => !arg.startsWith('--')) })
 
   process.exit(printReport(report, ' (then python tools/engine/bump.py for the engine change)'))
 }

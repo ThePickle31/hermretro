@@ -12,10 +12,10 @@ export const ENGINE_ROOT = path.resolve(fileURLToPath(ENGINE_URL));
 
 /** A URL inside the engine folder: `relative` as a URL path from engine/ (a trailing "/" names a folder). */
 export function engineUrl(relative) {
-    return new URL(relative, ENGINE_URL);
+  return new URL(relative, ENGINE_URL);
 }
 
 /** The file path of `engineUrl(relative)`. */
 export function enginePath(relative) {
-    return fileURLToPath(engineUrl(relative));
+  return fileURLToPath(engineUrl(relative));
 }

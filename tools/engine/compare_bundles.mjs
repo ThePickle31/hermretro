@@ -6,7 +6,9 @@
 // Both bundles are parsed and compared as syntax trees, every name included. Only what cannot change what runs is
 // left out: layout, comments, how a literal is spelled (`0x10` and `16`, and so `{ 1: a }` and `{ "1": a }`; a
 // template's raw text and a directive's spelling, `"use strict"`, are kept), parentheses that group nothing (a
-// parenthesised target is kept: `f = () => {}` names the function and `(f) = () => {}` does not), the shorthand of
+// parenthesised target is kept: `f = () => {}` names the function and `(f) = () => {}` does not), how a chain of one
+// logical operator is grouped (`a || (b || c)` is `(a || b) || c`: `||`, `&&` and `??` each evaluate their operands
+// left to right, stop at the same one and give the same value however they are grouped), the shorthand of
 // `{ a }` for `{ a: a }` (but not `{ __proto__ }`), and where import statements stand: what is imported is compared
 // as a sorted list, one entry for each binding (`import a from` is `import { default as a } from`), and the order in
 // which modules are first requested (source and attributes) as a list, which is all an import run only for its
@@ -62,6 +64,14 @@ function propertyKey(node) {
   return ["name", node.key.type === "Identifier" ? node.key.name : String(node.key.value)];
 }
 
+// A chain of one logical operator's operands, left to right, through its parentheses and however it is grouped.
+function chain(node, operator) {
+  while (node.type === "ParenthesizedExpression") node = node.expression;
+  return node.type === "LogicalExpression" && node.operator === operator
+    ? [...chain(node.left, operator), ...chain(node.right, operator)]
+    : [node];
+}
+
 // The comparable form of a node. `named(identifier)` says what an identifier that is not a property's own name stands
 // for: itself (its name) when names are compared, or the binding it refers to when renaming is looked for.
 function form(node, named) {
@@ -77,6 +87,8 @@ function form(node, named) {
       return ["Literal", node.value === null ? "null" : typeof node.value, node.value];
     case "ParenthesizedExpression":
       return form(node.expression, named);
+    case "LogicalExpression":
+      return ["LogicalExpression", node.operator, chain(node, node.operator).map((operand) => form(operand, named))];
     case "ExportSpecifier":
       return ["ExportSpecifier", form(node.local, named), node.exported.name ?? node.exported.value];
   }

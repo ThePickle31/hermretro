@@ -19,8 +19,14 @@ import { access, lstat, mkdir, open, readFile, readdir, realpath, stat } from "n
 import path from "node:path";
 import { ensureOwnedDirectory, runSetupCommand, setupEnvironment } from "./setup-io.mjs";
 import {
-  CHROMATIC_STORAGE_SOURCES, CHROMATIC_VERSION, chromaticRequiredPaths, chromaticTargetFromManifest, chromaticFormatFromManifest,
-  requireChromaticHostTarget, verifyChromaticBundle, verifyChromaticRecords,
+  CHROMATIC_STORAGE_SOURCES,
+  CHROMATIC_VERSION,
+  chromaticRequiredPaths,
+  chromaticTargetFromManifest,
+  chromaticFormatFromManifest,
+  requireChromaticHostTarget,
+  verifyChromaticBundle,
+  verifyChromaticRecords,
 } from "./chromatic-runtime.mjs";
 
 const PACKAGE_NAME = "hermretro-engine";
@@ -29,22 +35,44 @@ const MAX_BYTES = 136 * 1024 * 1024;
 const MAX_FILE_BYTES = 24 * 1024 * 1024;
 const AUTOMATIC_PACKAGE_FILES = new Set(["LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"]);
 const LOCAL_ONLY_FILES = new Set(["package.json", "package-lock.json", ".gitignore", ".npmignore"]);
-const PRIVATE_DIRECTORIES = new Set([".git", ".agents", ".codex", ".local", "node_modules", "vendor", "artifacts", ".cache", "__pycache__", "coverage", "save-states", "src", "tests", "test"]);
+const PRIVATE_DIRECTORIES = new Set([
+  ".git",
+  ".agents",
+  ".codex",
+  ".local",
+  "node_modules",
+  "vendor",
+  "artifacts",
+  ".cache",
+  "__pycache__",
+  "coverage",
+  "save-states",
+  "src",
+  "tests",
+  "test",
+]);
 
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const jsonBytes = (value) => Buffer.from(JSON.stringify(value, null, 2) + "\n");
-const key = (value) => process.platform === "win32" ? value.toLowerCase() : value;
+const key = (value) => (process.platform === "win32" ? value.toLowerCase() : value);
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const stableObject = (value) => JSON.stringify(Object.fromEntries(Object.entries(value ?? {}).sort(([a], [b]) => a.localeCompare(b))));
+const stableObject = (value) =>
+  JSON.stringify(Object.fromEntries(Object.entries(value ?? {}).sort(([a], [b]) => a.localeCompare(b))));
 
 async function writeRuntimeFile(filename, bytes, mode) {
-  const handle = await open(filename, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
+  const handle = await open(
+    filename,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0),
+    0o600,
+  );
   try {
     await handle.writeFile(bytes);
     // setup.sh intentionally uses umask 077. Publish the pinned mode only
     // after writing, through the same exclusively created file descriptor.
     await handle.chmod(mode);
-  } finally { await handle.close(); }
+  } finally {
+    await handle.close();
+  }
 }
 
 function within(root, candidate) {
@@ -60,8 +88,9 @@ function absolute(value, label) {
 }
 
 async function metadata(filename) {
-  try { return await lstat(filename); }
-  catch (error) {
+  try {
+    return await lstat(filename);
+  } catch (error) {
     if (error.code === "ENOENT" || error.code === "ENOTDIR") return undefined;
     throw error;
   }
@@ -93,11 +122,26 @@ async function directory(filename, label) {
 }
 
 function relativeFile(filename) {
-  if (typeof filename !== "string" || filename.length === 0 || filename.length > 1024 || /[\\:<>"|?*\u0000-\u001f]/u.test(filename)) {
+  if (
+    typeof filename !== "string" ||
+    filename.length === 0 ||
+    filename.length > 1024 ||
+    /[\\:<>"|?*\u0000-\u001f]/u.test(filename)
+  ) {
     throw new Error("Invalid runtime package member: " + filename);
   }
   const components = filename.split("/");
-  if (components.length > 32 || components.some((part) => !part || part === "." || part === ".." || /[. ]$/u.test(part) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(part))) {
+  if (
+    components.length > 32 ||
+    components.some(
+      (part) =>
+        !part ||
+        part === "." ||
+        part === ".." ||
+        /[. ]$/u.test(part) ||
+        /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(part),
+    )
+  ) {
     throw new Error("Invalid runtime package member: " + filename);
   }
   return filename;
@@ -113,11 +157,20 @@ function assertPublicMember(filename) {
   const lower = filename.toLowerCase();
   const parts = lower.split("/");
   const basename = parts.at(-1);
-  if (parts.some((part, index) => PRIVATE_DIRECTORIES.has(part) && !(part === "src" && index === 0)) || basename === ".npmrc" || basename === ".ds_store" ||
-    basename === ".env" || basename.startsWith(".env.") || /\.(?:sav|ram|rtc|state|pyc|pyo)$/u.test(basename) ||
-    /\.test\.[cm]?[jt]sx?$/u.test(basename) || /\.(?:playtest|gbstate)\.json$/u.test(basename) ||
-    /^dist\/playtest\.(?:js|js\.map|d\.ts)$/u.test(lower) || /^scripts\/dogfood-/u.test(lower) ||
-    lower === "scripts/integration-smoke.mjs" || lower === "scripts/test-isolated.mjs") {
+  if (
+    parts.some((part, index) => PRIVATE_DIRECTORIES.has(part) && !(part === "src" && index === 0)) ||
+    basename === ".npmrc" ||
+    basename === ".ds_store" ||
+    basename === ".env" ||
+    basename.startsWith(".env.") ||
+    /\.(?:sav|ram|rtc|state|pyc|pyo)$/u.test(basename) ||
+    /\.test\.[cm]?[jt]sx?$/u.test(basename) ||
+    /\.(?:playtest|gbstate)\.json$/u.test(basename) ||
+    /^dist\/playtest\.(?:js|js\.map|d\.ts)$/u.test(lower) ||
+    /^scripts\/dogfood-/u.test(lower) ||
+    lower === "scripts/integration-smoke.mjs" ||
+    lower === "scripts/test-isolated.mjs"
+  ) {
     throw new Error("Refusing private or test-only runtime package member: " + filename);
   }
 }
@@ -128,7 +181,8 @@ async function regularBytes(root, relative, limit = MAX_FILE_BYTES) {
   if (!within(root, filename)) throw new Error("Package member escapes its root: " + relative);
   await unlinked(filename);
   const before = await lstat(filename);
-  if (!before.isFile() || before.size > limit) throw new Error("Package member is not a bounded regular file: " + relative);
+  if (!before.isFile() || before.size > limit)
+    throw new Error("Package member is not a bounded regular file: " + relative);
   const handle = await open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const opened = await handle.stat();
@@ -142,7 +196,9 @@ async function regularBytes(root, relative, limit = MAX_FILE_BYTES) {
     }
     await unlinked(filename);
     return { bytes, mode: before.mode & 0o111 ? 0o755 : 0o644 };
-  } finally { await handle.close(); }
+  } finally {
+    await handle.close();
+  }
 }
 
 async function objectFile(root, relative) {
@@ -162,17 +218,24 @@ export async function resolveRuntimeNpm({ nodeExecutable }) {
     path.resolve(nodeDirectory, "..", "lib", "node_modules", "npm"),
   ];
   for (const npmRoot of candidates) {
-    if (!await metadata(npmRoot)) continue;
+    if (!(await metadata(npmRoot))) continue;
     await unlinked(npmRoot);
     const manifest = await objectFile(npmRoot, "package.json");
-    if (manifest.name !== "npm" || typeof manifest.version !== "string") throw new Error("The selected Node installation has an invalid npm manifest.");
+    if (manifest.name !== "npm" || typeof manifest.version !== "string")
+      throw new Error("The selected Node installation has an invalid npm manifest.");
     if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/u.test(manifest.version) || Number(manifest.version.split(".")[0]) < 9) {
       throw new Error("The selected Node installation needs npm 9 or newer for the reviewed lockfile format.");
     }
     await regularBytes(npmRoot, "bin/npm-cli.js", 1024 * 1024);
-    return { nodeExecutable: selectedNode, npmCli: path.join(npmRoot, "bin", "npm-cli.js"), npmVersion: manifest.version };
+    return {
+      nodeExecutable: selectedNode,
+      npmCli: path.join(npmRoot, "bin", "npm-cli.js"),
+      npmVersion: manifest.version,
+    };
   }
-  throw new Error("The selected Node installation has no sibling npm-cli.js; choose a Node distribution containing npm.");
+  throw new Error(
+    "The selected Node installation has no sibling npm-cli.js; choose a Node distribution containing npm.",
+  );
 }
 
 /** The product allowlist uses literal positive paths and ordinary exclusion globs. */
@@ -182,14 +245,18 @@ function exclusion(pattern) {
     const character = pattern[index];
     if (character === "*" && pattern[index + 1] === "*") {
       index++;
-      if (pattern[index + 1] === "/") { index++; result += "(?:.*/)?"; }
-      else result += ".*";
+      if (pattern[index + 1] === "/") {
+        index++;
+        result += "(?:.*/)?";
+      } else result += ".*";
     } else if (character === "*") result += "[^/]*";
     else if (character === "?") result += "[^/]";
     else if (character === "[") {
       const end = pattern.indexOf("]", index + 1);
-      if (end < 0 || !/^[A-Za-z0-9-]+$/u.test(pattern.slice(index + 1, end))) throw new Error("Unsupported package exclusion: " + pattern);
-      result += pattern.slice(index, end + 1); index = end;
+      if (end < 0 || !/^[A-Za-z0-9-]+$/u.test(pattern.slice(index + 1, end)))
+        throw new Error("Unsupported package exclusion: " + pattern);
+      result += pattern.slice(index, end + 1);
+      index = end;
     } else result += /[\\^$+.()|{}]/u.test(character) ? "\\" + character : character;
   }
   return new RegExp("^" + result + "(?:/.*)?$", "u");
@@ -212,16 +279,22 @@ async function distributionFiles(packageRoot, packageManifest) {
     const file = await regularBytes(packageRoot, relative);
     const sha256 = digest(file.bytes);
     totalBytes += file.bytes.length;
-    if (seen.size > MAX_FILES || totalBytes > MAX_BYTES) throw new Error("Compiled runtime package exceeds its copy limits.");
+    if (seen.size > MAX_FILES || totalBytes > MAX_BYTES)
+      throw new Error("Compiled runtime package exceeds its copy limits.");
     records.set(relative, { path: relative, ...file, sha256 });
   }
 
   if (!Array.isArray(packageManifest.files) || packageManifest.files.length === 0) {
     throw new Error("The package needs a files allowlist naming its runtime members.");
   }
-  if (!packageManifest.files.every((entry) => typeof entry === "string")) throw new Error("The package files allowlist must contain strings.");
-  const excluded = packageManifest.files.filter((entry) => entry.startsWith("!")).map((entry) => exclusion(entry.slice(1)));
-  const selected = packageManifest.files.filter((entry) => !entry.startsWith("!")).map((entry) => entry.replace(/\/$/u, ""));
+  if (!packageManifest.files.every((entry) => typeof entry === "string"))
+    throw new Error("The package files allowlist must contain strings.");
+  const excluded = packageManifest.files
+    .filter((entry) => entry.startsWith("!"))
+    .map((entry) => exclusion(entry.slice(1)));
+  const selected = packageManifest.files
+    .filter((entry) => !entry.startsWith("!"))
+    .map((entry) => entry.replace(/\/$/u, ""));
   async function visit(relative) {
     if (excluded.some((pattern) => pattern.test(relative))) return;
     relativeFile(relative);
@@ -238,15 +311,26 @@ async function distributionFiles(packageRoot, packageManifest) {
   }
   for (const relative of selected) await visit(relative);
   for (const filename of AUTOMATIC_PACKAGE_FILES) {
-    if (await metadata(path.join(packageRoot, filename)) && !records.has(filename)) await add(filename);
+    if ((await metadata(path.join(packageRoot, filename))) && !records.has(filename)) await add(filename);
   }
-  for (const required of ["dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
-    if (!records.has(required)) throw new Error("Compiled distribution is missing a required runtime member: " + required);
+  for (const required of [
+    "dist/server.js",
+    "scripts/start-mcp.mjs",
+    "scripts/chromatic-runtime.mjs",
+    "scripts/setup-io.mjs",
+    "scripts/emulator_worker.py",
+    "scripts/runtime-package.json",
+    "scripts/runtime-package-lock.json",
+  ]) {
+    if (!records.has(required))
+      throw new Error("Compiled distribution is missing a required runtime member: " + required);
   }
   if (packageManifest.bundledChromatic !== undefined) {
-    if (packageManifest.bundledChromatic !== CHROMATIC_VERSION) throw new Error("Unsupported bundled Chromatic release.");
+    if (packageManifest.bundledChromatic !== CHROMATIC_VERSION)
+      throw new Error("Unsupported bundled Chromatic release.");
     for (const required of chromaticRequiredPaths(chromaticTarget, chromaticFormat)) {
-      if (!records.has(required)) throw new Error("Compiled distribution is missing bundled Chromatic member: " + required);
+      if (!records.has(required))
+        throw new Error("Compiled distribution is missing bundled Chromatic member: " + required);
     }
     verifyChromaticBundle(packageRoot, { target: chromaticTarget, format: chromaticFormat });
     verifyChromaticRecords([...records.values()], { target: chromaticTarget, format: chromaticFormat });
@@ -254,7 +338,8 @@ async function distributionFiles(packageRoot, packageManifest) {
   return [...records.values()].sort((left, right) => left.path.localeCompare(right.path, "en"));
 }
 
-const fileInventory = (files) => files.map(({ path: filename, mode, bytes, sha256 }) => ({ path: filename, mode, size: bytes.length, sha256 }));
+const fileInventory = (files) =>
+  files.map(({ path: filename, mode, bytes, sha256 }) => ({ path: filename, mode, size: bytes.length, sha256 }));
 
 async function inspectSource(packageRoot) {
   const root = await directory(packageRoot, "Package root");
@@ -262,8 +347,15 @@ async function inspectSource(packageRoot) {
   const manifest = JSON.parse(manifestFile.bytes.toString("utf8"));
   if (!isObject(manifest)) throw new Error("The source package manifest must be a JSON object.");
   const files = await distributionFiles(root, manifest);
-  const inventory = [...fileInventory(files), { path: "package.json", mode: manifestFile.mode, size: manifestFile.bytes.length, sha256: digest(manifestFile.bytes) }]
-    .sort((left, right) => left.path.localeCompare(right.path, "en"));
+  const inventory = [
+    ...fileInventory(files),
+    {
+      path: "package.json",
+      mode: manifestFile.mode,
+      size: manifestFile.bytes.length,
+      sha256: digest(manifestFile.bytes),
+    },
+  ].sort((left, right) => left.path.localeCompare(right.path, "en"));
   return { root, manifest, files, sourceSha256: digest(JSON.stringify(inventory)) };
 }
 
@@ -282,10 +374,18 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
   await unlinked(root);
   if (!(await lstat(root)).isDirectory()) throw new Error("Prepared runtime must be a real directory.");
   const modules = await metadata(path.join(root, "node_modules"));
-  if (!modules?.isDirectory() || modules.isSymbolicLink()) throw new Error("Prepared runtime must retain its real npm-owned node_modules directory.");
-  if (!isObject(provenance) || provenance.status !== "prepared" || !Array.isArray(provenance.files) ||
-    provenance.files.length < 1 || provenance.files.length > MAX_FILES ||
-    ![provenance.distributionSha256, provenance.manifestSha256, provenance.lockSha256].every((value) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value))) {
+  if (!modules?.isDirectory() || modules.isSymbolicLink())
+    throw new Error("Prepared runtime must retain its real npm-owned node_modules directory.");
+  if (
+    !isObject(provenance) ||
+    provenance.status !== "prepared" ||
+    !Array.isArray(provenance.files) ||
+    provenance.files.length < 1 ||
+    provenance.files.length > MAX_FILES ||
+    ![provenance.distributionSha256, provenance.manifestSha256, provenance.lockSha256].every(
+      (value) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value),
+    )
+  ) {
     throw new Error("Prepared runtime has no bounded complete distribution receipt.");
   }
   const expectedFiles = new Set(["package.json", "package-lock.json"]);
@@ -295,18 +395,37 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
   for (const entry of provenance.files) {
     if (!isObject(entry)) throw new Error("Invalid prepared runtime file receipt.");
     assertPublicMember(entry.path);
-    if (!runtimeMember(entry.path) || identities.has(entry.path.toLowerCase()) ||
-      ![0o644, 0o755].includes(entry.mode) || !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_FILE_BYTES ||
-      typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/u.test(entry.sha256)) throw new Error("Invalid or duplicate prepared runtime file receipt: " + entry.path);
+    if (
+      !runtimeMember(entry.path) ||
+      identities.has(entry.path.toLowerCase()) ||
+      ![0o644, 0o755].includes(entry.mode) ||
+      !Number.isSafeInteger(entry.size) ||
+      entry.size < 0 ||
+      entry.size > MAX_FILE_BYTES ||
+      typeof entry.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(entry.sha256)
+    )
+      throw new Error("Invalid or duplicate prepared runtime file receipt: " + entry.path);
     totalBytes += entry.size;
     if (totalBytes > MAX_BYTES) throw new Error("Prepared runtime receipt exceeds its total size bound.");
-    identities.add(entry.path.toLowerCase()); expectedFiles.add(entry.path);
+    identities.add(entry.path.toLowerCase());
+    expectedFiles.add(entry.path);
     const pieces = entry.path.split("/");
     for (let index = 1; index < pieces.length; index++) expectedDirectories.add(pieces.slice(0, index).join("/"));
   }
-  if (digest(JSON.stringify(provenance.files)) !== provenance.distributionSha256) throw new Error("Prepared runtime inventory no longer matches its recorded digest.");
-  for (const required of ["dist/server.js", "scripts/start-mcp.mjs", "scripts/chromatic-runtime.mjs", "scripts/setup-io.mjs", "scripts/emulator_worker.py", "scripts/runtime-package.json", "scripts/runtime-package-lock.json"]) {
-    if (!expectedFiles.has(required)) throw new Error("Prepared runtime inventory lacks a required member: " + required);
+  if (digest(JSON.stringify(provenance.files)) !== provenance.distributionSha256)
+    throw new Error("Prepared runtime inventory no longer matches its recorded digest.");
+  for (const required of [
+    "dist/server.js",
+    "scripts/start-mcp.mjs",
+    "scripts/chromatic-runtime.mjs",
+    "scripts/setup-io.mjs",
+    "scripts/emulator_worker.py",
+    "scripts/runtime-package.json",
+    "scripts/runtime-package-lock.json",
+  ]) {
+    if (!expectedFiles.has(required))
+      throw new Error("Prepared runtime inventory lacks a required member: " + required);
   }
   let visited = 0;
   async function visit(directoryName, prefix = "") {
@@ -320,9 +439,11 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
         continue;
       }
       if (entry.isDirectory()) {
-        if (!expectedDirectories.has(relative)) throw new Error("Prepared runtime has an unlisted directory: " + relative);
+        if (!expectedDirectories.has(relative))
+          throw new Error("Prepared runtime has an unlisted directory: " + relative);
         await visit(path.join(directoryName, entry.name), relative);
-      } else if (!entry.isFile() || !expectedFiles.has(relative)) throw new Error("Prepared runtime has an unlisted member: " + relative);
+      } else if (!entry.isFile() || !expectedFiles.has(relative))
+        throw new Error("Prepared runtime has an unlisted member: " + relative);
     }
   }
   await visit(root);
@@ -333,7 +454,10 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
     }
   }
   let manifest;
-  for (const [filename, hash] of [["package.json", provenance.manifestSha256], ["package-lock.json", provenance.lockSha256]]) {
+  for (const [filename, hash] of [
+    ["package.json", provenance.manifestSha256],
+    ["package-lock.json", provenance.lockSha256],
+  ]) {
     const actual = await regularBytes(root, filename, 1024 * 1024);
     if (digest(actual.bytes) !== hash) throw new Error("Prepared runtime manifest/lock changed: " + filename);
     if (filename === "package.json") manifest = JSON.parse(actual.bytes.toString("utf8"));
@@ -341,60 +465,118 @@ export async function verifyPreparedRuntime({ runtimeRoot, provenance }) {
   const chromaticTarget = chromaticTargetFromManifest(manifest);
   const chromaticFormat = chromaticFormatFromManifest(manifest);
   requireChromaticHostTarget(chromaticTarget);
-  if (manifest.bundledChromatic === CHROMATIC_VERSION) verifyChromaticBundle(root, { target: chromaticTarget, format: chromaticFormat });
+  if (manifest.bundledChromatic === CHROMATIC_VERSION)
+    verifyChromaticBundle(root, { target: chromaticTarget, format: chromaticFormat });
   return true;
 }
 
 function validateManifests(source, manifest, lock) {
-  if (source.name !== PACKAGE_NAME || typeof source.version !== "string" || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(source.version)) {
+  if (
+    source.name !== PACKAGE_NAME ||
+    typeof source.version !== "string" ||
+    !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(source.version)
+  ) {
     throw new Error("Runtime preparation requires a versioned " + PACKAGE_NAME + " package.");
   }
-  const allowed = new Set(["name", "version", "description", "private", "type", "main", "engines", "license", "dependencies"]);
-  if (!isObject(manifest.dependencies) || Object.keys(manifest).some((field) => !allowed.has(field)) ||
-    manifest.name !== PACKAGE_NAME || manifest.private !== true || manifest.type !== "module" || manifest.main !== "./dist/server.js" ||
-    stableObject(manifest.dependencies) !== stableObject(source.dependencies) || stableObject(manifest.engines) !== stableObject(source.engines)) {
+  const allowed = new Set([
+    "name",
+    "version",
+    "description",
+    "private",
+    "type",
+    "main",
+    "engines",
+    "license",
+    "dependencies",
+  ]);
+  if (
+    !isObject(manifest.dependencies) ||
+    Object.keys(manifest).some((field) => !allowed.has(field)) ||
+    manifest.name !== PACKAGE_NAME ||
+    manifest.private !== true ||
+    manifest.type !== "module" ||
+    manifest.main !== "./dist/server.js" ||
+    stableObject(manifest.dependencies) !== stableObject(source.dependencies) ||
+    stableObject(manifest.engines) !== stableObject(source.engines)
+  ) {
     throw new Error("The shipped runtime manifest does not match this package's reviewed production dependencies.");
   }
-  if (lock.lockfileVersion !== 3 || lock.name !== PACKAGE_NAME || !isObject(lock.packages) || !isObject(lock.packages[""]) ||
-    stableObject(lock.packages[""].dependencies) !== stableObject(manifest.dependencies) || lock.packages[""].devDependencies !== undefined) {
+  if (
+    lock.lockfileVersion !== 3 ||
+    lock.name !== PACKAGE_NAME ||
+    !isObject(lock.packages) ||
+    !isObject(lock.packages[""]) ||
+    stableObject(lock.packages[""].dependencies) !== stableObject(manifest.dependencies) ||
+    lock.packages[""].devDependencies !== undefined
+  ) {
     throw new Error("The shipped runtime lock does not match its production manifest.");
   }
   for (const [filename, entry] of Object.entries(lock.packages)) {
     if (filename === "") continue;
     relativeFile(filename);
-    if (!filename.startsWith("node_modules/") || !isObject(entry) || entry.dev || entry.link || typeof entry.version !== "string") {
+    if (
+      !filename.startsWith("node_modules/") ||
+      !isObject(entry) ||
+      entry.dev ||
+      entry.link ||
+      typeof entry.version !== "string"
+    ) {
       throw new Error("The runtime lock contains a non-production registry package: " + filename);
     }
     const resolved = new URL(entry.resolved);
-    if (resolved.origin !== "https://registry.npmjs.org" || resolved.username || resolved.password || resolved.search || resolved.hash ||
-      !/^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/u.test(entry.integrity ?? "")) {
+    if (
+      resolved.origin !== "https://registry.npmjs.org" ||
+      resolved.username ||
+      resolved.password ||
+      resolved.search ||
+      resolved.hash ||
+      !/^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/u.test(entry.integrity ?? "")
+    ) {
       throw new Error("Runtime dependencies require public-registry URLs and integrity hashes: " + filename);
     }
   }
   for (const dependency of Object.keys(manifest.dependencies)) {
-    if (!lock.packages["node_modules/" + dependency]) throw new Error("The runtime lock is missing direct dependency " + dependency);
+    if (!lock.packages["node_modules/" + dependency])
+      throw new Error("The runtime lock is missing direct dependency " + dependency);
   }
   return {
     manifest: { ...manifest, version: source.version },
-    lock: { ...lock, version: source.version, packages: { ...lock.packages, "": { ...lock.packages[""], version: source.version } } },
+    lock: {
+      ...lock,
+      version: source.version,
+      packages: { ...lock.packages, "": { ...lock.packages[""], version: source.version } },
+    },
   };
 }
 
 function npmEnvironment(parent, shared) {
   const result = { ...shared };
-  const networkNpm = new Set(["NPM_CONFIG_CA", "NPM_CONFIG_CAFILE", "NPM_CONFIG_PROXY", "NPM_CONFIG_HTTPS_PROXY", "NPM_CONFIG_NOPROXY"]);
+  const networkNpm = new Set([
+    "NPM_CONFIG_CA",
+    "NPM_CONFIG_CAFILE",
+    "NPM_CONFIG_PROXY",
+    "NPM_CONFIG_HTTPS_PROXY",
+    "NPM_CONFIG_NOPROXY",
+  ]);
   const seen = new Map();
   for (const [name, value] of Object.entries(parent ?? {})) {
     if (value === undefined) continue;
     const normalized = name.toUpperCase();
     if (!networkNpm.has(normalized)) continue;
-    if (seen.has(normalized) && seen.get(normalized) !== value) throw new Error("Conflicting environment aliases for " + name);
+    if (seen.has(normalized) && seen.get(normalized) !== value)
+      throw new Error("Conflicting environment aliases for " + name);
     seen.set(normalized, value);
     result[normalized.toLowerCase()] = value;
   }
   return {
-    ...result, npm_config_registry: "https://registry.npmjs.org", npm_config_strict_ssl: "true", npm_config_global: "false",
-    npm_config_ignore_scripts: "true", npm_config_audit: "false", npm_config_fund: "false", npm_config_update_notifier: "false",
+    ...result,
+    npm_config_registry: "https://registry.npmjs.org",
+    npm_config_strict_ssl: "true",
+    npm_config_global: "false",
+    npm_config_ignore_scripts: "true",
+    npm_config_audit: "false",
+    npm_config_fund: "false",
+    npm_config_update_notifier: "false",
   };
 }
 
@@ -403,7 +585,9 @@ export class RuntimePreparationError extends Error {
     super(message, { cause });
     this.name = "RuntimePreparationError";
     this.code = cancelled ? "RUNTIME_PREPARATION_CANCELLED" : "RUNTIME_PREPARATION_FAILED";
-    this.phase = phase; this.runtimeRoot = runtimeRoot; this.operationRoot = operationRoot;
+    this.phase = phase;
+    this.runtimeRoot = runtimeRoot;
+    this.operationRoot = operationRoot;
     // Preserve process-exit/cleanup evidence at this boundary as well as in the
     // original cause. The setup coordinator must retain its lock if exit was
     // not observed, even though this wrapper adds a runtime-specific phase.
@@ -416,31 +600,68 @@ export class RuntimePreparationError extends Error {
  * runtimeRoot is a fresh nonexistent child, commonly inside caller staging.
  * runCommand is an injectable executor for unit tests; no npm runs on import.
  */
-export async function prepareRuntime({ packageRoot, runtimeRoot, setupRoot, nodeExecutable, environment = process.env, signal, onProgress, runCommand = runSetupCommand }) {
-  let phase = "preflight"; let operationRoot; let destination; let execution;
-  const cancelled = () => { if (signal?.aborted) throw new Error("Runtime preparation was cancelled."); };
-  const progress = (next, message) => { phase = next; onProgress?.({ phase, message }); cancelled(); };
+export async function prepareRuntime({
+  packageRoot,
+  runtimeRoot,
+  setupRoot,
+  nodeExecutable,
+  environment = process.env,
+  signal,
+  onProgress,
+  runCommand = runSetupCommand,
+}) {
+  let phase = "preflight";
+  let operationRoot;
+  let destination;
+  let execution;
+  const cancelled = () => {
+    if (signal?.aborted) throw new Error("Runtime preparation was cancelled.");
+  };
+  const progress = (next, message) => {
+    phase = next;
+    onProgress?.({ phase, message });
+    cancelled();
+  };
   try {
     cancelled();
     const source = await directory(packageRoot, "Package root");
     const owned = await directory(setupRoot, "Owned setup root");
     destination = absolute(runtimeRoot, "Runtime destination");
-    await unlinked(owned); await unlinked(destination, { allowMissing: true });
-    if (!within(owned, destination) || key(owned) === key(destination) || within(source, destination) || within(destination, source) || within(source, owned)) {
+    await unlinked(owned);
+    await unlinked(destination, { allowMissing: true });
+    if (
+      !within(owned, destination) ||
+      key(owned) === key(destination) ||
+      within(source, destination) ||
+      within(destination, source) ||
+      within(source, owned)
+    ) {
       throw new Error("Runtime staging must be a child of an owned setup root separate from the source package.");
     }
-    if (await metadata(destination)) throw new Error("Runtime destination already exists; caller must select a fresh staging child.");
-    if (!(await stat(path.dirname(destination))).isDirectory()) throw new Error("Runtime destination parent must already exist in caller-owned staging.");
+    if (await metadata(destination))
+      throw new Error("Runtime destination already exists; caller must select a fresh staging child.");
+    if (!(await stat(path.dirname(destination))).isDirectory())
+      throw new Error("Runtime destination parent must already exist in caller-owned staging.");
     const npm = await resolveRuntimeNpm({ nodeExecutable });
-    if (within(source, npm.nodeExecutable) || within(destination, npm.nodeExecutable) || within(source, npm.npmCli) || within(destination, npm.npmCli)) {
+    if (
+      within(source, npm.nodeExecutable) ||
+      within(destination, npm.nodeExecutable) ||
+      within(source, npm.npmCli) ||
+      within(destination, npm.npmCli)
+    ) {
       throw new Error("Selected Node and npm must be outside the source package and runtime destination.");
     }
     const inspected = await inspectSource(source);
     const sourceManifest = inspected.manifest;
     const files = inspected.files;
-    const reviewedManifest = JSON.parse(files.find((file) => file.path === "scripts/runtime-package.json").bytes.toString("utf8"));
-    const reviewedLock = JSON.parse(files.find((file) => file.path === "scripts/runtime-package-lock.json").bytes.toString("utf8"));
-    if (!isObject(reviewedManifest) || !isObject(reviewedLock)) throw new Error("Runtime dependency manifests must contain JSON objects.");
+    const reviewedManifest = JSON.parse(
+      files.find((file) => file.path === "scripts/runtime-package.json").bytes.toString("utf8"),
+    );
+    const reviewedLock = JSON.parse(
+      files.find((file) => file.path === "scripts/runtime-package-lock.json").bytes.toString("utf8"),
+    );
+    if (!isObject(reviewedManifest) || !isObject(reviewedLock))
+      throw new Error("Runtime dependency manifests must contain JSON objects.");
     const prepared = validateManifests(sourceManifest, reviewedManifest, reviewedLock);
     const sourceSha256 = inspected.sourceSha256;
     // Literal inventory entries, without shipping source/dev files or stale cache markers.
@@ -455,7 +676,8 @@ export async function prepareRuntime({ packageRoot, runtimeRoot, setupRoot, node
       prepared.manifest.license = "SEE LICENSE IN THIRD_PARTY_NOTICES.md";
       prepared.lock.packages[""].license = prepared.manifest.license;
     }
-    const manifestBytes = jsonBytes(prepared.manifest); const lockBytes = jsonBytes(prepared.lock);
+    const manifestBytes = jsonBytes(prepared.manifest);
+    const lockBytes = jsonBytes(prepared.lock);
     const copiedFiles = fileInventory(files);
     cancelled();
     // The caller holds this setup root's lock. Only npm's integrity-checked
@@ -482,26 +704,66 @@ export async function prepareRuntime({ packageRoot, runtimeRoot, setupRoot, node
     await writeRuntimeFile(path.join(destination, "package-lock.json"), lockBytes, 0o644);
     operationRoot = path.join(owned, ".runtime-prepare-" + randomUUID());
     await mkdir(operationRoot, { mode: 0o700 });
-    const sharedEnvironment = await setupEnvironment({ setupRoot: operationRoot, nodeExecutable: npm.nodeExecutable, environment, platform: process.platform });
-    const npmLogs = await ensureOwnedDirectory(operationRoot, path.join(operationRoot, "logs", "npm"));
-    const env = npmEnvironment(environment, { ...sharedEnvironment, npm_config_cache: npmCache, npm_config_logs_dir: npmLogs });
-    progress("npm", "Installing locked production dependencies with scripts disabled and owned npm storage.");
-    const result = await runCommand(npm.nodeExecutable, [npm.npmCli, "ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund", "--workspaces=false", "--global=false", "--prefix", destination], {
-      cwd: destination, env, signal, onProgress, label: "Runtime npm dependencies", timeoutMs: 10 * 60_000,
+    const sharedEnvironment = await setupEnvironment({
+      setupRoot: operationRoot,
+      nodeExecutable: npm.nodeExecutable,
+      environment,
+      platform: process.platform,
     });
+    const npmLogs = await ensureOwnedDirectory(operationRoot, path.join(operationRoot, "logs", "npm"));
+    const env = npmEnvironment(environment, {
+      ...sharedEnvironment,
+      npm_config_cache: npmCache,
+      npm_config_logs_dir: npmLogs,
+    });
+    progress("npm", "Installing locked production dependencies with scripts disabled and owned npm storage.");
+    const result = await runCommand(
+      npm.nodeExecutable,
+      [
+        npm.npmCli,
+        "ci",
+        "--omit=dev",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--workspaces=false",
+        "--global=false",
+        "--prefix",
+        destination,
+      ],
+      {
+        cwd: destination,
+        env,
+        signal,
+        onProgress,
+        label: "Runtime npm dependencies",
+        timeoutMs: 10 * 60_000,
+      },
+    );
     execution = result;
     cancelled();
-    if (result?.cancelled) throw new Error("Runtime dependency installation was cancelled after its npm process closed.");
+    if (result?.cancelled)
+      throw new Error("Runtime dependency installation was cancelled after its npm process closed.");
     if (result?.timedOut) throw new Error("Runtime dependency installation exceeded its bounded npm timeout.");
-    if (result?.exitObserved === false || result?.cleanupErrors?.length) throw new Error("Runtime npm process cleanup was not confirmed; preserve the setup lock and partial state.");
+    if (result?.exitObserved === false || result?.cleanupErrors?.length)
+      throw new Error("Runtime npm process cleanup was not confirmed; preserve the setup lock and partial state.");
     const exitCode = result?.exitCode ?? result?.status;
-    if (exitCode !== 0) throw new Error("Locked production npm installation failed (status " + exitCode + "): " + String(result?.stderr ?? "").slice(-4096));
+    if (exitCode !== 0)
+      throw new Error(
+        "Locked production npm installation failed (status " +
+          exitCode +
+          "): " +
+          String(result?.stderr ?? "").slice(-4096),
+      );
     progress("verify", "Checking installed production package versions without importing them.");
     await unlinked(destination);
     for (const dependency of Object.keys(prepared.manifest.dependencies)) {
       const metadataPath = "node_modules/" + dependency + "/package.json";
       const installed = await objectFile(destination, metadataPath);
-      if (installed.name !== dependency || installed.version !== prepared.lock.packages["node_modules/" + dependency].version) {
+      if (
+        installed.name !== dependency ||
+        installed.version !== prepared.lock.packages["node_modules/" + dependency].version
+      ) {
         throw new Error("Prepared runtime dependency metadata does not match its lock: " + dependency);
       }
     }
@@ -511,18 +773,37 @@ export async function prepareRuntime({ packageRoot, runtimeRoot, setupRoot, node
         throw new Error("A copied distribution member changed during dependency installation: " + file.path);
       }
     }
-    if (digest(await readFile(path.join(destination, "package.json"))) !== digest(manifestBytes) ||
-      digest(await readFile(path.join(destination, "package-lock.json"))) !== digest(lockBytes)) {
+    if (
+      digest(await readFile(path.join(destination, "package.json"))) !== digest(manifestBytes) ||
+      digest(await readFile(path.join(destination, "package-lock.json"))) !== digest(lockBytes)
+    ) {
       throw new Error("The prepared runtime manifest or lock changed during dependency installation.");
     }
     cancelled();
-    return { status: "prepared", runtimeRoot: destination, operationRoot, ...npm, packageVersion: prepared.manifest.version,
-      manifestSha256: digest(manifestBytes), lockSha256: digest(lockBytes), sourceSha256,
-      distributionSha256: digest(JSON.stringify(copiedFiles)), files: copiedFiles, filesCopied: files.length };
+    return {
+      status: "prepared",
+      runtimeRoot: destination,
+      operationRoot,
+      ...npm,
+      packageVersion: prepared.manifest.version,
+      manifestSha256: digest(manifestBytes),
+      lockSha256: digest(lockBytes),
+      sourceSha256,
+      distributionSha256: digest(JSON.stringify(copiedFiles)),
+      files: copiedFiles,
+      filesCopied: files.length,
+    };
   } catch (cause) {
-    throw new RuntimePreparationError("Runtime preparation failed during " + phase + "; any owned partial staging is preserved. " + cause.message, {
-      cause, phase, runtimeRoot: destination ?? runtimeRoot, operationRoot, cancelled: signal?.aborted === true || cause?.code === "ABORT_ERR",
-      execution,
-    });
+    throw new RuntimePreparationError(
+      "Runtime preparation failed during " + phase + "; any owned partial staging is preserved. " + cause.message,
+      {
+        cause,
+        phase,
+        runtimeRoot: destination ?? runtimeRoot,
+        operationRoot,
+        cancelled: signal?.aborted === true || cause?.code === "ABORT_ERR",
+        execution,
+      },
+    );
   }
 }

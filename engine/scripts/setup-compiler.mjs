@@ -5,19 +5,7 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import {
-  cp,
-  lstat,
-  mkdir,
-  mkdtemp,
-  open,
-  readFile,
-  readdir,
-  realpath,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
@@ -35,7 +23,8 @@ const MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_CENTRAL_DIRECTORY_BYTES = 64 * 1024 * 1024;
 const PROGRESS_INTERVAL_MS = 30_000;
 const MAX_PROGRESS_UPDATES = 60;
-const COREPACK_REMEDIATION = "Use a current supported Node.js 22 or 24 LTS, run `npm install --global corepack@latest`, ensure the npm global directory is on PATH, then rerun setup.";
+const COREPACK_REMEDIATION =
+  "Use a current supported Node.js 22 or 24 LTS, run `npm install --global corepack@latest`, ensure the npm global directory is on PATH, then rerun setup.";
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu;
 const WINDOWS_INVALID_COMPONENT = /[<>:"|?*\u0000-\u001f]|[. ]$/u;
 const UNSAFE_ENVIRONMENT_KEYS = new Set([
@@ -121,8 +110,7 @@ function samePath(left, right, platform = process.platform) {
 
 function withinRoot(root, candidate) {
   const relative = path.relative(root, candidate);
-  return relative === "" ||
-    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
 }
 
 async function metadataIfPresent(candidate) {
@@ -206,16 +194,15 @@ export function sanitizeWindowsBootstrapEnvironment(environment = process.env, t
     const normalized = name.toUpperCase();
     if (retained.has(normalized)) {
       if (retained.get(normalized) !== value) {
-        throw new Error(`The Windows bootstrap environment contains conflicting case-insensitive ${normalized} values.`);
+        throw new Error(
+          `The Windows bootstrap environment contains conflicting case-insensitive ${normalized} values.`,
+        );
       }
       continue;
     }
     retained.set(normalized, value);
-    if (
-      UNSAFE_ENVIRONMENT_KEYS.has(normalized) ||
-      normalized.startsWith("UV_") ||
-      normalized.startsWith("GIT_")
-    ) continue;
+    if (UNSAFE_ENVIRONMENT_KEYS.has(normalized) || normalized.startsWith("UV_") || normalized.startsWith("GIT_"))
+      continue;
     sanitized[normalized === "PATH" ? "PATH" : name] = value;
   }
   if (temporaryDirectory !== undefined) {
@@ -270,29 +257,48 @@ function gbStudioSetupPlan(options, selected, logger) {
   const platform = options.platform ?? process.platform;
   const architecture = options.arch ?? process.arch;
   const environment = options.environment ?? process.env;
-  const configuredRoot = platform === "win32"
-    ? caseInsensitiveValue(environment, "GB_STUDIO_TOOLCHAIN_ROOT")
-    : environment.GB_STUDIO_TOOLCHAIN_ROOT;
-  const toolchainRoot = path.resolve(options.workingDirectory ?? options.cwd ?? process.cwd(), options.toolchainRoot ??
-    configuredRoot ?? options.pluginRoot ?? PLUGIN_ROOT);
-  const withCli = platform === "win32" || platform === "linux" || selected.headless || selected.useExisting || (options.args ?? []).includes("--with-cli");
+  const configuredRoot =
+    platform === "win32"
+      ? caseInsensitiveValue(environment, "GB_STUDIO_TOOLCHAIN_ROOT")
+      : environment.GB_STUDIO_TOOLCHAIN_ROOT;
+  const toolchainRoot = path.resolve(
+    options.workingDirectory ?? options.cwd ?? process.cwd(),
+    options.toolchainRoot ?? configuredRoot ?? options.pluginRoot ?? PLUGIN_ROOT,
+  );
+  const withCli =
+    platform === "win32" ||
+    platform === "linux" ||
+    selected.headless ||
+    selected.useExisting ||
+    (options.args ?? []).includes("--with-cli");
   const withDesktop = selected.withDesktop || (platform === "darwin" && !selected.headless && !selected.useExisting);
-  const components = [`GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version}`,
+  const components = [
+    `GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version}`,
     ...(withCli ? [`official GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} CLI`] : []),
-    ...(withDesktop ? [`optional GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop editor`] : [])];
+    ...(withDesktop ? [`optional GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop editor`] : []),
+  ];
   logger("[dry-run] Plan only; no tools were run and dependency health is unverified.");
   logger(`[dry-run] Target ${platform}-${architecture}; dependency destination ${path.join(toolchainRoot, ".local")}.`);
-  logger(`[dry-run] Would ${selected.useExisting ? "verify the existing" : "verify/reuse or prepare"} ${components.join(", ")}.`);
-  logger("[dry-run] Installed plugins should use packaged setup.mjs (or setup.sh/setup.ps1) with an external dependency root.");
-  return { schemaVersion: 1, dryRun: true, verified: false, installed: false, platform: `${platform}-${architecture}`,
-    toolchainRoot, components, useExisting: selected.useExisting };
+  logger(
+    `[dry-run] Would ${selected.useExisting ? "verify the existing" : "verify/reuse or prepare"} ${components.join(", ")}.`,
+  );
+  logger(
+    "[dry-run] Installed plugins should use packaged setup.mjs (or setup.sh/setup.ps1) with an external dependency root.",
+  );
+  return {
+    schemaVersion: 1,
+    dryRun: true,
+    verified: false,
+    installed: false,
+    platform: `${platform}-${architecture}`,
+    toolchainRoot,
+    components,
+    useExisting: selected.useExisting,
+  };
 }
 
 function validateArchiveName(name, seen) {
-  if (
-    !name || name.includes("\u0000") || name.startsWith("/") || name.startsWith("\\") ||
-    /^[A-Za-z]:/u.test(name)
-  ) {
+  if (!name || name.includes("\u0000") || name.startsWith("/") || name.startsWith("\\") || /^[A-Za-z]:/u.test(name)) {
     throw new Error(`The verified release archive contains an unsafe absolute entry: ${JSON.stringify(name)}`);
   }
   const directory = name.endsWith("/") || name.endsWith("\\");
@@ -303,8 +309,12 @@ function validateArchiveName(name, seen) {
   }
   for (const component of components) {
     if (
-      component.length === 0 || component.length > 255 || component === "." || component === ".." ||
-      WINDOWS_INVALID_COMPONENT.test(component) || WINDOWS_RESERVED_NAME.test(component)
+      component.length === 0 ||
+      component.length > 255 ||
+      component === "." ||
+      component === ".." ||
+      WINDOWS_INVALID_COMPONENT.test(component) ||
+      WINDOWS_RESERVED_NAME.test(component)
     ) {
       throw new Error(`The verified release archive contains an unsafe Windows path: ${JSON.stringify(name)}`);
     }
@@ -343,9 +353,14 @@ async function inspectZipEntries(archivePath) {
     const centralSize = tail.readUInt32LE(end + 12);
     const centralOffset = tail.readUInt32LE(end + 16);
     if (
-      disk !== 0 || centralDisk !== 0 || diskEntries !== entryCount ||
-      entryCount === 0 || entryCount === 0xffff || entryCount > MAX_ARCHIVE_ENTRIES ||
-      centralSize === 0xffff_ffff || centralOffset === 0xffff_ffff ||
+      disk !== 0 ||
+      centralDisk !== 0 ||
+      diskEntries !== entryCount ||
+      entryCount === 0 ||
+      entryCount === 0xffff ||
+      entryCount > MAX_ARCHIVE_ENTRIES ||
+      centralSize === 0xffff_ffff ||
+      centralOffset === 0xffff_ffff ||
       centralSize > MAX_CENTRAL_DIRECTORY_BYTES ||
       centralOffset + centralSize > metadata.size - (tail.length - end)
     ) {
@@ -371,8 +386,11 @@ async function inspectZipEntries(archivePath) {
       const attributes = central.readUInt32LE(offset + 38);
       const next = offset + 46 + nameBytes + extraBytes + commentBytes;
       if (
-        next > central.length || diskNumber !== 0 || (flags & 1) !== 0 ||
-        compressedBytes === 0xffff_ffff || uncompressedBytes === 0xffff_ffff
+        next > central.length ||
+        diskNumber !== 0 ||
+        (flags & 1) !== 0 ||
+        compressedBytes === 0xffff_ffff ||
+        uncompressedBytes === 0xffff_ffff
       ) {
         throw new Error("The verified release archive has an unsupported, encrypted, or ZIP64 entry.");
       }
@@ -388,7 +406,8 @@ async function inspectZipEntries(archivePath) {
       }
       offset = next;
     }
-    if (offset !== central.length) throw new Error("The verified release ZIP central directory contains trailing data.");
+    if (offset !== central.length)
+      throw new Error("The verified release ZIP central directory contains trailing data.");
     const kinds = new Map(manifest.map((entry) => [entry.path, entry.directory]));
     for (const entry of manifest) {
       const components = entry.path.split("/");
@@ -446,10 +465,17 @@ async function defaultDownload(url, destination) {
     const boundSize = new Transform({
       transform(chunk, _encoding, callback) {
         total += chunk.byteLength;
-        callback(total > MAX_ARCHIVE_BYTES ? new Error("The official release archive exceeds its size limit.") : null, chunk);
+        callback(
+          total > MAX_ARCHIVE_BYTES ? new Error("The official release archive exceeds its size limit.") : null,
+          chunk,
+        );
       },
     });
-    await pipeline(Readable.fromWeb(response.body), boundSize, createWriteStream(destination, { flags: "wx", mode: 0o600 }));
+    await pipeline(
+      Readable.fromWeb(response.body),
+      boundSize,
+      createWriteStream(destination, { flags: "wx", mode: 0o600 }),
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -502,7 +528,12 @@ async function trustedExecutable(candidate, label, context) {
   if (!path.isAbsolute(candidate)) throw new Error(`${label} must use a trusted absolute executable path.`);
   const canonical = await realpath(candidate);
   await requireRealFile(canonical, label, context.platform);
-  for (const untrustedRoot of [context.pluginRoot, context.toolchainRoot, context.localRoot, context.workingDirectory]) {
+  for (const untrustedRoot of [
+    context.pluginRoot,
+    context.toolchainRoot,
+    context.localRoot,
+    context.workingDirectory,
+  ]) {
     if (untrustedRoot !== undefined && withinRoot(untrustedRoot, canonical)) {
       throw new Error(`${label} must not execute from an untrusted project or toolchain: ${canonical}`);
     }
@@ -524,7 +555,9 @@ async function resolveGitExecutable(context) {
       // Reject missing aliases and any Git executable inside the checkout, vendor, or project.
     }
   }
-  throw new Error("hermretro engine setup requires a trusted Git installation outside the selected project and toolchain.");
+  throw new Error(
+    "hermretro engine setup requires a trusted Git installation outside the selected project and toolchain.",
+  );
 }
 
 async function resolvePowerShell(environment, context, override) {
@@ -590,7 +623,9 @@ async function defaultExtractArchive(archivePath, destination, options) {
   });
   if (!("error" in powershell)) return;
 
-  options.logger("PowerShell ZIP extraction was unavailable or failed; retrying the verified archive with Windows System32 tar.exe.");
+  options.logger(
+    "PowerShell ZIP extraction was unavailable or failed; retrying the verified archive with Windows System32 tar.exe.",
+  );
   const tar = await extractionAttempt(destination, manifest, options, async (staging) => {
     const executable = await resolveWindowsTar(options);
     await options.runCommand(executable, ["-xf", archivePath, "-C", staging], {
@@ -626,7 +661,9 @@ async function ensureVerifiedArchive({ root, downloads, release, url, platform, 
   }
   await requireRealFile(destination, "The cached official release archive", platform);
   if ((await sha256File(destination)) !== release.sha256) {
-    throw new Error(`Official release SHA-256 verification failed; cached archive was not installed: ${release.archive}`);
+    throw new Error(
+      `Official release SHA-256 verification failed; cached archive was not installed: ${release.archive}`,
+    );
   }
   const { manifest } = await inspectZipEntries(destination);
   return { archive: destination, manifest };
@@ -681,7 +718,8 @@ async function discoverDesktopExecutable(directory, platform, depth = 0) {
   if (depth > 5) return undefined;
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const candidate = path.join(directory, entry.name);
-    if (entry.isSymbolicLink()) throw new Error(`The GB Studio desktop application contains a symbolic link: ${candidate}`);
+    if (entry.isSymbolicLink())
+      throw new Error(`The GB Studio desktop application contains a symbolic link: ${candidate}`);
     if (entry.isFile() && ["gb-studio.exe", "gb studio.exe"].includes(entry.name.toLowerCase())) {
       return requireRealFile(candidate, "The official GB Studio desktop application", platform);
     }
@@ -695,7 +733,8 @@ async function discoverDesktopExecutable(directory, platform, depth = 0) {
 
 const ORIGINAL_CLI_TEST = 'const isCli = __dirname.indexOf("out/cli") > -1;';
 const ORIGINAL_CLI_ROOT = 'rootDir = __dirname.substring(0, __dirname.lastIndexOf("out/cli"));';
-const PATCHED_CLI_TEST = 'const normalizedCliDirectory = __dirname.replace(/\\\\/g, "/");\nconst isCli = normalizedCliDirectory.indexOf("out/cli") > -1;';
+const PATCHED_CLI_TEST =
+  'const normalizedCliDirectory = __dirname.replace(/\\\\/g, "/");\nconst isCli = normalizedCliDirectory.indexOf("out/cli") > -1;';
 const PATCHED_CLI_ROOT = 'rootDir = __dirname.substring(0, normalizedCliDirectory.lastIndexOf("out/cli"));';
 
 function patchedWindowsCliSource(original) {
@@ -732,89 +771,104 @@ export const CLI_SAVE_SIGNATURE_PATCH = Object.freeze({
   marker: "hermretro-save-signature-v3",
 });
 
-const SAVE_SIGNATURE_INPUT = [
-  "// What the save signature hashes: the project as compiled, which stands for the layout of its saved data, the same",
-  "// for the same project wherever it is. The asset loaders' own metadata is left out (`_v`, the load time, and `inode`),",
-  "// UUIDs are numbered in order of appearance (an asset with no .gbsres gets a new random one on every load), and the",
-  "// code the project brings (its engine and its plugins' engine code and event scripts) is added: it can change what",
-  "// a save holds.",
-  "const SIGNATURE_ASSET_TYPES = [",
-  "  \"backgrounds\",",
-  "  \"sprites\",",
-  "  \"music\",",
-  "  \"sounds\",",
-  "  \"fonts\",",
-  "  \"avatars\",",
-  "  \"emotes\",",
-  "  \"tilesets\",",
-  "] as const;",
-  "const SIGNATURE_UUID =",
-  "  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
-  "const SIGNATURE_CODE_FILES = \"{assets/engine/**,plugins/**}\";",
-  "",
-  "const saveSignatureInput = async (",
-  "  projectData: ProjectResources,",
-  "  projectRoot: string,",
-  "): Promise<string> => {",
-  "  const assets: Record<string, unknown> = {};",
-  "  for (const type of SIGNATURE_ASSET_TYPES) {",
-  "    assets[type] = (projectData[type] as unknown as Record<string, unknown>[]).map(",
-  "      (record) => {",
-  "        const { _v, inode, ...stable } = record;",
-  "        return stable;",
-  "      },",
-  "    );",
-  "  }",
-  "  const names = new Map<string, string>();",
-  "  const named = (value: string) => {",
-  "    if (!SIGNATURE_UUID.test(value)) return value;",
-  "    if (!names.has(value)) names.set(value, `uuid:${names.size}`);",
-  "    return names.get(value) as string;",
-  "  };",
-  "  const canonical = (value: unknown): unknown => {",
-  "    if (typeof value === \"string\") return named(value);",
-  "    if (Array.isArray(value)) return value.map(canonical);",
-  "    if (value && typeof value === \"object\") {",
-  "      const entries: [string, unknown][] = [];",
-  "      for (const [key, entry] of Object.entries(value)) {",
-  "        entries.push([named(key), canonical(entry)]);",
-  "      }",
-  "      return Object.fromEntries(entries);",
-  "    }",
-  "    return value;",
-  "  };",
-  "  const code: [string, string][] = [];",
-  "  const codeFiles = glob",
-  "    .sync(SIGNATURE_CODE_FILES, { cwd: projectRoot, nodir: true })",
-  "    .sort();",
-  "  for (const file of codeFiles) {",
-  "    const bytes = await readFile(Path.join(projectRoot, file));",
-  "    code.push([file, createHash(\"sha256\").update(bytes).digest(\"hex\")]);",
-  "  }",
-  "  return JSON.stringify([",
-  "    \"hermretro-save-signature-v3\",",
-  "    canonical({ ...projectData, ...assets }),",
-  "    code,",
-  "  ]);",
-  "};",
-].join("\n") + "\n";
+const SAVE_SIGNATURE_INPUT =
+  [
+    "// What the save signature hashes: the project as compiled, which stands for the layout of its saved data, the same",
+    "// for the same project wherever it is. The asset loaders' own metadata is left out (`_v`, the load time, and `inode`),",
+    "// UUIDs are numbered in order of appearance (an asset with no .gbsres gets a new random one on every load), and the",
+    "// code the project brings (its engine and its plugins' engine code and event scripts) is added: it can change what",
+    "// a save holds.",
+    "const SIGNATURE_ASSET_TYPES = [",
+    '  "backgrounds",',
+    '  "sprites",',
+    '  "music",',
+    '  "sounds",',
+    '  "fonts",',
+    '  "avatars",',
+    '  "emotes",',
+    '  "tilesets",',
+    "] as const;",
+    "const SIGNATURE_UUID =",
+    "  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+    'const SIGNATURE_CODE_FILES = "{assets/engine/**,plugins/**}";',
+    "",
+    "const saveSignatureInput = async (",
+    "  projectData: ProjectResources,",
+    "  projectRoot: string,",
+    "): Promise<string> => {",
+    "  const assets: Record<string, unknown> = {};",
+    "  for (const type of SIGNATURE_ASSET_TYPES) {",
+    "    assets[type] = (projectData[type] as unknown as Record<string, unknown>[]).map(",
+    "      (record) => {",
+    "        const { _v, inode, ...stable } = record;",
+    "        return stable;",
+    "      },",
+    "    );",
+    "  }",
+    "  const names = new Map<string, string>();",
+    "  const named = (value: string) => {",
+    "    if (!SIGNATURE_UUID.test(value)) return value;",
+    "    if (!names.has(value)) names.set(value, `uuid:${names.size}`);",
+    "    return names.get(value) as string;",
+    "  };",
+    "  const canonical = (value: unknown): unknown => {",
+    '    if (typeof value === "string") return named(value);',
+    "    if (Array.isArray(value)) return value.map(canonical);",
+    '    if (value && typeof value === "object") {',
+    "      const entries: [string, unknown][] = [];",
+    "      for (const [key, entry] of Object.entries(value)) {",
+    "        entries.push([named(key), canonical(entry)]);",
+    "      }",
+    "      return Object.fromEntries(entries);",
+    "    }",
+    "    return value;",
+    "  };",
+    "  const code: [string, string][] = [];",
+    "  const codeFiles = glob",
+    "    .sync(SIGNATURE_CODE_FILES, { cwd: projectRoot, nodir: true })",
+    "    .sort();",
+    "  for (const file of codeFiles) {",
+    "    const bytes = await readFile(Path.join(projectRoot, file));",
+    '    code.push([file, createHash("sha256").update(bytes).digest("hex")]);',
+    "  }",
+    "  return JSON.stringify([",
+    '    "hermretro-save-signature-v3",',
+    "    canonical({ ...projectData, ...assets }),",
+    "    code,",
+    "  ]);",
+    "};",
+  ].join("\n") + "\n";
 
 // The patch's hunks: each original occurs once in the pinned source, and becomes its replacement.
 const SAVE_SIGNATURE_HUNKS = [
-  ['import { ensureDir } from "fs-extra";\n',
-    'import { ensureDir, readFile } from "fs-extra";\nimport glob from "glob";\nimport { createHash } from "crypto";\n'],
-  ["const compile = async (\n  rawProjectData: ProjectResources,\n",
-    SAVE_SIGNATURE_INPUT + "const compile = async (\n  rawProjectData: ProjectResources,\n"],
-  ["  output[`game_signature.c`] = compileSaveSignature(\n    JSON.stringify(projectData),\n  );\n",
-    "  output[`game_signature.c`] = compileSaveSignature(\n    await saveSignatureInput(projectData, projectRoot),\n  );\n"],
+  [
+    'import { ensureDir } from "fs-extra";\n',
+    'import { ensureDir, readFile } from "fs-extra";\nimport glob from "glob";\nimport { createHash } from "crypto";\n',
+  ],
+  [
+    "const compile = async (\n  rawProjectData: ProjectResources,\n",
+    SAVE_SIGNATURE_INPUT + "const compile = async (\n  rawProjectData: ProjectResources,\n",
+  ],
+  [
+    "  output[`game_signature.c`] = compileSaveSignature(\n    JSON.stringify(projectData),\n  );\n",
+    "  output[`game_signature.c`] = compileSaveSignature(\n    await saveSignatureInput(projectData, projectRoot),\n  );\n",
+  ],
 ];
 
 /** Whether the source carries the patch (true), is the pinned original (false); anything else throws. Line endings
  * are compared as LF. */
 function saveSignaturePatched(source) {
   const text = normalizeSourceNewlines(source);
-  if (SAVE_SIGNATURE_HUNKS.every(([, after]) => text.split(after).length === 2) && !text.includes("JSON.stringify(projectData),")) return true;
-  if (SAVE_SIGNATURE_HUNKS.every(([before]) => text.split(before).length === 2) && !text.includes(CLI_SAVE_SIGNATURE_PATCH.marker)) return false;
+  if (
+    SAVE_SIGNATURE_HUNKS.every(([, after]) => text.split(after).length === 2) &&
+    !text.includes("JSON.stringify(projectData),")
+  )
+    return true;
+  if (
+    SAVE_SIGNATURE_HUNKS.every(([before]) => text.split(before).length === 2) &&
+    !text.includes(CLI_SAVE_SIGNATURE_PATCH.marker)
+  )
+    return false;
   throw new Error("The pinned GB Studio compiler does not match the expected repeatable save-signature patch.");
 }
 
@@ -849,13 +903,16 @@ export async function patchSaveSignature(compileDataPath, options = {}) {
 /** Whether a compiled CLI's build worker carries the repeatable save signature (CLI_SAVE_SIGNATURE_PATCH). */
 export async function cliWorkerCurrent(cliPath) {
   try {
-    return (await readFile(path.join(path.dirname(cliPath), "buildWorker.js"), "utf8")).includes(CLI_SAVE_SIGNATURE_PATCH.marker);
+    return (await readFile(path.join(path.dirname(cliPath), "buildWorker.js"), "utf8")).includes(
+      CLI_SAVE_SIGNATURE_PATCH.marker,
+    );
   } catch {
     return false;
   }
 }
 
-const OUTDATED_CLI = "The existing official GB Studio CLI was compiled without the repeatable save signature; run setup without --use-existing to compile it again.";
+const OUTDATED_CLI =
+  "The existing official GB Studio CLI was compiled without the repeatable save signature; run setup without --use-existing to compile it again.";
 
 async function resolveCorepackScript(executable, context, override) {
   if (override !== undefined) return trustedExecutable(override, "The trusted Corepack JavaScript launcher", context);
@@ -910,16 +967,20 @@ function managedCorepackEnvironment(context) {
 
 async function verifyCorepack(corepack, context) {
   try {
-    const version = commandOutput(await context.runCommand(context.nodeExecutable, [corepack, "--version"], {
-      cwd: context.scriptDirectory,
-      env: managedCorepackEnvironment(context),
-      timeout: 15_000,
-    }));
+    const version = commandOutput(
+      await context.runCommand(context.nodeExecutable, [corepack, "--version"], {
+        cwd: context.scriptDirectory,
+        env: managedCorepackEnvironment(context),
+        timeout: 15_000,
+      }),
+    );
     if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/u.test(version)) {
       throw new Error("The Corepack launcher did not report a valid version.");
     }
   } catch (error) {
-    throw new Error(`The trusted Corepack launcher could not run with the selected Node.js. ${COREPACK_REMEDIATION}`, { cause: error });
+    throw new Error(`The trusted Corepack launcher could not run with the selected Node.js. ${COREPACK_REMEDIATION}`, {
+      cause: error,
+    });
   }
 }
 
@@ -935,12 +996,19 @@ async function verifyCompiler(compiler, header, context) {
 
 async function verifyCli(cli, context) {
   await requireRealFile(cli, "The official GB Studio 4.3.2 CLI", context.platform);
-  const output = commandOutput(await context.runCommand(context.nodeExecutable, [cli, "--version"], {
-    cwd: context.scriptDirectory,
-    env: context.environment,
-  }));
-  if (output !== WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version && output !== `v${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}`) {
-    throw new Error(`The official GB Studio CLI reported ${output}; expected ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}.`);
+  const output = commandOutput(
+    await context.runCommand(context.nodeExecutable, [cli, "--version"], {
+      cwd: context.scriptDirectory,
+      env: context.environment,
+    }),
+  );
+  if (
+    output !== WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version &&
+    output !== `v${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}`
+  ) {
+    throw new Error(
+      `The official GB Studio CLI reported ${output}; expected ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}.`,
+    );
   }
 }
 
@@ -953,15 +1021,20 @@ async function installGbdk(local, paths, context) {
   if (await metadataIfPresent(paths.gbdkRoot)) {
     throw new Error(`The existing GBDK installation is incomplete; repair it manually: ${paths.gbdkRoot}`);
   }
-  const { archive, manifest } = await withProgress(context, `Preparing verified GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version} archive`, () => ensureVerifiedArchive({
-    root: local,
-    downloads: paths.downloads,
-    release: WINDOWS_TOOLCHAIN_RELEASES.gbdk,
-    url: `https://github.com/gbdk-2020/gbdk-2020/releases/download/${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version}/${WINDOWS_TOOLCHAIN_RELEASES.gbdk.archive}`,
-    platform: context.platform,
-    download: context.download,
-    sha256File: context.sha256File,
-  }));
+  const { archive, manifest } = await withProgress(
+    context,
+    `Preparing verified GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version} archive`,
+    () =>
+      ensureVerifiedArchive({
+        root: local,
+        downloads: paths.downloads,
+        release: WINDOWS_TOOLCHAIN_RELEASES.gbdk,
+        url: `https://github.com/gbdk-2020/gbdk-2020/releases/download/${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version}/${WINDOWS_TOOLCHAIN_RELEASES.gbdk.archive}`,
+        platform: context.platform,
+        download: context.download,
+        sha256File: context.sha256File,
+      }),
+  );
   const staging = await mkdtemp(path.join(local, ".extract-gbdk-"));
   try {
     await withProgress(context, `Extracting verified GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version}`, async () => {
@@ -970,7 +1043,11 @@ async function installGbdk(local, paths, context) {
     });
     const extracted = path.join(staging, "gbdk");
     await requireRealDirectory(extracted, "The extracted GBDK release", context.platform);
-    await requireRealFile(path.join(extracted, "bin", "lcc.exe"), "The extracted GBDK Windows compiler", context.platform);
+    await requireRealFile(
+      path.join(extracted, "bin", "lcc.exe"),
+      "The extracted GBDK Windows compiler",
+      context.platform,
+    );
     await rename(extracted, paths.gbdkRoot);
   } finally {
     await rm(staging, { recursive: true, force: true });
@@ -984,26 +1061,38 @@ async function installDesktop(local, paths, context) {
   if (await metadataIfPresent(paths.desktopRoot)) {
     await requireRealDirectory(paths.desktopRoot, "The existing GB Studio desktop application", context.platform);
     const executable = await discoverDesktopExecutable(paths.desktopRoot, context.platform);
-    if (!executable) throw new Error("The existing GB Studio desktop application does not contain gb-studio.exe or GB Studio.exe.");
+    if (!executable)
+      throw new Error("The existing GB Studio desktop application does not contain gb-studio.exe or GB Studio.exe.");
     return executable;
   }
-  const { archive, manifest } = await withProgress(context, `Preparing verified GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop archive`, () => ensureVerifiedArchive({
-    root: local,
-    downloads: paths.downloads,
-    release: WINDOWS_TOOLCHAIN_RELEASES.gbStudio,
-    url: `https://github.com/chrismaltby/gb-studio/releases/download/v${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}/${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.archive}`,
-    platform: context.platform,
-    download: context.download,
-    sha256File: context.sha256File,
-  }));
+  const { archive, manifest } = await withProgress(
+    context,
+    `Preparing verified GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop archive`,
+    () =>
+      ensureVerifiedArchive({
+        root: local,
+        downloads: paths.downloads,
+        release: WINDOWS_TOOLCHAIN_RELEASES.gbStudio,
+        url: `https://github.com/chrismaltby/gb-studio/releases/download/v${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}/${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.archive}`,
+        platform: context.platform,
+        download: context.download,
+        sha256File: context.sha256File,
+      }),
+  );
   const staging = await mkdtemp(path.join(paths.apps, ".extract-desktop-"));
   try {
-    await withProgress(context, `Extracting verified GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop`, async () => {
-      await context.extractArchive(archive, staging, { ...context, archiveManifest: manifest });
-      await assertExtractedArchiveComplete(staging, manifest, context.platform);
-    });
+    await withProgress(
+      context,
+      `Extracting verified GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop`,
+      async () => {
+        await context.extractArchive(archive, staging, { ...context, archiveManifest: manifest });
+        await assertExtractedArchiveComplete(staging, manifest, context.platform);
+      },
+    );
     if (!(await discoverDesktopExecutable(staging, context.platform))) {
-      throw new Error("The verified GB Studio Windows standalone release did not contain gb-studio.exe or GB Studio.exe.");
+      throw new Error(
+        "The verified GB Studio Windows standalone release did not contain gb-studio.exe or GB Studio.exe.",
+      );
     }
     await rename(staging, paths.desktopRoot);
   } finally {
@@ -1018,10 +1107,7 @@ function isSchannelCredentialsFailure(error) {
 }
 
 async function runTrustedGit(git, arguments_, context, cwd, options = {}) {
-  const securityOptions = [
-    "-c", `core.hooksPath=${context.disabledHooksDirectory}`,
-    "-c", "core.fsmonitor=false",
-  ];
+  const securityOptions = ["-c", `core.hooksPath=${context.disabledHooksDirectory}`, "-c", "core.fsmonitor=false"];
   const run = async (argumentsToRun) => {
     await requireRealDirectory(context.disabledHooksDirectory, "The disabled Git hooks directory", context.platform);
     if ((await readdir(context.disabledHooksDirectory)).length !== 0) {
@@ -1033,7 +1119,9 @@ async function runTrustedGit(git, arguments_, context, cwd, options = {}) {
     return await run(arguments_);
   } catch (error) {
     if (!options.network || context.platform !== "win32" || !isSchannelCredentialsFailure(error)) throw error;
-    context.logger("Git Schannel credentials are unavailable; retrying this network operation once with OpenSSL and normal TLS verification.");
+    context.logger(
+      "Git Schannel credentials are unavailable; retrying this network operation once with OpenSSL and normal TLS verification.",
+    );
     const retryArguments = options.retryArguments?.() ?? arguments_;
     return run(["-c", "http.sslBackend=openssl", ...retryArguments]);
   }
@@ -1044,16 +1132,21 @@ function normalizeSourceNewlines(value) {
 }
 
 async function verifyPinnedWorktree(git, paths, context) {
-  const changes = commandOutput(await runTrustedGit(
-    git,
-    ["diff", "--no-ext-diff", "--name-only", "HEAD", "--"],
-    context,
-    paths.vendor,
-  )).split(/\r?\n/u).map((entry) => entry.trim()).filter(Boolean);
+  const changes = commandOutput(
+    await runTrustedGit(git, ["diff", "--no-ext-diff", "--name-only", "HEAD", "--"], context, paths.vendor),
+  )
+    .split(/\r?\n/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   // Each reviewed source patch: the one file it may change, and its exact patched text.
   const reviewed = [
     { file: "src/consts.ts", patched: patchedWindowsCliSource, label: "constants", patch: "Windows compatibility" },
-    { file: CLI_SAVE_SIGNATURE_PATCH.source, patched: patchedSaveSignatureSource, label: "compiler", patch: "repeatable save-signature" },
+    {
+      file: CLI_SAVE_SIGNATURE_PATCH.source,
+      patched: patchedSaveSignatureSource,
+      label: "compiler",
+      patch: "repeatable save-signature",
+    },
   ];
   const untrusted = changes.filter((entry) => !reviewed.some(({ file }) => file === entry));
   if (untrusted.length) {
@@ -1061,7 +1154,9 @@ async function verifyPinnedWorktree(git, paths, context) {
   }
   for (const { file, patched, label, patch } of reviewed) {
     const pristineResult = await runTrustedGit(git, ["show", `HEAD:${file}`], context, paths.vendor);
-    const pristine = normalizeSourceNewlines(typeof pristineResult === "string" ? pristineResult : String(pristineResult.stdout ?? ""));
+    const pristine = normalizeSourceNewlines(
+      typeof pristineResult === "string" ? pristineResult : String(pristineResult.stdout ?? ""),
+    );
     const sourcePath = path.join(paths.vendor, ...file.split("/"));
     await requireRealFile(sourcePath, `The verified GB Studio ${label} source`, context.platform);
     const actual = normalizeSourceNewlines(await readFile(sourcePath, "utf8"));
@@ -1074,35 +1169,39 @@ async function verifyPinnedWorktree(git, paths, context) {
 async function ensureOfficialCli(local, paths, context) {
   await assertManagedPathSafe(local, paths.vendor, context.platform);
   // A CLI compiled before the repeatable save signature is compiled again from the same checkout.
-  if (await metadataIfPresent(paths.cli) && await cliWorkerCurrent(paths.cli)) {
+  if ((await metadataIfPresent(paths.cli)) && (await cliWorkerCurrent(paths.cli))) {
     await verifyCli(paths.cli, context);
     return;
   }
   await ensureManagedDirectory(local, path.dirname(paths.vendor), context.platform);
-  const git = context.gitExecutable ?? await resolveGitExecutable(context);
+  const git = context.gitExecutable ?? (await resolveGitExecutable(context));
   if (!(await metadataIfPresent(paths.vendor))) {
     // Git can leave a partial clone behind after a TLS failure. Each retry owns
     // a fresh destination; never remove or reset a preexisting vendor checkout.
     const staging = await mkdtemp(path.join(path.dirname(paths.vendor), ".clone-gb-studio-"));
     let cloned = path.join(staging, "checkout");
     const cloneArguments = () => [
-      "clone", "--depth", "1", "--branch", `v${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}`,
-      "https://github.com/chrismaltby/gb-studio.git", cloned,
+      "clone",
+      "--depth",
+      "1",
+      "--branch",
+      `v${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version}`,
+      "https://github.com/chrismaltby/gb-studio.git",
+      cloned,
     ];
     try {
-      await withProgress(context, `Fetching official GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} source`, () => runTrustedGit(
-        git,
-        cloneArguments(),
+      await withProgress(
         context,
-        context.scriptDirectory,
-        {
-          network: true,
-          retryArguments: () => {
-            cloned = path.join(staging, "checkout-openssl");
-            return cloneArguments();
-          },
-        },
-      ));
+        `Fetching official GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} source`,
+        () =>
+          runTrustedGit(git, cloneArguments(), context, context.scriptDirectory, {
+            network: true,
+            retryArguments: () => {
+              cloned = path.join(staging, "checkout-openssl");
+              return cloneArguments();
+            },
+          }),
+      );
       await requireRealDirectory(cloned, "The downloaded official GB Studio checkout", context.platform);
       if (await metadataIfPresent(paths.vendor)) {
         throw new Error(`The GB Studio vendor destination appeared during setup; it was not replaced: ${paths.vendor}`);
@@ -1116,46 +1215,65 @@ async function ensureOfficialCli(local, paths, context) {
   await requireRealDirectory(path.join(paths.vendor, ".git"), "The official GB Studio Git checkout", context.platform);
   const head = commandOutput(await runTrustedGit(git, ["rev-parse", "HEAD"], context, paths.vendor));
   if (head !== WINDOWS_TOOLCHAIN_RELEASES.gbStudio.commit) {
-    throw new Error(`The official GB Studio checkout has commit ${head}; expected ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.commit}.`);
+    throw new Error(
+      `The official GB Studio checkout has commit ${head}; expected ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.commit}.`,
+    );
   }
   // A trusted HEAD does not authenticate a mutable preexisting worktree.
   await verifyPinnedWorktree(git, paths, context);
-  await withProgress(context, "Fetching pinned GBVM engine source", () => runTrustedGit(
-    git,
-    ["submodule", "update", "--init", "--depth", "1", "appData/engine/gbvm"],
-    context,
-    paths.vendor,
-    { network: true },
-  ));
-  const gbvmHead = commandOutput(await runTrustedGit(
-    git,
-    ["-C", "appData/engine/gbvm", "rev-parse", "HEAD"],
-    context,
-    paths.vendor,
-  ));
+  await withProgress(context, "Fetching pinned GBVM engine source", () =>
+    runTrustedGit(
+      git,
+      ["submodule", "update", "--init", "--depth", "1", "appData/engine/gbvm"],
+      context,
+      paths.vendor,
+      { network: true },
+    ),
+  );
+  const gbvmHead = commandOutput(
+    await runTrustedGit(git, ["-C", "appData/engine/gbvm", "rev-parse", "HEAD"], context, paths.vendor),
+  );
   if (gbvmHead !== WINDOWS_TOOLCHAIN_RELEASES.gbStudio.gbvmCommit) {
-    throw new Error(`The official GBVM source has commit ${gbvmHead}; expected ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.gbvmCommit}.`);
+    throw new Error(
+      `The official GBVM source has commit ${gbvmHead}; expected ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.gbvmCommit}.`,
+    );
   }
   await verifyPinnedWorktree(git, paths, context);
 
   const platformTools = path.join(paths.vendor, "buildTools", WINDOWS_TOOLCHAIN_RELEASES.platform);
-  await requireRealDirectory(path.join(paths.vendor, "buildTools"), "The official GB Studio build-tools root", context.platform);
+  await requireRealDirectory(
+    path.join(paths.vendor, "buildTools"),
+    "The official GB Studio build-tools root",
+    context.platform,
+  );
   await requireRealDirectory(platformTools, "The official GB Studio Windows x64 build tools", context.platform);
   const copiedGbdk = path.join(platformTools, "gbdk");
   if (await metadataIfPresent(copiedGbdk)) {
     await requireRealDirectory(copiedGbdk, "The official GB Studio Windows GBDK directory", context.platform);
-    await requireRealFile(path.join(copiedGbdk, "bin", "lcc.exe"), "The official GB Studio Windows GBDK compiler", context.platform);
+    await requireRealFile(
+      path.join(copiedGbdk, "bin", "lcc.exe"),
+      "The official GB Studio Windows GBDK compiler",
+      context.platform,
+    );
   } else {
-    await cp(paths.gbdkRoot, copiedGbdk, { recursive: true, force: false, errorOnExist: true, verbatimSymlinks: false });
+    await cp(paths.gbdkRoot, copiedGbdk, {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+      verbatimSymlinks: false,
+    });
     await assertExtractedTreeSafe(copiedGbdk, context.platform);
   }
 
   // Pin both upstream Git identities before making the narrow reviewed source fixes.
   await patchWindowsCliConstants(path.join(paths.vendor, "src", "consts.ts"), { platform: context.platform });
-  await patchSaveSignature(path.join(paths.vendor, ...CLI_SAVE_SIGNATURE_PATCH.source.split("/")), { platform: context.platform });
+  await patchSaveSignature(path.join(paths.vendor, ...CLI_SAVE_SIGNATURE_PATCH.source.split("/")), {
+    platform: context.platform,
+  });
   await verifyPinnedWorktree(git, paths, context);
 
-  const corepack = context.corepackScript ?? await resolveCorepackScript(context.nodeExecutable, context, context.corepackPath);
+  const corepack =
+    context.corepackScript ?? (await resolveCorepackScript(context.nodeExecutable, context, context.corepackPath));
   // Corepack trusts metadata in an existing executable cache without rehashing
   // the cached package-manager bytes. Never execute a preexisting cached Yarn.
   await assertManagedPathSafe(local, context.corepackHome, context.platform);
@@ -1168,10 +1286,12 @@ async function ensureOfficialCli(local, paths, context) {
     YARN_GLOBAL_FOLDER: paths.yarnGlobal,
     ELECTRON_SKIP_BINARY_DOWNLOAD: "1",
   };
-  await withProgress(context, "Installing pinned GB Studio dependencies", () => context.runCommand(context.nodeExecutable, [corepack, "yarn", "install", "--immutable"], {
-    cwd: paths.vendor,
-    env: yarnEnvironment,
-  }));
+  await withProgress(context, "Installing pinned GB Studio dependencies", () =>
+    context.runCommand(context.nodeExecutable, [corepack, "yarn", "install", "--immutable"], {
+      cwd: paths.vendor,
+      env: yarnEnvironment,
+    }),
+  );
 
   const electron = path.join(paths.vendor, "node_modules", "electron");
   await requireRealDirectory(electron, "The official GB Studio Electron dependency", context.platform);
@@ -1184,10 +1304,16 @@ async function ensureOfficialCli(local, paths, context) {
 
   const webpack = path.join(paths.vendor, "node_modules", "webpack", "bin", "webpack.js");
   await requireRealFile(webpack, "The official GB Studio webpack compiler", context.platform);
-  await withProgress(context, "Compiling the official GB Studio CLI", () => context.runCommand(context.nodeExecutable, [webpack, "--config", "./src/apps/gb-studio-cli/webpack.cli.config.js"], {
-    cwd: paths.vendor,
-    env: { ...yarnEnvironment, NO_TYPE_CHECKING: "1" },
-  }));
+  await withProgress(context, "Compiling the official GB Studio CLI", () =>
+    context.runCommand(
+      context.nodeExecutable,
+      [webpack, "--config", "./src/apps/gb-studio-cli/webpack.cli.config.js"],
+      {
+        cwd: paths.vendor,
+        env: { ...yarnEnvironment, NO_TYPE_CHECKING: "1" },
+      },
+    ),
+  );
   await verifyCli(paths.cli, context);
 }
 
@@ -1197,7 +1323,9 @@ function windowsSetupSelection(options) {
   const platform = options.platform ?? process.platform;
   const architecture = options.arch ?? process.arch;
   if (!selected.help && !selected.dryRun && (platform !== "win32" || architecture !== "x64")) {
-    throw new Error(`Experimental native hermretro engine setup supports Windows x64 only; received ${platform} ${architecture}.`);
+    throw new Error(
+      `Experimental native hermretro engine setup supports Windows x64 only; received ${platform} ${architecture}.`,
+    );
   }
   const logger = options.logger ?? ((message) => process.stdout.write(`${message}\n`));
   return { platform, selected, logger };
@@ -1208,8 +1336,8 @@ async function prepareWindowsSetup(options, selected, platform, logger) {
   // Reject ambiguous PATH/SystemRoot/GB_* aliases before trusting any Windows setting.
   const sanitizedEnvironment = sanitizeWindowsBootstrapEnvironment(environment);
   const pluginRoot = await realpath(path.resolve(options.pluginRoot ?? PLUGIN_ROOT));
-  const requestedToolchain = options.toolchainRoot ??
-    caseInsensitiveValue(sanitizedEnvironment, "GB_STUDIO_TOOLCHAIN_ROOT") ?? pluginRoot;
+  const requestedToolchain =
+    options.toolchainRoot ?? caseInsensitiveValue(sanitizedEnvironment, "GB_STUDIO_TOOLCHAIN_ROOT") ?? pluginRoot;
   const toolchainRoot = await realpath(path.resolve(requestedToolchain));
   await requireRealDirectory(toolchainRoot, "The selected game toolchain root", platform);
   let local = path.join(toolchainRoot, ".local");
@@ -1242,8 +1370,13 @@ async function prepareWindowsSetup(options, selected, platform, logger) {
     yarnCache: path.join(local, ".yarn", "cache"), // Preserve validation of an existing legacy cache.
   };
   for (const managed of [
-    paths.downloads, paths.apps, paths.desktopRoot, paths.gbdkRoot, paths.vendor,
-    paths.yarnGlobal, paths.yarnCache,
+    paths.downloads,
+    paths.apps,
+    paths.desktopRoot,
+    paths.gbdkRoot,
+    paths.vendor,
+    paths.yarnGlobal,
+    paths.yarnCache,
   ]) {
     await assertManagedPathSafe(local, managed, platform);
     if (await metadataIfPresent(managed)) {
@@ -1295,7 +1428,7 @@ async function prepareWindowsSetup(options, selected, platform, logger) {
 
 async function resolveInstallPrerequisites(selected, paths, context) {
   if (!selected.withCli) return false;
-  if (selected.useExisting || (await metadataIfPresent(paths.cli) && await cliWorkerCurrent(paths.cli))) {
+  if (selected.useExisting || ((await metadataIfPresent(paths.cli)) && (await cliWorkerCurrent(paths.cli)))) {
     await verifyCli(paths.cli, context);
     if (!(await cliWorkerCurrent(paths.cli))) throw new Error(OUTDATED_CLI);
     return false;
@@ -1336,7 +1469,12 @@ export async function setupWindowsGbStudio(options = {}) {
     return { help: true };
   }
   if (selected.dryRun) return gbStudioSetupPlan(options, selected, logger);
-  const { environment, local, localExists, paths, context } = await prepareWindowsSetup(options, selected, platform, logger);
+  const { environment, local, localExists, paths, context } = await prepareWindowsSetup(
+    options,
+    selected,
+    platform,
+    logger,
+  );
 
   if (selected.useExisting) {
     await verifyCompiler(paths.compiler, paths.versionHeader, context);
@@ -1346,11 +1484,18 @@ export async function setupWindowsGbStudio(options = {}) {
     if (selected.withDesktop) {
       await requireRealDirectory(paths.desktopRoot, "The existing GB Studio desktop application", platform);
       desktop = await discoverDesktopExecutable(paths.desktopRoot, platform);
-      if (!desktop) throw new Error("The existing GB Studio desktop application does not contain gb-studio.exe or GB Studio.exe.");
+      if (!desktop)
+        throw new Error("The existing GB Studio desktop application does not contain gb-studio.exe or GB Studio.exe.");
     }
     logger(`Verified existing official GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} CLI: ${paths.cli}`);
     logger(`Verified existing GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version} compiler: ${paths.compiler}`);
-    return { platform: WINDOWS_TOOLCHAIN_RELEASES.platform, compiler: paths.compiler, cli: paths.cli, desktop, reused: true };
+    return {
+      platform: WINDOWS_TOOLCHAIN_RELEASES.platform,
+      compiler: paths.compiler,
+      cli: paths.cli,
+      desktop,
+      reused: true,
+    };
   }
 
   logger("Checking trusted Windows bootstrap prerequisites...");
@@ -1367,12 +1512,20 @@ export async function setupWindowsGbStudio(options = {}) {
     await installGbdk(local, paths, context);
     const desktop = selected.withDesktop ? await installDesktop(local, paths, context) : undefined;
     if (selected.withCli) await ensureOfficialCli(local, paths, context);
-    logger(desktop
-      ? `GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop editor: ${desktop}`
-      : "GB Studio desktop editor: optional; headless project compilation requires no GUI.");
+    logger(
+      desktop
+        ? `GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} desktop editor: ${desktop}`
+        : "GB Studio desktop editor: optional; headless project compilation requires no GUI.",
+    );
     logger(`GBDK ${WINDOWS_TOOLCHAIN_RELEASES.gbdk.version} compiler: ${paths.compiler}`);
     logger(`Official GB Studio ${WINDOWS_TOOLCHAIN_RELEASES.gbStudio.version} CLI: ${paths.cli}`);
-    return { platform: WINDOWS_TOOLCHAIN_RELEASES.platform, compiler: paths.compiler, cli: paths.cli, desktop, reused: false };
+    return {
+      platform: WINDOWS_TOOLCHAIN_RELEASES.platform,
+      compiler: paths.compiler,
+      cli: paths.cli,
+      desktop,
+      reused: false,
+    };
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
